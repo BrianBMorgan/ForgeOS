@@ -1,0 +1,16 @@
+{
+  "name": "forgeos",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "cd client && npm install && cd ../server && npm install",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "cd client && npx vite",
+    "dev:server": "cd server && node index.js",
+    "build": "cd client && npm run build",
+    "start": "cd server && NODE_ENV=production node index.js"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
