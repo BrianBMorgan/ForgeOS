@@ -142,7 +142,8 @@ Projects have a built-in conversational interface powered by gpt-4.1-mini:
 
 ## Current State
 - **Full persistence**: Projects, iterations, run snapshots, and chat messages stored in Neon Postgres via `@neondatabase/serverless`; in-memory cache for fast reads; schema auto-created on startup
-- **Run data survives restarts**: When a run completes/fails, a full snapshot (stages, outputs, workspace status) is saved to `run_snapshots` table; `getRun()` falls back to DB when not in memory
+- **Run data survives restarts**: When a run completes/fails, a full snapshot (stages, outputs, workspace status) is saved to `run_snapshots` table; `getRun()` falls back to DB when not in memory and caches in-memory
+- **Workspace restoration on startup**: When the server starts, it scans for projects with "active" status, loads their run data from DB, and re-launches workspace apps from their existing files on disk. `restoreWorkspace()` in workspace/manager.js re-uses the workspace directory, re-installs deps if node_modules is missing, and starts the app. Live workspace status is synced from the workspace manager on every API response.
 - Agent pipeline fully functional with OpenAI API
 - **Project system**: Create projects, iterate with follow-up prompts, full context passing to Planner/Executor
 - Executor generates complete runnable code (Layer 1)

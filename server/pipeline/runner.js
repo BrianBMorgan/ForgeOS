@@ -545,7 +545,11 @@ async function executeRevisionPass(run, feedback) {
 async function getRun(runId) {
   const memRun = runs.get(runId);
   if (memRun) return memRun;
-  return await loadRunSnapshot(runId);
+  const snapshot = await loadRunSnapshot(runId);
+  if (snapshot) {
+    runs.set(runId, snapshot);
+  }
+  return snapshot;
 }
 
 function getRunSync(runId) {

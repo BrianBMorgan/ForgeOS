@@ -45,6 +45,10 @@ app.get("/api/runs/:id", async (req, res) => {
   if (!run) {
     return res.status(404).json({ error: "Run not found" });
   }
+  const liveWs = workspace.getWorkspaceStatus(run.id);
+  if (liveWs) {
+    run.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
+  }
   res.json(run);
 });
 
@@ -107,6 +111,10 @@ app.get("/api/projects/:id", async (req, res) => {
 
   const currentRun = project.currentRunId ? await getRun(project.currentRunId) : null;
   if (currentRun) {
+    const liveWs = workspace.getWorkspaceStatus(currentRun.id);
+    if (liveWs) {
+      currentRun.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
+    }
     if (currentRun.status === "running" || currentRun.status === "awaiting-approval") {
       await projectManager.updateProjectStatus(project.id, "building");
     } else if (currentRun.status === "failed") {
@@ -290,6 +298,49 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, "0.0.0.0", async () => {
   console.log(`ForgeOS server running on port ${PORT}`);
+
+  try {
+    const allProjects = await projectManager.getAllProjects();
+    const activeProjects = allProjects.filter(
+      (p) => (p.status === "active" || p.status === "building") && p.currentRunId
+    );
+    if (activeProjects.length > 0) {
+      console.log(`Restoring ${activeProjects.length} workspace(s)...`);
+      for (const project of activeProjects) {
+        try {
+          const run = await getRun(project.currentRunId);
+          if (!run || run.status !== "completed") {
+            await projectManager.updateProjectStatus(project.id, "stopped");
+            continue;
+          }
+          const executorOutput = run.stages?.executor?.output;
+          if (!executorOutput || !executorOutput.startCommand) {
+            await projectManager.updateProjectStatus(project.id, "stopped");
+            continue;
+          }
+          const result = await workspace.restoreWorkspace(
+            run.id,
+            executorOutput.startCommand,
+            executorOutput.port || 4000
+          );
+          if (result.success) {
+            run.workspace = { status: "running", port: result.port, error: null };
+            await projectManager.updateProjectStatus(project.id, "active");
+            console.log(`  Restored workspace for "${project.name}" on port ${result.port}`);
+          } else {
+            run.workspace = { status: "stopped", port: null, error: result.error };
+            await projectManager.updateProjectStatus(project.id, "stopped");
+            console.log(`  Failed to restore "${project.name}": ${result.error}`);
+          }
+        } catch (err) {
+          console.error(`  Error restoring "${project.name}":`, err.message);
+          await projectManager.updateProjectStatus(project.id, "stopped");
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Workspace restoration error:", err.message);
+  }
 });

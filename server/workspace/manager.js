@@ -427,6 +427,49 @@ function getWorkspaceLogs(runId) {
   };
 }
 
+async function restoreWorkspace(runId, startCommand, port) {
+  const wsDir = path.join(WORKSPACES_DIR, runId);
+  if (!fs.existsSync(wsDir)) return { success: false, error: "Workspace directory not found" };
+
+  const nodeModules = path.join(wsDir, "node_modules");
+  const pkgJson = path.join(wsDir, "package.json");
+
+  const ws = {
+    runId,
+    dir: wsDir,
+    status: "restoring",
+    port: null,
+    process: null,
+    logs: { install: "", app: "" },
+    error: null,
+  };
+  workspaces.set(runId, ws);
+
+  try {
+    if (fs.existsSync(pkgJson) && !fs.existsSync(nodeModules)) {
+      ws.status = "installing";
+      const installResult = await installDeps(runId, "npm install");
+      if (!installResult.success) {
+        ws.status = "restore-failed";
+        ws.error = installResult.error;
+        return { success: false, error: installResult.error };
+      }
+    }
+
+    if (startCommand) {
+      const result = await startApp(runId, startCommand, port || 4000);
+      return result;
+    }
+
+    ws.status = "stopped";
+    return { success: false, error: "No start command" };
+  } catch (err) {
+    ws.status = "restore-failed";
+    ws.error = err.message;
+    return { success: false, error: err.message };
+  }
+}
+
 module.exports = {
   createWorkspace,
   writeFiles,
@@ -437,4 +480,5 @@ module.exports = {
   forceKillPort,
   getWorkspaceStatus,
   getWorkspaceLogs,
+  restoreWorkspace,
 };
