@@ -120,7 +120,8 @@ function App() {
     <div className="shell">
       <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
         <div className="logo">
-          <img src={collapsed ? logoStacked : logo} alt="ForgeOS" className={`logo-img ${collapsed ? "logo-stacked" : ""}`} />
+          <img src={logo} alt="ForgeOS" className={`logo-img logo-wide ${collapsed ? "hidden" : ""}`} />
+          <img src={logoStacked} alt="ForgeOS" className={`logo-img logo-stacked ${collapsed ? "" : "hidden"}`} />
         </div>
         <nav className="nav">
           {navItems.map((item) => (
