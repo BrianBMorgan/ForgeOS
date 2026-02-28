@@ -107,7 +107,7 @@ Do NOT re-plan. Do NOT re-review. Do NOT ask for approval.
 CRITICAL RULES:
 - Every file must include its COMPLETE source code in the "content" field. No placeholders, no "// TODO", no truncation. Do not cut off mid-line or mid-function — every function, every bracket, every semicolon must be present. Incomplete output causes startup crashes.
 - The app must be fully self-contained. Every file it needs must be in your output.
-- ALWAYS include a package.json with ALL required dependencies — even for simple apps. If ANY file uses require() for a non-builtin module, you MUST have a package.json. For example, if the app uses express, express must be in package.json dependencies. If it uses @neondatabase/serverless, that must be in package.json. A missing package.json or a missing dependency causes immediate crashes. Node.js builtins (http, fs, path, crypto, etc.) do not need package.json entries, but any npm package does.
+- MANDATORY: Your output MUST include a package.json file as the FIRST file in your files array. Every app needs one — no exceptions. The package.json must have a "dependencies" object listing every npm package used by any file in the project. If server.js does require("express"), then "express" must appear in package.json dependencies. If any file uses require("@neondatabase/serverless"), that must be in dependencies. Without a package.json, npm install does nothing and the app crashes on the first require() call. Node.js builtins (http, fs, path, crypto, url, etc.) do NOT need entries, but every third-party npm package does. Omitting package.json is the single most common cause of app startup failures.
 - Do NOT use dotenv or .env files. Environment variables are pre-injected at runtime. Access them directly via process.env.
 - NEVER call process.exit() if an environment variable is missing. Instead, log a warning and continue with graceful defaults or disabled features. The runtime provides DATABASE_URL and NEON_AUTH_JWKS_URL — no other auth-related env vars (like NEON_AUTH_AUDIENCE, NEON_AUTH_ISSUER, JWT_SECRET, SESSION_SECRET) are available. Do not require them.
 - The app server port is provided at runtime via the PORT environment variable. ALWAYS use: const PORT = process.env.PORT || 4000; — NEVER hardcode const PORT = 4000. The PORT env var is set by the runtime and must be respected.
@@ -178,13 +178,15 @@ BANNED PACKAGES (never use these — any of these in your output will cause a bu
 
 Produce:
 1. implementationSummary — a concise description of what was built.
-2. files — an array of ALL files with path, purpose, and complete content (source code).
+2. files — an array of ALL files with path, purpose, and complete content (source code). The FIRST file MUST be package.json. Double-check: does every require("some-package") in your code have a matching entry in package.json dependencies? If not, add it now.
 3. environmentVariables — list of required env vars (if any).
 4. databaseSchema — SQL schema string (if applicable, otherwise null).
 5. installCommand — the command to install dependencies (e.g., "npm install"). Null if none needed.
 6. startCommand — the command to start the app. MUST be a single command like "node server.js". No chained commands, no build steps.
 7. port — the port the app listens on (default 4000).
 8. buildTasks — ordered list of what was built, for display purposes.
+
+FINAL CHECK before outputting: Does your files array contain a package.json? If not, STOP and add one.
 
 Return only valid JSON matching the response schema.`;
 
