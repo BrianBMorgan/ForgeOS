@@ -214,7 +214,19 @@ app.post("/api/projects/:id/restart", async (req, res) => {
   }
 
   try {
-    const customEnv = await projectManager.getEnvVarsAsObject(req.params.id);
+    let globalDefaults = {};
+    let globalSecrets = {};
+    try {
+      const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
+      if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
+        for (const v of defaultEnvSetting.vars) {
+          if (v.key) globalDefaults[v.key] = v.value || "";
+        }
+      }
+      globalSecrets = await settingsManager.getSecretsAsObject();
+    } catch {}
+    const projectEnv = await projectManager.getEnvVarsAsObject(req.params.id);
+    const customEnv = { ...globalDefaults, ...globalSecrets, ...projectEnv };
     const run = await getRun(project.currentRunId);
     const wsStatus = workspace.getWorkspaceStatus(project.currentRunId);
 
@@ -603,10 +615,26 @@ app.listen(PORT, "0.0.0.0", async () => {
             await projectManager.updateProjectStatus(project.id, "stopped");
             continue;
           }
+          let restoreEnv = {};
+          try {
+            const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
+            if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
+              for (const v of defaultEnvSetting.vars) {
+                if (v.key) restoreEnv[v.key] = v.value || "";
+              }
+            }
+            const secrets = await settingsManager.getSecretsAsObject();
+            restoreEnv = { ...restoreEnv, ...secrets };
+          } catch {}
+          try {
+            const projEnv = await projectManager.getEnvVarsAsObject(project.id);
+            restoreEnv = { ...restoreEnv, ...projEnv };
+          } catch {}
           const result = await workspace.restoreWorkspace(
             run.id,
             executorOutput.startCommand,
-            executorOutput.port || 4000
+            executorOutput.port || 4000,
+            restoreEnv
           );
           if (result.success) {
             run.workspace = { status: "running", port: result.port, error: null };
