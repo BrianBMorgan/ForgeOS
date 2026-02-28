@@ -135,6 +135,7 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 ## Chat System
 Projects have a built-in conversational interface powered by gpt-4.1-mini:
 - **Conversational agent** (`server/chat/manager.js`): Receives user messages with full codebase context, analyzes code, answers questions, diagnoses issues
+- **Web search** (`server/chat/search.js`): Agent has `web_search` and `fetch_url` tools via OpenAI function calling. Searches DuckDuckGo for current info about APIs, libraries, and services. Fetches and extracts text from documentation URLs. Responses prefixed with "[Researched]" when web search was used. Agent decides autonomously when to search (external services, APIs, docs) vs answer from code/knowledge.
 - **Intent detection**: Agent determines if user is asking a question (suggestBuild=false) or requesting a change (suggestBuild=true with buildSuggestion)
 - **Build confirmation**: When the agent suggests a build, a green "Build this change" button appears in the chat thread; clicking it triggers the iteration pipeline
 - **Persistence**: Chat messages stored in `chat_messages` table, survive restarts

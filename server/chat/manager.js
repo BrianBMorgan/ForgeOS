@@ -4,8 +4,40 @@ const { ChatResponseSchema } = require("../pipeline/schemas");
 const { CHAT_AGENT_INSTRUCTIONS } = require("../pipeline/agents");
 const { neon } = require("@neondatabase/serverless");
 const projectManager = require("../projects/manager");
+const { webSearch, fetchUrl } = require("./search");
 
 const openai = new OpenAI();
+
+const SEARCH_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "Search the web for current information, documentation, APIs, libraries, tutorials, or best practices. Use when the user asks about something you're not certain about, need current/verified information, or the question involves external services, APIs, or libraries.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The search query. Be specific and include relevant context (e.g. 'hCaptcha API integration Node.js' not just 'captcha')." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "fetch_url",
+      description: "Fetch the content of a specific URL to read documentation, API references, or other web pages. Use after web_search to get detailed information from a specific page.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "The full URL to fetch (must start with http:// or https://)." },
+        },
+        required: ["url"],
+      },
+    },
+  },
+];
 
 const dbUrl = process.env.NEON_DATABASE_URL;
 const sql = dbUrl ? neon(dbUrl) : null;
@@ -77,6 +109,33 @@ async function saveMessage(projectId, msg) {
   }
 }
 
+async function executeToolCall(toolCall) {
+  try {
+    const name = toolCall.function.name;
+    let args;
+    try {
+      args = JSON.parse(toolCall.function.arguments);
+    } catch {
+      return JSON.stringify({ error: "Invalid tool arguments" });
+    }
+
+    if (name === "web_search") {
+      const query = args.query || "";
+      console.log(`  [chat] web_search: "${query}"`);
+      const result = await webSearch(query);
+      return JSON.stringify(result);
+    } else if (name === "fetch_url") {
+      const url = args.url || "";
+      console.log(`  [chat] fetch_url: ${url}`);
+      const result = await fetchUrl(url);
+      return JSON.stringify(result);
+    }
+    return JSON.stringify({ error: "Unknown tool" });
+  } catch (err) {
+    return JSON.stringify({ error: `Tool execution failed: ${err.message}` });
+  }
+}
+
 async function chat(projectId, userMessage) {
   const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
@@ -102,30 +161,73 @@ async function chat(projectId, userMessage) {
 
   const systemMessage = CHAT_AGENT_INSTRUCTIONS + codeContext;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
-    temperature: 0.3,
-    messages: [
-      { role: "system", content: systemMessage },
-      ...conversationMessages,
-    ],
-    response_format: zodResponseFormat(ChatResponseSchema, "chat_response"),
-  });
+  const messages = [
+    { role: "system", content: systemMessage },
+    ...conversationMessages,
+  ];
 
-  const content = response.choices[0].message.content;
-  const parsed = JSON.parse(content);
-  ChatResponseSchema.parse(parsed);
+  const MAX_TOOL_ROUNDS = 5;
+  let toolRound = 0;
+  let usedWebSearch = false;
 
-  const assistantMsg = {
+  while (toolRound < MAX_TOOL_ROUNDS) {
+    const requestParams = {
+      model: "gpt-4.1-mini",
+      temperature: 0.3,
+      messages,
+      tools: SEARCH_TOOLS,
+    };
+
+    const response = await openai.chat.completions.create(requestParams);
+    const choice = response.choices[0];
+
+    if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
+      messages.push(choice.message);
+
+      for (const toolCall of choice.message.tool_calls) {
+        const result = await executeToolCall(toolCall);
+        usedWebSearch = true;
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: result,
+        });
+      }
+
+      toolRound++;
+      continue;
+    }
+
+    const content = choice.message.content;
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+      ChatResponseSchema.parse(parsed);
+    } catch {
+      parsed = { message: content, suggestBuild: false, buildSuggestion: null };
+    }
+
+    const prefix = usedWebSearch ? "[Researched] " : "";
+    const assistantMsg = {
+      role: "assistant",
+      content: prefix + parsed.message,
+      suggestBuild: parsed.suggestBuild,
+      buildSuggestion: parsed.buildSuggestion,
+      createdAt: Date.now(),
+    };
+    await saveMessage(projectId, assistantMsg);
+    return assistantMsg;
+  }
+
+  const fallbackMsg = {
     role: "assistant",
-    content: parsed.message,
-    suggestBuild: parsed.suggestBuild,
-    buildSuggestion: parsed.buildSuggestion,
+    content: "I gathered some research but couldn't formulate a final response. Please try asking again.",
+    suggestBuild: false,
+    buildSuggestion: null,
     createdAt: Date.now(),
   };
-  await saveMessage(projectId, assistantMsg);
-
-  return assistantMsg;
+  await saveMessage(projectId, fallbackMsg);
+  return fallbackMsg;
 }
 
 async function getChatHistory(projectId) {
