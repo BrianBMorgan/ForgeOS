@@ -421,36 +421,32 @@ export default function PromptColumn({
       )}
 
       {hasIterations && (
-        <div className="iteration-history">
-          <div className="iteration-history-label">ITERATIONS</div>
-          {projectData.iterations.map((iter) => {
-            const isActive = viewingIterationRunId
-              ? viewingIterationRunId === iter.runId
-              : iter.runId === projectData.currentRunId;
-            const isCurrent = iter.runId === projectData.currentRunId;
-
-            return (
-              <div
-                key={iter.runId}
-                className={`iteration-item ${isActive ? "active" : ""}`}
-                onClick={() => {
-                  if (isCurrent) {
-                    onViewLatest();
-                  } else {
-                    onViewIteration(iter.runId);
-                  }
-                }}
-              >
-                <span className="iteration-badge">v{iter.iterationNumber}</span>
-                <span className="iteration-prompt">{iter.prompt.slice(0, 60)}{iter.prompt.length > 60 ? "..." : ""}</span>
-                <span className={`iteration-status iteration-status-${iter.status}`}>
-                  {iter.status === "completed" ? (
-                    iter.workspaceStatus === "running" ? "live" : "done"
-                  ) : iter.status === "running" ? "..." : iter.status === "failed" ? "fail" : ""}
-                </span>
-              </div>
-            );
-          })}
+        <div className="iteration-dropdown-bar">
+          <div className="iteration-dropdown-label">ITERATION</div>
+          <select
+            className="iteration-dropdown-select"
+            value={viewingIterationRunId || projectData.currentRunId || ""}
+            onChange={(e) => {
+              const selected = e.target.value;
+              if (selected === projectData.currentRunId) {
+                onViewLatest();
+              } else {
+                onViewIteration(selected);
+              }
+            }}
+          >
+            {projectData.iterations.map((iter) => {
+              const isCurrent = iter.runId === projectData.currentRunId;
+              const statusLabel = iter.status === "completed"
+                ? (iter.workspaceStatus === "running" ? "live" : "done")
+                : iter.status === "running" ? "running" : iter.status === "failed" ? "failed" : "";
+              return (
+                <option key={iter.runId} value={iter.runId}>
+                  v{iter.iterationNumber}{isCurrent ? " (latest)" : ""} — {iter.prompt.slice(0, 50)}{iter.prompt.length > 50 ? "..." : ""} [{statusLabel}]
+                </option>
+              );
+            })}
+          </select>
         </div>
       )}
 
