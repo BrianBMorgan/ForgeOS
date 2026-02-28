@@ -2,9 +2,39 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
 
+const net = require("net");
+
 const WORKSPACES_DIR = path.join(__dirname, "..", "..", "workspaces");
+const PORT_RANGE_START = 4000;
+const PORT_RANGE_END = 4099;
 
 const workspaces = new Map();
+
+function getNextFreePort() {
+  return new Promise((resolve, reject) => {
+    const usedPorts = new Set();
+    for (const [, ws] of workspaces) {
+      if (ws.port && ws.status === "running") usedPorts.add(ws.port);
+    }
+    function tryPort(port) {
+      if (port > PORT_RANGE_END) {
+        reject(new Error("No free ports in range"));
+        return;
+      }
+      if (usedPorts.has(port)) {
+        tryPort(port + 1);
+        return;
+      }
+      const server = net.createServer();
+      server.once("error", () => tryPort(port + 1));
+      server.once("listening", () => {
+        server.close(() => resolve(port));
+      });
+      server.listen(port);
+    }
+    tryPort(PORT_RANGE_START);
+  });
+}
 
 function cleanDatabaseUrl(raw) {
   if (!raw) return raw;
@@ -187,10 +217,16 @@ async function startApp(runId, startCommand, port) {
   }
 
   ws.status = "starting";
-  ws.port = port || 4000;
   ws.logs.app = "";
 
-  await forceKillPort(ws.port);
+  let assignedPort;
+  try {
+    assignedPort = await getNextFreePort();
+  } catch {
+    assignedPort = port || 4000;
+    await forceKillPort(assignedPort);
+  }
+  ws.port = assignedPort;
 
   const resolvedCommand = resolveStartCommand(ws.dir, startCommand);
 
