@@ -214,20 +214,21 @@ body {
 
 .prompt-run-btn {
   align-self: flex-end;
-  padding: 0.5rem 1.25rem;
-  background: #3b82f6;
-  color: #ffffff;
+  padding: 0.4rem 0.9rem;
+  background: rgba(59, 130, 246, 0.1);
+  color: #e2e8f0;
   border: none;
   border-radius: 4px;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.05em;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: opacity 0.15s, background 0.15s;
 }
 
 .prompt-run-btn:hover {
-  background: #2563eb;
+  opacity: 0.85;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 /* ── Pipeline ── */
