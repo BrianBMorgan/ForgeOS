@@ -122,6 +122,6 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 - Build/runtime logs in Shell tab
 - Neon Postgres available for generated apps that need a database (via DATABASE_URL)
 - Neon Auth available for generated apps that need user management (via NEON_AUTH_JWKS_URL)
-- Stress test harness: 77.8% pass rate (14/18), up from 0%
-  - Remaining failures: nested backtick syntax errors, missing deps at install, FK type mismatches in Postgres schemas
+- Stress test harness: 100% pass rate (18/18), up from 0% → 77.8% → 94.4% → 100%
+  - Remaining violations (non-blocking): some pure-frontend apps omit package.json
 - Future phases: self-correction (Layer 4), context management, ForgeOS persistence

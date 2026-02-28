@@ -107,8 +107,9 @@ Do NOT re-plan. Do NOT re-review. Do NOT ask for approval.
 CRITICAL RULES:
 - Every file must include its COMPLETE source code in the "content" field. No placeholders, no "// TODO", no truncation. Do not cut off mid-line or mid-function — every function, every bracket, every semicolon must be present. Incomplete output causes startup crashes.
 - The app must be fully self-contained. Every file it needs must be in your output.
-- ALWAYS include a package.json with ALL required dependencies. Every require() or import in any file must have a matching entry in package.json dependencies. If the app uses express, express must be in package.json. If it uses @neondatabase/serverless, that must be in package.json. A missing package.json or a missing dependency causes immediate crashes.
+- ALWAYS include a package.json with ALL required dependencies — even for simple apps. If ANY file uses require() for a non-builtin module, you MUST have a package.json. For example, if the app uses express, express must be in package.json dependencies. If it uses @neondatabase/serverless, that must be in package.json. A missing package.json or a missing dependency causes immediate crashes. Node.js builtins (http, fs, path, crypto, etc.) do not need package.json entries, but any npm package does.
 - Do NOT use dotenv or .env files. Environment variables are pre-injected at runtime. Access them directly via process.env.
+- NEVER call process.exit() if an environment variable is missing. Instead, log a warning and continue with graceful defaults or disabled features. The runtime provides DATABASE_URL and NEON_AUTH_JWKS_URL — no other auth-related env vars (like NEON_AUTH_AUDIENCE, NEON_AUTH_ISSUER, JWT_SECRET, SESSION_SECRET) are available. Do not require them.
 - The app server port is provided at runtime via the PORT environment variable. ALWAYS use: const PORT = process.env.PORT || 4000; — NEVER hardcode const PORT = 4000. The PORT env var is set by the runtime and must be respected.
 - ALWAYS include a GET / root route. For APIs, return an HTML page with interactive API documentation or a simple UI. For web apps, serve the main page. The root route must never return 404.
 - IMPORTANT: The app is served behind a reverse proxy under a subpath. All fetch()/XHR calls in frontend JavaScript MUST use relative URLs (e.g., fetch("api/tasks") not fetch("/api/tasks")). Never use absolute paths starting with / for API calls in frontend code.
@@ -162,6 +163,7 @@ AVAILABLE SERVICES (use these when the plan requires them):
    - List NEON_AUTH_JWKS_URL in environmentVariables.
    - For apps needing auth, provide a simple login/signup UI or indicate that auth tokens come from an external identity provider.
    - HARD CONSTRAINT: You MUST NOT use bcrypt, bcryptjs, jsonwebtoken, passport, or any custom auth library. You MUST NOT implement password hashing, custom JWT signing, or session management. The ONLY auth approach allowed is Neon Auth with jose + JWKS as described above. Any code using bcrypt or jsonwebtoken will fail deployment.
+   - Do NOT check for or require NEON_AUTH_AUDIENCE, NEON_AUTH_ISSUER, JWT_SECRET, or SESSION_SECRET environment variables. Only DATABASE_URL and NEON_AUTH_JWKS_URL are provided. For jwtVerify options, omit audience/issuer or make them optional.
 
 If the plan does NOT require a database or auth, do NOT include them. Only use these services when they are part of the plan.
 
