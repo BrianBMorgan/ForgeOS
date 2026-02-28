@@ -2,7 +2,7 @@ const express = require("express");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || (process.env.NODE_ENV === "production" ? 5000 : 3001);
+const PORT = process.env.PORT || 3001;
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
