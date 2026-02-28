@@ -68,6 +68,8 @@ Three-zone layout:
 - `GET /api/projects/:id` — Get project with iterations and current run data
 - `POST /api/projects/:id/iterate` — Submit follow-up prompt (captures current files, creates iteration run)
 - `POST /api/projects/:id/stop` — Stop the running app
+- `POST /api/projects/:id/chat` — Send a chat message (body: `{ message }`) — returns `{ role, content, suggestBuild, buildSuggestion, createdAt }`
+- `GET /api/projects/:id/chat` — Get chat history for a project
 - `POST /api/runs` — Start a new pipeline run (legacy, used by stress test)
 - `GET /api/runs` — List all runs
 - `GET /api/runs/:id` — Get run status, stages, outputs, and workspace status
@@ -130,8 +132,16 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 - No chat bubbles, no playful startup chrome
 - No Replit-specific dependencies — fully portable
 
+## Chat System
+Projects have a built-in conversational interface powered by gpt-4.1-mini:
+- **Conversational agent** (`server/chat/manager.js`): Receives user messages with full codebase context, analyzes code, answers questions, diagnoses issues
+- **Intent detection**: Agent determines if user is asking a question (suggestBuild=false) or requesting a change (suggestBuild=true with buildSuggestion)
+- **Build confirmation**: When the agent suggests a build, a green "Build this change" button appears in the chat thread; clicking it triggers the iteration pipeline
+- **Persistence**: Chat messages stored in `chat_messages` table, survive restarts
+- **UI flow**: In project view, the input says "Ask a question or describe a change..." with a "Send" button for chat and a "Build" button for explicit builds
+
 ## Current State
-- **Full persistence**: Projects, iterations, and run snapshots (all pipeline stage outputs) stored in Neon Postgres via `@neondatabase/serverless`; in-memory cache for fast reads; schema auto-created on startup
+- **Full persistence**: Projects, iterations, run snapshots, and chat messages stored in Neon Postgres via `@neondatabase/serverless`; in-memory cache for fast reads; schema auto-created on startup
 - **Run data survives restarts**: When a run completes/fails, a full snapshot (stages, outputs, workspace status) is saved to `run_snapshots` table; `getRun()` falls back to DB when not in memory
 - Agent pipeline fully functional with OpenAI API
 - **Project system**: Create projects, iterate with follow-up prompts, full context passing to Planner/Executor

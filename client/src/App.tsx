@@ -48,6 +48,14 @@ export interface IterationData {
   workspaceStatus: string | null;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  suggestBuild: boolean;
+  buildSuggestion: string | null;
+  createdAt: number;
+}
+
 export interface ProjectData {
   id: string;
   name: string;
@@ -69,6 +77,8 @@ function App() {
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [runData, setRunData] = useState<RunData | null>(null);
   const [viewingIterationRunId, setViewingIterationRunId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -121,9 +131,34 @@ function App() {
     [currentRunId]
   );
 
+  const sendChat = useCallback(async (message: string) => {
+    if (!currentProjectId) return;
+    const userMsg: ChatMessage = { role: "user", content: message, suggestBuild: false, buildSuggestion: null, createdAt: Date.now() };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      if (res.ok) {
+        const data: ChatMessage = await res.json();
+        setChatMessages((prev) => [...prev, data]);
+      } else {
+        setChatMessages((prev) => [...prev, { role: "assistant", content: "Something went wrong. Please try again.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
+      }
+    } catch {
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "Connection error. Please try again.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [currentProjectId]);
+
   const openProject = useCallback((projectId: string) => {
     setCurrentProjectId(projectId);
     setViewingIterationRunId(null);
+    setChatMessages([]);
     setActiveNav("projects");
   }, []);
 
@@ -132,8 +167,21 @@ function App() {
       setProjectData(null);
       setCurrentRunId(null);
       setRunData(null);
+      setChatMessages([]);
       return;
     }
+
+    const loadChat = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`);
+        if (res.ok) {
+          const data: ChatMessage[] = await res.json();
+          setChatMessages(data);
+        }
+      } catch {
+      }
+    };
+    loadChat();
 
     const poll = async () => {
       try {
@@ -241,6 +289,9 @@ function App() {
           onViewIteration={viewIteration}
           viewingIterationRunId={viewingIterationRunId}
           onViewLatest={viewLatest}
+          chatMessages={chatMessages}
+          onSendChat={sendChat}
+          chatLoading={chatLoading}
         />
         <Workspace
           runData={runData}

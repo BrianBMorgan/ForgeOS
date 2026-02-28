@@ -102,10 +102,17 @@ const AuditorSchema = z.object({
   summary: z.string(),
 });
 
+const ChatResponseSchema = z.object({
+  message: z.string(),
+  suggestBuild: z.boolean(),
+  buildSuggestion: z.string().nullable(),
+});
+
 module.exports = {
   PlannerSchema,
   ReviewerSchema,
   PolicyGateSchema,
   ExecutorSchema,
   AuditorSchema,
+  ChatResponseSchema,
 };

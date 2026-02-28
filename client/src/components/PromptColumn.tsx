@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { RunData, ProjectData } from "../App";
+import { useState, useRef, useEffect } from "react";
+import type { RunData, ProjectData, ChatMessage } from "../App";
 
 type StageStatus = "pending" | "running" | "passed" | "blocked" | "failed";
 
@@ -19,6 +19,9 @@ interface PromptColumnProps {
   onViewIteration: (runId: string) => void;
   viewingIterationRunId: string | null;
   onViewLatest: () => void;
+  chatMessages: ChatMessage[];
+  onSendChat: (message: string) => void;
+  chatLoading: boolean;
 }
 
 const STAGE_MAP: { id: string; keys: string[]; label: string }[] = [
@@ -65,20 +68,43 @@ export default function PromptColumn({
   onViewIteration,
   viewingIterationRunId,
   onViewLatest,
+  chatMessages,
+  onSendChat,
+  chatLoading,
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
   const [rejectFeedback, setRejectFeedback] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const stages = deriveStages(runData);
   const isRunning = runData?.status === "running";
   const isAwaitingApproval = runData?.status === "awaiting-approval";
   const isViewingHistory = !!viewingIterationRunId;
 
-  const handleRunBuild = () => {
-    if (!prompt.trim() || isRunning) return;
-    onRunBuild(prompt);
+  const isProjectView = !isNewProject && projectData;
+  const hasIterations = projectData && projectData.iterations.length > 0;
+  const canIterate = isProjectView && runData?.status === "completed" && runData?.workspace?.status === "running";
+  const hasChatHistory = chatMessages.length > 0;
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages]);
+
+  const handleSubmit = () => {
+    if (!prompt.trim() || isRunning || chatLoading) return;
+    if (isProjectView) {
+      onSendChat(prompt);
+    } else {
+      onRunBuild(prompt);
+    }
     setPrompt("");
+  };
+
+  const handleBuildFromSuggestion = (suggestion: string) => {
+    onRunBuild(suggestion);
   };
 
   const handleReject = () => {
@@ -88,19 +114,12 @@ export default function PromptColumn({
     setRejectFeedback("");
   };
 
-  const statusText = runData
-    ? runData.status === "completed"
-      ? "Completed"
-      : runData.status === "failed"
-        ? "Failed"
-        : runData.status === "awaiting-approval"
-          ? "Awaiting Approval"
-          : "Running"
-    : "Idle";
-
-  const hasIterations = projectData && projectData.iterations.length > 0;
-  const isProjectView = !isNewProject && projectData;
-  const canIterate = isProjectView && runData?.status === "completed" && runData?.workspace?.status === "running";
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
 
   return (
     <div className="prompt-column">
@@ -165,38 +184,103 @@ export default function PromptColumn({
         </div>
       )}
 
+      {isProjectView && !isViewingHistory && hasChatHistory && (
+        <div className="chat-thread">
+          {chatMessages.map((msg, i) => (
+            <div key={i} className={`chat-message chat-${msg.role}`}>
+              <div className="chat-role">{msg.role === "user" ? "You" : "Forge"}</div>
+              <div className="chat-content">{msg.content}</div>
+              {msg.suggestBuild && msg.buildSuggestion && (
+                <button
+                  className="chat-build-btn"
+                  onClick={() => handleBuildFromSuggestion(msg.buildSuggestion!)}
+                  disabled={isRunning || chatLoading || !canIterate}
+                >
+                  Build this change
+                </button>
+              )}
+            </div>
+          ))}
+          {chatLoading && (
+            <div className="chat-message chat-assistant">
+              <div className="chat-role">Forge</div>
+              <div className="chat-content chat-thinking">Thinking...</div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+      )}
+
       {!isViewingHistory && (
         <div className="prompt-input-area">
           <textarea
             className="prompt-textarea"
-            placeholder={isProjectView ? "Describe what to change or add..." : "Describe what you want to build..."}
+            placeholder={
+              isProjectView
+                ? "Ask a question or describe a change..."
+                : "Describe what you want to build..."
+            }
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            rows={isProjectView ? 4 : 6}
-            disabled={isRunning}
+            onKeyDown={handleKeyDown}
+            rows={isProjectView ? 3 : 6}
+            disabled={isRunning || chatLoading}
           />
-          <button
-            className="prompt-run-btn"
-            onClick={handleRunBuild}
-            disabled={isRunning || !prompt.trim() || (isProjectView && !canIterate && runData?.status !== undefined && runData?.status !== "completed" && runData?.status !== "failed")}
-          >
-            {isRunning ? "Running..." : isProjectView ? "Iterate" : "Run Build"}
-          </button>
+          <div className="prompt-actions">
+            {isProjectView && canIterate && (
+              <button
+                className="prompt-build-btn"
+                onClick={() => {
+                  if (prompt.trim()) {
+                    onRunBuild(prompt);
+                    setPrompt("");
+                  }
+                }}
+                disabled={isRunning || chatLoading || !prompt.trim()}
+              >
+                Build
+              </button>
+            )}
+            <button
+              className="prompt-run-btn"
+              onClick={handleSubmit}
+              disabled={isRunning || chatLoading || !prompt.trim()}
+            >
+              {isRunning ? "Running..." : chatLoading ? "Thinking..." : isProjectView ? "Send" : "Run Build"}
+            </button>
+          </div>
         </div>
       )}
 
-      <div className="pipeline">
-        <div className="pipeline-label">PIPELINE</div>
-        <div className="pipeline-stages">
-          {stages.map((stage, i) => (
-            <div key={stage.id} className="pipeline-stage">
-              <div className={`stage-dot ${stage.status}`} />
-              <span className="stage-label">{stage.label}</span>
-              {i < stages.length - 1 && <div className="stage-connector" />}
-            </div>
-          ))}
+      {isRunning && (
+        <div className="pipeline">
+          <div className="pipeline-label">PIPELINE</div>
+          <div className="pipeline-stages">
+            {stages.map((stage, i) => (
+              <div key={stage.id} className="pipeline-stage">
+                <div className={`stage-dot ${stage.status}`} />
+                <span className="stage-label">{stage.label}</span>
+                {i < stages.length - 1 && <div className="stage-connector" />}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {!isRunning && !isProjectView && (
+        <div className="pipeline">
+          <div className="pipeline-label">PIPELINE</div>
+          <div className="pipeline-stages">
+            {stages.map((stage, i) => (
+              <div key={stage.id} className="pipeline-stage">
+                <div className={`stage-dot ${stage.status}`} />
+                <span className="stage-label">{stage.label}</span>
+                {i < stages.length - 1 && <div className="stage-connector" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isAwaitingApproval && !isViewingHistory && (
         <div className="approval-controls">
@@ -245,13 +329,21 @@ export default function PromptColumn({
         <div className="meta-row">
           <span className="meta-label">Last run</span>
           <span className="meta-value">
-            {runData ? new Date(runData.createdAt).toLocaleTimeString() : "—"}
+            {runData ? new Date(runData.createdAt).toLocaleTimeString() : "--"}
           </span>
         </div>
         <div className="meta-row">
           <span className="meta-label">Status</span>
           <span className={`meta-value meta-${runData?.status || "idle"}`}>
-            {statusText}
+            {runData
+              ? runData.status === "completed"
+                ? "Completed"
+                : runData.status === "failed"
+                  ? "Failed"
+                  : runData.status === "awaiting-approval"
+                    ? "Awaiting Approval"
+                    : "Running"
+              : "Idle"}
           </span>
         </div>
         {runData?.iterationNumber && (

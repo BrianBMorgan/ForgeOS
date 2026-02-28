@@ -177,6 +177,38 @@ app.post("/api/projects/:id/stop", async (req, res) => {
   res.json({ status: "stopped" });
 });
 
+const chatManager = require("./chat/manager");
+
+app.post("/api/projects/:id/chat", async (req, res) => {
+  const { message } = req.body;
+  if (!message || typeof message !== "string" || !message.trim()) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+
+  const project = await projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+
+  try {
+    const response = await chatManager.chat(req.params.id, message.trim());
+    res.json(response);
+  } catch (err) {
+    console.error("Chat error:", err.message);
+    res.status(500).json({ error: "Chat failed" });
+  }
+});
+
+app.get("/api/projects/:id/chat", async (req, res) => {
+  const project = await projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+
+  const history = await chatManager.getChatHistory(req.params.id);
+  res.json(history);
+});
+
 const { runStressTest, getStressTestStatus } = require("./stress-test/runner");
 const { generateReport } = require("./stress-test/report");
 
