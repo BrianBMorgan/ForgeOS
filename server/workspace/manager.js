@@ -189,6 +189,50 @@ function installDeps(runId, installCommand) {
   });
 }
 
+function collectJsFiles(dir) {
+  const results = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name === "node_modules" || entry.name === ".git") continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...collectJsFiles(full));
+      } else if (/\.(js|cjs|mjs|ts)$/.test(entry.name)) {
+        results.push(full);
+      }
+    }
+  } catch {}
+  return results;
+}
+
+function patchHardcodedPort(wsDir) {
+  try {
+    const jsFiles = collectJsFiles(wsDir);
+    for (const filePath of jsFiles) {
+      let content;
+      try { content = fs.readFileSync(filePath, "utf8"); } catch { continue; }
+      if (/process\.env\.PORT/.test(content)) continue;
+      let patched = content;
+      patched = patched.replace(
+        /(const|let|var)\s+(PORT|port)\s*=\s*(\d{3,5})\s*;/g,
+        "$1 $2 = process.env.PORT || $3;"
+      );
+      patched = patched.replace(
+        /\.listen\(\s*(\d{3,5})\s*,/g,
+        ".listen(process.env.PORT || $1,"
+      );
+      patched = patched.replace(
+        /\.listen\(\s*(\d{3,5})\s*\)/g,
+        ".listen(process.env.PORT || $1)"
+      );
+      if (patched !== content) {
+        fs.writeFileSync(filePath, patched, "utf8");
+      }
+    }
+  } catch {}
+}
+
 function resolveStartCommand(wsDir, startCommand) {
   if (startCommand === "npm start" || startCommand === "npm run start") {
     try {
@@ -227,6 +271,8 @@ async function startApp(runId, startCommand, port) {
     await forceKillPort(assignedPort);
   }
   ws.port = assignedPort;
+
+  patchHardcodedPort(ws.dir);
 
   const resolvedCommand = resolveStartCommand(ws.dir, startCommand);
 

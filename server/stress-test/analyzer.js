@@ -53,9 +53,18 @@ function analyzeExecutorOutput(executorOutput) {
   const frontendFiles = files.filter(f => /\.(js|ts|html)$/.test(f.path));
 
   if (!packageJsonFile) {
-    const hasRequires = files.some(f => f.content && /require\s*\(/.test(f.content));
-    if (hasRequires) {
-      violations.push({ rule: "missing_package_json", severity: "critical", file: null, line: null, snippet: "No package.json found but files use require()" });
+    const NODE_BUILTINS = new Set(["http","https","fs","path","os","url","util","crypto","stream","events","net","child_process","querystring","zlib","assert","buffer","cluster","dgram","dns","domain","readline","repl","string_decoder","tls","tty","v8","vm","worker_threads"]);
+    const hasThirdPartyRequires = files.some(f => {
+      if (!f.content) return false;
+      const matches = f.content.match(/require\s*\(\s*['"]([^'"./][^'"]*)['"]\s*\)/g);
+      if (!matches) return false;
+      return matches.some(m => {
+        const mod = m.match(/['"]([^'"]+)['"]/);
+        return mod && !NODE_BUILTINS.has(mod[1].split("/")[0]);
+      });
+    });
+    if (hasThirdPartyRequires) {
+      violations.push({ rule: "missing_package_json", severity: "critical", file: null, line: null, snippet: "No package.json found but files use third-party require()" });
     }
   }
 
@@ -174,27 +183,16 @@ function checkDynamicSql(files, violations) {
 }
 
 function checkWrongPort(serverFiles, declaredPort, violations) {
-  const expectedPort = declaredPort || 4000;
-  if (expectedPort !== 4000) {
-    violations.push({
-      rule: "wrong_port",
-      severity: "high",
-      file: null,
-      line: null,
-      snippet: `Declared port is ${expectedPort}, expected 4000`,
-    });
-  }
-
   for (const file of serverFiles) {
     if (!file.content) continue;
-    const listenMatch = file.content.match(/\.listen\s*\(\s*(\d+)/);
-    if (listenMatch && parseInt(listenMatch[1]) !== 4000) {
+    const hasEnvPort = /process\.env\.PORT/.test(file.content);
+    if (!hasEnvPort) {
       const lines = file.content.split("\n");
       for (let i = 0; i < lines.length; i++) {
-        if (/\.listen\s*\(/.test(lines[i])) {
+        if (/\.listen\s*\(\s*\d+/.test(lines[i])) {
           violations.push({
-            rule: "wrong_port",
-            severity: "high",
+            rule: "hardcoded_port",
+            severity: "medium",
             file: file.path,
             line: i + 1,
             snippet: lines[i].trim(),

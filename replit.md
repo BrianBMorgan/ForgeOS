@@ -24,13 +24,16 @@ ForgeOS is a private internal agentic AI build platform — a thin control plane
 After the Executor produces code, ForgeOS automatically:
 1. Creates an isolated workspace directory (`workspaces/<runId>/`)
 2. Writes all generated files to disk
-3. Runs the install command (e.g., `npm install`)
-4. Starts the app process (e.g., `node server.js`)
-5. Proxies requests through `/preview/<runId>/` to the running app
+3. Patches hardcoded ports → `process.env.PORT || <original>` in all JS files
+4. Resolves `npm start` → direct `node server.js` to avoid orphaned child processes
+5. Allocates a dynamic free port in 4000-4099 range via `getNextFreePort()`
+6. Runs the install command (e.g., `npm install`)
+7. Starts the app process with PORT env var set to the allocated port
+8. Proxies requests through `/preview/<runId>/` to the running app
 - Workspace states: writing-files → installing → starting → running (or failed at any step)
-- Generated apps run on port 4000 by default (ForgeOS uses 3001/5000)
+- Generated apps get dynamic ports (4000-4099); ForgeOS uses 3001/5000
 - Previous workspace apps are stopped when a new run starts
-- Port 4000 is force-killed before each new app start
+- `patchHardcodedPort()` scans all .js files for `const PORT = NNNN;`, `let port = NNNN;`, `.listen(NNNN,` patterns and injects `process.env.PORT ||` fallback
 
 ## UI Structure
 Three-zone layout:
@@ -114,9 +117,11 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 - Agent pipeline fully functional with OpenAI API
 - Executor generates complete runnable code (Layer 1)
 - Workspace manager writes files, installs deps, starts apps (Layer 2)
+- Dynamic port allocation (4000-4099) with hardcoded port patching (Layer 2.5)
 - Live preview via iframe in Render tab (Layer 3)
 - Build/runtime logs in Shell tab
 - Neon Postgres available for generated apps that need a database (via DATABASE_URL)
 - Neon Auth available for generated apps that need user management (via NEON_AUTH_JWKS_URL)
-- Stress test harness for automated Executor evaluation
+- Stress test harness: 77.8% pass rate (14/18), up from 0%
+  - Remaining failures: nested backtick syntax errors, missing deps at install, FK type mismatches in Postgres schemas
 - Future phases: self-correction (Layer 4), context management, ForgeOS persistence

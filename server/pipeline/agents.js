@@ -109,7 +109,7 @@ CRITICAL RULES:
 - The app must be fully self-contained. Every file it needs must be in your output.
 - ALWAYS include a package.json with ALL required dependencies. Every require() or import in any file must have a matching entry in package.json dependencies. If the app uses express, express must be in package.json. If it uses @neondatabase/serverless, that must be in package.json. A missing package.json or a missing dependency causes immediate crashes.
 - Do NOT use dotenv or .env files. Environment variables are pre-injected at runtime. Access them directly via process.env.
-- Use port 4000 by default for the app server (to avoid conflicts).
+- The app server port is provided at runtime via the PORT environment variable. ALWAYS use: const PORT = process.env.PORT || 4000; — NEVER hardcode const PORT = 4000. The PORT env var is set by the runtime and must be respected.
 - ALWAYS include a GET / root route. For APIs, return an HTML page with interactive API documentation or a simple UI. For web apps, serve the main page. The root route must never return 404.
 - IMPORTANT: The app is served behind a reverse proxy under a subpath. All fetch()/XHR calls in frontend JavaScript MUST use relative URLs (e.g., fetch("api/tasks") not fetch("/api/tasks")). Never use absolute paths starting with / for API calls in frontend code.
 
