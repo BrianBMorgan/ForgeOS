@@ -411,6 +411,313 @@ body {
   line-height: 1.5;
 }
 
+/* ── Approval Controls ── */
+.approval-controls {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #1e293b;
+}
+
+.approval-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #f59e0b;
+  margin-bottom: 0.75rem;
+}
+
+.approval-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.approve-btn {
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.approve-btn:hover {
+  background: rgba(34, 197, 94, 0.25);
+}
+
+.reject-btn {
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.reject-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.reject-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reject-textarea {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  color: #e2e8f0;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.reject-textarea:focus {
+  border-color: #3b82f6;
+}
+
+.reject-submit-btn {
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reject-cancel-btn {
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* ── Plan Content ── */
+.plan-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.plan-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #1e293b;
+}
+
+.plan-project-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.plan-template {
+  font-size: 0.7rem;
+  color: #64748b;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+}
+
+.plan-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.plan-field-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #94a3b8;
+}
+
+.plan-field-value {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.plan-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.plan-field-item {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  padding: 0.3rem 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 3px;
+  border-left: 2px solid #1e293b;
+}
+
+.plan-field-item pre {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-family: "SF Mono", "Fira Code", monospace;
+  white-space: pre-wrap;
+}
+
+.plan-field-json {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-family: "SF Mono", "Fira Code", monospace;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.75rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+/* ── Review Content ── */
+.review-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.review-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #1e293b;
+}
+
+.review-verdict {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 0.25rem 0.75rem;
+  border-radius: 3px;
+}
+
+.review-verdict.approved {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.review-verdict.rejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.review-risk {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+}
+
+.risk-low {
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+}
+
+.risk-medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+.risk-high {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.review-summary {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+/* ── Diff Content ── */
+.diff-content {
+  height: 100%;
+}
+
+.diff-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  height: 100%;
+}
+
+.diff-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.diff-column-header {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #94a3b8;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #1e293b;
+  margin-bottom: 0.5rem;
+}
+
+.diff-json {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-family: "SF Mono", "Fira Code", monospace;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.75rem;
+  border-radius: 4px;
+  overflow: auto;
+  flex: 1;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* ── Status Colors ── */
+.meta-running {
+  color: #3b82f6;
+}
+
+.meta-awaiting-approval {
+  color: #f59e0b;
+}
+
+.meta-completed {
+  color: #4ade80;
+}
+
+.meta-failed {
+  color: #f87171;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .sidebar {

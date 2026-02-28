@@ -9,6 +9,7 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: true,
     proxy: {
+      "/api": "http://localhost:3001",
       "/health": "http://localhost:3001",
     },
   },
