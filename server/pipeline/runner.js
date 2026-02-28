@@ -23,7 +23,12 @@ const {
   EXECUTOR_ITERATE_INSTRUCTIONS,
 } = require("./agents");
 
+const { neon } = require("@neondatabase/serverless");
+
 const openai = new OpenAI();
+
+const dbUrl = process.env.NEON_DATABASE_URL;
+const sql = dbUrl ? neon(dbUrl) : null;
 
 const PLANNER_MODEL = "gpt-4.1";
 const REVIEWER_MODEL = "gpt-4.1-mini";
@@ -40,6 +45,36 @@ const STAGES = [
 ];
 
 const runs = new Map();
+
+function makeRunSnapshot(run) {
+  const snapshot = { ...run };
+  delete snapshot.existingFiles;
+  return snapshot;
+}
+
+async function saveRunSnapshot(run) {
+  if (!sql) return;
+  try {
+    const snapshot = makeRunSnapshot(run);
+    const now = Date.now();
+    await sql`INSERT INTO run_snapshots (id, data, created_at) VALUES (${run.id}, ${JSON.stringify(snapshot)}, ${now}) ON CONFLICT (id) DO UPDATE SET data = ${JSON.stringify(snapshot)}, created_at = ${now}`;
+  } catch (err) {
+    console.error("Failed to save run snapshot:", err.message);
+  }
+}
+
+async function loadRunSnapshot(runId) {
+  if (!sql) return null;
+  try {
+    const rows = await sql`SELECT data FROM run_snapshots WHERE id = ${runId}`;
+    if (rows.length > 0) {
+      return rows[0].data;
+    }
+  } catch (err) {
+    console.error("Failed to load run snapshot:", err.message);
+  }
+  return null;
+}
 
 async function callAgent(messages, instructions, schema, model, formatName) {
   const response = await openai.chat.completions.create({
@@ -211,6 +246,7 @@ async function executePipeline(runId) {
     if (currentStage && run.stages[currentStage]) {
       run.stages[currentStage].status = "failed";
     }
+    await saveRunSnapshot(run);
   }
 }
 
@@ -328,6 +364,7 @@ async function executeAfterApproval(run) {
 
     run.currentStage = "auditor";
     await buildAndRun(run, executorOutput);
+    await saveRunSnapshot(run);
   } catch (err) {
     run.status = "failed";
     run.error = err.message || "Executor failed";
@@ -335,6 +372,7 @@ async function executeAfterApproval(run) {
     if (run.stages[failStage]) {
       run.stages[failStage].status = "failed";
     }
+    await saveRunSnapshot(run);
   }
 }
 
@@ -398,9 +436,10 @@ async function handleApproval(runId) {
   }
 
   run.status = "running";
-  executeAfterApproval(run).catch((err) => {
+  executeAfterApproval(run).catch(async (err) => {
     run.status = "failed";
     run.error = err.message;
+    await saveRunSnapshot(run);
   });
 
   return { status: "approved", runId };
@@ -418,9 +457,10 @@ async function handleRejection(runId, feedback) {
     feedback,
   });
 
-  executeRevisionPass(run, feedback).catch((err) => {
+  executeRevisionPass(run, feedback).catch(async (err) => {
     run.status = "failed";
     run.error = err.message;
+    await saveRunSnapshot(run);
   });
 
   return { status: "rejected", runId };
@@ -498,10 +538,17 @@ async function executeRevisionPass(run, feedback) {
   } catch (err) {
     run.status = "failed";
     run.error = err.message || "Revision pass failed";
+    await saveRunSnapshot(run);
   }
 }
 
-function getRun(runId) {
+async function getRun(runId) {
+  const memRun = runs.get(runId);
+  if (memRun) return memRun;
+  return await loadRunSnapshot(runId);
+}
+
+function getRunSync(runId) {
   return runs.get(runId) || null;
 }
 
@@ -515,5 +562,6 @@ module.exports = {
   handleApproval,
   handleRejection,
   getRun,
+  getRunSync,
   getAllRuns,
 };

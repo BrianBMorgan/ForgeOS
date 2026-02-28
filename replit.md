@@ -131,7 +131,8 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 - No Replit-specific dependencies — fully portable
 
 ## Current State
-- **Project persistence**: Projects and iterations stored in Neon Postgres via `@neondatabase/serverless`; in-memory cache for fast reads, lazy-loaded on first access
+- **Full persistence**: Projects, iterations, and run snapshots (all pipeline stage outputs) stored in Neon Postgres via `@neondatabase/serverless`; in-memory cache for fast reads; schema auto-created on startup
+- **Run data survives restarts**: When a run completes/fails, a full snapshot (stages, outputs, workspace status) is saved to `run_snapshots` table; `getRun()` falls back to DB when not in memory
 - Agent pipeline fully functional with OpenAI API
 - **Project system**: Create projects, iterate with follow-up prompts, full context passing to Planner/Executor
 - Executor generates complete runnable code (Layer 1)

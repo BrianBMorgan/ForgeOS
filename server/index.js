@@ -6,6 +6,7 @@ const {
   handleApproval,
   handleRejection,
   getRun,
+  getRunSync,
   getAllRuns,
 } = require("./pipeline/runner");
 const workspace = require("./workspace/manager");
@@ -39,8 +40,8 @@ app.get("/api/runs", (_req, res) => {
   res.json(runs);
 });
 
-app.get("/api/runs/:id", (req, res) => {
-  const run = getRun(req.params.id);
+app.get("/api/runs/:id", async (req, res) => {
+  const run = await getRun(req.params.id);
   if (!run) {
     return res.status(404).json({ error: "Run not found" });
   }
@@ -104,7 +105,7 @@ app.get("/api/projects/:id", async (req, res) => {
     return res.status(404).json({ error: "Project not found" });
   }
 
-  const currentRun = project.currentRunId ? getRun(project.currentRunId) : null;
+  const currentRun = project.currentRunId ? await getRun(project.currentRunId) : null;
   if (currentRun) {
     if (currentRun.status === "running" || currentRun.status === "awaiting-approval") {
       await projectManager.updateProjectStatus(project.id, "building");
@@ -121,14 +122,14 @@ app.get("/api/projects/:id", async (req, res) => {
     }
   }
 
-  const iterations = project.iterations.map((iter) => {
-    const iterRun = getRun(iter.runId);
+  const iterations = await Promise.all(project.iterations.map(async (iter) => {
+    const iterRun = await getRun(iter.runId);
     return {
       ...iter,
       status: iterRun?.status || "unknown",
       workspaceStatus: iterRun?.workspace?.status || null,
     };
-  });
+  }));
 
   res.json({ ...project, iterations, currentRun });
 });

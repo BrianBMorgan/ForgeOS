@@ -33,6 +33,11 @@ async function ensureSchema() {
       iteration_number INT NOT NULL,
       created_at BIGINT NOT NULL
     )`;
+    await sql`CREATE TABLE IF NOT EXISTS run_snapshots (
+      id VARCHAR(255) PRIMARY KEY,
+      data JSONB NOT NULL,
+      created_at BIGINT NOT NULL
+    )`;
   } catch (err) {
     console.error("Failed to ensure schema:", err.message);
   }
