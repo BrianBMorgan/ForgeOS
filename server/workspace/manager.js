@@ -6,6 +6,17 @@ const WORKSPACES_DIR = path.join(__dirname, "..", "..", "workspaces");
 
 const workspaces = new Map();
 
+function getWorkspaceEnv() {
+  const env = {};
+  if (process.env.NEON_DATABASE_URL) {
+    env.DATABASE_URL = process.env.NEON_DATABASE_URL;
+  }
+  if (process.env.NEON_AUTH_JWKS_URL) {
+    env.NEON_AUTH_JWKS_URL = process.env.NEON_AUTH_JWKS_URL;
+  }
+  return env;
+}
+
 function ensureWorkspacesDir() {
   if (!fs.existsSync(WORKSPACES_DIR)) {
     fs.mkdirSync(WORKSPACES_DIR, { recursive: true });
@@ -102,7 +113,7 @@ function installDeps(runId, installCommand) {
     const parts = validateCommand(installCommand);
     const proc = spawn(parts[0], parts.slice(1), {
       cwd: ws.dir,
-      env: { ...process.env, NODE_ENV: "development" },
+      env: { ...process.env, NODE_ENV: "development", ...getWorkspaceEnv() },
     });
 
     proc.stdout.on("data", (data) => {
@@ -157,6 +168,7 @@ function startApp(runId, startCommand, port) {
         ...process.env,
         PORT: String(ws.port),
         NODE_ENV: "development",
+        ...getWorkspaceEnv(),
       },
     });
 

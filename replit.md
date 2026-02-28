@@ -78,6 +78,8 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 
 ## Environment Variables
 - `OPENAI_API_KEY` — Required for pipeline agent calls
+- `NEON_DATABASE_URL` — Neon Postgres connection string, passed to generated apps as `DATABASE_URL`
+- `NEON_AUTH_JWKS_URL` — Neon Auth JWKS endpoint, passed to generated apps for JWT verification
 - `PORT` — Express server port (default 3001, or set by hosting platform)
 - `NODE_ENV` — Set to "production" for static file serving
 
@@ -98,4 +100,6 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 - Workspace manager writes files, installs deps, starts apps (Layer 2)
 - Live preview via iframe in Render tab (Layer 3)
 - Build/runtime logs in Shell tab
-- Future phases: self-correction (Layer 4), context management, database persistence
+- Neon Postgres available for generated apps that need a database (via DATABASE_URL)
+- Neon Auth available for generated apps that need user management (via NEON_AUTH_JWKS_URL)
+- Future phases: self-correction (Layer 4), context management, ForgeOS persistence

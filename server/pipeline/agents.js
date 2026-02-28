@@ -101,7 +101,27 @@ CRITICAL RULES:
 - Use port 4000 by default for the app server (to avoid conflicts).
 - For web apps with both frontend and backend: serve the frontend as static files from the same Express server. Do NOT use separate dev servers or build steps.
 - Keep it simple. Use plain HTML/CSS/JS for frontends unless the plan specifically requires a framework.
-- If the plan requires a database, use SQLite (better-sqlite3) for simplicity unless the plan specifies otherwise. No external database services needed.
+
+AVAILABLE SERVICES (use these when the plan requires them):
+
+1. **Neon Postgres Database** — A serverless Postgres database is available.
+   - The connection string is available at runtime via the environment variable DATABASE_URL.
+   - Use the "pg" npm package (node-postgres) to connect: new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+   - Create tables on app startup using CREATE TABLE IF NOT EXISTS.
+   - Include "pg" in the package.json dependencies.
+   - List DATABASE_URL in environmentVariables.
+
+2. **Neon Auth (User Authentication)** — JWT-based auth is available for apps that need user management.
+   - A JWKS endpoint is available at runtime via the environment variable NEON_AUTH_JWKS_URL.
+   - Use the "jose" npm package to verify JWTs: import { createRemoteJWKSet, jwtVerify } from "jose"
+   - const JWKS = createRemoteJWKSet(new URL(process.env.NEON_AUTH_JWKS_URL))
+   - Verify tokens from the Authorization header: const { payload } = await jwtVerify(token, JWKS)
+   - The JWT payload contains user info (sub, email, name, etc.)
+   - Include "jose" in the package.json dependencies.
+   - List NEON_AUTH_JWKS_URL in environmentVariables.
+   - For apps needing auth, provide a simple login/signup UI or indicate that auth tokens come from an external identity provider.
+
+If the plan does NOT require a database or auth, do NOT include them. Only use these services when they are part of the plan.
 
 Produce:
 1. implementationSummary — a concise description of what was built.
