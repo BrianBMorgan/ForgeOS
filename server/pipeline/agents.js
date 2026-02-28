@@ -116,15 +116,17 @@ AVAILABLE SERVICES (use these when the plan requires them):
 
 2. **Neon Auth (User Authentication)** — JWT-based auth is available for apps that need user management.
    - A JWKS endpoint is available at runtime via the environment variable NEON_AUTH_JWKS_URL.
-   - Use the "jose" npm package to verify JWTs: import { createRemoteJWKSet, jwtVerify } from "jose"
-   - const JWKS = createRemoteJWKSet(new URL(process.env.NEON_AUTH_JWKS_URL))
-   - Verify tokens from the Authorization header: const { payload } = await jwtVerify(token, JWKS)
+   - Use the "jose" npm package to verify JWTs: const { createRemoteJWKSet, jwtVerify } = require("jose");
+   - const JWKS = createRemoteJWKSet(new URL(process.env.NEON_AUTH_JWKS_URL));
+   - Verify tokens from the Authorization header: const { payload } = await jwtVerify(token, JWKS);
    - The JWT payload contains user info (sub, email, name, etc.)
    - Include "jose" in the package.json dependencies.
    - List NEON_AUTH_JWKS_URL in environmentVariables.
    - For apps needing auth, provide a simple login/signup UI or indicate that auth tokens come from an external identity provider.
+   - IMPORTANT: Do NOT implement your own auth with bcrypt, jsonwebtoken, or JWT_SECRET. Always use Neon Auth with jose + JWKS as described above.
 
 If the plan does NOT require a database or auth, do NOT include them. Only use these services when they are part of the plan.
+If the plan requires user accounts/authentication, you MUST use Neon Auth (option 2 above). Never roll custom auth with bcrypt/jsonwebtoken/JWT_SECRET.
 
 Produce:
 1. implementationSummary — a concise description of what was built.

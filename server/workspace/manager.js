@@ -14,6 +14,7 @@ function getWorkspaceEnv() {
   if (process.env.NEON_AUTH_JWKS_URL) {
     env.NEON_AUTH_JWKS_URL = process.env.NEON_AUTH_JWKS_URL;
   }
+  env.JWT_SECRET = "forgeos-generated-app-secret-" + Date.now();
   return env;
 }
 
