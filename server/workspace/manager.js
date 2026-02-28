@@ -241,26 +241,53 @@ function startApp(runId, startCommand, port) {
 }
 
 function stopApp(runId) {
-  const ws = workspaces.get(runId);
-  if (!ws) return;
-
-  if (ws.process && !ws.process.killed) {
-    ws.process.kill("SIGTERM");
-    setTimeout(() => {
-      if (ws.process && !ws.process.killed) {
-        ws.process.kill("SIGKILL");
+  return new Promise((resolve) => {
+    const ws = workspaces.get(runId);
+    if (!ws || !ws.process || ws.process.killed) {
+      if (ws) {
+        ws.status = "stopped";
+        ws.process = null;
       }
-    }, 2000);
-  }
+      resolve();
+      return;
+    }
 
-  ws.status = "stopped";
-  ws.process = null;
+    const proc = ws.process;
+    const onExit = () => {
+      ws.status = "stopped";
+      ws.process = null;
+      resolve();
+    };
+
+    proc.once("exit", onExit);
+    proc.kill("SIGTERM");
+
+    setTimeout(() => {
+      if (!proc.killed) {
+        proc.kill("SIGKILL");
+      }
+      setTimeout(() => {
+        proc.removeListener("exit", onExit);
+        ws.status = "stopped";
+        ws.process = null;
+        resolve();
+      }, 500);
+    }, 2000);
+  });
 }
 
-function stopAllApps() {
+async function stopAllApps() {
+  const promises = [];
   for (const [runId] of workspaces) {
-    stopApp(runId);
+    promises.push(stopApp(runId));
   }
+  await Promise.all(promises);
+}
+
+function forceKillPort(port) {
+  try {
+    execSync(`fuser -k ${port}/tcp 2>/dev/null`, { timeout: 3000 });
+  } catch {}
 }
 
 function getWorkspaceStatus(runId) {
@@ -292,6 +319,7 @@ module.exports = {
   startApp,
   stopApp,
   stopAllApps,
+  forceKillPort,
   getWorkspaceStatus,
   getWorkspaceLogs,
 };

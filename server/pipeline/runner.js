@@ -237,7 +237,8 @@ async function buildAndRun(run, executorOutput) {
   run.workspace = { status: "writing-files", port: null, error: null };
 
   try {
-    workspace.stopAllApps();
+    await workspace.stopAllApps();
+    workspace.forceKillPort(executorOutput.port || 4000);
 
     workspace.createWorkspace(run.id);
     workspace.writeFiles(run.id, executorOutput.files);
