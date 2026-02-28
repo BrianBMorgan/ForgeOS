@@ -119,7 +119,7 @@ AVAILABLE SERVICES (use these when the plan requires them):
    - Usage: const { neon } = require("@neondatabase/serverless"); const sql = neon(process.env.DATABASE_URL);
    - Use tagged template literals for queries, e.g.: await sql\`SELECT * FROM tasks\` or await sql\`INSERT INTO tasks (title) VALUES (\$\{title\})\`
    - Create tables on app startup using CREATE TABLE IF NOT EXISTS.
-   - Include "@neondatabase/serverless" in the package.json dependencies.
+   - Include "@neondatabase/serverless": "^1.0.2" in the package.json dependencies.
    - List DATABASE_URL in environmentVariables.
 
 2. **Neon Auth (User Authentication)** — JWT-based auth is available for apps that need user management.
@@ -128,7 +128,7 @@ AVAILABLE SERVICES (use these when the plan requires them):
    - const JWKS = createRemoteJWKSet(new URL(process.env.NEON_AUTH_JWKS_URL));
    - Verify tokens from the Authorization header: const { payload } = await jwtVerify(token, JWKS);
    - The JWT payload contains user info (sub, email, name, etc.)
-   - Include "jose" in the package.json dependencies.
+   - Include "jose": "^6.1.3" in the package.json dependencies.
    - List NEON_AUTH_JWKS_URL in environmentVariables.
    - For apps needing auth, provide a simple login/signup UI or indicate that auth tokens come from an external identity provider.
    - HARD CONSTRAINT: You MUST NOT use bcrypt, bcryptjs, jsonwebtoken, passport, or any custom auth library. You MUST NOT implement password hashing, custom JWT signing, or session management. The ONLY auth approach allowed is Neon Auth with jose + JWKS as described above. Any code using bcrypt or jsonwebtoken will fail deployment.
