@@ -141,6 +141,14 @@ Projects have a built-in conversational interface powered by gpt-4.1-mini:
 - **Persistence**: Chat messages stored in `chat_messages` table, survive restarts
 - **UI flow**: In project view, the input says "Ask a question or describe a change..." with a "Send" button for chat and a "Build" button for explicit builds
 
+## Database Viewer
+The DB tab in the workspace provides a read-only database browser for inspecting the Neon Postgres database:
+- **Table browser**: Lists all tables, click to see columns (name, type, nullable) and row count
+- **Data grid**: Paginated rows with sortable columns (50 rows per page, max 200)
+- **SQL query runner**: Free-form SQL input with Ctrl+Enter shortcut; shows row count and execution time
+- **Safety**: DDL statements (DROP, TRUNCATE, ALTER, CREATE, GRANT, REVOKE) are blocked at the API level
+- **API**: Uses `@neondatabase/serverless` neon().query() for dynamic table queries, tagged template literals for parameterized queries
+
 ## Current State
 - **Full persistence**: Projects, iterations, run snapshots, and chat messages stored in Neon Postgres via `@neondatabase/serverless`; in-memory cache for fast reads; schema auto-created on startup
 - **Run data survives restarts**: When a run completes/fails, a full snapshot (stages, outputs, workspace status) is saved to `run_snapshots` table; `getRun()` falls back to DB when not in memory and caches in-memory

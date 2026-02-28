@@ -253,6 +253,81 @@ app.get("/api/stress-test/results", (_req, res) => {
   res.json(latestReport.report || latestReport);
 });
 
+const dbUrl = process.env.NEON_DATABASE_URL;
+const neonLib = require("@neondatabase/serverless");
+const dbViewer = dbUrl ? neonLib.neon(dbUrl) : null;
+
+app.get("/api/db/tables", async (_req, res) => {
+  if (!dbViewer) return res.status(503).json({ error: "No database configured" });
+  try {
+    const tables = await dbViewer`
+      SELECT table_name, table_schema
+      FROM information_schema.tables
+      WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+      ORDER BY table_schema, table_name
+    `;
+    res.json(tables);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/db/tables/:name", async (req, res) => {
+  if (!dbViewer) return res.status(503).json({ error: "No database configured" });
+  const tableName = req.params.name.replace(/[^a-zA-Z0-9_]/g, "");
+  if (!tableName) return res.status(400).json({ error: "Invalid table name" });
+  try {
+    const columns = await dbViewer`
+      SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
+      FROM information_schema.columns
+      WHERE table_name = ${tableName}
+      AND table_schema NOT IN ('pg_catalog', 'information_schema')
+      ORDER BY ordinal_position
+    `;
+    const countResult = await dbViewer.query(`SELECT count(*)::int as total FROM "${tableName}"`);
+    res.json({ columns, rowCount: countResult[0]?.total || 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/db/tables/:name/rows", async (req, res) => {
+  if (!dbViewer) return res.status(503).json({ error: "No database configured" });
+  const tableName = req.params.name.replace(/[^a-zA-Z0-9_]/g, "");
+  if (!tableName) return res.status(400).json({ error: "Invalid table name" });
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const offset = parseInt(req.query.offset) || 0;
+  try {
+    const rows = await dbViewer.query(`SELECT * FROM "${tableName}" LIMIT ${limit} OFFSET ${offset}`);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/db/query", async (req, res) => {
+  if (!dbViewer) return res.status(503).json({ error: "No database configured" });
+  const { sql: rawSql } = req.body;
+  if (!rawSql || typeof rawSql !== "string") return res.status(400).json({ error: "SQL query required" });
+
+  const trimmed = rawSql.trim().toLowerCase();
+  const forbidden = ["drop ", "truncate ", "alter ", "create ", "grant ", "revoke "];
+  for (const f of forbidden) {
+    if (trimmed.startsWith(f)) {
+      return res.status(403).json({ error: `${f.trim().toUpperCase()} statements are not allowed from the viewer` });
+    }
+  }
+
+  try {
+    const startTime = Date.now();
+    const rows = await dbViewer.query(rawSql);
+    const duration = Date.now() - startTime;
+    res.json({ rows, rowCount: rows.length, duration });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const http = require("http");
 
 app.use("/preview/:runId", (req, res) => {

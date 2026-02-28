@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { RunData, ProjectData } from "../App";
+import DbTab from "./DbTab";
 
 interface Tab {
   id: string;
@@ -563,6 +564,8 @@ export default function Workspace({ runData, projectData, viewingIterationRunId 
         return <RenderTab runData={runData} />;
       case "shell":
         return <ShellTab runData={runData} />;
+      case "db":
+        return <DbTab />;
       default:
         return (
           <div className="panel-placeholder">
