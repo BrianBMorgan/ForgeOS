@@ -8,6 +8,16 @@ const BANNED_PACKAGES = [
   "passport-local",
   "passport-jwt",
   "dotenv",
+  "pg",
+  "esbuild",
+  "webpack",
+  "vite",
+  "parcel",
+  "rollup",
+  "react",
+  "react-dom",
+  "vue",
+  "svelte",
 ];
 
 const PINNED_VERSIONS = {
@@ -42,13 +52,25 @@ function analyzeExecutorOutput(executorOutput) {
   const serverFiles = files.filter(f => /\.(js|ts)$/.test(f.path) && !/public|static|client/i.test(f.path));
   const frontendFiles = files.filter(f => /\.(js|ts|html)$/.test(f.path));
 
+  if (!packageJsonFile) {
+    const hasRequires = files.some(f => f.content && /require\s*\(/.test(f.content));
+    if (hasRequires) {
+      violations.push({ rule: "missing_package_json", severity: "critical", file: null, line: null, snippet: "No package.json found but files use require()" });
+    }
+  }
+
+  const jsFiles = files.filter(f => /\.(js|ts)$/.test(f.path));
+
   checkAbsoluteFetchPaths(frontendFiles, violations);
   checkMissingRootRoute(serverFiles, violations);
-  checkDynamicSql(files.filter(f => /\.(js|ts)$/.test(f.path)), violations);
+  checkDynamicSql(jsFiles, violations);
   checkWrongPort(serverFiles, executorOutput.port, violations);
-  checkDotenvUsage(files.filter(f => /\.(js|ts)$/.test(f.path)), violations);
-  checkMissingDeps(files.filter(f => /\.(js|ts)$/.test(f.path)), packageJson, violations);
-  checkJwtSecretUsage(files.filter(f => /\.(js|ts)$/.test(f.path)), violations);
+  checkDotenvUsage(jsFiles, violations);
+  checkMissingDeps(jsFiles, packageJson, violations);
+  checkJwtSecretUsage(jsFiles, violations);
+  checkEsmSyntax(jsFiles, violations);
+  checkBuildSteps(executorOutput, violations);
+  checkNestedBackticks(serverFiles, violations);
 
   const score = calculateScore(violations);
   return { violations, score };
@@ -272,6 +294,86 @@ function checkVersionHallucination(packageJson, filePath, violations) {
         line: null,
         snippet: `"${pkg}": "${deps[pkg]}" — expected "${expectedVersion}"`,
       });
+    }
+  }
+}
+
+function checkEsmSyntax(files, violations) {
+  for (const file of files) {
+    if (!file.content) continue;
+    const lines = file.content.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^\s*export\s+(default\s+)?function\s/.test(line) ||
+          /^\s*export\s+(default\s+)?(class|const|let|var)\s/.test(line) ||
+          /^\s*import\s+.+\s+from\s+["']/.test(line)) {
+        violations.push({
+          rule: "esm_syntax",
+          severity: "critical",
+          file: file.path,
+          line: i + 1,
+          snippet: line.trim(),
+        });
+      }
+    }
+  }
+}
+
+function checkBuildSteps(executorOutput, violations) {
+  const startCmd = executorOutput.startCommand || "";
+  if (/&&/.test(startCmd)) {
+    violations.push({
+      rule: "chained_start_command",
+      severity: "critical",
+      file: null,
+      line: null,
+      snippet: `startCommand: "${startCmd}" — must be a single command, no && chains`,
+    });
+  }
+  const buildTools = ["esbuild", "webpack", "vite", "parcel", "tsc", "babel", "rollup"];
+  for (const tool of buildTools) {
+    if (startCmd.includes(tool)) {
+      violations.push({
+        rule: "build_step_in_start",
+        severity: "critical",
+        file: null,
+        line: null,
+        snippet: `startCommand uses build tool "${tool}": "${startCmd}"`,
+      });
+    }
+  }
+}
+
+function checkNestedBackticks(serverFiles, violations) {
+  for (const file of serverFiles) {
+    if (!file.content) continue;
+    const lines = file.content.split("\n");
+    let inTemplateLiteral = false;
+    let templateStart = -1;
+    let depth = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/res\.(send|end|type\(.*\)\.send)\s*\(\s*`/.test(line) && !line.includes("`)")) {
+        inTemplateLiteral = true;
+        templateStart = i;
+        depth = 1;
+        continue;
+      }
+      if (inTemplateLiteral) {
+        const backtickCount = (line.match(/`/g) || []).length;
+        if (backtickCount > 0 && /fetch\s*\(\s*`/.test(line)) {
+          violations.push({
+            rule: "nested_backticks",
+            severity: "critical",
+            file: file.path,
+            line: i + 1,
+            snippet: line.trim(),
+          });
+        }
+        if (/`\s*\)\s*;?\s*$/.test(line)) {
+          inTemplateLiteral = false;
+        }
+      }
     }
   }
 }
