@@ -1,0 +1,493 @@
+import { z } from "zod";
+import { Agent, AgentInputItem, Runner, withTrace } from "@openai/agents";
+
+const ForgePlannerSchema = z.object({ projectName: z.string(), template: z.enum(["fullstack-internal-tool", "api-service", "admin-ops-tool", "integration-worker"]), modules: z.array(z.string()), database: z.object({ required: z.boolean(), tables: z.array(z.object({ name: z.string(), purpose: z.string() })) }), environmentVariables: z.array(z.string()), apiEndpoints: z.array(z.object({ method: z.string(), route: z.string(), purpose: z.string() })), uiPages: z.array(z.object({ route: z.string(), purpose: z.string() })), backgroundWorkers: z.array(z.object({ name: z.string(), purpose: z.string() })), dataFlows: z.array(z.string()), risks: z.array(z.string()), acceptanceCriteria: z.array(z.string()) });
+const ForgeReviewerPass1Schema = z.object({ approved: z.boolean(), withRequiredChanges: z.array(z.object({ issue: z.string(), whyItMatters: z.string(), requiredFix: z.string() })), riskLevel: z.enum(["low", "medium", "high"]), summary: z.string(), architecturalConcerns: z.array(z.string()), securityConcerns: z.array(z.string()), overengineeringConcerns: z.array(z.string()) });
+const ForgePlannerRevisePass2Schema = z.object({ projectName: z.string(), template: z.enum(["fullstack-internal-tool", "api-service", "admin-ops-tool", "integration-worker"]), modules: z.array(z.string()), database: z.object({ required: z.boolean(), tables: z.array(z.object({ name: z.string(), purpose: z.string() })) }), environmentVariables: z.array(z.string()), apiEndpoints: z.array(z.object({ method: z.string(), route: z.string(), purpose: z.string() })), uiPages: z.array(z.object({ route: z.string(), purpose: z.string() })), backgroundWorkers: z.array(z.object({ name: z.string(), purpose: z.string() })), dataFlows: z.array(z.string()), risks: z.array(z.string()), acceptanceCriteria: z.array(z.string()) });
+const ForgeReviewerPass2Schema = z.object({ approved: z.boolean(), withRequiredChanges: z.array(z.object({ issue: z.string(), whyItMatters: z.string(), requiredFix: z.string() })), riskLevel: z.enum(["low", "medium", "high"]), summary: z.string(), architecturalConcerns: z.array(z.string()), securityConcerns: z.array(z.string()), overengineeringConcerns: z.array(z.string()) });
+const ForgepolicygateSchema = z.object({ autoApprove: z.boolean(), humanApprovalRequired: z.boolean(), reason: z.string() });
+const forgePlanner = new Agent({
+  name: "Forge Planner",
+  instructions: `You are Forge Planner v1.
+
+You generate structured build plans for internal software tools.
+
+Rules:
+
+Output must strictly match the response schema.
+Keep plans minimal but production-aware.
+Do not overengineer.
+Only include backgroundWorkers if needed.
+Only include database tables if persistence is required.
+Prefer simplicity unless scale or reliability demands complexity.
+Assume internal use unless specified otherwise.
+
+
+When planning integrations (e.g., Stripe, Slack, webhooks):
+
+Always define idempotency strategy.
+Always define environment variables explicitly.
+Define data retention concerns when storing external payloads.
+Include clear data flow steps.
+
+
+Return only valid JSON.`,
+  model: "gpt-5.2-pro-2025-12-11",
+  outputType: ForgePlannerSchema,
+  modelSettings: {
+    store: true
+  }
+});
+
+const forgeReviewerPass1 = new Agent({
+  name: "Forge Reviewer (Pass 1)",
+  instructions: `You are Forge Reviewer v1
+
+You will receive a structured build plan JSON below.
+
+Review it for:
+- missing components
+- architectural risks
+- obvious security issues
+- overengineering
+
+Build Plan:
+{{Planner Agent.output_parsed}}
+
+Respond strictly according to the structured response schema.
+
+If withRequiredChanges is empty, approved must be true.`,
+  model: "gpt-5.2-pro-2025-12-11",
+  outputType: ForgeReviewerPass1Schema,
+  modelSettings: {
+    store: true
+  }
+});
+
+const forgePlannerRevisePass2 = new Agent({
+  name: "Forge Planner Revise (Pass 2)",
+  instructions: `You are Forge Planner Revise v3.
+You receive:
+A structured build plan JSON.
+A structured review JSON containing withRequiredChanges.
+You must produce a revised plan that eliminates every requiredFix by adding explicit, concrete implementation requirements.
+Rules:
+Every requiredFix must be implemented with specific, enforceable statements. Do not describe behavior abstractly. Specify exact mechanisms, constraints, and defaults.
+When schema is requested:
+List concrete columns.
+Specify UNIQUE or PRIMARY KEY constraints.
+Specify required indexes.
+Specify concurrency pattern explicitly (e.g., SELECT ... FOR UPDATE SKIP LOCKED or UPDATE ... RETURNING).
+When webhook signature verification is required:
+Explicitly state raw body capture requirement.
+Specify tolerance window (e.g., 300 seconds).
+Specify exact HTTP status codes: 200 for verified + persisted (including duplicates) 400 for invalid signature 500 for internal failure
+Specify maximum body size (e.g., 1MB).
+When data retention or encryption is required:
+Specify whether full payload is stored.
+If stored, require encryption at rest.
+Define a concrete retention duration (e.g., 30 days).
+Add automatic deletion/nullification requirement.
+Add concrete, testable acceptanceCriteria that directly prove each requiredFix is implemented.
+Do not summarize the reviewer. Rewrite the plan so it is production-specific and implementation-grade.
+Output must strictly match the Planner response schema.
+Return only valid JSON.
+`,
+  model: "gpt-5.2-pro-2025-12-11",
+  outputType: ForgePlannerRevisePass2Schema,
+  modelSettings: {
+    store: true
+  }
+});
+
+const forgeReviewerPass2 = new Agent({
+  name: "Forge Reviewer (Pass 2)",
+  instructions: `You are Forge Reviewer v1 (Pass 2).
+You receive conversation context that includes:
+The revised structured build plan JSON produced by Forge Planner Revise v1.
+Your job is to perform a strict production-readiness review.
+Rules:
+You must return a final binary decision:
+approved = true ONLY if the plan is production-ready with no blocking issues.
+approved = false if any required changes exist.
+All blocking issues must appear inside withRequiredChanges. If that array is non-empty, approved MUST be false.
+Non-blocking concerns go into:
+architecturalConcerns
+securityConcerns
+overengineeringConcerns
+Be concise and structured.
+Return only valid JSON matching the response schema.`,
+  model: "gpt-4.1",
+  outputType: ForgeReviewerPass2Schema,
+  modelSettings: {
+    temperature: 1,
+    topP: 1,
+    maxTokens: 2048,
+    store: true
+  }
+});
+
+const forgepolicygate = new Agent({
+  name: "ForgePolicyGate",
+  instructions: `You are Forge Policy Gate v1.
+You receive:
+Reviewer result: {{Forge Reviewer (Pass 2).output_parsed}}
+Planner final plan: {{Forge Planner Revise (Pass 2).output_parsed}}
+Your task is to determine whether this plan:
+Can be auto-approved
+Requires human approval before execution
+Policy rules:
+
+If reviewer.approved == false → humanApprovalRequired = true → autoApprove = false
+If reviewer.riskLevel == \"high\" → humanApprovalRequired = true
+If the plan introduces NEW system surface area:
+A required database
+OR one or more background workers
+OR new external API/webhook endpoints
+OR a new feature or integration → humanApprovalRequired = true
+If the plan is limited to:
+UI/layout/style changes
+copy/content updates
+small bug fixes
+internal refactors AND does not introduce new services, storage, or endpoints → autoApprove = true → humanApprovalRequired = false
+If scope is ambiguous → humanApprovalRequired = true`,
+  model: "gpt-5.2-pro-2025-12-11",
+  outputType: ForgepolicygateSchema,
+  modelSettings: {
+    store: true
+  }
+});
+
+const humanapprovalprompt = new Agent({
+  name: "HumanApprovalPrompt",
+  instructions: `You are an approval gate agent.
+If human approval is required, explain clearly and concisely:
+Use the value of state.approvalreason to explain why approval is required.
+What specifically requires approval (plan, tasks, new infra, etc.)
+What action the human must take next (approve or modify)
+Do not continue execution. Do not propose new changes. Wait for explicit human approval before proceeding.
+`,
+  model: "gpt-5.2-pro-2025-12-11",
+  modelSettings: {
+    store: true
+  }
+});
+
+const forgePlannerRevisePass3 = new Agent({
+  name: "Forge Planner Revise (Pass 3)",
+  instructions: `You are Forge Planner (Revision Pass).
+You are revising a previously rejected build plan.
+Inputs available to you:
+The last reviewed plan output.
+The Reviewer findings explaining why the plan was not approved.
+The user’s rejection feedback or requested modifications.
+Your job:
+Analyze the Reviewer findings.
+Analyze the user’s feedback.
+Modify the prior plan to address all required changes.
+Preserve correct architectural decisions unless explicitly changed.
+Improve clarity, completeness, and security where needed.
+Remove unnecessary complexity if the user requests simplification.
+Rules:
+This is not a brand new plan.
+This is a revision of the previous plan.
+You must explicitly incorporate the Reviewer’s required changes.
+You must incorporate the user’s requested changes.
+Do not ignore security or architectural corrections.
+Maintain production readiness.
+Output requirements:
+Return a complete updated structured build plan.
+Do not reference prior drafts.
+Do not explain reasoning.
+Output only the final revised plan.
+Output must be clean structured JSON.
+Your goal is to produce a revised plan that is ready to pass review.`,
+  model: "gpt-5.2-pro-2025-12-11",
+  modelSettings: {
+    store: true
+  }
+});
+
+const forgeReviewerPass3 = new Agent({
+  name: "Forge Reviewer (Pass 3)",
+  instructions: "",
+  model: "gpt-4.1",
+  modelSettings: {
+    temperature: 1,
+    topP: 1,
+    maxTokens: 2048,
+    store: true
+  }
+});
+
+const humanapprovalprompt1 = new Agent({
+  name: "HumanApprovalPrompt",
+  instructions: `You are an approval gate agent.
+If human approval is required, explain clearly and concisely:
+Use the value of state.approvalreason to explain why approval is required.
+What specifically requires approval (plan, tasks, new infra, etc.)
+What action the human must take next (approve or modify)
+Do not continue execution. Do not propose new changes. Wait for explicit human approval before proceeding.
+`,
+  model: "gpt-5.2-pro-2025-12-11",
+  modelSettings: {
+    store: true
+  }
+});
+
+const forgeExecutor = new Agent({
+  name: "Forge Executor",
+  instructions: `You are Forge Executor.
+
+Your job is to implement the final, human-approved build plan.
+
+You will receive:
+- The structured build plan JSON from the latest Planner pass.
+- All required changes have already been incorporated.
+- Human approval has been granted.
+
+Do NOT re-plan.
+Do NOT re-review.
+Do NOT ask for approval again.
+
+Execute the plan by producing:
+
+1. A concise implementation summary.
+2. A clear file/folder structure.
+3. Required environment variables.
+4. Database schema (if required).
+5. API endpoints (if required).
+6. Step-by-step build tasks in correct execution order.
+
+If the plan does not require backend or infrastructure changes (e.g., UI-only change), output only the necessary implementation changes.
+
+Be concrete and production-ready.`,
+  model: "gpt-5.2-pro-2025-12-11",
+  modelSettings: {
+    store: true
+  }
+});
+
+const approvalRequest = (message: string) => {
+
+  // TODO: Implement
+  return true;
+}
+
+const approvalRequest1 = (message: string) => {
+
+  // TODO: Implement
+  return true;
+}
+
+type WorkflowInput = { input_as_text: string };
+
+
+// Main code entrypoint
+export const runWorkflow = async (workflow: WorkflowInput) => {
+  return await withTrace("ForgeOS Agents", async () => {
+    const state = {
+      humanapprovalrequired: true,
+      approvalreason: null
+    };
+    const conversationHistory: AgentInputItem[] = [
+      { role: "user", content: [{ type: "input_text", text: workflow.input_as_text }] }
+    ];
+    const runner = new Runner({
+      traceMetadata: {
+        __trace_source__: "agent-builder",
+        workflow_id: "wf_69a14cc95bac8190ada08c670c0c31640e57aa72d5590546"
+      }
+    });
+    const forgePlannerResultTemp = await runner.run(
+      forgePlanner,
+      [
+        ...conversationHistory
+      ]
+    );
+    conversationHistory.push(...forgePlannerResultTemp.newItems.map((item) => item.rawItem));
+
+    if (!forgePlannerResultTemp.finalOutput) {
+        throw new Error("Agent result is undefined");
+    }
+
+    const forgePlannerResult = {
+      output_text: JSON.stringify(forgePlannerResultTemp.finalOutput),
+      output_parsed: forgePlannerResultTemp.finalOutput
+    };
+    const forgeReviewerPass1ResultTemp = await runner.run(
+      forgeReviewerPass1,
+      [
+        ...conversationHistory
+      ]
+    );
+    conversationHistory.push(...forgeReviewerPass1ResultTemp.newItems.map((item) => item.rawItem));
+
+    if (!forgeReviewerPass1ResultTemp.finalOutput) {
+        throw new Error("Agent result is undefined");
+    }
+
+    const forgeReviewerPass1Result = {
+      output_text: JSON.stringify(forgeReviewerPass1ResultTemp.finalOutput),
+      output_parsed: forgeReviewerPass1ResultTemp.finalOutput
+    };
+    const forgePlannerRevisePass2ResultTemp = await runner.run(
+      forgePlannerRevisePass2,
+      [
+        ...conversationHistory
+      ]
+    );
+    conversationHistory.push(...forgePlannerRevisePass2ResultTemp.newItems.map((item) => item.rawItem));
+
+    if (!forgePlannerRevisePass2ResultTemp.finalOutput) {
+        throw new Error("Agent result is undefined");
+    }
+
+    const forgePlannerRevisePass2Result = {
+      output_text: JSON.stringify(forgePlannerRevisePass2ResultTemp.finalOutput),
+      output_parsed: forgePlannerRevisePass2ResultTemp.finalOutput
+    };
+    const forgeReviewerPass2ResultTemp = await runner.run(
+      forgeReviewerPass2,
+      [
+        ...conversationHistory
+      ]
+    );
+    conversationHistory.push(...forgeReviewerPass2ResultTemp.newItems.map((item) => item.rawItem));
+
+    if (!forgeReviewerPass2ResultTemp.finalOutput) {
+        throw new Error("Agent result is undefined");
+    }
+
+    const forgeReviewerPass2Result = {
+      output_text: JSON.stringify(forgeReviewerPass2ResultTemp.finalOutput),
+      output_parsed: forgeReviewerPass2ResultTemp.finalOutput
+    };
+    const forgepolicygateResultTemp = await runner.run(
+      forgepolicygate,
+      [
+        ...conversationHistory
+      ]
+    );
+    conversationHistory.push(...forgepolicygateResultTemp.newItems.map((item) => item.rawItem));
+
+    if (!forgepolicygateResultTemp.finalOutput) {
+        throw new Error("Agent result is undefined");
+    }
+
+    const forgepolicygateResult = {
+      output_text: JSON.stringify(forgepolicygateResultTemp.finalOutput),
+      output_parsed: forgepolicygateResultTemp.finalOutput
+    };
+    if (state.humanapprovalrequired == true) {
+      const humanapprovalpromptResultTemp = await runner.run(
+        humanapprovalprompt,
+        [
+          ...conversationHistory
+        ]
+      );
+      conversationHistory.push(...humanapprovalpromptResultTemp.newItems.map((item) => item.rawItem));
+
+      if (!humanapprovalpromptResultTemp.finalOutput) {
+          throw new Error("Agent result is undefined");
+      }
+
+      const humanapprovalpromptResult = {
+        output_text: humanapprovalpromptResultTemp.finalOutput ?? ""
+      };
+      const approvalMessage = `Human approval is required before execution.
+    Reason: ${state.approvalreason}
+    Approve to proceed with execution. Reject to revise or modify the plan.
+    Do not change anything else.`;
+
+      if (approvalRequest(approvalMessage)) {
+          const forgeExecutorResultTemp = await runner.run(
+            forgeExecutor,
+            [
+              ...conversationHistory
+            ]
+          );
+          conversationHistory.push(...forgeExecutorResultTemp.newItems.map((item) => item.rawItem));
+
+          if (!forgeExecutorResultTemp.finalOutput) {
+              throw new Error("Agent result is undefined");
+          }
+
+          const forgeExecutorResult = {
+            output_text: forgeExecutorResultTemp.finalOutput ?? ""
+          };
+          return forgeExecutorResult;
+      } else {
+          const forgePlannerRevisePass3ResultTemp = await runner.run(
+            forgePlannerRevisePass3,
+            [
+              ...conversationHistory
+            ]
+          );
+          conversationHistory.push(...forgePlannerRevisePass3ResultTemp.newItems.map((item) => item.rawItem));
+
+          if (!forgePlannerRevisePass3ResultTemp.finalOutput) {
+              throw new Error("Agent result is undefined");
+          }
+
+          const forgePlannerRevisePass3Result = {
+            output_text: forgePlannerRevisePass3ResultTemp.finalOutput ?? ""
+          };
+          const forgeReviewerPass3ResultTemp = await runner.run(
+            forgeReviewerPass3,
+            [
+              ...conversationHistory
+            ]
+          );
+          conversationHistory.push(...forgeReviewerPass3ResultTemp.newItems.map((item) => item.rawItem));
+
+          if (!forgeReviewerPass3ResultTemp.finalOutput) {
+              throw new Error("Agent result is undefined");
+          }
+
+          const forgeReviewerPass3Result = {
+            output_text: forgeReviewerPass3ResultTemp.finalOutput ?? ""
+          };
+          const humanapprovalpromptResultTemp1 = await runner.run(
+            humanapprovalprompt1,
+            [
+              ...conversationHistory
+            ]
+          );
+          conversationHistory.push(...humanapprovalpromptResultTemp1.newItems.map((item) => item.rawItem));
+
+          if (!humanapprovalpromptResultTemp1.finalOutput) {
+              throw new Error("Agent result is undefined");
+          }
+
+          const humanapprovalpromptResult1 = {
+            output_text: humanapprovalpromptResultTemp1.finalOutput ?? ""
+          };
+          const approvalMessage1 = "";
+
+          if (approvalRequest1(approvalMessage1)) {
+              return humanapprovalpromptResult1;
+          } else {
+
+          }
+      }
+    } else {
+      const forgeExecutorResultTemp = await runner.run(
+        forgeExecutor,
+        [
+          ...conversationHistory
+        ]
+      );
+      conversationHistory.push(...forgeExecutorResultTemp.newItems.map((item) => item.rawItem));
+
+      if (!forgeExecutorResultTemp.finalOutput) {
+          throw new Error("Agent result is undefined");
+      }
+
+      const forgeExecutorResult = {
+        output_text: forgeExecutorResultTemp.finalOutput ?? ""
+      };
+      return forgeExecutorResult;
+    }
+  });
+}
