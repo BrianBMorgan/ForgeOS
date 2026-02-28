@@ -63,6 +63,10 @@ body {
   opacity: 1;
 }
 
+.sidebar.collapsed .logo-img {
+  width: 36px;
+}
+
 /* Workspace */
 .workspace {
   flex: 1;
@@ -84,19 +88,36 @@ body {
 
 /* Main viewport */
 .viewport {
+  position: relative;
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-image: radial-gradient(
-    circle at 50% 50%,
-    rgba(0, 255, 120, 0.03),
-    transparent 60%
-  );
+  padding: 2rem;
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(0, 255, 120, 0.04),
+      transparent 60%
+    ),
+    repeating-linear-gradient(
+      to right,
+      rgba(255,255,255,0.02) 0px,
+      rgba(255,255,255,0.02) 1px,
+      transparent 1px,
+      transparent 40px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.02) 0px,
+      rgba(255,255,255,0.02) 1px,
+      transparent 1px,
+      transparent 40px
+    );
 }
 
 .canvas {
-  opacity: 0.4;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.15em;
 }
 
 /* Command section */
@@ -179,4 +200,14 @@ body {
 
 .nav-item.active .nav-icon {
   transform: scale(1.05);
+}
+
+.logo-img {
+  width: 140px;
+  opacity: 0.9;
+  filter: brightness(1);
+}
+
+.logo-img:hover {
+  filter: drop-shadow(0 0 8px rgba(0,255,120,0.25));
 }
