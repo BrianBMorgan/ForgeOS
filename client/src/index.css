@@ -30,7 +30,7 @@ body {
 /* ── Sidebar ── */
 .sidebar {
   width: 240px;
-  background: #111827;
+  background: #0f172a;
   border-right: 1px solid #1e293b;
   display: flex;
   flex-direction: column;
@@ -144,7 +144,7 @@ body {
   border-bottom: 1px solid #1e293b;
   font-size: 0.8rem;
   opacity: 0.7;
-  background: #0f172a;
+  background: #111827;
   flex-shrink: 0;
 }
 
@@ -178,7 +178,7 @@ body {
   display: flex;
   flex-direction: column;
   border-right: 1px solid #1e293b;
-  background: #0f172a;
+  background: #111827;
 }
 
 .prompt-input-area {
@@ -190,7 +190,7 @@ body {
 
 .prompt-textarea {
   width: 100%;
-  background: #111827;
+  background: #0f172a;
   border: 1px solid #1e293b;
   border-radius: 6px;
   color: #e2e8f0;
@@ -345,7 +345,7 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #0f172a;
+  background: #111827;
 }
 
 .tab-bar {
