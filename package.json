@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "cd client && npx vite",
     "dev:server": "node server/index.js",
-    "build": "cd client && npm run build",
+    "build": "npm install --prefix client && npm run build --prefix client",
     "start": "NODE_ENV=production node server/index.js"
   },
   "dependencies": {
