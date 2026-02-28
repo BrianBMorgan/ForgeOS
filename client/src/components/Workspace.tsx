@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { RunData, ProjectData } from "../App";
 import DbTab from "./DbTab";
 
@@ -451,13 +451,26 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
   );
 }
 
+interface ShellEntry {
+  id: number;
+  type: "command" | "stdout" | "stderr" | "info" | "system";
+  text: string;
+}
+
 function ShellTab({ runData }: { runData: RunData | null }) {
   const [logs, setLogs] = useState<{ install: string; app: string } | null>(null);
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const [shellHistory, setShellHistory] = useState<ShellEntry[]>([]);
+  const [cmdInput, setCmdInput] = useState("");
+  const [cmdHistoryList, setCmdHistoryList] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [shellMode, setShellMode] = useState<"terminal" | "logs">("terminal");
+  const shellEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const entryIdRef = useRef(0);
 
   useEffect(() => {
     if (!runData?.id || !runData?.workspace) return;
-
     const fetchLogs = async () => {
       try {
         const res = await fetch(`/api/runs/${runData.id}/logs`);
@@ -465,18 +478,108 @@ function ShellTab({ runData }: { runData: RunData | null }) {
           const data = await res.json();
           setLogs(data.logs);
         }
-      } catch {
-      }
+      } catch {}
     };
-
     fetchLogs();
-    const interval = setInterval(fetchLogs, 2000);
+    const interval = setInterval(fetchLogs, 3000);
     return () => clearInterval(interval);
   }, [runData?.id, runData?.workspace?.status]);
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
+    shellEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [shellHistory]);
+
+  useEffect(() => {
+    if (runData?.id) {
+      setShellHistory([]);
+      setCmdHistoryList([]);
+      setHistoryIndex(-1);
+      entryIdRef.current = 0;
+    }
+  }, [runData?.id]);
+
+  const addEntry = useCallback((type: ShellEntry["type"], text: string) => {
+    const id = ++entryIdRef.current;
+    setShellHistory((prev) => [...prev, { id, type, text }]);
+  }, []);
+
+  const executeCommand = useCallback(async () => {
+    const cmd = cmdInput.trim();
+    if (!cmd || !runData?.id || isExecuting) return;
+
+    setCmdInput("");
+    setHistoryIndex(-1);
+    setCmdHistoryList((prev) => {
+      const filtered = prev.filter((c) => c !== cmd);
+      return [cmd, ...filtered].slice(0, 50);
+    });
+
+    addEntry("command", cmd);
+    setIsExecuting(true);
+
+    try {
+      const res = await fetch(`/api/runs/${runData.id}/exec`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: cmd }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "Server error");
+        addEntry("stderr", text);
+        return;
+      }
+      const data = await res.json();
+
+      if (data.error) {
+        addEntry("stderr", data.error);
+      } else {
+        if (data.stdout && data.stdout.trim()) {
+          addEntry("stdout", data.stdout);
+        }
+        if (data.stderr && data.stderr.trim()) {
+          addEntry("stderr", data.stderr);
+        }
+        if (!data.stdout?.trim() && !data.stderr?.trim() && data.exitCode === 0) {
+          addEntry("info", "(no output)");
+        }
+        if (data.exitCode !== 0 && data.exitCode !== undefined) {
+          addEntry("info", `exit code ${data.exitCode}`);
+        }
+      }
+    } catch (err: unknown) {
+      addEntry("stderr", `Network error: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setIsExecuting(false);
+      inputRef.current?.focus();
+    }
+  }, [cmdInput, runData?.id, isExecuting, addEntry]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      executeCommand();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (cmdHistoryList.length > 0) {
+        const next = Math.min(historyIndex + 1, cmdHistoryList.length - 1);
+        setHistoryIndex(next);
+        setCmdInput(cmdHistoryList[next]);
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        const next = historyIndex - 1;
+        setHistoryIndex(next);
+        setCmdInput(cmdHistoryList[next]);
+      } else {
+        setHistoryIndex(-1);
+        setCmdInput("");
+      }
+    } else if (e.key === "l" && e.ctrlKey) {
+      e.preventDefault();
+      setShellHistory([]);
+    }
+  }, [executeCommand, cmdHistoryList, historyIndex]);
 
   if (!runData?.workspace) {
     return (
@@ -493,6 +596,7 @@ function ShellTab({ runData }: { runData: RunData | null }) {
 
   const hasInstallLogs = logs?.install && logs.install.trim().length > 0;
   const hasAppLogs = logs?.app && logs.app.trim().length > 0;
+  const workspaceDir = runData.id ? `workspaces/${runData.id}` : "";
 
   return (
     <div className="shell-content">
@@ -501,34 +605,92 @@ function ShellTab({ runData }: { runData: RunData | null }) {
         {runData.workspace.port && (
           <span className="shell-port">Port {runData.workspace.port}</span>
         )}
+        <div className="shell-mode-toggle">
+          <button
+            className={`shell-mode-btn ${shellMode === "terminal" ? "active" : ""}`}
+            onClick={() => setShellMode("terminal")}
+          >
+            Terminal
+          </button>
+          <button
+            className={`shell-mode-btn ${shellMode === "logs" ? "active" : ""}`}
+            onClick={() => setShellMode("logs")}
+          >
+            Logs
+          </button>
+        </div>
       </div>
-      <div className="shell-log-area">
-        {hasInstallLogs && (
-          <>
-            <div className="shell-log-label">Install Output</div>
-            <pre className="shell-log-block">{logs!.install}</pre>
-          </>
-        )}
-        {hasAppLogs && (
-          <>
-            <div className="shell-log-label">Application Output</div>
-            <pre className="shell-log-block">{logs!.app}</pre>
-          </>
-        )}
-        {!hasInstallLogs && !hasAppLogs && (
-          <div className="shell-log-empty">
-            {runData.workspace.status === "writing-files"
-              ? "Writing files to workspace..."
-              : runData.workspace.status === "installing"
-              ? "Installing dependencies..."
-              : "Waiting for output..."}
+
+      {shellMode === "terminal" ? (
+        <div className="shell-terminal" onClick={() => inputRef.current?.focus()}>
+          <div className="shell-terminal-output">
+            {shellHistory.length === 0 && (
+              <div className="shell-welcome">
+                <span className="shell-welcome-path">{workspaceDir}</span>
+                <span className="shell-welcome-hint">
+                  Type commands to run in the workspace. Use Up/Down for history, Ctrl+L to clear.
+                </span>
+              </div>
+            )}
+            {shellHistory.map((entry) => (
+              <div key={entry.id} className={`shell-entry shell-entry-${entry.type}`}>
+                {entry.type === "command" ? (
+                  <span><span className="shell-prompt">$</span> {entry.text}</span>
+                ) : (
+                  <pre>{entry.text}</pre>
+                )}
+              </div>
+            ))}
+            {isExecuting && (
+              <div className="shell-entry shell-entry-info shell-executing">Running...</div>
+            )}
+            <div ref={shellEndRef} />
           </div>
-        )}
-        {runData.workspace.error && (
-          <div className="shell-error">Error: {runData.workspace.error}</div>
-        )}
-        <div ref={logEndRef} />
-      </div>
+          <div className="shell-input-row">
+            <span className="shell-prompt">$</span>
+            <input
+              ref={inputRef}
+              className="shell-input"
+              type="text"
+              value={cmdInput}
+              onChange={(e) => { setCmdInput(e.target.value); setHistoryIndex(-1); }}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a command..."
+              disabled={isExecuting}
+              autoFocus
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="shell-log-area">
+          {hasInstallLogs && (
+            <>
+              <div className="shell-log-label">Install Output</div>
+              <pre className="shell-log-block">{logs!.install}</pre>
+            </>
+          )}
+          {hasAppLogs && (
+            <>
+              <div className="shell-log-label">Application Output</div>
+              <pre className="shell-log-block">{logs!.app}</pre>
+            </>
+          )}
+          {!hasInstallLogs && !hasAppLogs && (
+            <div className="shell-log-empty">
+              {runData.workspace.status === "writing-files"
+                ? "Writing files to workspace..."
+                : runData.workspace.status === "installing"
+                ? "Installing dependencies..."
+                : "Waiting for output..."}
+            </div>
+          )}
+          {runData.workspace.error && (
+            <div className="shell-error">Error: {runData.workspace.error}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

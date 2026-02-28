@@ -74,6 +74,7 @@ Three-zone layout:
 - `GET /api/runs` — List all runs
 - `GET /api/runs/:id` — Get run status, stages, outputs, and workspace status
 - `GET /api/runs/:id/logs` — Get workspace build/install/app logs
+- `POST /api/runs/:id/exec` — Execute a command in the workspace directory (body: `{ command }`) — returns `{ exitCode, stdout, stderr }`; dangerous commands blocked by pattern matching; 15s timeout; 256KB output limit
 - `POST /api/runs/:id/approve` — Approve a run awaiting human approval
 - `POST /api/runs/:id/reject` — Reject with feedback (body: `{ feedback: string }`)
 - `/preview/:runId/*` — Proxies to the running workspace app (path-based routing)
@@ -160,7 +161,8 @@ The DB tab in the workspace provides a read-only database browser for inspecting
 - Dynamic port allocation (4000-4099) with hardcoded port patching (Layer 2.5)
 - Live preview via iframe in Render tab (Layer 3)
 - Auditor stage with 11-point checklist and fix loop (up to 2 rounds)
-- Build/runtime logs in Shell tab
+- Interactive shell in Shell tab (command execution in workspace directory, command history, safety-blocked patterns)
+- Build/runtime logs in Shell tab (Logs mode)
 - Neon Postgres available for generated apps that need a database (via DATABASE_URL)
 - Neon Auth available for generated apps that need user management (via NEON_AUTH_JWKS_URL)
 - Stress test harness: 100% pass rate (18/18)

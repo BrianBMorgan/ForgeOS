@@ -470,6 +470,118 @@ async function restoreWorkspace(runId, startCommand, port) {
   }
 }
 
+const BLOCKED_SHELL_PATTERNS = [
+  /\brm\s+(-[a-zA-Z]*\s+)*\//,
+  /\brm\s+(-[a-zA-Z]*\s+)*\.\./,
+  /\brm\s+-[a-zA-Z]*r[a-zA-Z]*\s+\*/,
+  /\bmkfs\b/,
+  /\bdd\s+/,
+  /\bshutdown\b/,
+  /\breboot\b/,
+  /\bkill\s+(-9\s+)?1\b/,
+  /\bkillall\b/,
+  />\s*\/dev\//,
+  /\bchmod\s+777\b/,
+  /\bchown\b.*\//,
+  /\bcurl\b.*\|\s*(bash|sh)\b/,
+  /\bwget\b.*\|\s*(bash|sh)\b/,
+  /\bperl\s+-e\b/,
+  /\bruby\s+-e\b/,
+  /\bpython[23]?\s+-c\b/,
+  /\bbash\s+-c\b/,
+  /\bsudo\b/,
+  /\bsu\s/,
+  /\/etc\/(passwd|shadow|sudoers)/,
+  /\/proc\//,
+  /\/sys\//,
+  /\bsystemctl\b/,
+  /\bservice\s/,
+  /\bnc\s.*-[el]/,
+  /\bssh\b/,
+  /\bscp\b/,
+];
+
+const MAX_OUTPUT_SIZE = 256 * 1024;
+
+function execCommand(runId, command, timeout = 15000) {
+  return new Promise((resolve) => {
+    const ws = workspaces.get(runId);
+    if (!ws) {
+      return resolve({ exitCode: 1, stdout: "", stderr: "Workspace not found" });
+    }
+
+    const trimmed = command.trim();
+    if (!trimmed) {
+      return resolve({ exitCode: 1, stdout: "", stderr: "Empty command" });
+    }
+
+    if (trimmed.length > 2000) {
+      return resolve({ exitCode: 1, stdout: "", stderr: "Command too long (max 2000 chars)" });
+    }
+
+    for (const pattern of BLOCKED_SHELL_PATTERNS) {
+      if (pattern.test(trimmed)) {
+        return resolve({ exitCode: 1, stdout: "", stderr: "Command blocked for safety" });
+      }
+    }
+
+    let stdout = "";
+    let stderr = "";
+    let finished = false;
+    let outputTruncated = false;
+
+    const proc = spawn("sh", ["-c", trimmed], {
+      cwd: ws.dir,
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        TERM: "dumb",
+        PORT: String(ws.port || 4000),
+        DATABASE_URL: process.env.NEON_DATABASE_URL || "",
+        NODE_ENV: "development",
+      },
+      timeout,
+    });
+
+    proc.stdout.on("data", (data) => {
+      if (stdout.length + stderr.length < MAX_OUTPUT_SIZE) {
+        stdout += data.toString();
+      } else if (!outputTruncated) {
+        outputTruncated = true;
+        stdout += "\n... output truncated (256KB limit)\n";
+      }
+    });
+
+    proc.stderr.on("data", (data) => {
+      if (stdout.length + stderr.length < MAX_OUTPUT_SIZE) {
+        stderr += data.toString();
+      } else if (!outputTruncated) {
+        outputTruncated = true;
+        stderr += "\n... output truncated (256KB limit)\n";
+      }
+    });
+
+    proc.on("close", (code) => {
+      if (finished) return;
+      finished = true;
+      resolve({ exitCode: code ?? 0, stdout, stderr });
+    });
+
+    proc.on("error", (err) => {
+      if (finished) return;
+      finished = true;
+      resolve({ exitCode: 1, stdout, stderr: stderr || err.message });
+    });
+
+    setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      try { proc.kill("SIGKILL"); } catch {}
+      resolve({ exitCode: 124, stdout, stderr: stderr + "\nCommand timed out" });
+    }, timeout);
+  });
+}
+
 module.exports = {
   createWorkspace,
   writeFiles,
@@ -481,4 +593,5 @@ module.exports = {
   getWorkspaceStatus,
   getWorkspaceLogs,
   restoreWorkspace,
+  execCommand,
 };

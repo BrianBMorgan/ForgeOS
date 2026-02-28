@@ -58,6 +58,15 @@ app.get("/api/runs/:id/logs", (req, res) => {
   res.json({ logs, status });
 });
 
+app.post("/api/runs/:id/exec", async (req, res) => {
+  const { command } = req.body;
+  if (!command || typeof command !== "string") {
+    return res.status(400).json({ error: "Command is required" });
+  }
+  const result = await workspace.execCommand(req.params.id, command.trim());
+  res.json(result);
+});
+
 app.post("/api/runs/:id/approve", async (req, res) => {
   const result = await handleApproval(req.params.id);
   if (result.error) {
