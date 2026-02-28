@@ -159,23 +159,24 @@ function installDeps(runId, installCommand) {
   });
 }
 
-function startApp(runId, startCommand, port) {
+async function startApp(runId, startCommand, port) {
+  const ws = workspaces.get(runId);
+  if (!ws) {
+    return { success: false, error: "Workspace not found" };
+  }
+
+  if (!startCommand) {
+    ws.status = "no-start-command";
+    return { success: false, error: "No start command provided" };
+  }
+
+  ws.status = "starting";
+  ws.port = port || 4000;
+  ws.logs.app = "";
+
+  await forceKillPort(ws.port);
+
   return new Promise((resolve) => {
-    const ws = workspaces.get(runId);
-    if (!ws) {
-      resolve({ success: false, error: "Workspace not found" });
-      return;
-    }
-
-    if (!startCommand) {
-      ws.status = "no-start-command";
-      resolve({ success: false, error: "No start command provided" });
-      return;
-    }
-
-    ws.status = "starting";
-    ws.port = port || 4000;
-    ws.logs.app = "";
 
     const parts = validateCommand(startCommand);
     const proc = spawn(parts[0], parts.slice(1), {
@@ -293,14 +294,21 @@ async function stopAllApps() {
 }
 
 async function forceKillPort(port) {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     try {
-      execSync(`fuser -k ${port}/tcp 2>/dev/null`, { timeout: 3000 });
+      execSync(`fuser -k -9 ${port}/tcp 2>/dev/null`, { timeout: 3000 });
     } catch {}
-    await new Promise((r) => setTimeout(r, 500));
     try {
-      const out = execSync(`fuser ${port}/tcp 2>/dev/null`, { timeout: 2000 }).toString().trim();
-      if (!out) return;
+      const pids = execSync(`lsof -ti :${port} 2>/dev/null`, { timeout: 2000 }).toString().trim();
+      if (pids) {
+        for (const pid of pids.split("\n")) {
+          try { process.kill(parseInt(pid), "SIGKILL"); } catch {}
+        }
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 300));
+    try {
+      execSync(`fuser ${port}/tcp 2>/dev/null`, { timeout: 2000 });
     } catch {
       return;
     }

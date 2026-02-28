@@ -289,8 +289,24 @@ async function runStressTest(options = {}) {
     try {
       await workspace.stopAllApps();
       await workspace.forceKillPort(4000);
-      await sleep(2000);
+      await sleep(1000);
       await workspace.forceKillPort(4000);
+      await sleep(1000);
+
+      let portFree = false;
+      for (let check = 0; check < 5; check++) {
+        try {
+          require("child_process").execSync("fuser 4000/tcp 2>/dev/null", { timeout: 2000 });
+          await workspace.forceKillPort(4000);
+          await sleep(500);
+        } catch {
+          portFree = true;
+          break;
+        }
+      }
+      if (!portFree) {
+        console.log(`  ⚠️  WARNING: Port 4000 still in use before ${promptDef.id}`);
+      }
     } catch {}
 
     const result = await runSinglePrompt(promptDef);
