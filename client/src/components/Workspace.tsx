@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { RunData } from "../App";
+import type { RunData, ProjectData } from "../App";
 
 interface Tab {
   id: string;
@@ -20,6 +20,8 @@ const defaultTabs: Tab[] = [
 
 interface WorkspaceProps {
   runData: RunData | null;
+  projectData?: ProjectData | null;
+  viewingIterationRunId?: string | null;
 }
 
 function renderField(label: string, value: unknown) {
@@ -298,10 +300,13 @@ function WorkspaceStatusBadge({ status }: { status: string }) {
   );
 }
 
-function RenderTab({ runData }: { runData: RunData | null }) {
+function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunData?: RunData | null }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const executorOutput = runData?.stages?.executor?.output;
   const ws = runData?.workspace;
+
+  const previewRunData = liveRunData || runData;
+  const previewWs = previewRunData?.workspace;
 
   if (!executorOutput || typeof executorOutput !== "object") {
     const isRunning = runData?.status === "running";
@@ -348,12 +353,12 @@ function RenderTab({ runData }: { runData: RunData | null }) {
         </div>
       )}
 
-      {ws?.status === "running" && ws.port && runData?.id && (
+      {previewWs?.status === "running" && previewWs.port && previewRunData?.id && (
         <div className="render-section preview-section">
           <div className="render-section-label">Live Preview</div>
           <div className="preview-container">
             <iframe
-              src={`/preview/${runData.id}/`}
+              src={`/preview/${previewRunData.id}/`}
               className="preview-iframe"
               title="App Preview"
             />
@@ -527,7 +532,7 @@ function ShellTab({ runData }: { runData: RunData | null }) {
   );
 }
 
-export default function Workspace({ runData }: WorkspaceProps) {
+export default function Workspace({ runData, projectData, viewingIterationRunId }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
   const prevExecutorStatus = useRef<string | undefined>(undefined);
 
@@ -570,6 +575,11 @@ export default function Workspace({ runData }: WorkspaceProps) {
 
   return (
     <div className="workspace-container">
+      {viewingIterationRunId && (
+        <div className="workspace-iteration-banner">
+          Viewing iteration v{runData?.iterationNumber || "?"}
+        </div>
+      )}
       <div className="tab-bar">
         {defaultTabs.map((tab) => (
           <button

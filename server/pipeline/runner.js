@@ -19,6 +19,8 @@ const {
   REVIEWER_PASS3_INSTRUCTIONS,
   AUDITOR_INSTRUCTIONS,
   EXECUTOR_FIX_INSTRUCTIONS,
+  PLANNER_ITERATE_INSTRUCTIONS,
+  EXECUTOR_ITERATE_INSTRUCTIONS,
 } = require("./agents");
 
 const openai = new OpenAI();
@@ -56,7 +58,7 @@ async function callAgent(messages, instructions, schema, model, formatName) {
   return parsed;
 }
 
-function createRun(prompt) {
+function createRun(prompt, context) {
   const id = uuidv4().slice(0, 8);
   const run = {
     id,
@@ -66,6 +68,9 @@ function createRun(prompt) {
     stages: {},
     error: null,
     createdAt: Date.now(),
+    projectId: context?.projectId || null,
+    iterationNumber: context?.iterationNumber || 1,
+    existingFiles: context?.existingFiles || null,
   };
 
   for (const stage of STAGES) {
@@ -87,13 +92,26 @@ async function executePipeline(runId) {
   const run = runs.get(runId);
   if (!run) return;
 
-  const userMessage = { role: "user", content: run.prompt };
+  const isIteration = run.iterationNumber > 1;
+
+  let userMessageContent = run.prompt;
+  if (isIteration) {
+    const existingFiles = run.existingFiles || [];
+    if (existingFiles.length > 0) {
+      const fileList = existingFiles.map((f) => `--- ${f.path} ---\n${f.content}`).join("\n\n");
+      userMessageContent = `FOLLOW-UP REQUEST: ${run.prompt}\n\nCURRENT PROJECT FILES (iteration ${run.iterationNumber}):\n\n${fileList}`;
+    } else {
+      userMessageContent = `FOLLOW-UP REQUEST: ${run.prompt}\n\nNote: This is iteration ${run.iterationNumber} but no existing files were captured. Treat this as a fresh build incorporating the original intent plus this new request.`;
+    }
+  }
+  const userMessage = { role: "user", content: userMessageContent };
 
   try {
     updateStage(run, "planner", "running");
+    const plannerInstructions = isIteration ? PLANNER_ITERATE_INSTRUCTIONS : PLANNER_INSTRUCTIONS;
     const plannerOutput = await callAgent(
       [userMessage],
-      PLANNER_INSTRUCTIONS,
+      plannerInstructions,
       PlannerSchema,
       PLANNER_MODEL,
       "planner_output"
@@ -204,6 +222,17 @@ async function executeAfterApproval(run) {
     updateStage(run, "human_approval", "passed", { approved: true });
     updateStage(run, "executor", "running");
 
+    const isIteration = run.iterationNumber > 1;
+    const executorInstructions = isIteration ? EXECUTOR_ITERATE_INSTRUCTIONS : EXECUTOR_INSTRUCTIONS;
+    const existingFiles = run.existingFiles || [];
+
+    let executorContext = "Human approval has been granted. Execute this plan now.";
+    if (isIteration && existingFiles.length > 0) {
+      executorContext = `Human approval has been granted. Execute this plan now. Here are the current project files you must preserve and modify:\n\n${existingFiles.map((f) => `--- ${f.path} ---\n${f.content}`).join("\n\n")}`;
+    } else if (isIteration) {
+      executorContext = `Human approval has been granted. Execute this plan now. This is iteration ${run.iterationNumber} but no existing files were available. Build the complete application from scratch incorporating this iteration's requirements.`;
+    }
+
     const executorMessages = [
       { role: "user", content: run.prompt },
       {
@@ -212,14 +241,13 @@ async function executeAfterApproval(run) {
       },
       {
         role: "user",
-        content:
-          "Human approval has been granted. Execute this plan now.",
+        content: executorContext,
       },
     ];
 
     let executorOutput = await callAgent(
       executorMessages,
-      EXECUTOR_INSTRUCTIONS,
+      executorInstructions,
       ExecutorSchema,
       PLANNER_MODEL,
       "executor_output"

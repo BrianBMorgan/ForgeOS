@@ -4,12 +4,13 @@ import logoStacked from "./ForgeOS_Stacked.png";
 import PromptColumn from "./components/PromptColumn";
 import Workspace from "./components/Workspace";
 import StressTest from "./components/StressTest";
+import ProjectsList from "./components/ProjectsList";
 
-type NavId = "new-build" | "active-runs" | "templates" | "logs" | "stress-test" | "settings";
+type NavId = "new-project" | "projects" | "templates" | "logs" | "stress-test" | "settings";
 
 const navItems: { id: NavId; label: string; icon: string }[] = [
-  { id: "new-build", label: "New Build", icon: "+" },
-  { id: "active-runs", label: "Active Runs", icon: "▶" },
+  { id: "new-project", label: "New Project", icon: "+" },
+  { id: "projects", label: "Projects", icon: "▶" },
   { id: "templates", label: "Templates", icon: "❖" },
   { id: "logs", label: "Logs", icon: "☰" },
   { id: "stress-test", label: "Stress Test", icon: "⚡" },
@@ -34,28 +35,71 @@ export interface RunData {
   error: string | null;
   createdAt: number;
   workspace?: WorkspaceStatus;
+  projectId?: string | null;
+  iterationNumber?: number;
+}
+
+export interface IterationData {
+  runId: string;
+  prompt: string;
+  iterationNumber: number;
+  createdAt: number;
+  status: string;
+  workspaceStatus: string | null;
+}
+
+export interface ProjectData {
+  id: string;
+  name: string;
+  status: string;
+  createdAt: number;
+  updatedAt: number;
+  iterations: IterationData[];
+  currentRunId: string | null;
+  currentRun: RunData | null;
 }
 
 const API_BASE = "/api";
 
 function App() {
   const [collapsed, setCollapsed] = useState(false);
-  const [activeNav, setActiveNav] = useState<NavId>("new-build");
+  const [activeNav, setActiveNav] = useState<NavId>("new-project");
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [runData, setRunData] = useState<RunData | null>(null);
+  const [viewingIterationRunId, setViewingIterationRunId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const startRun = useCallback(async (prompt: string) => {
-    const res = await fetch(`${API_BASE}/runs`, {
+  const startProject = useCallback(async (prompt: string) => {
+    const res = await fetch(`${API_BASE}/projects`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
     });
     const data = await res.json();
     if (data.id) {
-      setCurrentRunId(data.id);
+      setCurrentProjectId(data.id);
+      setCurrentRunId(data.runId);
+      setViewingIterationRunId(null);
+      setActiveNav("projects");
     }
   }, []);
+
+  const iterateProject = useCallback(async (prompt: string) => {
+    if (!currentProjectId) return;
+    const res = await fetch(`${API_BASE}/projects/${currentProjectId}/iterate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    });
+    const data = await res.json();
+    if (data.runId) {
+      setCurrentRunId(data.runId);
+      setViewingIterationRunId(null);
+    }
+  }, [currentProjectId]);
 
   const approveRun = useCallback(async () => {
     if (!currentRunId) return;
@@ -77,22 +121,62 @@ function App() {
     [currentRunId]
   );
 
+  const openProject = useCallback((projectId: string) => {
+    setCurrentProjectId(projectId);
+    setViewingIterationRunId(null);
+    setActiveNav("projects");
+  }, []);
+
   useEffect(() => {
-    if (!currentRunId) {
+    if (!currentProjectId) {
+      setProjectData(null);
+      setCurrentRunId(null);
       setRunData(null);
       return;
     }
 
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/runs/${currentRunId}`);
+        const res = await fetch(`${API_BASE}/projects/${currentProjectId}`);
+        if (res.ok) {
+          const data: ProjectData = await res.json();
+          setProjectData(data);
+          if (data.currentRunId) {
+            setCurrentRunId(data.currentRunId);
+          }
+        }
+      } catch {
+      }
+    };
+
+    poll();
+    projectPollRef.current = setInterval(poll, 3000);
+
+    return () => {
+      if (projectPollRef.current) {
+        clearInterval(projectPollRef.current);
+        projectPollRef.current = null;
+      }
+    };
+  }, [currentProjectId]);
+
+  useEffect(() => {
+    const activeRunId = viewingIterationRunId || currentRunId;
+    if (!activeRunId) {
+      setRunData(null);
+      return;
+    }
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/runs/${activeRunId}`);
         if (res.ok) {
           const data: RunData = await res.json();
           setRunData(data);
 
           if (
-            data.status === "completed" ||
-            data.status === "failed"
+            !viewingIterationRunId &&
+            (data.status === "completed" || data.status === "failed")
           ) {
             if (pollRef.current) {
               clearInterval(pollRef.current);
@@ -101,12 +185,13 @@ function App() {
           }
         }
       } catch {
-        // silent retry
       }
     };
 
     poll();
-    pollRef.current = setInterval(poll, 2000);
+    if (!viewingIterationRunId) {
+      pollRef.current = setInterval(poll, 2000);
+    }
 
     return () => {
       if (pollRef.current) {
@@ -114,7 +199,57 @@ function App() {
         pollRef.current = null;
       }
     };
-  }, [currentRunId]);
+  }, [currentRunId, viewingIterationRunId]);
+
+  const handleNavClick = (navId: NavId) => {
+    setActiveNav(navId);
+    if (navId === "new-project") {
+      setCurrentProjectId(null);
+      setCurrentRunId(null);
+      setRunData(null);
+      setProjectData(null);
+      setViewingIterationRunId(null);
+    }
+  };
+
+  const viewIteration = useCallback((runId: string) => {
+    setViewingIterationRunId(runId);
+  }, []);
+
+  const viewLatest = useCallback(() => {
+    setViewingIterationRunId(null);
+  }, []);
+
+  const renderMainContent = () => {
+    if (activeNav === "stress-test") {
+      return <StressTest />;
+    }
+
+    if (activeNav === "projects" && !currentProjectId) {
+      return <ProjectsList onSelectProject={openProject} />;
+    }
+
+    return (
+      <>
+        <PromptColumn
+          runData={runData}
+          projectData={projectData}
+          isNewProject={activeNav === "new-project"}
+          onRunBuild={currentProjectId ? iterateProject : startProject}
+          onApprove={approveRun}
+          onReject={rejectRun}
+          onViewIteration={viewIteration}
+          viewingIterationRunId={viewingIterationRunId}
+          onViewLatest={viewLatest}
+        />
+        <Workspace
+          runData={runData}
+          projectData={projectData}
+          viewingIterationRunId={viewingIterationRunId}
+        />
+      </>
+    );
+  };
 
   return (
     <div className="shell">
@@ -128,7 +263,7 @@ function App() {
             <div
               key={item.id}
               className={`nav-item ${activeNav === item.id ? "active" : ""}`}
-              onClick={() => setActiveNav(item.id)}
+              onClick={() => handleNavClick(item.id)}
             >
               <span className="nav-icon">{item.icon}</span>
               <span className="nav-label">{item.label}</span>
@@ -145,23 +280,19 @@ function App() {
           >
             ☰
           </button>
-          <div className="status">System Kernel Online</div>
+          <div className="status">
+            {projectData ? (
+              <>
+                <span className="topbar-project-name">{projectData.name}</span>
+                <span className="topbar-separator">|</span>
+              </>
+            ) : null}
+            System Kernel Online
+          </div>
         </header>
 
         <div className="content-split">
-          {activeNav === "stress-test" ? (
-            <StressTest />
-          ) : (
-            <>
-              <PromptColumn
-                runData={runData}
-                onRunBuild={startRun}
-                onApprove={approveRun}
-                onReject={rejectRun}
-              />
-              <Workspace runData={runData} />
-            </>
-          )}
+          {renderMainContent()}
         </div>
       </div>
     </div>

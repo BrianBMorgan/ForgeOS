@@ -1,16 +1,18 @@
 # ForgeOS
 
 ## Overview
-ForgeOS is a private internal agentic AI build platform — a thin control plane UI for orchestrating a Planner → Reviewer → Policy Gate → Human Approval → Executor pipeline. The pipeline uses OpenAI models to generate, review, and refine structured build plans, then the Executor produces complete runnable code that gets written to disk, built, and launched as a live app.
+ForgeOS is a private internal agentic AI build platform — a thin control plane UI for orchestrating a Planner → Reviewer → Policy Gate → Human Approval → Executor → Auditor pipeline. The pipeline uses OpenAI models to generate, review, and refine structured build plans, then the Executor produces complete runnable code that gets written to disk, built, and launched as a live app. Projects support iterative development — follow-up prompts evolve an existing running app with full context of the current codebase.
 
 ## Architecture
 - **Frontend**: React + Vite + TypeScript in `/client`
 - **Backend**: Express (Node.js) in `/server`
-  - `server/index.js` — Express app with API routes, preview proxy, and stress test endpoints
+  - `server/index.js` — Express app with API routes, preview proxy, project/run/stress-test endpoints
   - `server/pipeline/` — Agent orchestration engine
-    - `schemas.js` — Zod schemas for Planner, Reviewer, Policy Gate, Executor outputs
-    - `agents.js` — Agent instruction prompts for each pipeline stage
+    - `schemas.js` — Zod schemas for Planner, Reviewer, Policy Gate, Executor, Auditor outputs
+    - `agents.js` — Agent instruction prompts for each pipeline stage (including iteration-aware variants)
     - `runner.js` — Pipeline orchestration: run creation, stage execution, approval/rejection flow, workspace build & run
+  - `server/projects/` — Project management
+    - `manager.js` — In-memory project store, iteration tracking, file capture for iteration context
   - `server/workspace/` — Workspace manager for generated apps
     - `manager.js` — File writing, dependency installation, app process management per run
   - `server/stress-test/` — Automated stress test harness
@@ -19,6 +21,14 @@ ForgeOS is a private internal agentic AI build platform — a thin control plane
     - `analyzer.js` — Static analysis violation detector for executor output
     - `logger.js` — Detailed per-prompt logging to disk
     - `report.js` — Report generator with summary, violation frequency, category analysis
+
+## Project System
+Projects are the top-level organizational unit. Each project groups multiple build iterations:
+- **Create project**: `POST /api/projects` → creates project + first pipeline run
+- **Iterate**: `POST /api/projects/:id/iterate` → captures current workspace files, creates new run with existing code context
+- **Iteration context**: The Planner and Executor receive iteration-aware instructions (PLANNER_ITERATE_INSTRUCTIONS, EXECUTOR_ITERATE_INSTRUCTIONS) that tell them to analyze existing code and make incremental changes
+- **File capture**: `captureCurrentFiles(runId)` reads workspace directory, skipping node_modules, lock files, and binary files
+- **Full file output**: The Executor always outputs ALL files (modified + unchanged) so the workspace can be cleanly rewritten
 
 ## Workspace System
 After the Executor produces code, ForgeOS automatically:
@@ -37,21 +47,28 @@ After the Executor produces code, ForgeOS automatically:
 
 ## UI Structure
 Three-zone layout:
-- **Sidebar** (~240px, collapsible to 60px icon rail): New Build, Active Runs, Templates, Logs, Stress Test, Settings
-- **Prompt Column** (25%): Build prompt textarea, Run Build button, pipeline stage timeline with live status dots, approval controls (Approve/Reject buttons), metadata
-- **Workspace** (75%): Tabbed browser-like interface — Plan, Review, Diff, Render, Shell, DB, Publish
+- **Sidebar** (~240px, collapsible to 60px icon rail): New Project, Projects, Templates, Logs, Stress Test, Settings
+- **Projects List**: Grid of project cards showing name, status (Building/Running/Stopped/Failed), iteration count, prompt snippet
+- **Prompt Column** (25%): Project header with name/status, iteration history timeline, prompt textarea (context-aware placeholder), pipeline stages, approval controls
+- **Workspace** (75%): Tabbed browser-like interface — Plan, Review, Diff, Auditor, Render, Shell, DB, Publish; iteration banner when viewing past iterations
 - **Stress Test** (full width): Replaces prompt/workspace when active — run button, progress bar, results table
 
 ## Component Files
-- `client/src/App.tsx` — Main shell layout, shared run state, API integration (polling, approve/reject)
-- `client/src/components/PromptColumn.tsx` — Prompt input, pipeline stage visualization, approval controls
-- `client/src/components/Workspace.tsx` — Tabbed workspace with Plan, Review, Diff, Render (live preview + file viewer), and Shell (build logs) tabs
+- `client/src/App.tsx` — Main shell layout, project/run state management, API integration (polling, approve/reject, iterate)
+- `client/src/components/PromptColumn.tsx` — Prompt input, iteration history, pipeline stage visualization, approval controls
+- `client/src/components/Workspace.tsx` — Tabbed workspace with Plan, Review, Diff, Auditor, Render (live preview + file viewer), and Shell (build logs) tabs
+- `client/src/components/ProjectsList.tsx` — Projects grid with status cards, empty state, polling
 - `client/src/components/StressTest.tsx` — Stress test UI with controls, progress, results table, category analysis
 - `client/src/index.css` — All styling (dark theme, institutional aesthetic)
 
 ## API Routes
 - `GET /health` — Health check
-- `POST /api/runs` — Start a new pipeline run (body: `{ prompt: string }`)
+- `POST /api/projects` — Create a new project with initial prompt
+- `GET /api/projects` — List all projects
+- `GET /api/projects/:id` — Get project with iterations and current run data
+- `POST /api/projects/:id/iterate` — Submit follow-up prompt (captures current files, creates iteration run)
+- `POST /api/projects/:id/stop` — Stop the running app
+- `POST /api/runs` — Start a new pipeline run (legacy, used by stress test)
 - `GET /api/runs` — List all runs
 - `GET /api/runs/:id` — Get run status, stages, outputs, and workspace status
 - `GET /api/runs/:id/logs` — Get workspace build/install/app logs
@@ -63,14 +80,14 @@ Three-zone layout:
 - `GET /api/stress-test/results` — Get latest stress test report
 
 ## Pipeline Stages
-1. **Planner** — Generates structured build plan from user prompt (gpt-4.1)
+1. **Planner** — Generates structured build plan from user prompt (gpt-4.1); uses PLANNER_ITERATE_INSTRUCTIONS for iterations
 2. **Reviewer P1** — Reviews plan for gaps, risks, security issues (gpt-4.1-mini, temp 0.2)
 3. **Revise P2** — Incorporates reviewer feedback into revised plan (gpt-4.1)
 4. **Reviewer P2** — Final production-readiness review (gpt-4.1-mini, temp 0.2)
 5. **Policy Gate** — Determines auto-approve vs human-approval-required (gpt-4.1-mini)
 6. **Human Approval** — Pauses for approve/reject; rejection triggers Pass 3 revision loop
-7. **Executor** — Produces complete runnable code with file contents, install/start commands, port (gpt-4.1)
-8. **Auditor** — Pre-deployment quality gate that audits Executor output against 11-point checklist (gpt-4.1-mini). If issues found, sends fix instructions back to Executor for a correction pass before building. Checks: package.json existence, banned packages, port config, module system, root route, build steps, template literal safety, relative URLs, DB safety, auth safety, file completeness.
+7. **Executor** — Produces complete runnable code (gpt-4.1); uses EXECUTOR_ITERATE_INSTRUCTIONS for iterations (outputs ALL files including unchanged ones)
+8. **Auditor** — Pre-deployment quality gate (gpt-4.1-mini). Checks 11-point checklist, triggers fix loop (up to 2 rounds) if issues found.
 
 ## Executor Output Schema
 - `files[]` — Array of `{ path, purpose, content }` — complete source code for every file
@@ -116,13 +133,14 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 ## Current State
 - Pipeline runs in-memory (no database persistence yet)
 - Agent pipeline fully functional with OpenAI API
+- **Project system**: Create projects, iterate with follow-up prompts, full context passing to Planner/Executor
 - Executor generates complete runnable code (Layer 1)
 - Workspace manager writes files, installs deps, starts apps (Layer 2)
 - Dynamic port allocation (4000-4099) with hardcoded port patching (Layer 2.5)
 - Live preview via iframe in Render tab (Layer 3)
+- Auditor stage with 11-point checklist and fix loop (up to 2 rounds)
 - Build/runtime logs in Shell tab
 - Neon Postgres available for generated apps that need a database (via DATABASE_URL)
 - Neon Auth available for generated apps that need user management (via NEON_AUTH_JWKS_URL)
-- Stress test harness: 100% pass rate (18/18), up from 0% → 77.8% → 94.4% → 100%
-  - Remaining violations (non-blocking): some pure-frontend apps omit package.json
-- Future phases: self-correction (Layer 4), context management, ForgeOS persistence
+- Stress test harness: 100% pass rate (18/18)
+- Future phases: persistence, self-correction (Layer 4), context management

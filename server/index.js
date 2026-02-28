@@ -74,6 +74,108 @@ app.post("/api/runs/:id/reject", async (req, res) => {
   res.json(result);
 });
 
+const projectManager = require("./projects/manager");
+
+app.post("/api/projects", (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+    return res.status(400).json({ error: "Prompt is required" });
+  }
+
+  const project = projectManager.createProject(prompt.trim());
+  const run = createRun(prompt.trim(), { projectId: project.id, iterationNumber: 1 });
+  projectManager.addIteration(project.id, run.id, prompt.trim(), 1);
+
+  executePipeline(run.id).catch((err) => {
+    console.error(`Pipeline error for project ${project.id}, run ${run.id}:`, err);
+    projectManager.updateProjectStatus(project.id, "failed");
+  });
+
+  res.status(201).json({ id: project.id, runId: run.id, name: project.name });
+});
+
+app.get("/api/projects", (_req, res) => {
+  res.json(projectManager.getAllProjects());
+});
+
+app.get("/api/projects/:id", (req, res) => {
+  const project = projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+
+  const currentRun = project.currentRunId ? getRun(project.currentRunId) : null;
+  if (currentRun) {
+    if (currentRun.status === "running" || currentRun.status === "awaiting-approval") {
+      projectManager.updateProjectStatus(project.id, "building");
+    } else if (currentRun.status === "failed") {
+      projectManager.updateProjectStatus(project.id, "failed");
+    } else if (currentRun.status === "completed") {
+      if (currentRun.workspace?.status === "running") {
+        projectManager.updateProjectStatus(project.id, "active");
+      } else if (currentRun.workspace?.status === "install-failed" || currentRun.workspace?.status === "start-failed" || currentRun.workspace?.status === "build-failed") {
+        projectManager.updateProjectStatus(project.id, "failed");
+      } else {
+        projectManager.updateProjectStatus(project.id, "stopped");
+      }
+    }
+  }
+
+  const iterations = project.iterations.map((iter) => {
+    const iterRun = getRun(iter.runId);
+    return {
+      ...iter,
+      status: iterRun?.status || "unknown",
+      workspaceStatus: iterRun?.workspace?.status || null,
+    };
+  });
+
+  res.json({ ...project, iterations, currentRun });
+});
+
+app.post("/api/projects/:id/iterate", (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+    return res.status(400).json({ error: "Prompt is required" });
+  }
+
+  const project = projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+
+  const lastRunId = project.currentRunId;
+  const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
+  const iterationNumber = project.iterations.length + 1;
+
+  const run = createRun(prompt.trim(), {
+    projectId: project.id,
+    iterationNumber,
+    existingFiles,
+  });
+  projectManager.addIteration(project.id, run.id, prompt.trim(), iterationNumber);
+
+  executePipeline(run.id).catch((err) => {
+    console.error(`Pipeline error for project ${project.id}, iteration ${iterationNumber}:`, err);
+    projectManager.updateProjectStatus(project.id, "failed");
+  });
+
+  res.status(201).json({ runId: run.id, iterationNumber });
+});
+
+app.post("/api/projects/:id/stop", async (req, res) => {
+  const project = projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+
+  if (project.currentRunId) {
+    await workspace.stopApp(project.currentRunId);
+  }
+  projectManager.stopProject(req.params.id);
+  res.json({ status: "stopped" });
+});
+
 const { runStressTest, getStressTestStatus } = require("./stress-test/runner");
 const { generateReport } = require("./stress-test/report");
 

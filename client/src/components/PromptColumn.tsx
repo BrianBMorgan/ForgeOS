@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { RunData } from "../App";
+import type { RunData, ProjectData } from "../App";
 
 type StageStatus = "pending" | "running" | "passed" | "blocked" | "failed";
 
@@ -11,9 +11,14 @@ interface Stage {
 
 interface PromptColumnProps {
   runData: RunData | null;
+  projectData: ProjectData | null;
+  isNewProject: boolean;
   onRunBuild: (prompt: string) => void;
   onApprove: () => void;
   onReject: (feedback: string) => void;
+  onViewIteration: (runId: string) => void;
+  viewingIterationRunId: string | null;
+  onViewLatest: () => void;
 }
 
 const STAGE_MAP: { id: string; keys: string[]; label: string }[] = [
@@ -52,9 +57,14 @@ function deriveStages(runData: RunData | null): Stage[] {
 
 export default function PromptColumn({
   runData,
+  projectData,
+  isNewProject,
   onRunBuild,
   onApprove,
   onReject,
+  onViewIteration,
+  viewingIterationRunId,
+  onViewLatest,
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
   const [rejectFeedback, setRejectFeedback] = useState("");
@@ -63,10 +73,12 @@ export default function PromptColumn({
   const stages = deriveStages(runData);
   const isRunning = runData?.status === "running";
   const isAwaitingApproval = runData?.status === "awaiting-approval";
+  const isViewingHistory = !!viewingIterationRunId;
 
   const handleRunBuild = () => {
     if (!prompt.trim() || isRunning) return;
     onRunBuild(prompt);
+    setPrompt("");
   };
 
   const handleReject = () => {
@@ -86,25 +98,92 @@ export default function PromptColumn({
           : "Running"
     : "Idle";
 
+  const hasIterations = projectData && projectData.iterations.length > 0;
+  const isProjectView = !isNewProject && projectData;
+  const canIterate = isProjectView && runData?.status === "completed" && runData?.workspace?.status === "running";
+
   return (
     <div className="prompt-column">
-      <div className="prompt-input-area">
-        <textarea
-          className="prompt-textarea"
-          placeholder="Describe what you want to build..."
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={6}
-          disabled={isRunning}
-        />
-        <button
-          className="prompt-run-btn"
-          onClick={handleRunBuild}
-          disabled={isRunning || !prompt.trim()}
-        >
-          {isRunning ? "Running..." : "Run Build"}
-        </button>
-      </div>
+      {isProjectView && (
+        <div className="project-header-bar">
+          <div className="project-header-name">{projectData.name}</div>
+          <div className="project-header-status">
+            <span
+              className="project-status-dot"
+              style={{
+                background:
+                  projectData.status === "active" ? "#4ade80" :
+                  projectData.status === "building" ? "#3b82f6" :
+                  projectData.status === "failed" ? "#f87171" : "#64748b"
+              }}
+            />
+            {projectData.status === "active" ? "Running" :
+             projectData.status === "building" ? "Building" :
+             projectData.status === "failed" ? "Failed" : "Stopped"}
+          </div>
+        </div>
+      )}
+
+      {hasIterations && (
+        <div className="iteration-history">
+          <div className="iteration-history-label">ITERATIONS</div>
+          {projectData.iterations.map((iter) => {
+            const isActive = viewingIterationRunId
+              ? viewingIterationRunId === iter.runId
+              : iter.runId === projectData.currentRunId;
+            const isCurrent = iter.runId === projectData.currentRunId;
+
+            return (
+              <div
+                key={iter.runId}
+                className={`iteration-item ${isActive ? "active" : ""}`}
+                onClick={() => {
+                  if (isCurrent) {
+                    onViewLatest();
+                  } else {
+                    onViewIteration(iter.runId);
+                  }
+                }}
+              >
+                <span className="iteration-badge">v{iter.iterationNumber}</span>
+                <span className="iteration-prompt">{iter.prompt.slice(0, 60)}{iter.prompt.length > 60 ? "..." : ""}</span>
+                <span className={`iteration-status iteration-status-${iter.status}`}>
+                  {iter.status === "completed" ? (
+                    iter.workspaceStatus === "running" ? "live" : "done"
+                  ) : iter.status === "running" ? "..." : iter.status === "failed" ? "fail" : ""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {isViewingHistory && (
+        <div className="viewing-history-banner">
+          Viewing past iteration
+          <button className="viewing-history-btn" onClick={onViewLatest}>Back to latest</button>
+        </div>
+      )}
+
+      {!isViewingHistory && (
+        <div className="prompt-input-area">
+          <textarea
+            className="prompt-textarea"
+            placeholder={isProjectView ? "Describe what to change or add..." : "Describe what you want to build..."}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={isProjectView ? 4 : 6}
+            disabled={isRunning}
+          />
+          <button
+            className="prompt-run-btn"
+            onClick={handleRunBuild}
+            disabled={isRunning || !prompt.trim() || (isProjectView && !canIterate && runData?.status !== undefined && runData?.status !== "completed" && runData?.status !== "failed")}
+          >
+            {isRunning ? "Running..." : isProjectView ? "Iterate" : "Run Build"}
+          </button>
+        </div>
+      )}
 
       <div className="pipeline">
         <div className="pipeline-label">PIPELINE</div>
@@ -119,7 +198,7 @@ export default function PromptColumn({
         </div>
       </div>
 
-      {isAwaitingApproval && (
+      {isAwaitingApproval && !isViewingHistory && (
         <div className="approval-controls">
           <div className="approval-label">Approval Required</div>
           {!showRejectInput ? (
@@ -175,6 +254,12 @@ export default function PromptColumn({
             {statusText}
           </span>
         </div>
+        {runData?.iterationNumber && (
+          <div className="meta-row">
+            <span className="meta-label">Iteration</span>
+            <span className="meta-value">v{runData.iterationNumber}</span>
+          </div>
+        )}
       </div>
     </div>
   );
