@@ -701,6 +701,171 @@ body {
   margin: 0;
 }
 
+/* ── Render Tab ── */
+.render-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.render-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.render-section-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #94a3b8;
+}
+
+.render-summary {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  border-left: 2px solid #3b82f6;
+}
+
+/* ── File Tree ── */
+.file-tree {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  padding: 0.5rem 0;
+  border: 1px solid #1e293b;
+}
+
+.file-tree-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  transition: background 0.1s;
+}
+
+.file-tree-entry:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.file-tree-icon {
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.file-tree-name {
+  font-family: "SF Mono", "Fira Code", monospace;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.file-tree-purpose {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-left: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Env Var Badges ── */
+.env-var-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.env-var-badge {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  letter-spacing: 0.03em;
+}
+
+/* ── Database Schema Block ── */
+.db-schema-block {
+  margin: 0;
+  font-size: 0.75rem;
+  font-family: "SF Mono", "Fira Code", monospace;
+  color: #94a3b8;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #1e293b;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+/* ── Build Tasks ── */
+.build-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.build-task {
+  padding: 0.6rem 0.75rem;
+  border-left: 2px solid #1e293b;
+  transition: border-color 0.15s;
+}
+
+.build-task:hover {
+  border-left-color: #3b82f6;
+}
+
+.build-task-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.build-task-number {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.05);
+  width: 1.4rem;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.build-task-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #475569;
+  flex-shrink: 0;
+}
+
+.build-task-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.build-task-details {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-top: 0.25rem;
+  padding-left: 2.4rem;
+}
+
 /* ── Status Colors ── */
 .meta-running {
   color: #3b82f6;
