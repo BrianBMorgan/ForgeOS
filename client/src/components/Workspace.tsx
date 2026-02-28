@@ -16,6 +16,7 @@ const defaultTabs: Tab[] = [
   { id: "render", label: "Render", description: "Live preview and implementation output." },
   { id: "shell", label: "Shell", description: "Terminal output and log stream." },
   { id: "db", label: "DB", description: "Database viewer — tables, queries, and schema." },
+  { id: "env", label: "Env", description: "Project environment variables." },
   { id: "publish", label: "Publish", description: "Deployment controls, domains, and promotion workflow." },
 ];
 
@@ -789,6 +790,151 @@ function ShellTab({ runData }: { runData: RunData | null }) {
   );
 }
 
+function EnvTab({ projectId }: { projectId: string | null }) {
+  const [envVars, setEnvVars] = useState<{ key: string; value: string; createdAt: number }[]>([]);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+
+  const fetchEnvVars = useCallback(async () => {
+    if (!projectId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/env`);
+      const data = await res.json();
+      setEnvVars(data.envVars || []);
+      setError(null);
+    } catch {
+      setError("Failed to load environment variables");
+    }
+    setLoading(false);
+  }, [projectId]);
+
+  useEffect(() => { fetchEnvVars(); }, [fetchEnvVars]);
+
+  const handleAdd = async () => {
+    if (!projectId || !newKey.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/env`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: newKey.trim(), value: newValue }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to save");
+      } else {
+        setNewKey("");
+        setNewValue("");
+        await fetchEnvVars();
+      }
+    } catch {
+      setError("Failed to save environment variable");
+    }
+    setSaving(false);
+  };
+
+  const handleDelete = async (key: string) => {
+    if (!projectId) return;
+    try {
+      await fetch(`/api/projects/${projectId}/env/${encodeURIComponent(key)}`, {
+        method: "DELETE",
+      });
+      await fetchEnvVars();
+    } catch {
+      setError("Failed to delete environment variable");
+    }
+  };
+
+  const toggleVisibility = (key: string) => {
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  if (!projectId) {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-title">Environment Variables</div>
+        <div className="panel-desc">No project selected.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="env-tab">
+      <div className="env-header">
+        <div className="env-title">Environment Variables</div>
+        <div className="env-subtitle">
+          Set environment variables that will be injected into your project's runtime. Changes apply on the next build or restart.
+        </div>
+      </div>
+
+      {error && <div className="env-error">{error}</div>}
+
+      <div className="env-add-form">
+        <input
+          className="env-input env-key-input"
+          placeholder="KEY_NAME"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+        />
+        <input
+          className="env-input env-value-input"
+          placeholder="value"
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+        />
+        <button className="env-add-btn" onClick={handleAdd} disabled={saving || !newKey.trim()}>
+          {saving ? "Saving..." : "Add"}
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="env-loading">Loading...</div>
+      ) : envVars.length === 0 ? (
+        <div className="env-empty">No environment variables set. Add one above.</div>
+      ) : (
+        <div className="env-list">
+          {envVars.map((v) => (
+            <div className="env-row" key={v.key}>
+              <span className="env-row-key">{v.key}</span>
+              <span className="env-row-value">
+                {visibleKeys.has(v.key) ? v.value : "••••••••"}
+              </span>
+              <button className="env-row-toggle" onClick={() => toggleVisibility(v.key)} title={visibleKeys.has(v.key) ? "Hide" : "Show"}>
+                {visibleKeys.has(v.key) ? "◉" : "○"}
+              </button>
+              <button className="env-row-delete" onClick={() => handleDelete(v.key)} title="Delete">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="env-defaults-section">
+        <div className="env-defaults-title">Auto-injected Variables</div>
+        <div className="env-defaults-desc">These are always available to your project:</div>
+        <div className="env-defaults-list">
+          <div className="env-default-item"><span className="env-row-key">DATABASE_URL</span><span className="env-default-desc">Neon Postgres connection string</span></div>
+          <div className="env-default-item"><span className="env-row-key">NEON_AUTH_JWKS_URL</span><span className="env-default-desc">Auth JWKS endpoint</span></div>
+          <div className="env-default-item"><span className="env-row-key">JWT_SECRET</span><span className="env-default-desc">Generated JWT signing key</span></div>
+          <div className="env-default-item"><span className="env-row-key">PORT</span><span className="env-default-desc">Assigned application port</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Workspace({ runData, projectData, viewingIterationRunId }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
   const prevExecutorStatus = useRef<string | undefined>(undefined);
@@ -822,6 +968,8 @@ export default function Workspace({ runData, projectData, viewingIterationRunId 
         return <ShellTab runData={runData} />;
       case "db":
         return <DbTab />;
+      case "env":
+        return <EnvTab projectId={projectData?.id || null} />;
       default:
         return (
           <div className="panel-placeholder">

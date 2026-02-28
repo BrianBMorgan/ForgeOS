@@ -38,6 +38,14 @@ async function ensureSchema() {
       data JSONB NOT NULL,
       created_at BIGINT NOT NULL
     )`;
+    await sql`CREATE TABLE IF NOT EXISTS project_env_vars (
+      id SERIAL PRIMARY KEY,
+      project_id VARCHAR(8) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      key VARCHAR(255) NOT NULL,
+      value TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      UNIQUE(project_id, key)
+    )`;
   } catch (err) {
     console.error("Failed to ensure schema:", err.message);
   }
@@ -217,6 +225,51 @@ async function stopProject(projectId) {
   return project;
 }
 
+async function getEnvVars(projectId) {
+  if (!sql) return [];
+  try {
+    const rows = await sql`SELECT key, value, created_at FROM project_env_vars WHERE project_id = ${projectId} ORDER BY key ASC`;
+    return rows.map((r) => ({ key: r.key, value: r.value, createdAt: Number(r.created_at) }));
+  } catch (err) {
+    console.error("Failed to get env vars:", err.message);
+    return [];
+  }
+}
+
+async function setEnvVar(projectId, key, value) {
+  if (!sql) return false;
+  const now = Date.now();
+  try {
+    await sql`INSERT INTO project_env_vars (project_id, key, value, created_at)
+      VALUES (${projectId}, ${key}, ${value}, ${now})
+      ON CONFLICT (project_id, key) DO UPDATE SET value = ${value}, created_at = ${now}`;
+    return true;
+  } catch (err) {
+    console.error("Failed to set env var:", err.message);
+    return false;
+  }
+}
+
+async function deleteEnvVar(projectId, key) {
+  if (!sql) return false;
+  try {
+    await sql`DELETE FROM project_env_vars WHERE project_id = ${projectId} AND key = ${key}`;
+    return true;
+  } catch (err) {
+    console.error("Failed to delete env var:", err.message);
+    return false;
+  }
+}
+
+async function getEnvVarsAsObject(projectId) {
+  const vars = await getEnvVars(projectId);
+  const obj = {};
+  for (const v of vars) {
+    obj[v.key] = v.value;
+  }
+  return obj;
+}
+
 module.exports = {
   createProject,
   addIteration,
@@ -225,4 +278,8 @@ module.exports = {
   getProject,
   getAllProjects,
   stopProject,
+  getEnvVars,
+  setEnvVar,
+  deleteEnvVar,
+  getEnvVarsAsObject,
 };

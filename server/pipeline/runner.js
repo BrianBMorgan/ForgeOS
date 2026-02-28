@@ -378,8 +378,18 @@ async function executeAfterApproval(run) {
 
 async function buildAndRun(run, executorOutput) {
   const workspace = require("../workspace/manager");
+  const projectManager = require("../projects/manager");
 
   run.workspace = { status: "writing-files", port: null, error: null };
+
+  let customEnv = {};
+  if (run.projectId) {
+    try {
+      customEnv = await projectManager.getEnvVarsAsObject(run.projectId);
+    } catch (err) {
+      console.error("Failed to load project env vars:", err.message);
+    }
+  }
 
   try {
     await workspace.stopAllApps();
@@ -393,7 +403,8 @@ async function buildAndRun(run, executorOutput) {
       run.workspace.status = "installing";
       const installResult = await workspace.installDeps(
         run.id,
-        executorOutput.installCommand
+        executorOutput.installCommand,
+        customEnv
       );
       if (!installResult.success) {
         run.workspace.status = "install-failed";
@@ -410,7 +421,8 @@ async function buildAndRun(run, executorOutput) {
       const startResult = await workspace.startApp(
         run.id,
         executorOutput.startCommand,
-        executorOutput.port || 4000
+        executorOutput.port || 4000,
+        customEnv
       );
       if (startResult.success) {
         run.workspace.status = "running";

@@ -200,6 +200,54 @@ app.post("/api/projects/:id/stop", async (req, res) => {
   res.json({ status: "stopped" });
 });
 
+app.get("/api/projects/:id/env", async (req, res) => {
+  const project = await projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+  const vars = await projectManager.getEnvVars(req.params.id);
+  res.json({ envVars: vars });
+});
+
+app.put("/api/projects/:id/env", async (req, res) => {
+  const { key, value } = req.body;
+  if (!key || typeof key !== "string" || !key.trim()) {
+    return res.status(400).json({ error: "Key is required" });
+  }
+  if (value === undefined || value === null) {
+    return res.status(400).json({ error: "Value is required" });
+  }
+  const cleaned = key.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  if (!cleaned) {
+    return res.status(400).json({ error: "Invalid key format" });
+  }
+  const RESERVED_KEYS = ["PORT", "DATABASE_URL", "NEON_AUTH_JWKS_URL", "JWT_SECRET", "NODE_ENV", "HOME", "PATH", "TERM"];
+  if (RESERVED_KEYS.includes(cleaned)) {
+    return res.status(400).json({ error: `${cleaned} is a reserved system variable and cannot be overridden` });
+  }
+  const project = await projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+  const ok = await projectManager.setEnvVar(req.params.id, cleaned, String(value));
+  if (!ok) {
+    return res.status(500).json({ error: "Failed to save env var" });
+  }
+  res.json({ key: cleaned, value: String(value) });
+});
+
+app.delete("/api/projects/:id/env/:key", async (req, res) => {
+  const project = await projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+  const ok = await projectManager.deleteEnvVar(req.params.id, req.params.key);
+  if (!ok) {
+    return res.status(500).json({ error: "Failed to delete env var" });
+  }
+  res.json({ deleted: true });
+});
+
 const chatManager = require("./chat/manager");
 
 app.post("/api/projects/:id/chat", async (req, res) => {

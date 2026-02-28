@@ -89,8 +89,12 @@ function cleanDatabaseUrl(raw) {
   }
 }
 
-function getWorkspaceEnv() {
-  const env = {};
+function getWorkspaceEnv(customEnv = {}) {
+  const filtered = { ...customEnv };
+  const RESERVED = ["PORT", "DATABASE_URL", "NEON_AUTH_JWKS_URL", "JWT_SECRET", "NODE_ENV", "HOME", "PATH", "TERM"];
+  for (const k of RESERVED) delete filtered[k];
+
+  const env = { ...filtered };
   if (process.env.NEON_DATABASE_URL) {
     env.DATABASE_URL = cleanDatabaseUrl(process.env.NEON_DATABASE_URL);
   }
@@ -178,7 +182,7 @@ function writeFiles(runId, files) {
   return ws;
 }
 
-function installDeps(runId, installCommand) {
+function installDeps(runId, installCommand, customEnv = {}) {
   return new Promise((resolve) => {
     const ws = workspaces.get(runId);
     if (!ws) {
@@ -199,7 +203,7 @@ function installDeps(runId, installCommand) {
     const parts = validateCommand(installCommand);
     const proc = spawn(parts[0], parts.slice(1), {
       cwd: ws.dir,
-      env: { ...process.env, NODE_ENV: "development", ...getWorkspaceEnv() },
+      env: { ...process.env, NODE_ENV: "development", ...getWorkspaceEnv(customEnv) },
     });
 
     proc.stdout.on("data", (data) => {
@@ -294,7 +298,7 @@ function resolveStartCommand(wsDir, startCommand) {
   return startCommand;
 }
 
-async function startApp(runId, startCommand, port) {
+async function startApp(runId, startCommand, port, customEnv = {}) {
   const ws = workspaces.get(runId);
   if (!ws) {
     return { success: false, error: "Workspace not found" };
@@ -331,7 +335,7 @@ async function startApp(runId, startCommand, port) {
         ...process.env,
         PORT: String(ws.port),
         NODE_ENV: "development",
-        ...getWorkspaceEnv(),
+        ...getWorkspaceEnv(customEnv),
       },
     });
 
