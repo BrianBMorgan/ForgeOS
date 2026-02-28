@@ -180,6 +180,7 @@ function startApp(runId, startCommand, port) {
     const parts = validateCommand(startCommand);
     const proc = spawn(parts[0], parts.slice(1), {
       cwd: ws.dir,
+      detached: true,
       env: {
         ...process.env,
         PORT: String(ws.port),
@@ -260,11 +261,18 @@ function stopApp(runId) {
     };
 
     proc.once("exit", onExit);
-    proc.kill("SIGTERM");
+
+    try {
+      process.kill(-proc.pid, "SIGTERM");
+    } catch {
+      proc.kill("SIGTERM");
+    }
 
     setTimeout(() => {
-      if (!proc.killed) {
-        proc.kill("SIGKILL");
+      try {
+        process.kill(-proc.pid, "SIGKILL");
+      } catch {
+        if (!proc.killed) proc.kill("SIGKILL");
       }
       setTimeout(() => {
         proc.removeListener("exit", onExit);
@@ -284,10 +292,19 @@ async function stopAllApps() {
   await Promise.all(promises);
 }
 
-function forceKillPort(port) {
-  try {
-    execSync(`fuser -k ${port}/tcp 2>/dev/null`, { timeout: 3000 });
-  } catch {}
+async function forceKillPort(port) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      execSync(`fuser -k ${port}/tcp 2>/dev/null`, { timeout: 3000 });
+    } catch {}
+    await new Promise((r) => setTimeout(r, 500));
+    try {
+      const out = execSync(`fuser ${port}/tcp 2>/dev/null`, { timeout: 2000 }).toString().trim();
+      if (!out) return;
+    } catch {
+      return;
+    }
+  }
 }
 
 function getWorkspaceStatus(runId) {

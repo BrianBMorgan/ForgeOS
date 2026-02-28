@@ -58,7 +58,7 @@ interface Report {
   violationFrequency: { rule: string; count: number }[];
   categoryAnalysis: { category: string; total: number; pass: number; fail: number; successRate: number }[];
   stageFailures: Record<string, { count: number; promptIds: string[] }>;
-  suggestions: string[];
+  suggestions: { issue: string; suggestion: string }[];
 }
 
 const API = "/api/stress-test";
@@ -343,7 +343,7 @@ function StressTest() {
               <h3>Suggested Instruction Improvements</h3>
               <ul className="suggestion-list">
                 {report.suggestions.map((s, i) => (
-                  <li key={i}>{s}</li>
+                  <li key={i}><strong>{s.issue}</strong> — {s.suggestion}</li>
                 ))}
               </ul>
             </div>

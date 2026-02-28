@@ -288,8 +288,9 @@ async function runStressTest(options = {}) {
 
     try {
       await workspace.stopAllApps();
-      workspace.forceKillPort(4000);
-      await sleep(1000);
+      await workspace.forceKillPort(4000);
+      await sleep(2000);
+      await workspace.forceKillPort(4000);
     } catch {}
 
     const result = await runSinglePrompt(promptDef);
