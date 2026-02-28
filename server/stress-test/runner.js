@@ -194,6 +194,17 @@ async function runSinglePrompt(promptDef) {
       logger.logViolations(analysis.violations);
     }
 
+    const auditorOutput = finalRun.stages?.auditor?.output;
+    if (auditorOutput) {
+      result.auditorResult = {
+        approved: auditorOutput.approved,
+        issueCount: auditorOutput.issues?.length || 0,
+        fixApplied: auditorOutput.fixApplied || false,
+        summary: auditorOutput.summary,
+      };
+      logger.appendLog(`Auditor: ${auditorOutput.approved ? "PASSED" : "ISSUES FOUND"} (${auditorOutput.issues?.length || 0} issues)${auditorOutput.fixApplied ? " — fix applied" : ""}`);
+    }
+
     const ws = finalRun.workspace;
     if (ws) {
       if (ws.status === "install-failed") {

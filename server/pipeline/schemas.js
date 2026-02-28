@@ -88,9 +88,24 @@ const ExecutorSchema = z.object({
   ),
 });
 
+const AuditorSchema = z.object({
+  approved: z.boolean(),
+  issues: z.array(
+    z.object({
+      severity: z.enum(["critical", "high", "medium"]),
+      rule: z.string(),
+      file: z.string().nullable(),
+      description: z.string(),
+      fix: z.string(),
+    })
+  ),
+  summary: z.string(),
+});
+
 module.exports = {
   PlannerSchema,
   ReviewerSchema,
   PolicyGateSchema,
   ExecutorSchema,
+  AuditorSchema,
 };

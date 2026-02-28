@@ -235,8 +235,9 @@ function checkMissingDeps(files, packageJson, violations) {
 
   for (const file of files) {
     if (!file.content) continue;
+    if (!/\.(js|cjs|mjs|ts)$/.test(file.path)) continue;
     const requireMatches = file.content.matchAll(/require\s*\(\s*["']([^"'./][^"']*)["']\s*\)/g);
-    const importMatches = file.content.matchAll(/from\s+["']([^"'./][^"']*)["']/g);
+    const importMatches = file.content.matchAll(/\bimport\s+.*\s+from\s+["']([^"'./][^"']*)["']/g);
 
     const allMatches = [...requireMatches, ...importMatches];
     for (const match of allMatches) {

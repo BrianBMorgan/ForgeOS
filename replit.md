@@ -70,6 +70,7 @@ Three-zone layout:
 5. **Policy Gate** — Determines auto-approve vs human-approval-required (gpt-4.1-mini)
 6. **Human Approval** — Pauses for approve/reject; rejection triggers Pass 3 revision loop
 7. **Executor** — Produces complete runnable code with file contents, install/start commands, port (gpt-4.1)
+8. **Auditor** — Pre-deployment quality gate that audits Executor output against 11-point checklist (gpt-4.1-mini). If issues found, sends fix instructions back to Executor for a correction pass before building. Checks: package.json existence, banned packages, port config, module system, root route, build steps, template literal safety, relative URLs, DB safety, auth safety, file completeness.
 
 ## Executor Output Schema
 - `files[]` — Array of `{ path, purpose, content }` — complete source code for every file

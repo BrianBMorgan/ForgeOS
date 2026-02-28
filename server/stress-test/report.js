@@ -53,6 +53,9 @@ function buildSummary(results) {
   const avgDuration = total > 0 ? totalDuration / total : 0;
   const successRate = total > 0 ? ((pass + passWithViolations) / total) * 100 : 0;
 
+  const auditorFixApplied = results.filter((r) => r.auditorResult?.fixApplied).length;
+  const auditorCleanPass = results.filter((r) => r.auditorResult?.approved && !r.auditorResult?.fixApplied).length;
+
   return {
     total,
     pass,
@@ -63,6 +66,8 @@ function buildSummary(results) {
     successRate: Math.round(successRate * 10) / 10,
     totalDuration,
     avgDuration: Math.round(avgDuration),
+    auditorFixApplied,
+    auditorCleanPass,
   };
 }
 
@@ -289,6 +294,10 @@ function renderTextSummary(report) {
   lines.push(`  Success Rate:         ${s.successRate}%`);
   lines.push(`  Total Duration:       ${(s.totalDuration / 1000).toFixed(1)}s`);
   lines.push(`  Avg Duration:         ${(s.avgDuration / 1000).toFixed(1)}s`);
+  if (s.auditorCleanPass !== undefined) {
+    lines.push(`  Auditor Clean Pass:   ${s.auditorCleanPass}`);
+    lines.push(`  Auditor Fix Applied:  ${s.auditorFixApplied}`);
+  }
   lines.push("");
 
   lines.push("PER-PROMPT BREAKDOWN");

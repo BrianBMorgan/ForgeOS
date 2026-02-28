@@ -6,6 +6,7 @@ const {
   ReviewerSchema,
   PolicyGateSchema,
   ExecutorSchema,
+  AuditorSchema,
 } = require("./schemas");
 const {
   PLANNER_INSTRUCTIONS,
@@ -16,6 +17,8 @@ const {
   EXECUTOR_INSTRUCTIONS,
   PLANNER_REVISE_PASS3_INSTRUCTIONS,
   REVIEWER_PASS3_INSTRUCTIONS,
+  AUDITOR_INSTRUCTIONS,
+  EXECUTOR_FIX_INSTRUCTIONS,
 } = require("./agents");
 
 const openai = new OpenAI();
@@ -31,6 +34,7 @@ const STAGES = [
   "policy_gate",
   "human_approval",
   "executor",
+  "auditor",
 ];
 
 const runs = new Map();
@@ -213,7 +217,7 @@ async function executeAfterApproval(run) {
       },
     ];
 
-    const executorOutput = await callAgent(
+    let executorOutput = await callAgent(
       executorMessages,
       EXECUTOR_INSTRUCTIONS,
       ExecutorSchema,
@@ -221,13 +225,88 @@ async function executeAfterApproval(run) {
       "executor_output"
     );
     updateStage(run, "executor", "passed", executorOutput);
-    run.currentStage = "executor";
 
+    updateStage(run, "auditor", "running");
+    const auditorMessages = [
+      {
+        role: "user",
+        content: `Audit the following Executor output for deployment readiness. Check every item on your checklist.\n\nExecutor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
+      },
+    ];
+
+    const auditorOutput = await callAgent(
+      auditorMessages,
+      AUDITOR_INSTRUCTIONS,
+      AuditorSchema,
+      REVIEWER_MODEL,
+      "auditor_output"
+    );
+
+    const MAX_AUDIT_ROUNDS = 2;
+    let auditRound = 0;
+    let currentAuditResult = auditorOutput;
+
+    while (!currentAuditResult.approved && currentAuditResult.issues && currentAuditResult.issues.length > 0 && auditRound < MAX_AUDIT_ROUNDS) {
+      auditRound++;
+      updateStage(run, "auditor", "failed", currentAuditResult);
+
+      const fixMessages = [
+        {
+          role: "user",
+          content: run.prompt,
+        },
+        {
+          role: "assistant",
+          content: `Original Executor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
+        },
+        {
+          role: "user",
+          content: `The Auditor found the following issues that must be fixed before deployment:\n\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nFix ALL issues and return the complete corrected output.`,
+        },
+      ];
+
+      executorOutput = await callAgent(
+        fixMessages,
+        EXECUTOR_FIX_INSTRUCTIONS,
+        ExecutorSchema,
+        PLANNER_MODEL,
+        "executor_output"
+      );
+      updateStage(run, "executor", "passed", executorOutput);
+
+      run.currentStage = "auditor";
+      const reAuditMessages = [
+        {
+          role: "user",
+          content: `Audit the following CORRECTED Executor output for deployment readiness. The Executor was asked to fix ${currentAuditResult.issues.length} issue(s). Verify all fixes were applied.\n\nCorrected Executor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
+        },
+      ];
+
+      currentAuditResult = await callAgent(
+        reAuditMessages,
+        AUDITOR_INSTRUCTIONS,
+        AuditorSchema,
+        REVIEWER_MODEL,
+        "auditor_output"
+      );
+    }
+
+    updateStage(run, "auditor", "passed", {
+      ...currentAuditResult,
+      fixApplied: auditRound > 0,
+      originalIssueCount: auditorOutput.issues?.length || 0,
+      auditRounds: auditRound + 1,
+    });
+
+    run.currentStage = "auditor";
     await buildAndRun(run, executorOutput);
   } catch (err) {
     run.status = "failed";
     run.error = err.message || "Executor failed";
-    updateStage(run, "executor", "failed");
+    const failStage = run.currentStage || "executor";
+    if (run.stages[failStage]) {
+      run.stages[failStage].status = "failed";
+    }
   }
 }
 

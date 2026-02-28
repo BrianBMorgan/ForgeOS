@@ -11,6 +11,7 @@ const defaultTabs: Tab[] = [
   { id: "plan", label: "Plan", description: "View the structured build plan produced by the Planner agent." },
   { id: "review", label: "Review", description: "Reviewer findings, security flags, and approval status." },
   { id: "diff", label: "Diff", description: "Changes between original and revised plan." },
+  { id: "auditor", label: "Auditor", description: "Pre-deployment audit results and fixes." },
   { id: "render", label: "Render", description: "Live preview and implementation output." },
   { id: "shell", label: "Shell", description: "Terminal output and log stream." },
   { id: "db", label: "DB", description: "Database viewer — tables, queries, and schema." },
@@ -137,6 +138,63 @@ function ReviewTab({ runData }: { runData: RunData | null }) {
       {renderField("Architectural Concerns", review.architecturalConcerns)}
       {renderField("Security Concerns", review.securityConcerns)}
       {renderField("Overengineering Concerns", review.overengineeringConcerns)}
+    </div>
+  );
+}
+
+function AuditorTab({ runData }: { runData: RunData | null }) {
+  const auditorOutput = runData?.stages?.auditor?.output as Record<string, unknown> | null;
+
+  if (!auditorOutput || typeof auditorOutput !== "object") {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-title">Auditor</div>
+        <div className="panel-desc">
+          {runData?.stages?.auditor?.status === "running"
+            ? "Auditing executor output..."
+            : "Run a build to see audit results."}
+        </div>
+      </div>
+    );
+  }
+
+  const issues = (auditorOutput.issues || []) as Array<Record<string, unknown>>;
+  const fixApplied = auditorOutput.fixApplied as boolean | undefined;
+  const originalIssueCount = auditorOutput.originalIssueCount as number | undefined;
+
+  return (
+    <div className="review-content">
+      <div className="review-header">
+        <span className={`review-verdict ${auditorOutput.approved ? "approved" : "rejected"}`}>
+          {auditorOutput.approved ? "AUDIT PASSED" : "ISSUES FOUND"}
+        </span>
+        {fixApplied && (
+          <span className="review-verdict approved" style={{ marginLeft: 8 }}>
+            FIX APPLIED ({originalIssueCount} issue{originalIssueCount !== 1 ? "s" : ""} corrected)
+          </span>
+        )}
+      </div>
+      <div className="review-summary">{String(auditorOutput.summary || "")}</div>
+      {issues.length > 0 && (
+        <div className="review-section">
+          <div className="review-section-title">
+            {fixApplied ? "Issues Found & Fixed" : "Issues"}
+          </div>
+          {issues.map((issue, i) => (
+            <div key={i} className="review-item" style={{ borderLeft: `3px solid ${issue.severity === "critical" ? "#ef4444" : issue.severity === "high" ? "#f59e0b" : "#3b82f6"}` }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: issue.severity === "critical" ? "#ef4444" : issue.severity === "high" ? "#f59e0b" : "#3b82f6" }}>
+                  {String(issue.severity)}
+                </span>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>{String(issue.rule)}</span>
+                {issue.file && <span style={{ fontSize: 11, color: "#64748b" }}>{String(issue.file)}</span>}
+              </div>
+              <div style={{ fontSize: 13, color: "#e2e8f0", marginBottom: 4 }}>{String(issue.description)}</div>
+              <div style={{ fontSize: 12, color: "#22c55e" }}>Fix: {String(issue.fix)}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -492,6 +550,8 @@ export default function Workspace({ runData }: WorkspaceProps) {
         return <PlanTab runData={runData} />;
       case "review":
         return <ReviewTab runData={runData} />;
+      case "auditor":
+        return <AuditorTab runData={runData} />;
       case "diff":
         return <DiffTab runData={runData} />;
       case "render":

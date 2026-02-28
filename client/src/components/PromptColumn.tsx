@@ -22,6 +22,7 @@ const STAGE_MAP: { id: string; keys: string[]; label: string }[] = [
   { id: "policy", keys: ["policy_gate"], label: "Policy" },
   { id: "human", keys: ["human_approval"], label: "Human" },
   { id: "executor", keys: ["executor"], label: "Executor" },
+  { id: "auditor", keys: ["auditor"], label: "Auditor" },
 ];
 
 function deriveStages(runData: RunData | null): Stage[] {
