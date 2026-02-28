@@ -3,14 +3,16 @@ import logo from "./ForgeOS_1772241278038.png";
 import logoStacked from "./ForgeOS_Stacked.png";
 import PromptColumn from "./components/PromptColumn";
 import Workspace from "./components/Workspace";
+import StressTest from "./components/StressTest";
 
-type NavId = "new-build" | "active-runs" | "templates" | "logs" | "settings";
+type NavId = "new-build" | "active-runs" | "templates" | "logs" | "stress-test" | "settings";
 
 const navItems: { id: NavId; label: string; icon: string }[] = [
   { id: "new-build", label: "New Build", icon: "+" },
   { id: "active-runs", label: "Active Runs", icon: "▶" },
   { id: "templates", label: "Templates", icon: "❖" },
   { id: "logs", label: "Logs", icon: "☰" },
+  { id: "stress-test", label: "Stress Test", icon: "⚡" },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -146,13 +148,19 @@ function App() {
         </header>
 
         <div className="content-split">
-          <PromptColumn
-            runData={runData}
-            onRunBuild={startRun}
-            onApprove={approveRun}
-            onReject={rejectRun}
-          />
-          <Workspace runData={runData} />
+          {activeNav === "stress-test" ? (
+            <StressTest />
+          ) : (
+            <>
+              <PromptColumn
+                runData={runData}
+                onRunBuild={startRun}
+                onApprove={approveRun}
+                onReject={rejectRun}
+              />
+              <Workspace runData={runData} />
+            </>
+          )}
         </div>
       </div>
     </div>

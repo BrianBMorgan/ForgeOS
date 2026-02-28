@@ -74,6 +74,42 @@ app.post("/api/runs/:id/reject", async (req, res) => {
   res.json(result);
 });
 
+const { runStressTest, getStressTestStatus } = require("./stress-test/runner");
+const { generateReport } = require("./stress-test/report");
+
+let latestReport = null;
+
+app.post("/api/stress-test/start", (req, res) => {
+  const status = getStressTestStatus();
+  if (status.running) {
+    return res.status(409).json({ error: "Stress test already running" });
+  }
+
+  const { promptIds } = req.body || {};
+
+  runStressTest({ promptIds })
+    .then((results) => {
+      latestReport = generateReport(results);
+      console.log("Stress test complete. Report saved.");
+    })
+    .catch((err) => {
+      console.error("Stress test error:", err);
+    });
+
+  res.json({ started: true, total: getStressTestStatus().total });
+});
+
+app.get("/api/stress-test/status", (_req, res) => {
+  res.json(getStressTestStatus());
+});
+
+app.get("/api/stress-test/results", (_req, res) => {
+  if (!latestReport) {
+    return res.status(404).json({ error: "No results yet" });
+  }
+  res.json(latestReport.report || latestReport);
+});
+
 const http = require("http");
 
 app.use("/preview/:runId", (req, res) => {
