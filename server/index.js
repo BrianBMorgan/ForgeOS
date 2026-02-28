@@ -87,12 +87,18 @@ app.use("/preview", (req, res) => {
     return res.status(503).json({ error: "App not running" });
   }
 
-  const targetPath = req.url.replace(/^\/preview\??[^/]*/, "") || "/";
+  const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
+  let targetPath = parsedUrl.pathname.replace(/^\/preview\/?/, "/") || "/";
+  if (!targetPath.startsWith("/")) targetPath = "/" + targetPath;
+  const appQuery = new URLSearchParams(parsedUrl.searchParams);
+  appQuery.delete("runId");
+  const queryString = appQuery.toString();
+  const fullPath = queryString ? `${targetPath}?${queryString}` : targetPath;
 
   const options = {
     hostname: "127.0.0.1",
     port: status.port,
-    path: targetPath,
+    path: fullPath,
     method: req.method,
     headers: { ...req.headers, host: `127.0.0.1:${status.port}` },
   };
