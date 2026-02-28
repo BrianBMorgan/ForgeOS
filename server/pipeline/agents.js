@@ -118,6 +118,8 @@ AVAILABLE SERVICES (use these when the plan requires them):
    - IMPORTANT: Use the "@neondatabase/serverless" npm package (NOT "pg"). This driver uses HTTPS and works in all environments.
    - Usage: const { neon } = require("@neondatabase/serverless"); const sql = neon(process.env.DATABASE_URL);
    - Use tagged template literals for queries, e.g.: await sql\`SELECT * FROM tasks\` or await sql\`INSERT INTO tasks (title) VALUES (\$\{title\})\`
+   - NEVER use dynamic SQL string construction with nested template literals. For UPDATE queries, write out each field explicitly instead of building SET clauses dynamically. For example, use: await sql\`UPDATE tasks SET title = \$\{title\}, done = \$\{done\} WHERE id = \$\{id\}\`
+   - Do NOT use sql.raw(), string concatenation for SQL, or \$\{\$\{...\}\} nested expressions. These cause syntax errors.
    - Create tables on app startup using CREATE TABLE IF NOT EXISTS.
    - Include "@neondatabase/serverless": "^1.0.2" in the package.json dependencies.
    - List DATABASE_URL in environmentVariables.
