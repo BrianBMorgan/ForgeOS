@@ -852,6 +852,8 @@ function ShellTab({ runData, projectId, onRefreshRunData }: { runData: RunData |
 
 function EnvTab({ projectId }: { projectId: string | null }) {
   const [envVars, setEnvVars] = useState<{ key: string; value: string; createdAt: number }[]>([]);
+  const [globalDefaults, setGlobalDefaults] = useState<{ key: string; value: string }[]>([]);
+  const [globalSecretKeys, setGlobalSecretKeys] = useState<string[]>([]);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -863,9 +865,17 @@ function EnvTab({ projectId }: { projectId: string | null }) {
     if (!projectId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/env`);
-      const data = await res.json();
-      setEnvVars(data.envVars || []);
+      const [envRes, settingsRes, secretsRes] = await Promise.all([
+        fetch(`/api/projects/${projectId}/env`),
+        fetch("/api/settings"),
+        fetch("/api/secrets"),
+      ]);
+      const envData = await envRes.json();
+      const settingsData = await settingsRes.json();
+      const secretsData = await secretsRes.json();
+      setEnvVars(envData.envVars || []);
+      setGlobalDefaults(settingsData?.default_env_vars?.vars || []);
+      setGlobalSecretKeys(secretsData?.secrets || []);
       setError(null);
     } catch {
       setError("Failed to load environment variables");
@@ -978,6 +988,29 @@ function EnvTab({ projectId }: { projectId: string | null }) {
               <button className="env-row-delete" onClick={() => handleDelete(v.key)} title="Delete">✕</button>
             </div>
           ))}
+        </div>
+      )}
+
+      {(globalDefaults.length > 0 || globalSecretKeys.length > 0) && (
+        <div className="env-defaults-section">
+          <div className="env-defaults-title">Inherited from Global Settings</div>
+          <div className="env-defaults-desc">These are injected at runtime. Project vars override globals with the same key.</div>
+          <div className="env-defaults-list">
+            {globalDefaults.map((v) => (
+              <div className="env-default-item" key={`def-${v.key}`}>
+                <span className="env-row-key">{v.key}</span>
+                <span className="env-global-badge">Default</span>
+                <span className="env-default-desc">{envVars.some((e) => e.key === v.key) ? "(overridden by project)" : ""}</span>
+              </div>
+            ))}
+            {globalSecretKeys.map((key) => (
+              <div className="env-default-item" key={`sec-${key}`}>
+                <span className="env-row-key">{key}</span>
+                <span className="env-global-badge secret">Secret</span>
+                <span className="env-default-desc">{envVars.some((e) => e.key === key) ? "(overridden by project)" : ""}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

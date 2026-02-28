@@ -30,8 +30,10 @@ const openai = new OpenAI();
 const dbUrl = process.env.NEON_DATABASE_URL;
 const sql = dbUrl ? neon(dbUrl) : null;
 
-const PLANNER_MODEL = "gpt-4.1";
-const REVIEWER_MODEL = "gpt-4.1-mini";
+let PLANNER_MODEL = "gpt-4.1";
+let REVIEWER_MODEL = "gpt-4.1-mini";
+let PLANNER_TEMP = 0.7;
+let REVIEWER_TEMP = 0.2;
 
 const STAGES = [
   "planner",
@@ -76,10 +78,35 @@ async function loadRunSnapshot(runId) {
   return null;
 }
 
+async function loadModelConfig() {
+  try {
+    const settingsManager = require("../settings/manager");
+    const config = await settingsManager.getSetting("model_config");
+    if (config) {
+      PLANNER_MODEL = config.plannerModel || "gpt-4.1";
+      REVIEWER_MODEL = config.reviewerModel || "gpt-4.1-mini";
+      PLANNER_TEMP = config.plannerTemp ?? 0.7;
+      REVIEWER_TEMP = config.reviewerTemp ?? 0.2;
+    }
+  } catch {}
+}
+
+async function loadSkillsContext() {
+  try {
+    const settingsManager = require("../settings/manager");
+    const skills = await settingsManager.getAllSkills();
+    if (skills.length === 0) return "";
+    const lines = skills.map((s) => `### ${s.name}\n${s.description ? s.description + "\n" : ""}${s.instructions}`);
+    return "\n\n--- SKILLS LIBRARY ---\nThe following skills are available. Reference and apply them when relevant to the build:\n\n" + lines.join("\n\n");
+  } catch {
+    return "";
+  }
+}
+
 async function callAgent(messages, instructions, schema, model, formatName) {
   const response = await openai.chat.completions.create({
     model,
-    temperature: model === REVIEWER_MODEL ? 0.2 : 0.7,
+    temperature: model === REVIEWER_MODEL ? REVIEWER_TEMP : PLANNER_TEMP,
     messages: [
       { role: "system", content: instructions },
       ...messages,
@@ -127,6 +154,9 @@ async function executePipeline(runId) {
   const run = runs.get(runId);
   if (!run) return;
 
+  await loadModelConfig();
+  const skillsContext = await loadSkillsContext();
+
   const isIteration = run.iterationNumber > 1;
 
   let userMessageContent = run.prompt;
@@ -143,7 +173,7 @@ async function executePipeline(runId) {
 
   try {
     updateStage(run, "planner", "running");
-    const plannerInstructions = isIteration ? PLANNER_ITERATE_INSTRUCTIONS : PLANNER_INSTRUCTIONS;
+    const plannerInstructions = (isIteration ? PLANNER_ITERATE_INSTRUCTIONS : PLANNER_INSTRUCTIONS) + skillsContext;
     const plannerOutput = await callAgent(
       [userMessage],
       plannerInstructions,
@@ -209,6 +239,15 @@ async function executePipeline(runId) {
     updateStage(run, "reviewer_p2", "passed", reviewer2Output);
 
     updateStage(run, "policy_gate", "running");
+    let techStackContext = "";
+    try {
+      const settingsManager = require("../settings/manager");
+      const techStack = await settingsManager.getSetting("allowed_tech_stack");
+      if (techStack) {
+        if (techStack.allowed?.length) techStackContext += `\n\nALLOWED PACKAGES: ${techStack.allowed.join(", ")}`;
+        if (techStack.banned?.length) techStackContext += `\nBANNED PACKAGES (flag if used): ${techStack.banned.join(", ")}`;
+      }
+    } catch {}
     const policyMessages = [
       userMessage,
       {
@@ -222,14 +261,28 @@ async function executePipeline(runId) {
     ];
     const policyOutput = await callAgent(
       policyMessages,
-      POLICY_GATE_INSTRUCTIONS,
+      POLICY_GATE_INSTRUCTIONS + techStackContext,
       PolicyGateSchema,
       REVIEWER_MODEL,
       "policy_gate_output"
     );
     updateStage(run, "policy_gate", "passed", policyOutput);
 
-    if (policyOutput.autoApprove && !policyOutput.humanApprovalRequired) {
+    let forceAutoApprove = false;
+    try {
+      const settingsManager = require("../settings/manager");
+      const autoApproveSetting = await settingsManager.getSetting("auto_approve");
+      if (autoApproveSetting?.enabled) {
+        const riskLevel = policyOutput.riskLevel || "low";
+        const maxRisk = autoApproveSetting.maxRiskLevel || "low";
+        const riskOrder = { low: 0, medium: 1, high: 2 };
+        if ((riskOrder[riskLevel] || 0) <= (riskOrder[maxRisk] || 0)) {
+          forceAutoApprove = true;
+        }
+      }
+    } catch {}
+
+    if ((policyOutput.autoApprove && !policyOutput.humanApprovalRequired) || forceAutoApprove) {
       await executeAfterApproval(run);
     } else {
       updateStage(run, "human_approval", "blocked", {
@@ -259,7 +312,7 @@ async function executeAfterApproval(run) {
     updateStage(run, "executor", "running");
 
     const isIteration = run.iterationNumber > 1;
-    const executorInstructions = isIteration ? EXECUTOR_ITERATE_INSTRUCTIONS : EXECUTOR_INSTRUCTIONS;
+    const executorInstructions = (isIteration ? EXECUTOR_ITERATE_INSTRUCTIONS : EXECUTOR_INSTRUCTIONS) + skillsContext;
     const existingFiles = run.existingFiles || [];
 
     let executorContext = "Human approval has been granted. Execute this plan now.";
@@ -382,14 +435,29 @@ async function buildAndRun(run, executorOutput) {
 
   run.workspace = { status: "writing-files", port: null, error: null };
 
-  let customEnv = {};
+  let globalDefaults = {};
+  let globalSecrets = {};
+  let projectEnv = {};
+  try {
+    const settingsManager = require("../settings/manager");
+    const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
+    if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
+      for (const v of defaultEnvSetting.vars) {
+        if (v.key) globalDefaults[v.key] = v.value || "";
+      }
+    }
+    globalSecrets = await settingsManager.getSecretsAsObject();
+  } catch (err) {
+    console.error("Failed to load global settings/secrets:", err.message);
+  }
   if (run.projectId) {
     try {
-      customEnv = await projectManager.getEnvVarsAsObject(run.projectId);
+      projectEnv = await projectManager.getEnvVarsAsObject(run.projectId);
     } catch (err) {
       console.error("Failed to load project env vars:", err.message);
     }
   }
+  const customEnv = { ...globalDefaults, ...globalSecrets, ...projectEnv };
 
   try {
     await workspace.stopAllApps();

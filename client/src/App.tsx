@@ -5,6 +5,7 @@ import PromptColumn from "./components/PromptColumn";
 import Workspace from "./components/Workspace";
 import StressTest from "./components/StressTest";
 import ProjectsList from "./components/ProjectsList";
+import Settings from "./components/Settings";
 
 type NavId = "new-project" | "projects" | "stress-test" | "settings";
 
@@ -279,6 +280,10 @@ function App() {
   }, []);
 
   const renderMainContent = () => {
+    if (activeNav === "settings") {
+      return <Settings />;
+    }
+
     if (activeNav === "stress-test") {
       return <StressTest />;
     }

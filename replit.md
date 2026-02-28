@@ -15,19 +15,69 @@ None specified.
 - **Workspace Management**: `server/workspace/` handles the lifecycle of generated applications. It creates isolated directories, writes generated files, patches hardcoded ports to use `process.env.PORT`, resolves `npm start` commands, allocates dynamic ports (4000-4099), installs dependencies, starts applications, and proxies requests. It also manages workspace states (writing-files, installing, starting, running, failed) and ensures previous workspace apps are stopped when new runs begin. Stop/restart controls are available in the Shell tab header — `restartApp()` stores `lastStartCommand`/`lastPort` for re-launching; if workspace isn't in memory, the restart endpoint falls back to `restoreWorkspace()` using executor output from the run snapshot.
 - **Chat System**: A conversational interface powered by gpt-4.1-mini allows users to interact with the project. It features an agent that can analyze code, answer questions, diagnose issues, and use web search tools (DuckDuckGo, URL fetching) to gather external information. It detects user intent to suggest builds, which can be confirmed to trigger an iteration.
 - **Database Viewer**: The workspace includes a DB tab for read-only inspection of the Neon Postgres database. It offers a table browser, a paginated data grid, and a SQL query runner with blocked DDL statements for safety.
-- **Per-Project Environment Variables**: Each project can have custom environment variables (stored in `project_env_vars` table) that are injected into workspace processes during install and app start. CRUD via `GET/PUT/DELETE /api/projects/:id/env`. Reserved system keys (PORT, DATABASE_URL, JWT_SECRET, etc.) are blocked from override at both API and runtime levels. The Env tab in the workspace UI provides add/delete/show-hide controls and lists auto-injected platform variables.
-- **Persistence**: Projects, iterations, run snapshots, chat messages, and project env vars are persisted in Neon Postgres via `@neondatabase/serverless`. Run data survives restarts, and the system can restore and re-launch workspace applications from existing files on disk upon server startup.
+- **Per-Project Environment Variables**: Each project can have custom environment variables (stored in `project_env_vars` table) that are injected into workspace processes during install and app start. CRUD via `GET/PUT/DELETE /api/projects/:id/env`. Reserved system keys (PORT, DATABASE_URL, JWT_SECRET, etc.) are blocked from override at both API and runtime levels. The Env tab in the workspace UI provides add/delete/show-hide controls and lists auto-injected platform variables plus inherited global defaults/secrets with badges.
+- **Settings System**: `server/settings/manager.js` manages global platform settings, secrets, and skills. Data stored in `global_settings`, `global_secrets`, and `skills` tables in Neon Postgres. Settings are consumed by the pipeline at runtime:
+  - **Model Configuration**: Controls planner/reviewer model names and temperatures. Loaded at pipeline start.
+  - **Auto-Approve Policy**: When enabled, skips human approval for builds at or below the configured risk level.
+  - **Default Environment Variables**: Key-value pairs injected into all project runtimes (merged before project-level overrides).
+  - **Global Secrets Vault**: Encrypted secrets injected into all project runtimes. API never exposes secret values — only key names.
+  - **Workspace Limits**: Port range, max concurrent apps, log retention.
+  - **Allowed Tech Stack**: Lists of allowed and banned packages for policy enforcement.
+  - **Skills Library**: Reusable knowledge entries (name, description, instructions, tags) injected into Planner and Executor system prompts.
+  - **Env Merge Order**: global default env vars → global secrets → project env vars (project wins).
+- **Persistence**: Projects, iterations, run snapshots, chat messages, project env vars, settings, secrets, and skills are persisted in Neon Postgres via `@neondatabase/serverless`. Run data survives restarts, and the system can restore and re-launch workspace applications from existing files on disk upon server startup.
 
 **Pipeline Stages**:
-1.  **Planner**: Generates structured build plans from user prompts, adapting for iterations.
+1.  **Planner**: Generates structured build plans from user prompts, adapting for iterations. Skills context appended to instructions.
 2.  **Reviewer P1 & P2**: Reviews plans for issues and ensures production readiness.
 3.  **Revise P2**: Incorporates reviewer feedback into the plan.
-4.  **Policy Gate**: Determines if human approval is required.
-5.  **Human Approval**: A pause point for manual approval or rejection.
-6.  **Executor**: Produces complete runnable code, outputting all files (modified and unchanged) for iterations.
+4.  **Policy Gate**: Determines if human approval is required. Auto-approve setting can override.
+5.  **Human Approval**: A pause point for manual approval or rejection (skipped when auto-approve fires).
+6.  **Executor**: Produces complete runnable code, outputting all files (modified and unchanged) for iterations. Skills context appended to instructions.
 7.  **Auditor**: A pre-deployment quality gate that performs an 11-point checklist and can trigger fix loops.
 
 **Executor Output**: Includes an array of files with `path`, `purpose`, and `content`, along with `installCommand`, `startCommand`, `port`, `implementationSummary`, `environmentVariables`, `databaseSchema`, and `buildTasks`.
+
+**Settings API Endpoints**:
+- `GET /api/settings` — all settings as key-value object
+- `PUT /api/settings/:key` — update one setting
+- `GET /api/secrets` — list secret keys only (no values)
+- `PUT /api/secrets` — upsert `{ key, value }`
+- `DELETE /api/secrets/:key` — delete secret
+- `GET /api/skills` — list all skills
+- `POST /api/skills` — create skill `{ name, description, instructions, tags }`
+- `PUT /api/skills/:id` — update skill
+- `DELETE /api/skills/:id` — delete skill
+
+## Key Files
+- `server/index.js` — Express server, all API routes
+- `server/pipeline/runner.js` — Pipeline orchestration, agent calls, workspace build
+- `server/pipeline/agents.js` — Agent instruction prompts
+- `server/pipeline/schemas.js` — Zod schemas for agent outputs
+- `server/projects/manager.js` — Project CRUD, iterations, env vars
+- `server/workspace/manager.js` — Workspace lifecycle (files, install, start, proxy)
+- `server/chat/manager.js` — Chat system with web search tools
+- `server/settings/manager.js` — Settings, secrets, skills CRUD
+- `client/src/App.tsx` — Main app shell, navigation, state management
+- `client/src/components/Workspace.tsx` — Tabbed workspace (Plan, Review, Diff, Auditor, Render, Shell, DB, Env, Publish)
+- `client/src/components/Settings.tsx` — Settings page with 7 collapsible sections
+- `client/src/components/PromptColumn.tsx` — Build prompt, pipeline visualization, chat
+- `client/src/components/ProjectsList.tsx` — Project list view
+- `client/src/components/StressTest.tsx` — Stress test tool
+- `client/src/index.css` — All styles (dark theme)
+
+## DB Tables
+- `projects` — Project metadata
+- `iterations` — Build iterations per project
+- `run_snapshots` — Pipeline run state snapshots
+- `chat_messages` — Chat history per project
+- `project_env_vars` — Per-project environment variables
+- `global_settings` — Global settings (key → JSONB value)
+- `global_secrets` — Global secrets (key → encrypted value)
+- `skills` — Skills library entries
+
+## NavId Type
+`"new-project" | "projects" | "stress-test" | "settings"`
 
 ## External Dependencies
 - **OpenAI**: Used for agent pipeline calls (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface.

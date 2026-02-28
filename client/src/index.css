@@ -2613,3 +2613,356 @@ body {
   font-size: 0.75rem;
   color: #475569;
 }
+
+.env-global-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: #1e3a5f;
+  color: #38bdf8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.env-global-badge.secret {
+  background: #3b1d3a;
+  color: #c084fc;
+}
+
+.settings-page {
+  flex: 1;
+  padding: 2rem 2.5rem;
+  overflow-y: auto;
+  max-width: 900px;
+}
+
+.settings-page-header h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 0.25rem;
+}
+
+.settings-page-desc {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-bottom: 1.5rem;
+}
+
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-section {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.settings-section-header:hover {
+  background: #253348;
+}
+
+.settings-section-icon {
+  font-size: 1rem;
+  width: 1.5rem;
+  text-align: center;
+}
+
+.settings-section-title {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.settings-section-chevron {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.settings-section-body {
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid #334155;
+}
+
+.settings-hint {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-bottom: 0.75rem;
+}
+
+.settings-hint-inline {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: #0f172a;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+
+.settings-env-key {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  color: #38bdf8;
+  min-width: 120px;
+  font-size: 0.8rem;
+}
+
+.settings-env-val {
+  flex: 1;
+  color: #94a3b8;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-add-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.settings-input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.settings-input:focus {
+  border-color: #38bdf8;
+}
+
+.settings-input.sm {
+  flex: 1;
+}
+
+.settings-select {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.82rem;
+  outline: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  border-color: #38bdf8;
+}
+
+.settings-range {
+  width: 100%;
+  accent-color: #38bdf8;
+}
+
+.settings-textarea {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.82rem;
+  outline: none;
+  width: 100%;
+  resize: vertical;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
+.settings-textarea:focus {
+  border-color: #38bdf8;
+}
+
+.settings-val-badge {
+  background: #334155;
+  color: #38bdf8;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  margin-left: 0.4rem;
+}
+
+.settings-field-group {
+  margin-bottom: 0.75rem;
+}
+
+.settings-field-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-bottom: 0.3rem;
+  font-weight: 500;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.settings-toggle-row input[type="checkbox"] {
+  accent-color: #38bdf8;
+  width: 16px;
+  height: 16px;
+}
+
+.settings-toggle-row span {
+  font-size: 0.85rem;
+  color: #e2e8f0;
+}
+
+.settings-btn {
+  background: #38bdf8;
+  color: #0f172a;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.settings-btn:hover {
+  opacity: 0.85;
+}
+
+.settings-btn.secondary {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.settings-btn-sm {
+  background: #334155;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 3px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.settings-btn-sm:hover {
+  background: #475569;
+}
+
+.settings-btn-sm.danger {
+  color: #f87171;
+}
+
+.settings-btn-sm.danger:hover {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+
+.settings-saving {
+  font-size: 0.75rem;
+  color: #38bdf8;
+  font-style: italic;
+}
+
+.settings-skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.settings-skill-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+}
+
+.settings-skill-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-skill-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  flex: 1;
+}
+
+.settings-skill-tags {
+  font-size: 0.72rem;
+  color: #64748b;
+  background: #1e293b;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+}
+
+.settings-skill-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.settings-skill-desc {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-top: 0.3rem;
+}
+
+.settings-skill-form {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+
+.settings-skill-form h4 {
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  margin-bottom: 0.75rem;
+}
+
+.settings-skill-form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}

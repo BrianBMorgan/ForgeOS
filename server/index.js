@@ -293,6 +293,98 @@ app.delete("/api/projects/:id/env/:key", async (req, res) => {
   res.json({ deleted: true });
 });
 
+const settingsManager = require("./settings/manager");
+
+app.get("/api/settings", async (_req, res) => {
+  const settings = await settingsManager.getAllSettings();
+  res.json(settings);
+});
+
+app.put("/api/settings/:key", async (req, res) => {
+  const { value } = req.body;
+  if (value === undefined || value === null) {
+    return res.status(400).json({ error: "Value is required" });
+  }
+  const ok = await settingsManager.setSetting(req.params.key, value);
+  if (!ok) {
+    return res.status(500).json({ error: "Failed to save setting" });
+  }
+  res.json({ key: req.params.key, value });
+});
+
+app.get("/api/secrets", async (_req, res) => {
+  const keys = await settingsManager.getAllSecretKeys();
+  res.json({ secrets: keys });
+});
+
+app.put("/api/secrets", async (req, res) => {
+  const { key, value } = req.body;
+  if (!key || typeof key !== "string" || !key.trim()) {
+    return res.status(400).json({ error: "Key is required" });
+  }
+  if (value === undefined || value === null) {
+    return res.status(400).json({ error: "Value is required" });
+  }
+  const cleaned = key.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  if (!cleaned) {
+    return res.status(400).json({ error: "Invalid key format" });
+  }
+  const reservedKeys = ["PORT", "DATABASE_URL", "NEON_AUTH_JWKS_URL", "JWT_SECRET", "NODE_ENV", "HOME", "PATH", "TERM"];
+  if (reservedKeys.includes(cleaned)) {
+    return res.status(400).json({ error: `${cleaned} is a reserved system key` });
+  }
+  const ok = await settingsManager.setSecret(cleaned, String(value));
+  if (!ok) {
+    return res.status(500).json({ error: "Failed to save secret" });
+  }
+  res.json({ key: cleaned });
+});
+
+app.delete("/api/secrets/:key", async (req, res) => {
+  const ok = await settingsManager.deleteSecret(req.params.key);
+  if (!ok) {
+    return res.status(500).json({ error: "Failed to delete secret" });
+  }
+  res.json({ deleted: true });
+});
+
+app.get("/api/skills", async (_req, res) => {
+  const skills = await settingsManager.getAllSkills();
+  res.json({ skills });
+});
+
+app.post("/api/skills", async (req, res) => {
+  const { name, description, instructions, tags } = req.body;
+  if (!name || !instructions) {
+    return res.status(400).json({ error: "Name and instructions are required" });
+  }
+  const skill = await settingsManager.createSkill({ name, description, instructions, tags });
+  if (!skill) {
+    return res.status(500).json({ error: "Failed to create skill" });
+  }
+  res.status(201).json(skill);
+});
+
+app.put("/api/skills/:id", async (req, res) => {
+  const { name, description, instructions, tags } = req.body;
+  if (!name || !instructions) {
+    return res.status(400).json({ error: "Name and instructions are required" });
+  }
+  const ok = await settingsManager.updateSkill(parseInt(req.params.id), { name, description, instructions, tags });
+  if (!ok) {
+    return res.status(500).json({ error: "Failed to update skill" });
+  }
+  res.json({ updated: true });
+});
+
+app.delete("/api/skills/:id", async (req, res) => {
+  const ok = await settingsManager.deleteSkill(parseInt(req.params.id));
+  if (!ok) {
+    return res.status(500).json({ error: "Failed to delete skill" });
+  }
+  res.json({ deleted: true });
+});
+
 const chatManager = require("./chat/manager");
 
 app.post("/api/projects/:id/chat", async (req, res) => {
