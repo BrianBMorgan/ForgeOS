@@ -108,7 +108,7 @@ AVAILABLE SERVICES (use these when the plan requires them):
    - The connection string is available at runtime via the environment variable DATABASE_URL.
    - IMPORTANT: Use the "@neondatabase/serverless" npm package (NOT "pg"). This driver uses HTTPS and works in all environments.
    - Usage: const { neon } = require("@neondatabase/serverless"); const sql = neon(process.env.DATABASE_URL);
-   - Queries: const rows = await sql\`SELECT * FROM tasks\`; or await sql\`INSERT INTO tasks (name) VALUES (${name})\`;
+   - Use tagged template literals for queries, e.g.: await sql\`SELECT * FROM tasks\` or await sql\`INSERT INTO tasks (title) VALUES (\$\{title\})\`
    - Create tables on app startup using CREATE TABLE IF NOT EXISTS.
    - Include "@neondatabase/serverless" in the package.json dependencies.
    - List DATABASE_URL in environmentVariables.
