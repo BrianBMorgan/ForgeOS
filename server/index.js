@@ -48,6 +48,7 @@ app.get("/api/runs/:id", async (req, res) => {
   const liveWs = workspace.getWorkspaceStatus(run.id);
   if (liveWs) {
     run.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
+    workspace.touchActivity(run.id);
   }
   res.json(run);
 });
@@ -61,6 +62,7 @@ app.get("/api/runs/:id/logs", (req, res) => {
   if (req.query.limit) opts.limit = parseInt(req.query.limit);
   const logs = workspace.getWorkspaceLogs(req.params.id, opts);
   const status = workspace.getWorkspaceStatus(req.params.id);
+  if (status) workspace.touchActivity(req.params.id);
   res.json({ logs, status });
 });
 
@@ -129,6 +131,8 @@ app.get("/api/projects/:id", async (req, res) => {
     const liveWs = workspace.getWorkspaceStatus(currentRun.id);
     if (liveWs) {
       currentRun.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
+    } else if (currentRun.status === "completed" && currentRun.workspace?.status === "running") {
+      currentRun.workspace = { status: "stopped", port: null, error: null };
     }
     if (currentRun.status === "running" || currentRun.status === "awaiting-approval") {
       await projectManager.updateProjectStatus(project.id, "building");
@@ -550,13 +554,51 @@ app.post("/api/db/query", async (req, res) => {
 
 const http = require("http");
 
-app.use("/preview/:runId", (req, res) => {
+app.use("/preview/:runId", async (req, res) => {
   const runId = req.params.runId;
 
-  const status = workspace.getWorkspaceStatus(runId);
+  let status = workspace.getWorkspaceStatus(runId);
+
   if (!status || status.status !== "running" || !status.port) {
-    return res.status(503).json({ error: "App not running" });
+    const run = await getRun(runId);
+    if (run && run.status === "completed" && run.stages?.executor?.output?.startCommand) {
+      const executorOutput = run.stages.executor.output;
+      let wakeEnv = {};
+      try {
+        const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
+        if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
+          for (const v of defaultEnvSetting.vars) {
+            if (v.key) wakeEnv[v.key] = v.value || "";
+          }
+        }
+        const secrets = await settingsManager.getSecretsAsObject();
+        wakeEnv = { ...wakeEnv, ...secrets };
+      } catch {}
+      const allProjects = await projectManager.getAllProjects();
+      const project = allProjects.find(p => p.currentRunId === runId);
+      if (project) {
+        try {
+          const projEnv = await projectManager.getEnvVarsAsObject(project.id);
+          wakeEnv = { ...wakeEnv, ...projEnv };
+        } catch {}
+      }
+      const result = await workspace.restoreWorkspace(
+        runId, executorOutput.startCommand, executorOutput.port || 4000, wakeEnv
+      );
+      if (result.success) {
+        run.workspace = { status: "running", port: result.port, error: null };
+        if (project) await projectManager.updateProjectStatus(project.id, "active");
+        console.log(`Auto-woke workspace ${runId} on port ${result.port}`);
+        status = workspace.getWorkspaceStatus(runId);
+      } else {
+        return res.status(503).json({ error: "Failed to wake workspace: " + result.error });
+      }
+    } else {
+      return res.status(503).json({ error: "App not running" });
+    }
   }
+
+  workspace.touchActivity(runId);
 
   const basePath = `/preview/${runId}`;
   let targetPath = req.originalUrl;
@@ -602,53 +644,10 @@ app.listen(PORT, "0.0.0.0", async () => {
       (p) => (p.status === "active" || p.status === "building") && p.currentRunId
     );
     if (activeProjects.length > 0) {
-      console.log(`Restoring ${activeProjects.length} workspace(s)...`);
+      console.log(`Marking ${activeProjects.length} workspace(s) as stopped (will auto-wake on demand)...`);
       for (const project of activeProjects) {
-        try {
-          const run = await getRun(project.currentRunId);
-          if (!run || run.status !== "completed") {
-            await projectManager.updateProjectStatus(project.id, "stopped");
-            continue;
-          }
-          const executorOutput = run.stages?.executor?.output;
-          if (!executorOutput || !executorOutput.startCommand) {
-            await projectManager.updateProjectStatus(project.id, "stopped");
-            continue;
-          }
-          let restoreEnv = {};
-          try {
-            const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
-            if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
-              for (const v of defaultEnvSetting.vars) {
-                if (v.key) restoreEnv[v.key] = v.value || "";
-              }
-            }
-            const secrets = await settingsManager.getSecretsAsObject();
-            restoreEnv = { ...restoreEnv, ...secrets };
-          } catch {}
-          try {
-            const projEnv = await projectManager.getEnvVarsAsObject(project.id);
-            restoreEnv = { ...restoreEnv, ...projEnv };
-          } catch {}
-          const result = await workspace.restoreWorkspace(
-            run.id,
-            executorOutput.startCommand,
-            executorOutput.port || 4000,
-            restoreEnv
-          );
-          if (result.success) {
-            run.workspace = { status: "running", port: result.port, error: null };
-            await projectManager.updateProjectStatus(project.id, "active");
-            console.log(`  Restored workspace for "${project.name}" on port ${result.port}`);
-          } else {
-            run.workspace = { status: "stopped", port: null, error: result.error };
-            await projectManager.updateProjectStatus(project.id, "stopped");
-            console.log(`  Failed to restore "${project.name}": ${result.error}`);
-          }
-        } catch (err) {
-          console.error(`  Error restoring "${project.name}":`, err.message);
-          await projectManager.updateProjectStatus(project.id, "stopped");
-        }
+        await projectManager.updateProjectStatus(project.id, "stopped");
+        console.log(`  "${project.name}" marked stopped (will wake on first visit)`);
       }
     }
   } catch (err) {

@@ -9,6 +9,7 @@ const PORT_RANGE_START = 4000;
 const PORT_RANGE_END = 4099;
 
 const workspaces = new Map();
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 const LOG_LEVEL_PATTERNS = [
   { pattern: /\b(error|ERR!|Error:|FATAL|fatal|ENOENT|EACCES|ECONNREFUSED|uncaught|unhandled|throw|TypeError|ReferenceError|SyntaxError)\b/i, level: "error" },
@@ -134,6 +135,7 @@ function createWorkspace(runId) {
     error: null,
     lastStartCommand: null,
     lastPort: null,
+    lastActivity: Date.now(),
   };
 
   workspaces.set(runId, ws);
@@ -389,6 +391,7 @@ async function startApp(runId, startCommand, port, customEnv = {}) {
         resolved = true;
         if (ws.process && !ws.process.killed) {
           ws.status = "running";
+          ws.lastActivity = Date.now();
           resolve({ success: true, port: ws.port });
         } else {
           ws.status = "start-failed";
@@ -540,6 +543,7 @@ async function restoreWorkspace(runId, startCommand, port, customEnv = {}) {
     error: null,
     lastStartCommand: startCommand || null,
     lastPort: port || null,
+    lastActivity: Date.now(),
   };
   workspaces.set(runId, ws);
 
@@ -680,6 +684,27 @@ function execCommand(runId, command, timeout = 15000) {
   });
 }
 
+function touchActivity(runId) {
+  const ws = workspaces.get(runId);
+  if (ws) ws.lastActivity = Date.now();
+}
+
+async function stopIdleWorkspaces() {
+  const now = Date.now();
+  for (const [runId, ws] of workspaces) {
+    if (ws.status === "running" && ws.process && !ws.process.killed) {
+      const idle = now - (ws.lastActivity || 0);
+      if (idle >= IDLE_TIMEOUT_MS) {
+        console.log(`Idle timeout: stopping workspace ${runId} (idle ${Math.round(idle / 1000)}s)`);
+        ws.logEntries.push(createLogEntry("Workspace stopped due to inactivity (5 min idle timeout)", "info", "system"));
+        await stopApp(runId);
+      }
+    }
+  }
+}
+
+const _idleInterval = setInterval(stopIdleWorkspaces, 60 * 1000);
+
 module.exports = {
   createWorkspace,
   writeFiles,
@@ -693,4 +718,6 @@ module.exports = {
   getWorkspaceLogs,
   restoreWorkspace,
   execCommand,
+  touchActivity,
+  stopIdleWorkspaces,
 };
