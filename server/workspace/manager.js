@@ -6,10 +6,25 @@ const WORKSPACES_DIR = path.join(__dirname, "..", "..", "workspaces");
 
 const workspaces = new Map();
 
+function cleanDatabaseUrl(raw) {
+  if (!raw) return raw;
+  let url = raw;
+  if (url.startsWith("postgres://")) {
+    url = "postgresql://" + url.slice("postgres://".length);
+  }
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete("channel_binding");
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 function getWorkspaceEnv() {
   const env = {};
   if (process.env.NEON_DATABASE_URL) {
-    env.DATABASE_URL = process.env.NEON_DATABASE_URL;
+    env.DATABASE_URL = cleanDatabaseUrl(process.env.NEON_DATABASE_URL);
   }
   if (process.env.NEON_AUTH_JWKS_URL) {
     env.NEON_AUTH_JWKS_URL = process.env.NEON_AUTH_JWKS_URL;
