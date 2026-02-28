@@ -97,7 +97,8 @@ Do NOT re-plan. Do NOT re-review. Do NOT ask for approval.
 CRITICAL RULES:
 - Every file must include its COMPLETE source code in the "content" field. No placeholders, no "// TODO", no truncation.
 - The app must be fully self-contained. Every file it needs must be in your output.
-- Always include a package.json with all required dependencies.
+- Always include a package.json with ALL required dependencies. Every require() or import must have a matching entry in package.json dependencies.
+- Do NOT use dotenv or .env files. Environment variables are pre-injected at runtime. Access them directly via process.env.
 - Use port 4000 by default for the app server (to avoid conflicts).
 - For web apps with both frontend and backend: serve the frontend as static files from the same Express server. Do NOT use separate dev servers or build steps.
 - Keep it simple. Use plain HTML/CSS/JS for frontends unless the plan specifically requires a framework.
