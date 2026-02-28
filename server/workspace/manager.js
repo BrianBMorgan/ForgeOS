@@ -159,6 +159,22 @@ function installDeps(runId, installCommand) {
   });
 }
 
+function resolveStartCommand(wsDir, startCommand) {
+  if (startCommand === "npm start" || startCommand === "npm run start") {
+    try {
+      const pkgPath = path.join(wsDir, "package.json");
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        const script = pkg.scripts?.start;
+        if (script && /^node\s+\S+/.test(script)) {
+          return script;
+        }
+      }
+    } catch {}
+  }
+  return startCommand;
+}
+
 async function startApp(runId, startCommand, port) {
   const ws = workspaces.get(runId);
   if (!ws) {
@@ -176,12 +192,13 @@ async function startApp(runId, startCommand, port) {
 
   await forceKillPort(ws.port);
 
+  const resolvedCommand = resolveStartCommand(ws.dir, startCommand);
+
   return new Promise((resolve) => {
 
-    const parts = validateCommand(startCommand);
+    const parts = validateCommand(resolvedCommand);
     const proc = spawn(parts[0], parts.slice(1), {
       cwd: ws.dir,
-      detached: true,
       env: {
         ...process.env,
         PORT: String(ws.port),
@@ -262,19 +279,10 @@ function stopApp(runId) {
     };
 
     proc.once("exit", onExit);
-
-    try {
-      process.kill(-proc.pid, "SIGTERM");
-    } catch {
-      proc.kill("SIGTERM");
-    }
+    proc.kill("SIGTERM");
 
     setTimeout(() => {
-      try {
-        process.kill(-proc.pid, "SIGKILL");
-      } catch {
-        if (!proc.killed) proc.kill("SIGKILL");
-      }
+      if (!proc.killed) proc.kill("SIGKILL");
       setTimeout(() => {
         proc.removeListener("exit", onExit);
         ws.status = "stopped";

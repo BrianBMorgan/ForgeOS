@@ -319,6 +319,11 @@ async function runStressTest(options = {}) {
     }
   }
 
+  try {
+    await workspace.stopAllApps();
+    await workspace.forceKillPort(4000);
+  } catch {}
+
   stressTestState.running = false;
   stressTestState.currentPromptId = null;
   stressTestState.finishedAt = Date.now();
