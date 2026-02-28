@@ -438,7 +438,7 @@ export default function PromptColumn({
             {projectData.iterations.map((iter) => {
               const isCurrent = iter.runId === projectData.currentRunId;
               const statusLabel = iter.status === "completed"
-                ? (iter.workspaceStatus === "running" ? "live" : "done")
+                ? (isCurrent && iter.workspaceStatus === "running" ? "live" : "done")
                 : iter.status === "running" ? "running" : iter.status === "failed" ? "failed" : "";
               return (
                 <option key={iter.runId} value={iter.runId}>
