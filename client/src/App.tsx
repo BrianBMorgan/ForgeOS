@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import logo from "./ForgeOS_1772241278038.png";
+import logoStacked from "./ForgeOS_Stacked.png";
 import PromptColumn from "./components/PromptColumn";
 import Workspace from "./components/Workspace";
 
@@ -117,7 +118,7 @@ function App() {
     <div className="shell">
       <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
         <div className="logo">
-          <img src={logo} alt="ForgeOS" className="logo-img" />
+          <img src={collapsed ? logoStacked : logo} alt="ForgeOS" className={`logo-img ${collapsed ? "logo-stacked" : ""}`} />
         </div>
         <nav className="nav">
           {navItems.map((item) => (

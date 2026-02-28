@@ -65,6 +65,11 @@ body {
   width: 36px;
 }
 
+.logo-img.logo-stacked {
+  width: 36px;
+  height: auto;
+}
+
 .sidebar.collapsed .logo {
   font-size: 0.7rem;
   letter-spacing: 0.1em;
