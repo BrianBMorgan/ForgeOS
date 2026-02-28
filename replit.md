@@ -32,7 +32,7 @@ None specified.
 2.  **Reviewer P1 & P2**: Reviews plans for issues and ensures production readiness.
 3.  **Revise P2**: Incorporates reviewer feedback into the plan.
 4.  **Policy Gate**: Determines if human approval is required. Auto-approve setting can override.
-5.  **Human Approval**: A pause point for manual approval or rejection (skipped when auto-approve fires).
+5.  **Human Approval**: A pause point for manual approval or rejection (skipped when auto-approve fires). Displays a full-screen ApprovalModal popup summarizing the plan in human language — project name, template, risk level, reviewer summary, policy reason, API endpoints, UI pages, DB tables, packages, env vars, risks, security concerns, architectural concerns, required changes, background workers, data flows, and acceptance criteria.
 6.  **Executor**: Produces complete runnable code, outputting all files (modified and unchanged) for iterations. Skills context appended to instructions.
 7.  **Auditor**: A pre-deployment quality gate that performs an 11-point checklist and can trigger fix loops.
 
@@ -61,7 +61,7 @@ None specified.
 - `client/src/App.tsx` — Main app shell, navigation, state management
 - `client/src/components/Workspace.tsx` — Tabbed workspace (Plan, Review, Diff, Auditor, Render, Shell, DB, Env, Publish)
 - `client/src/components/Settings.tsx` — Settings page with 7 collapsible sections
-- `client/src/components/PromptColumn.tsx` — Build prompt, pipeline visualization, chat
+- `client/src/components/PromptColumn.tsx` — Build prompt, pipeline visualization, chat, and ApprovalModal popup
 - `client/src/components/ProjectsList.tsx` — Project list view
 - `client/src/components/StressTest.tsx` — Stress test tool
 - `client/src/index.css` — All styles (dark theme)

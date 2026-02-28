@@ -58,6 +58,292 @@ function deriveStages(runData: RunData | null): Stage[] {
   });
 }
 
+function getLatestStageOutput(runData: RunData | null, keys: string[]): Record<string, unknown> | null {
+  if (!runData) return null;
+  for (const key of keys) {
+    const stage = runData.stages[key];
+    if (stage?.output && typeof stage.output === "object") return stage.output as Record<string, unknown>;
+  }
+  return null;
+}
+
+function ApprovalModal({
+  runData,
+  onApprove,
+  onReject,
+}: {
+  runData: RunData | null;
+  onApprove: () => void;
+  onReject: (feedback: string) => void;
+}) {
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [rejectFeedback, setRejectFeedback] = useState("");
+
+  const plan = getLatestStageOutput(runData, ["revise_p3", "revise_p2", "planner"]);
+  const review = getLatestStageOutput(runData, ["reviewer_p3", "reviewer_p2", "reviewer_p1"]);
+  const policyGate = runData?.stages?.policy_gate?.output as Record<string, unknown> | null;
+
+  const projectName = (plan?.projectName as string) || "Unnamed Project";
+  const template = (plan?.template as string) || "";
+  const modules = (plan?.modules as string[]) || [];
+  const apiEndpoints = (plan?.apiEndpoints as { method: string; route: string; purpose: string }[]) || [];
+  const uiPages = (plan?.uiPages as { route: string; purpose: string }[]) || [];
+  const dbTables = (plan?.database as { required: boolean; tables: { name: string; purpose: string }[] })?.tables || [];
+  const dbRequired = (plan?.database as { required: boolean })?.required || false;
+  const envVars = (plan?.environmentVariables as string[]) || [];
+  const risks = (plan?.risks as string[]) || [];
+  const backgroundWorkers = (plan?.backgroundWorkers as { name: string; purpose: string }[]) || [];
+  const dataFlows = (plan?.dataFlows as string[]) || [];
+  const acceptanceCriteria = (plan?.acceptanceCriteria as string[]) || [];
+
+  const riskLevel = (review?.riskLevel as string) || "unknown";
+  const reviewSummary = (review?.summary as string) || "";
+  const securityConcerns = (review?.securityConcerns as string[]) || [];
+  const architecturalConcerns = (review?.architecturalConcerns as string[]) || [];
+  const requiredChanges = (review?.withRequiredChanges as { issue: string; whyItMatters: string; requiredFix: string }[]) || [];
+
+  const policyReason = (policyGate?.reason as string) || "";
+
+  const handleReject = () => {
+    if (!rejectFeedback.trim()) return;
+    onReject(rejectFeedback);
+    setShowRejectInput(false);
+    setRejectFeedback("");
+  };
+
+  const riskClass = riskLevel === "high" ? "risk-high" : riskLevel === "medium" ? "risk-medium" : riskLevel === "low" ? "risk-low" : "risk-unknown";
+
+  return (
+    <div className="approval-overlay">
+      <div className="approval-modal">
+        <div className="approval-modal-header">
+          <div className="approval-modal-icon">!</div>
+          <div>
+            <div className="approval-modal-title">Approval Required</div>
+            <div className="approval-modal-subtitle">
+              The agent is ready to build. Review the plan below.
+            </div>
+          </div>
+        </div>
+
+        <div className="approval-modal-body">
+          <div className="approval-summary-row">
+            <span className="approval-label-text">Project</span>
+            <span className="approval-value-text">{projectName}</span>
+          </div>
+          {template && (
+            <div className="approval-summary-row">
+              <span className="approval-label-text">Template</span>
+              <span className="approval-value-text">{template.replace(/-/g, " ")}</span>
+            </div>
+          )}
+          <div className="approval-summary-row">
+            <span className="approval-label-text">Risk Level</span>
+            <span className={`approval-risk-badge ${riskClass}`}>{riskLevel}</span>
+          </div>
+
+          {reviewSummary && (
+            <div className="approval-section">
+              <div className="approval-section-title">Reviewer Summary</div>
+              <p className="approval-section-text">{reviewSummary}</p>
+            </div>
+          )}
+
+          {policyReason && (
+            <div className="approval-section">
+              <div className="approval-section-title">Why Approval is Needed</div>
+              <p className="approval-section-text">{policyReason}</p>
+            </div>
+          )}
+
+          {apiEndpoints.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">API Endpoints ({apiEndpoints.length})</div>
+              <ul className="approval-list">
+                {apiEndpoints.map((ep, i) => (
+                  <li key={i}>
+                    <code>{ep.method} {ep.route}</code> — {ep.purpose}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {uiPages.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">UI Pages ({uiPages.length})</div>
+              <ul className="approval-list">
+                {uiPages.map((pg, i) => (
+                  <li key={i}>
+                    <code>{pg.route}</code> — {pg.purpose}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {dbRequired && dbTables.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Database Tables ({dbTables.length})</div>
+              <ul className="approval-list">
+                {dbTables.map((t, i) => (
+                  <li key={i}>
+                    <code>{t.name}</code> — {t.purpose}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {modules.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Packages</div>
+              <div className="approval-tags">
+                {modules.map((m, i) => (
+                  <span key={i} className="approval-tag">{m}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {envVars.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Environment Variables</div>
+              <div className="approval-tags">
+                {envVars.map((v, i) => (
+                  <span key={i} className="approval-tag env-tag">{v}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {risks.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Risks</div>
+              <ul className="approval-list risk-list">
+                {risks.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {securityConcerns.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Security Concerns</div>
+              <ul className="approval-list risk-list">
+                {securityConcerns.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {architecturalConcerns.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Architectural Concerns</div>
+              <ul className="approval-list risk-list">
+                {architecturalConcerns.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {requiredChanges.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Required Changes</div>
+              <ul className="approval-list risk-list">
+                {requiredChanges.map((rc, i) => (
+                  <li key={i}>
+                    <strong>{rc.issue}</strong> — {rc.requiredFix}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {backgroundWorkers.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Background Workers</div>
+              <ul className="approval-list">
+                {backgroundWorkers.map((w, i) => (
+                  <li key={i}>
+                    <code>{w.name}</code> — {w.purpose}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {dataFlows.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Data Flows</div>
+              <ul className="approval-list">
+                {dataFlows.map((df, i) => (
+                  <li key={i}>{df}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {acceptanceCriteria.length > 0 && (
+            <div className="approval-section">
+              <div className="approval-section-title">Acceptance Criteria</div>
+              <ul className="approval-list">
+                {acceptanceCriteria.map((ac, i) => (
+                  <li key={i}>{ac}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="approval-modal-footer">
+          {!showRejectInput ? (
+            <div className="approval-modal-actions">
+              <button className="approval-modal-approve" onClick={onApprove}>
+                Approve Build
+              </button>
+              <button
+                className="approval-modal-reject"
+                onClick={() => setShowRejectInput(true)}
+              >
+                Reject
+              </button>
+            </div>
+          ) : (
+            <div className="approval-modal-reject-area">
+              <textarea
+                className="approval-modal-textarea"
+                placeholder="Explain what should change..."
+                value={rejectFeedback}
+                onChange={(e) => setRejectFeedback(e.target.value)}
+                rows={3}
+                autoFocus
+              />
+              <div className="approval-modal-actions">
+                <button className="approval-modal-reject-submit" onClick={handleReject}>
+                  Submit Rejection
+                </button>
+                <button
+                  className="approval-modal-reject-cancel"
+                  onClick={() => {
+                    setShowRejectInput(false);
+                    setRejectFeedback("");
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PromptColumn({
   runData,
   projectData,
@@ -73,8 +359,6 @@ export default function PromptColumn({
   chatLoading,
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
-  const [rejectFeedback, setRejectFeedback] = useState("");
-  const [showRejectInput, setShowRejectInput] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const stages = deriveStages(runData);
@@ -105,13 +389,6 @@ export default function PromptColumn({
 
   const handleBuildFromSuggestion = (suggestion: string) => {
     onRunBuild(suggestion);
-  };
-
-  const handleReject = () => {
-    if (!rejectFeedback.trim()) return;
-    onReject(rejectFeedback);
-    setShowRejectInput(false);
-    setRejectFeedback("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -283,46 +560,11 @@ export default function PromptColumn({
       )}
 
       {isAwaitingApproval && !isViewingHistory && (
-        <div className="approval-controls">
-          <div className="approval-label">Approval Required</div>
-          {!showRejectInput ? (
-            <div className="approval-buttons">
-              <button className="approve-btn" onClick={onApprove}>
-                Approve
-              </button>
-              <button
-                className="reject-btn"
-                onClick={() => setShowRejectInput(true)}
-              >
-                Reject
-              </button>
-            </div>
-          ) : (
-            <div className="reject-input-area">
-              <textarea
-                className="reject-textarea"
-                placeholder="Explain what should change..."
-                value={rejectFeedback}
-                onChange={(e) => setRejectFeedback(e.target.value)}
-                rows={3}
-              />
-              <div className="approval-buttons">
-                <button className="reject-submit-btn" onClick={handleReject}>
-                  Submit
-                </button>
-                <button
-                  className="reject-cancel-btn"
-                  onClick={() => {
-                    setShowRejectInput(false);
-                    setRejectFeedback("");
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <ApprovalModal
+          runData={runData}
+          onApprove={onApprove}
+          onReject={onReject}
+        />
       )}
 
       <div className="prompt-meta">
