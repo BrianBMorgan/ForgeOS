@@ -307,12 +307,14 @@ async function executeAfterApproval(run) {
   const revisedPlan =
     run.stages.revise_p3?.output || run.stages.revise_p2.output;
 
+  const skillsCtx = await loadSkillsContext();
+
   try {
     updateStage(run, "human_approval", "passed", { approved: true });
     updateStage(run, "executor", "running");
 
     const isIteration = run.iterationNumber > 1;
-    const executorInstructions = (isIteration ? EXECUTOR_ITERATE_INSTRUCTIONS : EXECUTOR_INSTRUCTIONS) + skillsContext;
+    const executorInstructions = (isIteration ? EXECUTOR_ITERATE_INSTRUCTIONS : EXECUTOR_INSTRUCTIONS) + skillsCtx;
     const existingFiles = run.existingFiles || [];
 
     let executorContext = "Human approval has been granted. Execute this plan now.";

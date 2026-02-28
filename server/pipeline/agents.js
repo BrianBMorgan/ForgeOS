@@ -16,12 +16,15 @@ Rules:
 AVAILABLE PLATFORM SERVICES (use these in your plans):
 - **Database**: Neon Postgres is available via the @neondatabase/serverless npm package. Use DATABASE_URL env var. Include it in environmentVariables when the plan needs persistence.
 - **Authentication**: Neon Auth is the ONLY authentication system available. If the plan requires user accounts, login, signup, or any form of authentication, specify "Neon Auth (JWT via JWKS)" in the modules list and NEON_AUTH_JWKS_URL in environmentVariables. Do NOT plan for bcrypt, password hashing, custom JWT signing, or any custom auth implementation.
+- **Global Secrets Vault**: The platform has a global secrets vault. Any secrets stored there are automatically injected as environment variables at runtime (e.g., STRIPE_SECRET_KEY, SENDGRID_API_KEY). When planning integrations that need API keys, reference the key name and note it should be set in the Global Secrets Vault — do NOT hardcode secrets.
+- **Skills Library**: Additional integration instructions and best practices may be appended below. If present, follow them for the relevant technologies.
 
 When planning integrations (e.g., Stripe, Slack, webhooks):
 - Always define idempotency strategy.
 - Always define environment variables explicitly.
 - Define data retention concerns when storing external payloads.
 - Include clear data flow steps.
+- Check if the Skills Library below has specific instructions for this integration.
 
 Return only valid JSON.`;
 
@@ -164,6 +167,14 @@ AVAILABLE SERVICES (use these when the plan requires them):
    - For apps needing auth, provide a simple login/signup UI or indicate that auth tokens come from an external identity provider.
    - HARD CONSTRAINT: You MUST NOT use bcrypt, bcryptjs, jsonwebtoken, passport, or any custom auth library. You MUST NOT implement password hashing, custom JWT signing, or session management. The ONLY auth approach allowed is Neon Auth with jose + JWKS as described above. Any code using bcrypt or jsonwebtoken will fail deployment.
    - Do NOT check for or require NEON_AUTH_AUDIENCE, NEON_AUTH_ISSUER, JWT_SECRET, or SESSION_SECRET environment variables. Only DATABASE_URL and NEON_AUTH_JWKS_URL are provided. For jwtVerify options, omit audience/issuer or make them optional.
+
+3. **Global Secrets Vault** — The platform has a global secrets vault managed in the Settings page.
+   - Any secrets stored there (e.g., STRIPE_SECRET_KEY, SENDGRID_API_KEY, HCAPTCHA_SECRET) are automatically injected as environment variables at runtime.
+   - Access them via process.env.SECRET_KEY_NAME — never hardcode API keys or secrets.
+   - If the plan references a secret key, use process.env.THAT_KEY in the code.
+   - List any required secrets in environmentVariables so the user knows which keys need to be set in the vault.
+
+4. **Skills Library** — Additional integration instructions and best practices may be appended below these instructions. If present, follow them precisely for the relevant technologies.
 
 If the plan does NOT require a database or auth, do NOT include them. Only use these services when they are part of the plan.
 
@@ -333,11 +344,14 @@ Rules:
 AVAILABLE PLATFORM SERVICES (same as original):
 - **Database**: Neon Postgres via @neondatabase/serverless. Use DATABASE_URL env var.
 - **Authentication**: Neon Auth via jose + JWKS. Use NEON_AUTH_JWKS_URL env var.
+- **Global Secrets Vault**: The platform has a global secrets vault. Any secrets stored there are automatically injected as environment variables at runtime (e.g., STRIPE_SECRET_KEY, SENDGRID_API_KEY). When planning integrations that need API keys, reference the key name and note it should be set in the Global Secrets Vault — do NOT hardcode secrets.
+- **Skills Library**: Additional integration instructions and best practices may be appended below. If present, follow them for the relevant technologies.
 
 In your plan description, clearly state:
 - What existing features are being preserved
 - What is being added or modified
 - What files will be changed vs created
+- Any secrets that need to be added to the Global Secrets Vault
 
 Return only valid JSON matching the Planner response schema.`;
 
@@ -371,6 +385,8 @@ ALL OTHER EXECUTOR RULES STILL APPLY:
 - Template literal safety: no nested backticks in res.send().
 - Database: @neondatabase/serverless with tagged template literals, CREATE TABLE IF NOT EXISTS.
 - Auth: jose + JWKS only.
+- **Global Secrets Vault**: API keys and secrets from the Global Secrets Vault are automatically available as process.env.KEY_NAME at runtime. Reference them via process.env — never hardcode secrets. If a skill or plan mentions a secret key, use process.env.THAT_KEY.
+- **Skills Library**: Additional integration instructions may be appended below. If present, follow them precisely.
 
 Produce the same output schema as always:
 1. implementationSummary — describe what was CHANGED (not the full app).
@@ -406,6 +422,11 @@ Do NOT search when:
 
 When you do search, briefly mention that you looked it up so the user knows the info is current.
 
+PLATFORM CAPABILITIES YOU SHOULD KNOW ABOUT:
+- **Global Secrets Vault**: The platform has a global secrets vault (in Settings). Secrets stored there are automatically injected as environment variables into all project runtimes. If the user needs an API key for an integration, tell them to add it to the Global Secrets Vault in Settings, then reference it via process.env.KEY_NAME in code.
+- **Skills Library**: The platform has a Skills Library (in Settings) where curated integration instructions are stored. These are automatically injected into the Planner and Executor prompts during builds. If the user wants the agents to follow specific patterns for a technology, they should add a Skill.
+- **Default Environment Variables**: Global default env vars can be set in Settings and are injected into all project runtimes.
+
 IMPORTANT RULES:
 - Be concise and direct. No filler, no preamble.
 - When diagnosing an issue, cite the specific file and line/section causing it.
@@ -413,6 +434,7 @@ IMPORTANT RULES:
 - Do NOT generate code blocks with full file rewrites. Just describe the change.
 - If the user is clearly asking you to MAKE a change (not just asking about it), set suggestBuild to true and describe what the build should do in buildSuggestion.
 - If the user is asking a question, exploring, or diagnosing, set suggestBuild to false.
+- When suggesting a build that needs API keys or secrets, mention that the user should add the required keys to the Global Secrets Vault in Settings before running the build.
 
 You must respond with valid JSON matching this schema: { "message": "your response text", "suggestBuild": true/false, "buildSuggestion": "description of the build" or null }.`;
 
