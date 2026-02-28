@@ -73,6 +73,8 @@ body {
 .sidebar.collapsed .logo {
   font-size: 0.7rem;
   letter-spacing: 0.1em;
+  display: flex;
+  justify-content: center;
 }
 
 .nav {
