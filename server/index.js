@@ -53,7 +53,13 @@ app.get("/api/runs/:id", async (req, res) => {
 });
 
 app.get("/api/runs/:id/logs", (req, res) => {
-  const logs = workspace.getWorkspaceLogs(req.params.id);
+  const opts = {};
+  if (req.query.since) opts.since = parseInt(req.query.since);
+  if (req.query.level) opts.level = req.query.level.split(",");
+  if (req.query.source) opts.source = req.query.source;
+  if (req.query.search) opts.search = req.query.search;
+  if (req.query.limit) opts.limit = parseInt(req.query.limit);
+  const logs = workspace.getWorkspaceLogs(req.params.id, opts);
   const status = workspace.getWorkspaceStatus(req.params.id);
   res.json({ logs, status });
 });

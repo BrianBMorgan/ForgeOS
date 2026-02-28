@@ -10,6 +10,44 @@ const PORT_RANGE_END = 4099;
 
 const workspaces = new Map();
 
+const LOG_LEVEL_PATTERNS = [
+  { pattern: /\b(error|ERR!|Error:|FATAL|fatal|ENOENT|EACCES|ECONNREFUSED|uncaught|unhandled|throw|TypeError|ReferenceError|SyntaxError)\b/i, level: "error" },
+  { pattern: /\b(warn|warning|WARN|deprecated)\b/i, level: "warn" },
+  { pattern: /\b(debug|DEBUG|verbose)\b/i, level: "debug" },
+];
+
+function detectLogLevel(line, source) {
+  if (!line.trim()) return null;
+  for (const { pattern, level } of LOG_LEVEL_PATTERNS) {
+    if (pattern.test(line)) return level;
+  }
+  return "info";
+}
+
+function createLogEntry(message, level, source) {
+  return {
+    ts: Date.now(),
+    level: level || "info",
+    source,
+    message: message.replace(/\n$/, ""),
+  };
+}
+
+function pushLogEntries(ws, rawData, source) {
+  const text = rawData.toString();
+  const lines = text.split("\n");
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const level = detectLogLevel(line, source);
+    if (level) {
+      ws.logEntries.push(createLogEntry(line, level, source));
+    }
+  }
+  if (ws.logEntries.length > 2000) {
+    ws.logEntries = ws.logEntries.slice(-1500);
+  }
+}
+
 function getNextFreePort() {
   return new Promise((resolve, reject) => {
     const usedPorts = new Set();
@@ -88,6 +126,7 @@ function createWorkspace(runId) {
       install: "",
       app: "",
     },
+    logEntries: [],
     error: null,
   };
 
@@ -155,6 +194,7 @@ function installDeps(runId, installCommand) {
 
     ws.status = "installing";
     ws.logs.install = "";
+    ws.logEntries.push(createLogEntry(`Installing dependencies: ${installCommand}`, "info", "system"));
 
     const parts = validateCommand(installCommand);
     const proc = spawn(parts[0], parts.slice(1), {
@@ -164,19 +204,23 @@ function installDeps(runId, installCommand) {
 
     proc.stdout.on("data", (data) => {
       ws.logs.install += data.toString();
+      pushLogEntries(ws, data, "install");
     });
 
     proc.stderr.on("data", (data) => {
       ws.logs.install += data.toString();
+      pushLogEntries(ws, data, "install");
     });
 
     proc.on("close", (code) => {
       if (code === 0) {
         ws.status = "installed";
+        ws.logEntries.push(createLogEntry("Dependencies installed successfully", "info", "system"));
         resolve({ success: true });
       } else {
         ws.status = "install-failed";
         ws.error = `Install exited with code ${code}`;
+        ws.logEntries.push(createLogEntry(ws.error, "error", "system"));
         resolve({ success: false, error: ws.error });
       }
     });
@@ -184,6 +228,7 @@ function installDeps(runId, installCommand) {
     proc.on("error", (err) => {
       ws.status = "install-failed";
       ws.error = err.message;
+      ws.logEntries.push(createLogEntry(`Install error: ${err.message}`, "error", "system"));
       resolve({ success: false, error: err.message });
     });
   });
@@ -275,6 +320,7 @@ async function startApp(runId, startCommand, port) {
   patchHardcodedPort(ws.dir);
 
   const resolvedCommand = resolveStartCommand(ws.dir, startCommand);
+  ws.logEntries.push(createLogEntry(`Starting application: ${resolvedCommand} (port ${ws.port})`, "info", "system"));
 
   return new Promise((resolve) => {
 
@@ -293,10 +339,12 @@ async function startApp(runId, startCommand, port) {
 
     proc.stdout.on("data", (data) => {
       ws.logs.app += data.toString();
+      pushLogEntries(ws, data, "app");
     });
 
     proc.stderr.on("data", (data) => {
       ws.logs.app += data.toString();
+      pushLogEntries(ws, data, "app");
     });
 
     let resolved = false;
@@ -308,10 +356,12 @@ async function startApp(runId, startCommand, port) {
         resolved = true;
         ws.status = "start-failed";
         ws.error = `App exited with code ${code} during startup`;
+        ws.logEntries.push(createLogEntry(ws.error, "error", "system"));
         resolve({ success: false, error: ws.error });
       } else if (ws.status === "running") {
         ws.status = "stopped";
         ws.error = `App crashed with code ${code}`;
+        ws.logEntries.push(createLogEntry(ws.error, "error", "system"));
       }
     });
 
@@ -321,6 +371,7 @@ async function startApp(runId, startCommand, port) {
         resolved = true;
         ws.status = "start-failed";
         ws.error = err.message;
+        ws.logEntries.push(createLogEntry(`Process error: ${err.message}`, "error", "system"));
         resolve({ success: false, error: err.message });
       }
     });
@@ -417,13 +468,30 @@ function getWorkspaceStatus(runId) {
   };
 }
 
-function getWorkspaceLogs(runId) {
+function getWorkspaceLogs(runId, opts = {}) {
   const ws = workspaces.get(runId);
-  if (!ws) return { install: "", app: "" };
+  if (!ws) return { install: "", app: "", entries: [] };
+
+  const { since, level, source, search, limit: maxEntries } = opts;
+  let entries = ws.logEntries;
+
+  if (since) entries = entries.filter((e) => e.ts > since);
+  if (level) {
+    const levels = Array.isArray(level) ? level : [level];
+    entries = entries.filter((e) => levels.includes(e.level));
+  }
+  if (source) entries = entries.filter((e) => e.source === source);
+  if (search) {
+    const re = new RegExp(search, "i");
+    entries = entries.filter((e) => re.test(e.message));
+  }
+  if (maxEntries) entries = entries.slice(-maxEntries);
 
   return {
     install: ws.logs.install,
     app: ws.logs.app,
+    entries,
+    totalEntries: ws.logEntries.length,
   };
 }
 
@@ -441,6 +509,7 @@ async function restoreWorkspace(runId, startCommand, port) {
     port: null,
     process: null,
     logs: { install: "", app: "" },
+    logEntries: [],
     error: null,
   };
   workspaces.set(runId, ws);

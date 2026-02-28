@@ -162,7 +162,7 @@ The DB tab in the workspace provides a read-only database browser for inspecting
 - Live preview via iframe in Render tab (Layer 3)
 - Auditor stage with 11-point checklist and fix loop (up to 2 rounds)
 - Interactive shell in Shell tab (command execution in workspace directory, command history, safety-blocked patterns)
-- Build/runtime logs in Shell tab (Logs mode)
+- Structured log viewer in Shell tab (Logs mode) — timestamped entries with level detection (INFO/WARN/ERROR/DEBUG), source labels (SYS/NPM/APP), level filter buttons with counts, text search, auto-scroll toggle; server-side filtering via query params (since, level, source, search, limit); capped at 2000 entries with automatic rotation
 - Neon Postgres available for generated apps that need a database (via DATABASE_URL)
 - Neon Auth available for generated apps that need user management (via NEON_AUTH_JWKS_URL)
 - Stress test harness: 100% pass rate (18/18)

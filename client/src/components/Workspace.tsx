@@ -457,15 +457,48 @@ interface ShellEntry {
   text: string;
 }
 
+interface LogEntry {
+  ts: number;
+  level: "info" | "warn" | "error" | "debug";
+  source: "system" | "install" | "app";
+  message: string;
+}
+
+type LogLevel = "info" | "warn" | "error" | "debug";
+
+const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
+  info: "#3b82f6",
+  warn: "#f59e0b",
+  error: "#ef4444",
+  debug: "#64748b",
+};
+
+const LOG_SOURCE_LABELS: Record<string, string> = {
+  system: "SYS",
+  install: "NPM",
+  app: "APP",
+};
+
+function formatLogTime(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    + "." + String(d.getMilliseconds()).padStart(3, "0");
+}
+
 function ShellTab({ runData }: { runData: RunData | null }) {
-  const [logs, setLogs] = useState<{ install: string; app: string } | null>(null);
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
+  const [totalEntries, setTotalEntries] = useState(0);
   const [shellHistory, setShellHistory] = useState<ShellEntry[]>([]);
   const [cmdInput, setCmdInput] = useState("");
   const [cmdHistoryList, setCmdHistoryList] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [isExecuting, setIsExecuting] = useState(false);
   const [shellMode, setShellMode] = useState<"terminal" | "logs">("terminal");
+  const [levelFilter, setLevelFilter] = useState<Set<LogLevel>>(new Set(["info", "warn", "error", "debug"]));
+  const [logSearch, setLogSearch] = useState("");
+  const [autoScroll, setAutoScroll] = useState(true);
   const shellEndRef = useRef<HTMLDivElement>(null);
+  const logEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const entryIdRef = useRef(0);
 
@@ -476,14 +509,21 @@ function ShellTab({ runData }: { runData: RunData | null }) {
         const res = await fetch(`/api/runs/${runData.id}/logs`);
         if (res.ok) {
           const data = await res.json();
-          setLogs(data.logs);
+          if (data.logs?.entries) {
+            setLogEntries(data.logs.entries);
+            setTotalEntries(data.logs.totalEntries || data.logs.entries.length);
+          }
         }
       } catch {}
     };
     fetchLogs();
-    const interval = setInterval(fetchLogs, 3000);
+    const interval = setInterval(fetchLogs, 2000);
     return () => clearInterval(interval);
   }, [runData?.id, runData?.workspace?.status]);
+
+  useEffect(() => {
+    if (autoScroll) logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logEntries, autoScroll]);
 
   useEffect(() => {
     shellEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -494,6 +534,7 @@ function ShellTab({ runData }: { runData: RunData | null }) {
       setShellHistory([]);
       setCmdHistoryList([]);
       setHistoryIndex(-1);
+      setLogEntries([]);
       entryIdRef.current = 0;
     }
   }, [runData?.id]);
@@ -533,18 +574,10 @@ function ShellTab({ runData }: { runData: RunData | null }) {
       if (data.error) {
         addEntry("stderr", data.error);
       } else {
-        if (data.stdout && data.stdout.trim()) {
-          addEntry("stdout", data.stdout);
-        }
-        if (data.stderr && data.stderr.trim()) {
-          addEntry("stderr", data.stderr);
-        }
-        if (!data.stdout?.trim() && !data.stderr?.trim() && data.exitCode === 0) {
-          addEntry("info", "(no output)");
-        }
-        if (data.exitCode !== 0 && data.exitCode !== undefined) {
-          addEntry("info", `exit code ${data.exitCode}`);
-        }
+        if (data.stdout && data.stdout.trim()) addEntry("stdout", data.stdout);
+        if (data.stderr && data.stderr.trim()) addEntry("stderr", data.stderr);
+        if (!data.stdout?.trim() && !data.stderr?.trim() && data.exitCode === 0) addEntry("info", "(no output)");
+        if (data.exitCode !== 0 && data.exitCode !== undefined) addEntry("info", `exit code ${data.exitCode}`);
       }
     } catch (err: unknown) {
       addEntry("stderr", `Network error: ${err instanceof Error ? err.message : "unknown"}`);
@@ -581,6 +614,15 @@ function ShellTab({ runData }: { runData: RunData | null }) {
     }
   }, [executeCommand, cmdHistoryList, historyIndex]);
 
+  const toggleLevel = useCallback((level: LogLevel) => {
+    setLevelFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  }, []);
+
   if (!runData?.workspace) {
     return (
       <div className="panel-placeholder">
@@ -594,9 +636,18 @@ function ShellTab({ runData }: { runData: RunData | null }) {
     );
   }
 
-  const hasInstallLogs = logs?.install && logs.install.trim().length > 0;
-  const hasAppLogs = logs?.app && logs.app.trim().length > 0;
   const workspaceDir = runData.id ? `workspaces/${runData.id}` : "";
+
+  const filteredLogs = logEntries.filter((entry) => {
+    if (!levelFilter.has(entry.level)) return false;
+    if (logSearch && !entry.message.toLowerCase().includes(logSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  const levelCounts = logEntries.reduce((acc, e) => {
+    acc[e.level] = (acc[e.level] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   return (
     <div className="shell-content">
@@ -609,15 +660,11 @@ function ShellTab({ runData }: { runData: RunData | null }) {
           <button
             className={`shell-mode-btn ${shellMode === "terminal" ? "active" : ""}`}
             onClick={() => setShellMode("terminal")}
-          >
-            Terminal
-          </button>
+          >Terminal</button>
           <button
             className={`shell-mode-btn ${shellMode === "logs" ? "active" : ""}`}
             onClick={() => setShellMode("logs")}
-          >
-            Logs
-          </button>
+          >Logs{totalEntries > 0 ? ` (${totalEntries})` : ""}</button>
         </div>
       </div>
 
@@ -664,31 +711,71 @@ function ShellTab({ runData }: { runData: RunData | null }) {
           </div>
         </div>
       ) : (
-        <div className="shell-log-area">
-          {hasInstallLogs && (
-            <>
-              <div className="shell-log-label">Install Output</div>
-              <pre className="shell-log-block">{logs!.install}</pre>
-            </>
-          )}
-          {hasAppLogs && (
-            <>
-              <div className="shell-log-label">Application Output</div>
-              <pre className="shell-log-block">{logs!.app}</pre>
-            </>
-          )}
-          {!hasInstallLogs && !hasAppLogs && (
-            <div className="shell-log-empty">
-              {runData.workspace.status === "writing-files"
-                ? "Writing files to workspace..."
-                : runData.workspace.status === "installing"
-                ? "Installing dependencies..."
-                : "Waiting for output..."}
+        <div className="log-viewer">
+          <div className="log-toolbar">
+            <div className="log-filters">
+              {(["error", "warn", "info", "debug"] as LogLevel[]).map((level) => (
+                <button
+                  key={level}
+                  className={`log-filter-btn log-filter-${level} ${levelFilter.has(level) ? "active" : ""}`}
+                  onClick={() => toggleLevel(level)}
+                >
+                  <span className="log-filter-dot" style={{ background: LOG_LEVEL_COLORS[level] }} />
+                  {level.toUpperCase()}
+                  {levelCounts[level] ? <span className="log-filter-count">{levelCounts[level]}</span> : null}
+                </button>
+              ))}
             </div>
-          )}
-          {runData.workspace.error && (
-            <div className="shell-error">Error: {runData.workspace.error}</div>
-          )}
+            <div className="log-toolbar-right">
+              <input
+                className="log-search"
+                type="text"
+                placeholder="Search logs..."
+                value={logSearch}
+                onChange={(e) => setLogSearch(e.target.value)}
+                spellCheck={false}
+              />
+              <button
+                className={`log-autoscroll-btn ${autoScroll ? "active" : ""}`}
+                onClick={() => setAutoScroll(!autoScroll)}
+                title={autoScroll ? "Auto-scroll on" : "Auto-scroll off"}
+              >
+                {autoScroll ? "⬇" : "⏸"}
+              </button>
+            </div>
+          </div>
+          <div className="log-entries">
+            {filteredLogs.length === 0 && (
+              <div className="log-empty">
+                {logEntries.length === 0
+                  ? runData.workspace.status === "installing"
+                    ? "Installing dependencies..."
+                    : runData.workspace.status === "writing-files"
+                    ? "Writing files to workspace..."
+                    : "No log entries yet."
+                  : "No entries match current filters."}
+              </div>
+            )}
+            {filteredLogs.map((entry, i) => (
+              <div key={`${entry.ts}-${i}`} className={`log-row log-row-${entry.level}`}>
+                <span className="log-ts">{formatLogTime(entry.ts)}</span>
+                <span className="log-level-badge" style={{ color: LOG_LEVEL_COLORS[entry.level] }}>
+                  {entry.level.toUpperCase().padEnd(5)}
+                </span>
+                <span className="log-source">{LOG_SOURCE_LABELS[entry.source] || entry.source}</span>
+                <span className="log-msg">{entry.message}</span>
+              </div>
+            ))}
+            {runData.workspace.error && (
+              <div className="log-row log-row-error">
+                <span className="log-ts">{formatLogTime(Date.now())}</span>
+                <span className="log-level-badge" style={{ color: LOG_LEVEL_COLORS.error }}>ERROR</span>
+                <span className="log-source">SYS</span>
+                <span className="log-msg">{runData.workspace.error}</span>
+              </div>
+            )}
+            <div ref={logEndRef} />
+          </div>
         </div>
       )}
     </div>
