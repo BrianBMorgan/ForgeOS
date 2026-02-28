@@ -247,6 +247,18 @@ function App() {
     };
   }, [currentRunId, viewingIterationRunId]);
 
+  const refreshRunData = useCallback(async () => {
+    const activeRunId = viewingIterationRunId || currentRunId;
+    if (!activeRunId) return;
+    try {
+      const res = await fetch(`${API_BASE}/runs/${activeRunId}`);
+      if (res.ok) {
+        const data: RunData = await res.json();
+        setRunData(data);
+      }
+    } catch {}
+  }, [currentRunId, viewingIterationRunId]);
+
   const handleNavClick = (navId: NavId) => {
     setActiveNav(navId);
     if (navId === "new-project" || navId === "projects") {
@@ -295,6 +307,7 @@ function App() {
           runData={runData}
           projectData={projectData}
           viewingIterationRunId={viewingIterationRunId}
+          onRefreshRunData={refreshRunData}
         />
       </>
     );

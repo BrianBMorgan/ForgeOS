@@ -24,6 +24,7 @@ interface WorkspaceProps {
   runData: RunData | null;
   projectData?: ProjectData | null;
   viewingIterationRunId?: string | null;
+  onRefreshRunData?: () => void;
 }
 
 function renderField(label: string, value: unknown) {
@@ -493,7 +494,7 @@ function formatLogTime(ts: number): string {
     + "." + String(d.getMilliseconds()).padStart(3, "0");
 }
 
-function ShellTab({ runData }: { runData: RunData | null }) {
+function ShellTab({ runData, projectId, onRefreshRunData }: { runData: RunData | null; projectId?: string | null; onRefreshRunData?: () => void }) {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [totalEntries, setTotalEntries] = useState(0);
   const [shellHistory, setShellHistory] = useState<ShellEntry[]>([]);
@@ -505,6 +506,7 @@ function ShellTab({ runData }: { runData: RunData | null }) {
   const [levelFilter, setLevelFilter] = useState<Set<LogLevel>>(new Set(["info", "warn", "error", "debug"]));
   const [logSearch, setLogSearch] = useState("");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const shellEndRef = useRef<HTMLDivElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -663,6 +665,64 @@ function ShellTab({ runData }: { runData: RunData | null }) {
         <WorkspaceStatusBadge status={runData.workspace.status} />
         {runData.workspace.port && (
           <span className="shell-port">Port {runData.workspace.port}</span>
+        )}
+        {projectId && (
+          <div className="shell-controls">
+            {runData.workspace.status === "running" && (
+              <>
+                <button
+                  className="shell-ctrl-btn shell-ctrl-restart"
+                  onClick={async () => {
+                    setActionLoading("restart");
+                    try {
+                      await fetch(`/api/projects/${projectId}/restart`, { method: "POST" });
+                      await new Promise(r => setTimeout(r, 1000));
+                      onRefreshRunData?.();
+                    } catch {}
+                    setActionLoading(null);
+                  }}
+                  disabled={actionLoading !== null}
+                  title="Restart app"
+                >
+                  {actionLoading === "restart" ? "↻" : "⟳"} Restart
+                </button>
+                <button
+                  className="shell-ctrl-btn shell-ctrl-stop"
+                  onClick={async () => {
+                    setActionLoading("stop");
+                    try {
+                      await fetch(`/api/projects/${projectId}/stop`, { method: "POST" });
+                      await new Promise(r => setTimeout(r, 500));
+                      onRefreshRunData?.();
+                    } catch {}
+                    setActionLoading(null);
+                  }}
+                  disabled={actionLoading !== null}
+                  title="Stop app"
+                >
+                  ■ Stop
+                </button>
+              </>
+            )}
+            {(runData.workspace.status === "stopped" || runData.workspace.status === "start-failed") && (
+              <button
+                className="shell-ctrl-btn shell-ctrl-restart"
+                onClick={async () => {
+                  setActionLoading("restart");
+                  try {
+                    await fetch(`/api/projects/${projectId}/restart`, { method: "POST" });
+                    await new Promise(r => setTimeout(r, 1000));
+                    onRefreshRunData?.();
+                  } catch {}
+                  setActionLoading(null);
+                }}
+                disabled={actionLoading !== null}
+                title="Start app"
+              >
+                {actionLoading === "restart" ? "↻" : "▶"} Start
+              </button>
+            )}
+          </div>
         )}
         <div className="shell-mode-toggle">
           <button
@@ -935,7 +995,7 @@ function EnvTab({ projectId }: { projectId: string | null }) {
   );
 }
 
-export default function Workspace({ runData, projectData, viewingIterationRunId }: WorkspaceProps) {
+export default function Workspace({ runData, projectData, viewingIterationRunId, onRefreshRunData }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
   const prevExecutorStatus = useRef<string | undefined>(undefined);
 
@@ -965,7 +1025,7 @@ export default function Workspace({ runData, projectData, viewingIterationRunId 
       case "render":
         return <RenderTab runData={runData} />;
       case "shell":
-        return <ShellTab runData={runData} />;
+        return <ShellTab runData={runData} projectId={projectData?.id} onRefreshRunData={onRefreshRunData} />;
       case "db":
         return <DbTab />;
       case "env":

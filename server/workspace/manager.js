@@ -132,6 +132,8 @@ function createWorkspace(runId) {
     },
     logEntries: [],
     error: null,
+    lastStartCommand: null,
+    lastPort: null,
   };
 
   workspaces.set(runId, ws);
@@ -311,6 +313,8 @@ async function startApp(runId, startCommand, port, customEnv = {}) {
 
   ws.status = "starting";
   ws.logs.app = "";
+  ws.lastStartCommand = startCommand;
+  ws.lastPort = port;
 
   let assignedPort;
   try {
@@ -430,6 +434,25 @@ function stopApp(runId) {
   });
 }
 
+async function restartApp(runId, customEnv = {}) {
+  const ws = workspaces.get(runId);
+  if (!ws) {
+    return { success: false, error: "Workspace not found" };
+  }
+  if (!ws.lastStartCommand) {
+    return { success: false, error: "No start command recorded — cannot restart" };
+  }
+
+  const cmd = ws.lastStartCommand;
+  const port = ws.lastPort || 4000;
+
+  await stopApp(runId);
+  ws.logEntries.push(createLogEntry("Restarting application...", "info", "system"));
+
+  const result = await startApp(runId, cmd, port, customEnv);
+  return result;
+}
+
 async function stopAllApps() {
   const promises = [];
   for (const [runId] of workspaces) {
@@ -499,7 +522,7 @@ function getWorkspaceLogs(runId, opts = {}) {
   };
 }
 
-async function restoreWorkspace(runId, startCommand, port) {
+async function restoreWorkspace(runId, startCommand, port, customEnv = {}) {
   const wsDir = path.join(WORKSPACES_DIR, runId);
   if (!fs.existsSync(wsDir)) return { success: false, error: "Workspace directory not found" };
 
@@ -515,13 +538,15 @@ async function restoreWorkspace(runId, startCommand, port) {
     logs: { install: "", app: "" },
     logEntries: [],
     error: null,
+    lastStartCommand: startCommand || null,
+    lastPort: port || null,
   };
   workspaces.set(runId, ws);
 
   try {
     if (fs.existsSync(pkgJson) && !fs.existsSync(nodeModules)) {
       ws.status = "installing";
-      const installResult = await installDeps(runId, "npm install");
+      const installResult = await installDeps(runId, "npm install", customEnv);
       if (!installResult.success) {
         ws.status = "restore-failed";
         ws.error = installResult.error;
@@ -530,7 +555,7 @@ async function restoreWorkspace(runId, startCommand, port) {
     }
 
     if (startCommand) {
-      const result = await startApp(runId, startCommand, port || 4000);
+      const result = await startApp(runId, startCommand, port || 4000, customEnv);
       return result;
     }
 
@@ -661,6 +686,7 @@ module.exports = {
   installDeps,
   startApp,
   stopApp,
+  restartApp,
   stopAllApps,
   forceKillPort,
   getWorkspaceStatus,

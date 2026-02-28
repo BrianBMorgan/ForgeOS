@@ -195,9 +195,54 @@ app.post("/api/projects/:id/stop", async (req, res) => {
 
   if (project.currentRunId) {
     await workspace.stopApp(project.currentRunId);
+    const run = await getRun(project.currentRunId);
+    if (run && run.workspace) {
+      run.workspace.status = "stopped";
+    }
   }
   await projectManager.stopProject(req.params.id);
   res.json({ status: "stopped" });
+});
+
+app.post("/api/projects/:id/restart", async (req, res) => {
+  const project = await projectManager.getProject(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+  if (!project.currentRunId) {
+    return res.status(400).json({ error: "No active run to restart" });
+  }
+
+  try {
+    const customEnv = await projectManager.getEnvVarsAsObject(req.params.id);
+    const run = await getRun(project.currentRunId);
+    const wsStatus = workspace.getWorkspaceStatus(project.currentRunId);
+
+    let result;
+    if (!wsStatus) {
+      const startCmd = run?.stages?.executor?.output?.startCommand || "npm start";
+      const port = run?.stages?.executor?.output?.port || 4000;
+      result = await workspace.restoreWorkspace(project.currentRunId, startCmd, port, customEnv);
+    } else {
+      result = await workspace.restartApp(project.currentRunId, customEnv);
+    }
+    if (result.success) {
+      if (run && run.workspace) {
+        run.workspace.status = "running";
+        run.workspace.port = result.port;
+      }
+      await projectManager.updateProjectStatus(req.params.id, "active");
+      res.json({ status: "restarted", port: result.port });
+    } else {
+      if (run && run.workspace) {
+        run.workspace.status = "start-failed";
+        run.workspace.error = result.error;
+      }
+      res.status(500).json({ error: result.error });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/projects/:id/env", async (req, res) => {
