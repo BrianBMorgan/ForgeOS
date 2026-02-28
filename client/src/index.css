@@ -14,8 +14,8 @@ body,
 }
 
 body {
-  background: #0a0a0a;
-  color: #e0e0e0;
+  background: #0f172a;
+  color: #e2e8f0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
 }
@@ -30,8 +30,8 @@ body {
 /* ── Sidebar ── */
 .sidebar {
   width: 240px;
-  background: #111;
-  border-right: 1px solid #222;
+  background: #111827;
+  border-right: 1px solid #1e293b;
   display: flex;
   flex-direction: column;
   padding: 1.5rem 1rem;
@@ -58,7 +58,7 @@ body {
 }
 
 .logo-img:hover {
-  filter: drop-shadow(0 0 8px rgba(0, 255, 120, 0.25));
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.3));
 }
 
 .sidebar.collapsed .logo-img {
@@ -178,27 +178,7 @@ body {
   display: flex;
   flex-direction: column;
   border-right: 1px solid #1e293b;
-  background:
-    radial-gradient(
-      circle at center,
-      rgba(0, 255, 120, 0.04),
-      transparent 60%
-    ),
-    repeating-linear-gradient(
-      to right,
-      rgba(255, 255, 255, 0.02) 0px,
-      rgba(255, 255, 255, 0.02) 1px,
-      transparent 1px,
-      transparent 40px
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.02) 0px,
-      rgba(255, 255, 255, 0.02) 1px,
-      transparent 1px,
-      transparent 40px
-    ),
-    #0f172a;
+  background: #0f172a;
 }
 
 .prompt-input-area {
@@ -210,7 +190,7 @@ body {
 
 .prompt-textarea {
   width: 100%;
-  background: rgba(0, 0, 0, 0.3);
+  background: #111827;
   border: 1px solid #1e293b;
   border-radius: 6px;
   color: #e2e8f0;
