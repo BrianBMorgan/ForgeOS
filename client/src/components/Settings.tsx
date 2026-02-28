@@ -437,7 +437,7 @@ export default function Settings() {
                 </div>
                 <div className="settings-field-group">
                   <label>Instructions</label>
-                  <textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} className="settings-textarea" rows={8} placeholder="Detailed instructions for the agent..." />
+                  <textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className="settings-textarea" rows={8} placeholder="Detailed instructions for the agent..." />
                 </div>
                 <div className="settings-skill-form-actions">
                   <button className="settings-btn" onClick={saveSkill}>Save</button>
