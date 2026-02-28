@@ -251,7 +251,7 @@ function App() {
 
   const handleNavClick = (navId: NavId) => {
     setActiveNav(navId);
-    if (navId === "new-project") {
+    if (navId === "new-project" || navId === "projects") {
       setCurrentProjectId(null);
       setCurrentRunId(null);
       setRunData(null);
