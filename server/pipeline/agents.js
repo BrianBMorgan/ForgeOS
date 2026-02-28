@@ -110,6 +110,7 @@ CRITICAL RULES:
 - Use port 4000 by default for the app server (to avoid conflicts).
 - For web apps with both frontend and backend: serve the frontend as static files from the same Express server. Do NOT use separate dev servers or build steps.
 - Keep it simple. Use plain HTML/CSS/JS for frontends unless the plan specifically requires a framework.
+- ALWAYS include a GET / root route. For APIs, return an HTML page with interactive API documentation or a simple UI. For web apps, serve the main page. The root route must never return 404.
 
 AVAILABLE SERVICES (use these when the plan requires them):
 
@@ -121,6 +122,7 @@ AVAILABLE SERVICES (use these when the plan requires them):
    - NEVER use dynamic SQL string construction with nested template literals. For UPDATE queries, write out each field explicitly instead of building SET clauses dynamically. For example, use: await sql\`UPDATE tasks SET title = \$\{title\}, done = \$\{done\} WHERE id = \$\{id\}\`
    - Do NOT use sql.raw(), string concatenation for SQL, or \$\{\$\{...\}\} nested expressions. These cause syntax errors.
    - Create tables on app startup using CREATE TABLE IF NOT EXISTS.
+   - IMPORTANT: Always include a GET / root route that returns an HTML page with a basic UI or API documentation. Never leave the root route undefined — the app must show something useful at /.
    - Include "@neondatabase/serverless": "^1.0.2" in the package.json dependencies.
    - List DATABASE_URL in environmentVariables.
 
