@@ -11,10 +11,10 @@
     "start": "NODE_ENV=production node server/index.js"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
     "concurrently": "^9.2.1",
     "express": "^4.21.0",
     "openai": "^6.25.0",
-    "pg": "^8.19.0",
     "uuid": "^13.0.0",
     "zod": "^4.3.6"
   }

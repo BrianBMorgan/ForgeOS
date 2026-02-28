@@ -114,12 +114,12 @@ Automated harness to evaluate Executor quality without manual intervention:
 Express serves static files from `client/dist` and falls back to `index.html` for SPA routing.
 
 ## Dependencies
-- **Root**: concurrently, express, openai, zod, uuid, http-proxy-middleware
+- **Root**: concurrently, express, openai, zod, uuid, http-proxy-middleware, @neondatabase/serverless
 - **Client**: react, react-dom, vite, typescript, @vitejs/plugin-react
 
 ## Environment Variables
 - `OPENAI_API_KEY` — Required for pipeline agent calls
-- `NEON_DATABASE_URL` — Neon Postgres connection string, passed to generated apps as `DATABASE_URL`
+- `NEON_DATABASE_URL` — Neon Postgres connection string, used by ForgeOS for project persistence AND passed to generated apps as `DATABASE_URL`
 - `NEON_AUTH_JWKS_URL` — Neon Auth JWKS endpoint, passed to generated apps for JWT verification
 - `PORT` — Express server port (default 3001, or set by hosting platform)
 - `NODE_ENV` — Set to "production" for static file serving
@@ -131,7 +131,7 @@ Express serves static files from `client/dist` and falls back to `index.html` fo
 - No Replit-specific dependencies — fully portable
 
 ## Current State
-- Pipeline runs in-memory (no database persistence yet)
+- **Project persistence**: Projects and iterations stored in Neon Postgres via `@neondatabase/serverless`; in-memory cache for fast reads, lazy-loaded on first access
 - Agent pipeline fully functional with OpenAI API
 - **Project system**: Create projects, iterate with follow-up prompts, full context passing to Planner/Executor
 - Executor generates complete runnable code (Layer 1)
