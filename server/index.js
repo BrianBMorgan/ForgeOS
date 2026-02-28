@@ -76,29 +76,25 @@ app.post("/api/runs/:id/reject", async (req, res) => {
 
 const http = require("http");
 
-app.use("/preview", (req, res) => {
-  const runId = req.query.runId;
-  if (!runId) {
-    return res.status(400).json({ error: "runId query parameter required" });
-  }
+app.use("/preview/:runId", (req, res) => {
+  const runId = req.params.runId;
 
   const status = workspace.getWorkspaceStatus(runId);
   if (!status || status.status !== "running" || !status.port) {
     return res.status(503).json({ error: "App not running" });
   }
 
-  const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
-  let targetPath = parsedUrl.pathname.replace(/^\/preview\/?/, "/") || "/";
+  const basePath = `/preview/${runId}`;
+  let targetPath = req.originalUrl;
+  if (targetPath.startsWith(basePath)) {
+    targetPath = targetPath.slice(basePath.length) || "/";
+  }
   if (!targetPath.startsWith("/")) targetPath = "/" + targetPath;
-  const appQuery = new URLSearchParams(parsedUrl.searchParams);
-  appQuery.delete("runId");
-  const queryString = appQuery.toString();
-  const fullPath = queryString ? `${targetPath}?${queryString}` : targetPath;
 
   const options = {
     hostname: "127.0.0.1",
     port: status.port,
-    path: fullPath,
+    path: targetPath,
     method: req.method,
     headers: { ...req.headers, host: `127.0.0.1:${status.port}` },
   };

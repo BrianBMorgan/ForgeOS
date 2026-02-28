@@ -295,7 +295,7 @@ function RenderTab({ runData }: { runData: RunData | null }) {
           <div className="render-section-label">Live Preview</div>
           <div className="preview-container">
             <iframe
-              src={`/preview?runId=${runData.id}`}
+              src={`/preview/${runData.id}/`}
               className="preview-iframe"
               title="App Preview"
             />
