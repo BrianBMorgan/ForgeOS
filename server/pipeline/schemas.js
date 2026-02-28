@@ -67,14 +67,18 @@ const PolicyGateSchema = z.object({
 
 const ExecutorSchema = z.object({
   implementationSummary: z.string(),
-  fileStructure: z.array(
+  files: z.array(
     z.object({
       path: z.string(),
       purpose: z.string(),
+      content: z.string(),
     })
   ),
   environmentVariables: z.array(z.string()),
   databaseSchema: z.string().nullable(),
+  installCommand: z.string().nullable(),
+  startCommand: z.string().nullable(),
+  port: z.number().nullable(),
   buildTasks: z.array(
     z.object({
       order: z.number(),

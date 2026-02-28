@@ -1,0 +1,255 @@
+const fs = require("fs");
+const path = require("path");
+const { spawn, execSync } = require("child_process");
+
+const WORKSPACES_DIR = path.join(__dirname, "..", "..", "workspaces");
+
+const workspaces = new Map();
+
+function ensureWorkspacesDir() {
+  if (!fs.existsSync(WORKSPACES_DIR)) {
+    fs.mkdirSync(WORKSPACES_DIR, { recursive: true });
+  }
+}
+
+function createWorkspace(runId) {
+  ensureWorkspacesDir();
+  const wsDir = path.join(WORKSPACES_DIR, runId);
+
+  if (fs.existsSync(wsDir)) {
+    fs.rmSync(wsDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(wsDir, { recursive: true });
+
+  const ws = {
+    runId,
+    dir: wsDir,
+    status: "created",
+    port: null,
+    process: null,
+    logs: {
+      install: "",
+      app: "",
+    },
+    error: null,
+  };
+
+  workspaces.set(runId, ws);
+  return ws;
+}
+
+function sanitizePath(wsDir, filePath) {
+  const normalized = path.normalize(filePath).replace(/^(\.\.[/\\])+/, "");
+  if (path.isAbsolute(normalized)) {
+    throw new Error(`Rejected absolute path: ${filePath}`);
+  }
+  const resolved = path.resolve(wsDir, normalized);
+  if (!resolved.startsWith(wsDir + path.sep) && resolved !== wsDir) {
+    throw new Error(`Path traversal detected: ${filePath}`);
+  }
+  return resolved;
+}
+
+const ALLOWED_COMMANDS = ["npm", "npx", "node", "yarn", "pnpm", "python", "python3", "pip", "pip3"];
+
+function validateCommand(command) {
+  const parts = command.trim().split(/\s+/);
+  const bin = parts[0];
+  if (!ALLOWED_COMMANDS.includes(bin)) {
+    throw new Error(`Command not allowed: ${bin}. Allowed: ${ALLOWED_COMMANDS.join(", ")}`);
+  }
+  return parts;
+}
+
+function writeFiles(runId, files) {
+  const ws = workspaces.get(runId);
+  if (!ws) throw new Error("Workspace not found");
+
+  ws.status = "writing-files";
+
+  for (const file of files) {
+    const filePath = sanitizePath(ws.dir, file.path);
+    const dir = path.dirname(filePath);
+
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(filePath, file.content, "utf-8");
+  }
+
+  ws.status = "files-written";
+  return ws;
+}
+
+function installDeps(runId, installCommand) {
+  return new Promise((resolve) => {
+    const ws = workspaces.get(runId);
+    if (!ws) {
+      resolve({ success: false, error: "Workspace not found" });
+      return;
+    }
+
+    if (!installCommand) {
+      ws.status = "installed";
+      resolve({ success: true });
+      return;
+    }
+
+    ws.status = "installing";
+    ws.logs.install = "";
+
+    const parts = validateCommand(installCommand);
+    const proc = spawn(parts[0], parts.slice(1), {
+      cwd: ws.dir,
+      env: { ...process.env, NODE_ENV: "development" },
+    });
+
+    proc.stdout.on("data", (data) => {
+      ws.logs.install += data.toString();
+    });
+
+    proc.stderr.on("data", (data) => {
+      ws.logs.install += data.toString();
+    });
+
+    proc.on("close", (code) => {
+      if (code === 0) {
+        ws.status = "installed";
+        resolve({ success: true });
+      } else {
+        ws.status = "install-failed";
+        ws.error = `Install exited with code ${code}`;
+        resolve({ success: false, error: ws.error });
+      }
+    });
+
+    proc.on("error", (err) => {
+      ws.status = "install-failed";
+      ws.error = err.message;
+      resolve({ success: false, error: err.message });
+    });
+  });
+}
+
+function startApp(runId, startCommand, port) {
+  return new Promise((resolve) => {
+    const ws = workspaces.get(runId);
+    if (!ws) {
+      resolve({ success: false, error: "Workspace not found" });
+      return;
+    }
+
+    if (!startCommand) {
+      ws.status = "no-start-command";
+      resolve({ success: false, error: "No start command provided" });
+      return;
+    }
+
+    ws.status = "starting";
+    ws.port = port || 4000;
+    ws.logs.app = "";
+
+    const parts = validateCommand(startCommand);
+    const proc = spawn(parts[0], parts.slice(1), {
+      cwd: ws.dir,
+      env: {
+        ...process.env,
+        PORT: String(ws.port),
+        NODE_ENV: "development",
+      },
+    });
+
+    ws.process = proc;
+
+    proc.stdout.on("data", (data) => {
+      ws.logs.app += data.toString();
+    });
+
+    proc.stderr.on("data", (data) => {
+      ws.logs.app += data.toString();
+    });
+
+    proc.on("close", (code) => {
+      if (ws.status === "running") {
+        ws.status = "stopped";
+        ws.logs.app += `\nProcess exited with code ${code}\n`;
+      }
+      ws.process = null;
+    });
+
+    proc.on("error", (err) => {
+      ws.status = "start-failed";
+      ws.error = err.message;
+      ws.process = null;
+      resolve({ success: false, error: err.message });
+    });
+
+    setTimeout(() => {
+      if (ws.process && !ws.process.killed) {
+        ws.status = "running";
+        resolve({ success: true, port: ws.port });
+      } else if (ws.status !== "start-failed") {
+        ws.status = "start-failed";
+        ws.error = "App exited before startup completed";
+        resolve({ success: false, error: ws.error });
+      }
+    }, 3000);
+  });
+}
+
+function stopApp(runId) {
+  const ws = workspaces.get(runId);
+  if (!ws) return;
+
+  if (ws.process && !ws.process.killed) {
+    ws.process.kill("SIGTERM");
+    setTimeout(() => {
+      if (ws.process && !ws.process.killed) {
+        ws.process.kill("SIGKILL");
+      }
+    }, 2000);
+  }
+
+  ws.status = "stopped";
+  ws.process = null;
+}
+
+function stopAllApps() {
+  for (const [runId] of workspaces) {
+    stopApp(runId);
+  }
+}
+
+function getWorkspaceStatus(runId) {
+  const ws = workspaces.get(runId);
+  if (!ws) return null;
+
+  return {
+    runId: ws.runId,
+    status: ws.status,
+    port: ws.port,
+    error: ws.error,
+  };
+}
+
+function getWorkspaceLogs(runId) {
+  const ws = workspaces.get(runId);
+  if (!ws) return { install: "", app: "" };
+
+  return {
+    install: ws.logs.install,
+    app: ws.logs.app,
+  };
+}
+
+module.exports = {
+  createWorkspace,
+  writeFiles,
+  installDeps,
+  startApp,
+  stopApp,
+  stopAllApps,
+  getWorkspaceStatus,
+  getWorkspaceLogs,
+};

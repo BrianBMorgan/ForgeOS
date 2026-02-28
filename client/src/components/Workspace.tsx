@@ -11,7 +11,7 @@ const defaultTabs: Tab[] = [
   { id: "plan", label: "Plan", description: "View the structured build plan produced by the Planner agent." },
   { id: "review", label: "Review", description: "Reviewer findings, security flags, and approval status." },
   { id: "diff", label: "Diff", description: "Changes between original and revised plan." },
-  { id: "render", label: "Render", description: "Implementation spec and build output." },
+  { id: "render", label: "Render", description: "Live preview and implementation output." },
   { id: "shell", label: "Shell", description: "Terminal output and log stream." },
   { id: "db", label: "DB", description: "Database viewer — tables, queries, and schema." },
   { id: "publish", label: "Publish", description: "Deployment controls, domains, and promotion workflow." },
@@ -179,6 +179,7 @@ function DiffTab({ runData }: { runData: RunData | null }) {
 interface FileEntry {
   path: string;
   purpose: string;
+  content?: string;
 }
 
 interface BuildTask {
@@ -198,8 +199,51 @@ function parseFileTree(files: FileEntry[]) {
   });
 }
 
+function WorkspaceStatusBadge({ status }: { status: string }) {
+  const labels: Record<string, string> = {
+    "writing-files": "Writing files...",
+    "files-written": "Files written",
+    "installing": "Installing dependencies...",
+    "installed": "Dependencies installed",
+    "install-failed": "Install failed",
+    "starting": "Starting app...",
+    "running": "App running",
+    "start-failed": "Failed to start",
+    "stopped": "Stopped",
+    "build-failed": "Build failed",
+  };
+
+  const colors: Record<string, string> = {
+    "writing-files": "#3b82f6",
+    "files-written": "#3b82f6",
+    "installing": "#f59e0b",
+    "installed": "#f59e0b",
+    "install-failed": "#f87171",
+    "starting": "#f59e0b",
+    "running": "#4ade80",
+    "start-failed": "#f87171",
+    "stopped": "#64748b",
+    "build-failed": "#f87171",
+  };
+
+  return (
+    <span
+      className="workspace-status-badge"
+      style={{ color: colors[status] || "#64748b" }}
+    >
+      <span
+        className="workspace-status-dot"
+        style={{ background: colors[status] || "#64748b" }}
+      />
+      {labels[status] || status}
+    </span>
+  );
+}
+
 function RenderTab({ runData }: { runData: RunData | null }) {
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const executorOutput = runData?.stages?.executor?.output;
+  const ws = runData?.workspace;
 
   if (!executorOutput || typeof executorOutput !== "object") {
     const isRunning = runData?.status === "running";
@@ -225,14 +269,40 @@ function RenderTab({ runData }: { runData: RunData | null }) {
 
   const exec = executorOutput as Record<string, unknown>;
   const summary = exec.implementationSummary as string | undefined;
-  const fileStructure = (exec.fileStructure || []) as FileEntry[];
+  const files = (exec.files || exec.fileStructure || []) as FileEntry[];
   const envVars = (exec.environmentVariables || []) as string[];
   const dbSchema = exec.databaseSchema as string | null;
   const buildTasks = (exec.buildTasks || []) as BuildTask[];
-  const treeEntries = parseFileTree(fileStructure);
+  const treeEntries = parseFileTree(files);
+  const selectedFileData = files.find((f) => f.path === selectedFile);
 
   return (
     <div className="render-content">
+      {ws && (
+        <div className="render-section">
+          <div className="render-section-label">
+            Build Status
+            <WorkspaceStatusBadge status={ws.status} />
+          </div>
+          {ws.error && (
+            <div className="workspace-error">{ws.error}</div>
+          )}
+        </div>
+      )}
+
+      {ws?.status === "running" && ws.port && runData?.id && (
+        <div className="render-section preview-section">
+          <div className="render-section-label">Live Preview</div>
+          <div className="preview-container">
+            <iframe
+              src={`/preview?runId=${runData.id}`}
+              className="preview-iframe"
+              title="App Preview"
+            />
+          </div>
+        </div>
+      )}
+
       {summary && (
         <div className="render-section">
           <div className="render-section-label">Implementation Summary</div>
@@ -242,13 +312,22 @@ function RenderTab({ runData }: { runData: RunData | null }) {
 
       {treeEntries.length > 0 && (
         <div className="render-section">
-          <div className="render-section-label">File Structure</div>
+          <div className="render-section-label">
+            Files ({files.length})
+          </div>
           <div className="file-tree">
             {treeEntries.map((entry, i) => (
               <div
                 key={i}
-                className="file-tree-entry"
+                className={`file-tree-entry ${selectedFile === entry.path ? "selected" : ""} ${entry.content ? "clickable" : ""}`}
                 style={{ paddingLeft: `${entry.depth * 1.25 + 0.5}rem` }}
+                onClick={() => {
+                  if (entry.content) {
+                    setSelectedFile(
+                      selectedFile === entry.path ? null : entry.path
+                    );
+                  }
+                }}
               >
                 <span className="file-tree-icon">
                   {entry.isDir ? "📁" : "📄"}
@@ -258,6 +337,12 @@ function RenderTab({ runData }: { runData: RunData | null }) {
               </div>
             ))}
           </div>
+          {selectedFileData?.content && (
+            <div className="file-content-viewer">
+              <div className="file-content-header">{selectedFileData.path}</div>
+              <pre className="file-content-code">{selectedFileData.content}</pre>
+            </div>
+          )}
         </div>
       )}
 
@@ -302,6 +387,88 @@ function RenderTab({ runData }: { runData: RunData | null }) {
   );
 }
 
+function ShellTab({ runData }: { runData: RunData | null }) {
+  const [logs, setLogs] = useState<{ install: string; app: string } | null>(null);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!runData?.id || !runData?.workspace) return;
+
+    const fetchLogs = async () => {
+      try {
+        const res = await fetch(`/api/runs/${runData.id}/logs`);
+        if (res.ok) {
+          const data = await res.json();
+          setLogs(data.logs);
+        }
+      } catch {
+      }
+    };
+
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 2000);
+    return () => clearInterval(interval);
+  }, [runData?.id, runData?.workspace?.status]);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  if (!runData?.workspace) {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-title">Shell</div>
+        <div className="panel-desc">
+          {runData?.status === "running"
+            ? "Pipeline is running..."
+            : "Run a build to see build output."}
+        </div>
+      </div>
+    );
+  }
+
+  const hasInstallLogs = logs?.install && logs.install.trim().length > 0;
+  const hasAppLogs = logs?.app && logs.app.trim().length > 0;
+
+  return (
+    <div className="shell-content">
+      <div className="shell-header">
+        <WorkspaceStatusBadge status={runData.workspace.status} />
+        {runData.workspace.port && (
+          <span className="shell-port">Port {runData.workspace.port}</span>
+        )}
+      </div>
+      <div className="shell-log-area">
+        {hasInstallLogs && (
+          <>
+            <div className="shell-log-label">Install Output</div>
+            <pre className="shell-log-block">{logs!.install}</pre>
+          </>
+        )}
+        {hasAppLogs && (
+          <>
+            <div className="shell-log-label">Application Output</div>
+            <pre className="shell-log-block">{logs!.app}</pre>
+          </>
+        )}
+        {!hasInstallLogs && !hasAppLogs && (
+          <div className="shell-log-empty">
+            {runData.workspace.status === "writing-files"
+              ? "Writing files to workspace..."
+              : runData.workspace.status === "installing"
+              ? "Installing dependencies..."
+              : "Waiting for output..."}
+          </div>
+        )}
+        {runData.workspace.error && (
+          <div className="shell-error">Error: {runData.workspace.error}</div>
+        )}
+        <div ref={logEndRef} />
+      </div>
+    </div>
+  );
+}
+
 export default function Workspace({ runData }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
   const prevExecutorStatus = useRef<string | undefined>(undefined);
@@ -329,6 +496,8 @@ export default function Workspace({ runData }: WorkspaceProps) {
         return <DiffTab runData={runData} />;
       case "render":
         return <RenderTab runData={runData} />;
+      case "shell":
+        return <ShellTab runData={runData} />;
       default:
         return (
           <div className="panel-placeholder">

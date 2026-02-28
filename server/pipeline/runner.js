@@ -221,12 +221,65 @@ async function executeAfterApproval(run) {
       "executor_output"
     );
     updateStage(run, "executor", "passed", executorOutput);
-    run.status = "completed";
     run.currentStage = "executor";
+
+    await buildAndRun(run, executorOutput);
   } catch (err) {
     run.status = "failed";
     run.error = err.message || "Executor failed";
     updateStage(run, "executor", "failed");
+  }
+}
+
+async function buildAndRun(run, executorOutput) {
+  const workspace = require("../workspace/manager");
+
+  run.workspace = { status: "writing-files", port: null, error: null };
+
+  try {
+    workspace.stopAllApps();
+
+    workspace.createWorkspace(run.id);
+    workspace.writeFiles(run.id, executorOutput.files);
+    run.workspace.status = "files-written";
+
+    if (executorOutput.installCommand) {
+      run.workspace.status = "installing";
+      const installResult = await workspace.installDeps(
+        run.id,
+        executorOutput.installCommand
+      );
+      if (!installResult.success) {
+        run.workspace.status = "install-failed";
+        run.workspace.error = installResult.error;
+        run.status = "completed";
+        return;
+      }
+    }
+
+    run.workspace.status = "installed";
+
+    if (executorOutput.startCommand) {
+      run.workspace.status = "starting";
+      const startResult = await workspace.startApp(
+        run.id,
+        executorOutput.startCommand,
+        executorOutput.port || 4000
+      );
+      if (startResult.success) {
+        run.workspace.status = "running";
+        run.workspace.port = startResult.port;
+      } else {
+        run.workspace.status = "start-failed";
+        run.workspace.error = startResult.error;
+      }
+    }
+
+    run.status = "completed";
+  } catch (err) {
+    run.workspace.status = "build-failed";
+    run.workspace.error = err.message;
+    run.status = "completed";
   }
 }
 

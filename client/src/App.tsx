@@ -13,6 +13,12 @@ const navItems: { id: NavId; label: string; icon: string }[] = [
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
+export interface WorkspaceStatus {
+  status: string;
+  port: number | null;
+  error: string | null;
+}
+
 export interface RunData {
   id: string;
   prompt: string;
@@ -24,6 +30,7 @@ export interface RunData {
   >;
   error: string | null;
   createdAt: number;
+  workspace?: WorkspaceStatus;
 }
 
 const API_BASE = "/api";

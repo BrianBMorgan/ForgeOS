@@ -88,22 +88,31 @@ Return only valid JSON matching the response schema.`;
 
 const EXECUTOR_INSTRUCTIONS = `You are Forge Executor.
 
-Your job is to produce a concrete implementation specification from the final, approved build plan.
+Your job is to produce a complete, runnable application from the final, approved build plan.
 
 You will receive the full conversation including the approved plan. Human approval has been granted.
 
 Do NOT re-plan. Do NOT re-review. Do NOT ask for approval.
 
+CRITICAL RULES:
+- Every file must include its COMPLETE source code in the "content" field. No placeholders, no "// TODO", no truncation.
+- The app must be fully self-contained. Every file it needs must be in your output.
+- Always include a package.json with all required dependencies.
+- Use port 4000 by default for the app server (to avoid conflicts).
+- For web apps with both frontend and backend: serve the frontend as static files from the same Express server. Do NOT use separate dev servers or build steps.
+- Keep it simple. Use plain HTML/CSS/JS for frontends unless the plan specifically requires a framework.
+- If the plan requires a database, use SQLite (better-sqlite3) for simplicity unless the plan specifies otherwise. No external database services needed.
+
 Produce:
-1. A concise implementation summary.
-2. A clear file/folder structure with paths and purposes.
-3. Required environment variables.
-4. Database schema SQL (if the plan requires a database).
-5. Step-by-step build tasks in correct execution order, with enough detail that a developer could implement each one.
+1. implementationSummary — a concise description of what was built.
+2. files — an array of ALL files with path, purpose, and complete content (source code).
+3. environmentVariables — list of required env vars (if any).
+4. databaseSchema — SQL schema string (if applicable, otherwise null).
+5. installCommand — the command to install dependencies (e.g., "npm install"). Null if none needed.
+6. startCommand — the command to start the app (e.g., "node server.js"). Must be provided.
+7. port — the port the app listens on (default 4000).
+8. buildTasks — ordered list of what was built, for display purposes.
 
-If the plan does not require backend or infrastructure changes (e.g., UI-only), output only the necessary implementation changes.
-
-Be concrete and production-ready.
 Return only valid JSON matching the response schema.`;
 
 const PLANNER_REVISE_PASS3_INSTRUCTIONS = `You are Forge Planner (Revision Pass 3).

@@ -866,6 +866,176 @@ body {
   padding-left: 2.4rem;
 }
 
+/* ── Workspace Status Badge ── */
+.workspace-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-left: 0.75rem;
+}
+
+.workspace-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.workspace-error {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  color: #f87171;
+  margin-top: 0.5rem;
+}
+
+/* ── Live Preview ── */
+.preview-section {
+  flex-shrink: 0;
+}
+
+.preview-container {
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  margin-top: 0.5rem;
+}
+
+.preview-iframe {
+  width: 100%;
+  height: 400px;
+  border: none;
+  display: block;
+}
+
+/* ── File Content Viewer ── */
+.file-tree-entry.clickable {
+  cursor: pointer;
+}
+
+.file-tree-entry.clickable:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.file-tree-entry.selected {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.file-content-viewer {
+  margin-top: 0.75rem;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.file-content-header {
+  background: #0f172a;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  border-bottom: 1px solid #1e293b;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+}
+
+.file-content-code {
+  padding: 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: #e2e8f0;
+  background: #111827;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+}
+
+/* ── Shell Tab ── */
+.shell-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shell-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+
+.shell-port {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+  background: #1e293b;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+
+.shell-log-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1rem;
+}
+
+.shell-log-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.shell-log-label:first-child {
+  margin-top: 0;
+}
+
+.shell-log-block {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: #94a3b8;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.shell-log-empty {
+  font-size: 0.8rem;
+  color: #475569;
+  padding: 2rem 0;
+  text-align: center;
+}
+
+.shell-error {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  color: #f87171;
+  margin-top: 0.75rem;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+}
+
 /* ── Status Colors ── */
 .meta-running {
   color: #3b82f6;
