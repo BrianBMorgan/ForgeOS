@@ -1023,6 +1023,24 @@ body {
   display: block;
 }
 
+.preview-open-btn {
+  background: transparent;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  color: #64748b;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  margin-left: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.preview-open-btn:hover {
+  color: #3b82f6;
+  border-color: #3b82f6;
+}
+
 /* ── File Content Viewer ── */
 .file-tree-entry.clickable {
   cursor: pointer;

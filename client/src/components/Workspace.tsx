@@ -356,7 +356,14 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
 
       {previewWs?.status === "running" && previewWs.port && previewRunData?.id && (
         <div className="render-section preview-section">
-          <div className="render-section-label">Live Preview</div>
+          <div className="render-section-label">
+            Live Preview
+            <button
+              className="preview-open-btn"
+              onClick={() => window.open(`/preview/${previewRunData.id}/`, "_blank")}
+              title="Open in new tab"
+            >↗</button>
+          </div>
           <div className="preview-container">
             <iframe
               src={`/preview/${previewRunData.id}/`}
