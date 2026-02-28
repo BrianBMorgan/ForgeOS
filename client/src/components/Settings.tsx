@@ -52,6 +52,7 @@ export default function Settings() {
   const [skillForm, setSkillForm] = useState({ name: "", description: "", instructions: "", tags: "" });
   const [allowedText, setAllowedText] = useState("");
   const [bannedText, setBannedText] = useState("");
+  const [revealedSecrets, setRevealedSecrets] = useState<Record<string, string>>({});
 
   const loadAll = useCallback(async () => {
     try {
@@ -100,6 +101,26 @@ export default function Settings() {
 
   const toggle = (section: string) => {
     setExpanded(expanded === section ? null : section);
+  };
+
+  const toggleRevealSecret = async (key: string) => {
+    if (revealedSecrets[key] !== undefined) {
+      setRevealedSecrets((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/secrets/${encodeURIComponent(key)}/reveal`);
+      if (res.ok) {
+        const data = await res.json();
+        setRevealedSecrets((prev) => ({ ...prev, [key]: data.value }));
+      }
+    } catch (err) {
+      console.error("Failed to reveal secret:", err);
+    }
   };
 
   const addSecret = async () => {
@@ -215,7 +236,8 @@ export default function Settings() {
               {secrets.map((key) => (
                 <div className="settings-list-row" key={key}>
                   <span className="settings-env-key">{key}</span>
-                  <span className="settings-env-val">••••••••</span>
+                  <span className="settings-env-val">{revealedSecrets[key] !== undefined ? revealedSecrets[key] : "••••••••"}</span>
+                  <button className="settings-btn-sm" onClick={() => toggleRevealSecret(key)}>{revealedSecrets[key] !== undefined ? "Hide" : "Show"}</button>
                   <button className="settings-btn-sm danger" onClick={() => deleteSecret(key)}>Delete</button>
                 </div>
               ))}

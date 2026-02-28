@@ -340,6 +340,14 @@ app.put("/api/secrets", async (req, res) => {
   res.json({ key: cleaned });
 });
 
+app.get("/api/secrets/:key/reveal", async (req, res) => {
+  const value = await settingsManager.getSecret(req.params.key);
+  if (value === null) {
+    return res.status(404).json({ error: "Secret not found" });
+  }
+  res.json({ key: req.params.key, value });
+});
+
 app.delete("/api/secrets/:key", async (req, res) => {
   const ok = await settingsManager.deleteSecret(req.params.key);
   if (!ok) {
