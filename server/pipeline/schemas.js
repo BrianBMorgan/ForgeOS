@@ -74,7 +74,7 @@ const ExecutorSchema = z.object({
     })
   ),
   environmentVariables: z.array(z.string()),
-  databaseSchema: z.string().optional(),
+  databaseSchema: z.string().nullable(),
   buildTasks: z.array(
     z.object({
       order: z.number(),
