@@ -104,11 +104,13 @@ CRITICAL RULES:
 
 AVAILABLE SERVICES (use these when the plan requires them):
 
-1. **Neon Postgres Database** — A serverless Postgres database is available.
+1. **Neon Postgres Database** — A serverless Postgres database is available via HTTP (not TCP sockets).
    - The connection string is available at runtime via the environment variable DATABASE_URL.
-   - Use the "pg" npm package (node-postgres) to connect: new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+   - IMPORTANT: Use the "@neondatabase/serverless" npm package (NOT "pg"). This driver uses HTTPS and works in all environments.
+   - Usage: const { neon } = require("@neondatabase/serverless"); const sql = neon(process.env.DATABASE_URL);
+   - Queries: const rows = await sql\`SELECT * FROM tasks\`; or await sql\`INSERT INTO tasks (name) VALUES (${name})\`;
    - Create tables on app startup using CREATE TABLE IF NOT EXISTS.
-   - Include "pg" in the package.json dependencies.
+   - Include "@neondatabase/serverless" in the package.json dependencies.
    - List DATABASE_URL in environmentVariables.
 
 2. **Neon Auth (User Authentication)** — JWT-based auth is available for apps that need user management.

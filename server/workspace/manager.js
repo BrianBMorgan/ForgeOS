@@ -182,29 +182,43 @@ function startApp(runId, startCommand, port) {
       ws.logs.app += data.toString();
     });
 
+    let resolved = false;
+
     proc.on("close", (code) => {
-      if (ws.status === "running") {
-        ws.status = "stopped";
-        ws.logs.app += `\nProcess exited with code ${code}\n`;
-      }
+      ws.logs.app += `\nProcess exited with code ${code}\n`;
       ws.process = null;
+      if (!resolved) {
+        resolved = true;
+        ws.status = "start-failed";
+        ws.error = `App exited with code ${code} during startup`;
+        resolve({ success: false, error: ws.error });
+      } else if (ws.status === "running") {
+        ws.status = "stopped";
+        ws.error = `App crashed with code ${code}`;
+      }
     });
 
     proc.on("error", (err) => {
-      ws.status = "start-failed";
-      ws.error = err.message;
       ws.process = null;
-      resolve({ success: false, error: err.message });
+      if (!resolved) {
+        resolved = true;
+        ws.status = "start-failed";
+        ws.error = err.message;
+        resolve({ success: false, error: err.message });
+      }
     });
 
     setTimeout(() => {
-      if (ws.process && !ws.process.killed) {
-        ws.status = "running";
-        resolve({ success: true, port: ws.port });
-      } else if (ws.status !== "start-failed") {
-        ws.status = "start-failed";
-        ws.error = "App exited before startup completed";
-        resolve({ success: false, error: ws.error });
+      if (!resolved) {
+        resolved = true;
+        if (ws.process && !ws.process.killed) {
+          ws.status = "running";
+          resolve({ success: true, port: ws.port });
+        } else {
+          ws.status = "start-failed";
+          ws.error = "App exited before startup completed";
+          resolve({ success: false, error: ws.error });
+        }
       }
     }, 3000);
   });
