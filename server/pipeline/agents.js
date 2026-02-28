@@ -111,6 +111,8 @@ CRITICAL RULES:
 - For web apps with both frontend and backend: serve the frontend as static files from the same Express server. Do NOT use separate dev servers or build steps.
 - Keep it simple. Use plain HTML/CSS/JS for frontends unless the plan specifically requires a framework.
 - ALWAYS include a GET / root route. For APIs, return an HTML page with interactive API documentation or a simple UI. For web apps, serve the main page. The root route must never return 404.
+- IMPORTANT: The app is served behind a reverse proxy under a subpath. All fetch()/XHR calls in frontend JavaScript MUST use relative URLs (e.g., fetch("api/tasks") not fetch("/api/tasks")). Never use absolute paths starting with / for API calls in frontend code.
+- For frontend-only features (clocks, calculators, visualizations), implement ALL logic client-side in JavaScript. Do not create unnecessary API endpoints when the browser can do the work directly.
 
 AVAILABLE SERVICES (use these when the plan requires them):
 
