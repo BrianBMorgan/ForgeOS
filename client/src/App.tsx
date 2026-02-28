@@ -6,13 +6,12 @@ import Workspace from "./components/Workspace";
 import StressTest from "./components/StressTest";
 import ProjectsList from "./components/ProjectsList";
 
-type NavId = "new-project" | "projects" | "templates" | "logs" | "stress-test" | "settings";
+type NavId = "new-project" | "projects" | "templates" | "stress-test" | "settings";
 
 const navItems: { id: NavId; label: string; icon: string }[] = [
   { id: "new-project", label: "New Project", icon: "+" },
   { id: "projects", label: "Projects", icon: "▶" },
   { id: "templates", label: "Templates", icon: "❖" },
-  { id: "logs", label: "Logs", icon: "☰" },
   { id: "stress-test", label: "Stress Test", icon: "⚡" },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
