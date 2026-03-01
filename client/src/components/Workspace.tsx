@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { RunData, ProjectData } from "../App";
 import DbTab from "./DbTab";
 
@@ -311,6 +311,8 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
   const previewRunData = liveRunData || runData;
   const previewWs = previewRunData?.workspace;
 
+  const previewStamp = useMemo(() => Date.now(), [previewRunData?.id]);
+
   if (!executorOutput || typeof executorOutput !== "object") {
     const isRunning = runData?.status === "running";
     const isAwaiting = runData?.status === "awaiting-approval";
@@ -369,7 +371,7 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
           <div className="preview-container">
             <iframe
               key={previewRunData.id}
-              src={`/preview/${previewRunData.id}/?_t=${Date.now()}`}
+              src={`/preview/${previewRunData.id}/?_t=${previewStamp}`}
               className="preview-iframe"
               title="App Preview"
             />
