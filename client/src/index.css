@@ -29,7 +29,7 @@ body {
 
 /* ── Sidebar ── */
 .sidebar {
-  width: 240px;
+  width: 192px;
   background: #0f172a;
   border-right: 1px solid #1e293b;
   display: flex;
