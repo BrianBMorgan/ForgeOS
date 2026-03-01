@@ -246,6 +246,15 @@ async function chat(projectId, userMessage) {
       parsed = { message: content, suggestBuild: false, buildSuggestion: null };
     }
 
+    const msg = parsed.message || "";
+    const reforgeMatch = msg.match(/I'll reforge\s+(.+?)(?:\.|$)/i);
+    if (reforgeMatch && !parsed.suggestBuild) {
+      parsed.suggestBuild = true;
+      if (!parsed.buildSuggestion) {
+        parsed.buildSuggestion = msg;
+      }
+    }
+
     const prefix = usedWebSearch ? "[Researched] " : "";
     const assistantMsg = {
       role: "assistant",
