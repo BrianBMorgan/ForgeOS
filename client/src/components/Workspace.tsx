@@ -368,7 +368,8 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
           </div>
           <div className="preview-container">
             <iframe
-              src={`/preview/${previewRunData.id}/`}
+              key={previewRunData.id}
+              src={`/preview/${previewRunData.id}/?_t=${Date.now()}`}
               className="preview-iframe"
               title="App Preview"
             />

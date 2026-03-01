@@ -868,7 +868,11 @@ app.use("/preview/:runId", async (req, res) => {
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    const headers = { ...proxyRes.headers };
+    headers["cache-control"] = "no-cache, no-store, must-revalidate";
+    headers["pragma"] = "no-cache";
+    headers["expires"] = "0";
+    res.writeHead(proxyRes.statusCode, headers);
     proxyRes.pipe(res);
   });
 
