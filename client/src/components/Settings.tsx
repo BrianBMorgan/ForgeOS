@@ -37,11 +37,23 @@ const DEFAULT_SETTINGS: SettingValues = {
   allowed_tech_stack: { allowed: [], banned: [] },
 };
 
+type TabId = "secrets" | "models" | "auto_approve" | "env_vars" | "limits" | "tech_stack" | "skills";
+
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: "secrets", label: "Secrets Vault", icon: "🔐" },
+  { id: "models", label: "Model Config", icon: "🧠" },
+  { id: "auto_approve", label: "Auto-Approve", icon: "✅" },
+  { id: "env_vars", label: "Default Env Vars", icon: "📋" },
+  { id: "limits", label: "Workspace Limits", icon: "📐" },
+  { id: "tech_stack", label: "Tech Stack", icon: "📦" },
+  { id: "skills", label: "Skills Library", icon: "📚" },
+];
+
 export default function Settings() {
   const [settings, setSettings] = useState<SettingValues>(DEFAULT_SETTINGS);
   const [secrets, setSecrets] = useState<string[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
-  const [expanded, setExpanded] = useState<string | null>("secrets");
+  const [activeTab, setActiveTab] = useState<TabId>("secrets");
   const [saving, setSaving] = useState<string | null>(null);
   const [newSecretKey, setNewSecretKey] = useState("");
   const [newSecretValue, setNewSecretValue] = useState("");
@@ -101,10 +113,6 @@ export default function Settings() {
       console.error("Failed to save setting:", err);
     }
     setSaving(null);
-  };
-
-  const toggle = (section: string) => {
-    setExpanded(expanded === section ? null : section);
   };
 
   const toggleRevealSecret = async (key: string) => {
@@ -177,11 +185,13 @@ export default function Settings() {
           body: JSON.stringify(skillForm),
         });
       } else {
-        await fetch("/api/skills", {
+        const resp = await fetch("/api/skills", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(skillForm),
         });
+        const created = await resp.json();
+        if (created.id) setSelectedSkillId(created.id);
       }
       setEditingSkill(null);
       setNewSkill(false);
@@ -195,6 +205,11 @@ export default function Settings() {
   const deleteSkill = async (id: number) => {
     try {
       await fetch(`/api/skills/${id}`, { method: "DELETE" });
+      if (selectedSkillId === id) {
+        setSelectedSkillId(null);
+        setEditingSkill(null);
+        setNewSkill(false);
+      }
       loadAll();
     } catch (err) {
       console.error("Failed to delete skill:", err);
@@ -204,13 +219,14 @@ export default function Settings() {
   const startEditSkill = (skill: Skill) => {
     setEditingSkill(skill);
     setNewSkill(false);
+    setSelectedSkillId(skill.id);
     setSkillForm({ name: skill.name, description: skill.description || "", instructions: skill.instructions, tags: skill.tags || "" });
-    setExpanded("skills");
   };
 
   const startNewSkill = () => {
     setEditingSkill(null);
     setNewSkill(true);
+    setSelectedSkillId(null);
     setSkillForm({ name: "", description: "", instructions: "", tags: "" });
   };
 
@@ -230,6 +246,7 @@ export default function Settings() {
         return;
       }
       setSkills((prev) => [...prev, data]);
+      setSelectedSkillId(data.id);
       setImportUrl("");
       setImportError("");
     } catch {
@@ -239,264 +256,324 @@ export default function Settings() {
     }
   };
 
-  const renderSection = (id: string, title: string, icon: string, content: React.ReactNode) => (
-    <div className="settings-section" key={id}>
-      <div className="settings-section-header" onClick={() => toggle(id)}>
-        <span className="settings-section-icon">{icon}</span>
-        <span className="settings-section-title">{title}</span>
-        <span className="settings-section-chevron">{expanded === id ? "▾" : "▸"}</span>
+  const selectedSkill = skills.find((s) => s.id === selectedSkillId) || null;
+
+  const renderSecretsPanel = () => (
+    <div className="stg-panel">
+      <div className="stg-panel-header">
+        <h3>Global Secrets Vault</h3>
+        <p className="stg-panel-hint">Secrets are injected into all project runtimes. Values are never exposed via API.</p>
       </div>
-      {expanded === id && <div className="settings-section-body">{content}</div>}
+      <div className="stg-panel-body">
+        <div className="stg-list">
+          {secrets.map((key) => (
+            <div className="stg-list-row" key={key}>
+              <span className="stg-key">{key}</span>
+              <span className="stg-val">{revealedSecrets[key] !== undefined ? revealedSecrets[key] : "••••••••"}</span>
+              <button className="stg-btn-sm" onClick={() => toggleRevealSecret(key)}>{revealedSecrets[key] !== undefined ? "Hide" : "Show"}</button>
+              <button className="stg-btn-sm danger" onClick={() => deleteSecret(key)}>Delete</button>
+            </div>
+          ))}
+          {secrets.length === 0 && <div className="stg-empty">No secrets configured</div>}
+        </div>
+        <div className="stg-add-row">
+          <input placeholder="KEY" value={newSecretKey} onChange={(e) => setNewSecretKey(e.target.value)} className="stg-input sm" />
+          <input placeholder="Value" type="password" value={newSecretValue} onChange={(e) => setNewSecretValue(e.target.value)} className="stg-input sm" />
+          <button className="stg-btn" onClick={addSecret}>Add</button>
+        </div>
+      </div>
     </div>
   );
 
-  return (
-    <div className="settings-page">
-      <div className="settings-page-header">
-        <h2>Settings</h2>
-        <p className="settings-page-desc">Global configuration for ForgeOS pipeline, secrets, and workspace defaults.</p>
+  const renderModelsPanel = () => (
+    <div className="stg-panel">
+      <div className="stg-panel-header">
+        <h3>Model Configuration</h3>
       </div>
+      <div className="stg-panel-body">
+        <div className="stg-field">
+          <label>Planner Model</label>
+          <select value={settings.model_config.plannerModel} onChange={(e) => {
+            const updated = { ...settings.model_config, plannerModel: e.target.value };
+            setSettings({ ...settings, model_config: updated });
+            saveSetting("model_config", updated);
+          }} className="stg-select">{MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+        </div>
+        <div className="stg-field">
+          <label>Reviewer Model</label>
+          <select value={settings.model_config.reviewerModel} onChange={(e) => {
+            const updated = { ...settings.model_config, reviewerModel: e.target.value };
+            setSettings({ ...settings, model_config: updated });
+            saveSetting("model_config", updated);
+          }} className="stg-select">{MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+        </div>
+        <div className="stg-field">
+          <label>Planner Temperature <span className="stg-badge">{settings.model_config.plannerTemp}</span></label>
+          <input type="range" min="0" max="2" step="0.1" value={settings.model_config.plannerTemp} onChange={(e) => {
+            const updated = { ...settings.model_config, plannerTemp: parseFloat(e.target.value) };
+            setSettings({ ...settings, model_config: updated });
+          }} onMouseUp={() => saveSetting("model_config", settings.model_config)} className="stg-range" />
+        </div>
+        <div className="stg-field">
+          <label>Reviewer Temperature <span className="stg-badge">{settings.model_config.reviewerTemp}</span></label>
+          <input type="range" min="0" max="2" step="0.1" value={settings.model_config.reviewerTemp} onChange={(e) => {
+            const updated = { ...settings.model_config, reviewerTemp: parseFloat(e.target.value) };
+            setSettings({ ...settings, model_config: updated });
+          }} onMouseUp={() => saveSetting("model_config", settings.model_config)} className="stg-range" />
+        </div>
+        {saving === "model_config" && <span className="stg-saving">Saving...</span>}
+      </div>
+    </div>
+  );
 
-      <div className="settings-sections">
-        {renderSection("secrets", "Global Secrets Vault", "🔐", (
-          <div>
-            <p className="settings-hint">Secrets are injected into all project runtimes. Values are never exposed via API.</p>
-            <div className="settings-list">
-              {secrets.map((key) => (
-                <div className="settings-list-row" key={key}>
-                  <span className="settings-env-key">{key}</span>
-                  <span className="settings-env-val">{revealedSecrets[key] !== undefined ? revealedSecrets[key] : "••••••••"}</span>
-                  <button className="settings-btn-sm" onClick={() => toggleRevealSecret(key)}>{revealedSecrets[key] !== undefined ? "Hide" : "Show"}</button>
-                  <button className="settings-btn-sm danger" onClick={() => deleteSecret(key)}>Delete</button>
-                </div>
-              ))}
+  const renderAutoApprovePanel = () => (
+    <div className="stg-panel">
+      <div className="stg-panel-header">
+        <h3>Auto-Approve Policy</h3>
+        <p className="stg-panel-hint">When enabled, the pipeline will skip human approval for builds at or below the selected risk level.</p>
+      </div>
+      <div className="stg-panel-body">
+        <div className="stg-field">
+          <label className="stg-toggle-row">
+            <input type="checkbox" checked={settings.auto_approve.enabled} onChange={(e) => {
+              const updated = { ...settings.auto_approve, enabled: e.target.checked };
+              setSettings({ ...settings, auto_approve: updated });
+              saveSetting("auto_approve", updated);
+            }} />
+            <span>Enable Auto-Approve</span>
+          </label>
+        </div>
+        {settings.auto_approve.enabled && (
+          <div className="stg-field">
+            <label>Max Auto-Approve Risk Level</label>
+            <select value={settings.auto_approve.maxRiskLevel} onChange={(e) => {
+              const updated = { ...settings.auto_approve, maxRiskLevel: e.target.value };
+              setSettings({ ...settings, auto_approve: updated });
+              saveSetting("auto_approve", updated);
+            }} className="stg-select">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderEnvVarsPanel = () => (
+    <div className="stg-panel">
+      <div className="stg-panel-header">
+        <h3>Default Environment Variables</h3>
+        <p className="stg-panel-hint">Default env vars injected into all project runtimes. Project-level vars override these.</p>
+      </div>
+      <div className="stg-panel-body">
+        <div className="stg-list">
+          {settings.default_env_vars.vars.map((v, idx) => (
+            <div className="stg-list-row" key={idx}>
+              <span className="stg-key">{v.key}</span>
+              <span className="stg-val">{v.value}</span>
+              <button className="stg-btn-sm danger" onClick={() => deleteEnvVar(idx)}>Delete</button>
             </div>
-            <div className="settings-add-row">
-              <input placeholder="KEY" value={newSecretKey} onChange={(e) => setNewSecretKey(e.target.value)} className="settings-input sm" />
-              <input placeholder="Value" type="password" value={newSecretValue} onChange={(e) => setNewSecretValue(e.target.value)} className="settings-input sm" />
-              <button className="settings-btn-sm" onClick={addSecret}>Add</button>
+          ))}
+          {settings.default_env_vars.vars.length === 0 && <div className="stg-empty">No default env vars configured</div>}
+        </div>
+        <div className="stg-add-row">
+          <input placeholder="KEY" value={newEnvKey} onChange={(e) => setNewEnvKey(e.target.value)} className="stg-input sm" />
+          <input placeholder="Value" value={newEnvValue} onChange={(e) => setNewEnvValue(e.target.value)} className="stg-input sm" />
+          <button className="stg-btn" onClick={addEnvVar}>Add</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderLimitsPanel = () => (
+    <div className="stg-panel">
+      <div className="stg-panel-header">
+        <h3>Workspace Limits</h3>
+      </div>
+      <div className="stg-panel-body">
+        <div className="stg-field">
+          <label>Port Range Start</label>
+          <input type="number" value={settings.workspace_limits.portRangeStart} onChange={(e) => {
+            const updated = { ...settings.workspace_limits, portRangeStart: parseInt(e.target.value) || 4000 };
+            setSettings({ ...settings, workspace_limits: updated });
+          }} onBlur={() => saveSetting("workspace_limits", settings.workspace_limits)} className="stg-input" />
+        </div>
+        <div className="stg-field">
+          <label>Port Range End</label>
+          <input type="number" value={settings.workspace_limits.portRangeEnd} onChange={(e) => {
+            const updated = { ...settings.workspace_limits, portRangeEnd: parseInt(e.target.value) || 4099 };
+            setSettings({ ...settings, workspace_limits: updated });
+          }} onBlur={() => saveSetting("workspace_limits", settings.workspace_limits)} className="stg-input" />
+        </div>
+        <div className="stg-field">
+          <label>Max Concurrent Apps</label>
+          <input type="number" value={settings.workspace_limits.maxConcurrentApps} onChange={(e) => {
+            const updated = { ...settings.workspace_limits, maxConcurrentApps: parseInt(e.target.value) || 5 };
+            setSettings({ ...settings, workspace_limits: updated });
+          }} onBlur={() => saveSetting("workspace_limits", settings.workspace_limits)} className="stg-input" />
+        </div>
+        <div className="stg-field">
+          <label>Log Retention (lines)</label>
+          <input type="number" value={settings.workspace_limits.logRetention} onChange={(e) => {
+            const updated = { ...settings.workspace_limits, logRetention: parseInt(e.target.value) || 2000 };
+            setSettings({ ...settings, workspace_limits: updated });
+          }} onBlur={() => saveSetting("workspace_limits", settings.workspace_limits)} className="stg-input" />
+        </div>
+        {saving === "workspace_limits" && <span className="stg-saving">Saving...</span>}
+      </div>
+    </div>
+  );
+
+  const renderTechStackPanel = () => (
+    <div className="stg-panel">
+      <div className="stg-panel-header">
+        <h3>Allowed Tech Stack</h3>
+      </div>
+      <div className="stg-panel-body">
+        <div className="stg-field">
+          <label>Allowed Packages <span className="stg-hint-inline">(comma-separated)</span></label>
+          <textarea value={allowedText} onChange={(e) => setAllowedText(e.target.value)} onBlur={() => {
+            const updated = {
+              allowed: allowedText.split(",").map((s) => s.trim()).filter(Boolean),
+              banned: bannedText.split(",").map((s) => s.trim()).filter(Boolean),
+            };
+            setSettings({ ...settings, allowed_tech_stack: updated });
+            saveSetting("allowed_tech_stack", updated);
+          }} className="stg-textarea" rows={3} />
+        </div>
+        <div className="stg-field">
+          <label>Banned Packages <span className="stg-hint-inline">(comma-separated)</span></label>
+          <textarea value={bannedText} onChange={(e) => setBannedText(e.target.value)} onBlur={() => {
+            const updated = {
+              allowed: allowedText.split(",").map((s) => s.trim()).filter(Boolean),
+              banned: bannedText.split(",").map((s) => s.trim()).filter(Boolean),
+            };
+            setSettings({ ...settings, allowed_tech_stack: updated });
+            saveSetting("allowed_tech_stack", updated);
+          }} className="stg-textarea" rows={3} />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSkillsPanel = () => (
+    <div className="stg-panel stg-skills-layout">
+      <div className="stg-skills-sidebar">
+        <div className="stg-skills-sidebar-header">
+          <span>Skills</span>
+          <button className="stg-btn-sm" onClick={startNewSkill}>+ New</button>
+        </div>
+        <div className="stg-skills-list">
+          {skills.map((skill) => (
+            <div
+              key={skill.id}
+              className={`stg-skill-tab${selectedSkillId === skill.id ? " active" : ""}`}
+              onClick={() => { setSelectedSkillId(skill.id); setEditingSkill(null); setNewSkill(false); }}
+            >
+              <span className="stg-skill-tab-name">{skill.name}</span>
+              {skill.tags && <span className="stg-skill-tab-tags">{skill.tags.split(",").slice(0, 2).join(", ")}</span>}
+            </div>
+          ))}
+          {skills.length === 0 && <div className="stg-empty">No skills yet</div>}
+        </div>
+        <div className="stg-skills-import">
+          <div className="stg-skills-import-label">Import from SkillsMP</div>
+          <div className="stg-skills-import-row">
+            <input
+              value={importUrl}
+              onChange={(e) => { setImportUrl(e.target.value); setImportError(""); }}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") importFromUrl(); }}
+              className="stg-input sm"
+              placeholder="Paste URL..."
+              disabled={importing}
+            />
+            <button className="stg-btn-sm" onClick={importFromUrl} disabled={importing || !importUrl.trim()}>
+              {importing ? "..." : "Go"}
+            </button>
+          </div>
+          {importError && <div className="stg-import-error">{importError}</div>}
+        </div>
+      </div>
+      <div className="stg-skills-canvas">
+        {newSkill ? (
+          <div className="stg-skill-editor">
+            <h3>New Skill</h3>
+            <div className="stg-field"><label>Name</label><input value={skillForm.name} onChange={(e) => setSkillForm({ ...skillForm, name: e.target.value })} className="stg-input" placeholder="e.g. hCaptcha Integration" /></div>
+            <div className="stg-field"><label>Description</label><input value={skillForm.description} onChange={(e) => setSkillForm({ ...skillForm, description: e.target.value })} className="stg-input" placeholder="Short description" /></div>
+            <div className="stg-field"><label>Tags <span className="stg-hint-inline">(comma-separated)</span></label><input value={skillForm.tags} onChange={(e) => setSkillForm({ ...skillForm, tags: e.target.value })} className="stg-input" placeholder="e.g. captcha, security" /></div>
+            <div className="stg-field stg-field-grow"><label>Instructions</label><textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className="stg-textarea stg-textarea-grow" placeholder="Detailed instructions for the agent..." /></div>
+            <div className="stg-skill-editor-actions">
+              <button className="stg-btn" onClick={saveSkill}>Save</button>
+              <button className="stg-btn secondary" onClick={() => { setNewSkill(false); }}>Cancel</button>
             </div>
           </div>
-        ))}
-
-        {renderSection("model_config", "Model Configuration", "🧠", (
-          <div>
-            <div className="settings-field-group">
-              <label>Planner Model</label>
-              <select value={settings.model_config.plannerModel} onChange={(e) => {
-                const updated = { ...settings.model_config, plannerModel: e.target.value };
-                setSettings({ ...settings, model_config: updated });
-                saveSetting("model_config", updated);
-              }} className="settings-select">
-                {MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
+        ) : editingSkill ? (
+          <div className="stg-skill-editor">
+            <h3>Edit: {editingSkill.name}</h3>
+            <div className="stg-field"><label>Name</label><input value={skillForm.name} onChange={(e) => setSkillForm({ ...skillForm, name: e.target.value })} className="stg-input" /></div>
+            <div className="stg-field"><label>Description</label><input value={skillForm.description} onChange={(e) => setSkillForm({ ...skillForm, description: e.target.value })} className="stg-input" /></div>
+            <div className="stg-field"><label>Tags</label><input value={skillForm.tags} onChange={(e) => setSkillForm({ ...skillForm, tags: e.target.value })} className="stg-input" /></div>
+            <div className="stg-field stg-field-grow"><label>Instructions</label><textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className="stg-textarea stg-textarea-grow" /></div>
+            <div className="stg-skill-editor-actions">
+              <button className="stg-btn" onClick={saveSkill}>Save</button>
+              <button className="stg-btn secondary" onClick={() => { setEditingSkill(null); }}>Cancel</button>
             </div>
-            <div className="settings-field-group">
-              <label>Reviewer Model</label>
-              <select value={settings.model_config.reviewerModel} onChange={(e) => {
-                const updated = { ...settings.model_config, reviewerModel: e.target.value };
-                setSettings({ ...settings, model_config: updated });
-                saveSetting("model_config", updated);
-              }} className="settings-select">
-                {MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div className="settings-field-group">
-              <label>Planner Temperature <span className="settings-val-badge">{settings.model_config.plannerTemp}</span></label>
-              <input type="range" min="0" max="2" step="0.1" value={settings.model_config.plannerTemp} onChange={(e) => {
-                const updated = { ...settings.model_config, plannerTemp: parseFloat(e.target.value) };
-                setSettings({ ...settings, model_config: updated });
-              }} onMouseUp={() => saveSetting("model_config", settings.model_config)} className="settings-range" />
-            </div>
-            <div className="settings-field-group">
-              <label>Reviewer Temperature <span className="settings-val-badge">{settings.model_config.reviewerTemp}</span></label>
-              <input type="range" min="0" max="2" step="0.1" value={settings.model_config.reviewerTemp} onChange={(e) => {
-                const updated = { ...settings.model_config, reviewerTemp: parseFloat(e.target.value) };
-                setSettings({ ...settings, model_config: updated });
-              }} onMouseUp={() => saveSetting("model_config", settings.model_config)} className="settings-range" />
-            </div>
-            {saving === "model_config" && <span className="settings-saving">Saving...</span>}
           </div>
-        ))}
-
-        {renderSection("auto_approve", "Auto-Approve Policy", "✅", (
-          <div>
-            <p className="settings-hint">When enabled, the pipeline will skip human approval for builds at or below the selected risk level.</p>
-            <div className="settings-field-group">
-              <label className="settings-toggle-row">
-                <input type="checkbox" checked={settings.auto_approve.enabled} onChange={(e) => {
-                  const updated = { ...settings.auto_approve, enabled: e.target.checked };
-                  setSettings({ ...settings, auto_approve: updated });
-                  saveSetting("auto_approve", updated);
-                }} />
-                <span>Enable Auto-Approve</span>
-              </label>
-            </div>
-            {settings.auto_approve.enabled && (
-              <div className="settings-field-group">
-                <label>Max Auto-Approve Risk Level</label>
-                <select value={settings.auto_approve.maxRiskLevel} onChange={(e) => {
-                  const updated = { ...settings.auto_approve, maxRiskLevel: e.target.value };
-                  setSettings({ ...settings, auto_approve: updated });
-                  saveSetting("auto_approve", updated);
-                }} className="settings-select">
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
+        ) : selectedSkill ? (
+          <div className="stg-skill-view">
+            <div className="stg-skill-view-header">
+              <h3>{selectedSkill.name}</h3>
+              <div className="stg-skill-view-actions">
+                <button className="stg-btn-sm" onClick={() => startEditSkill(selectedSkill)}>Edit</button>
+                <button className="stg-btn-sm danger" onClick={() => deleteSkill(selectedSkill.id)}>Delete</button>
               </div>
-            )}
-          </div>
-        ))}
-
-        {renderSection("default_env_vars", "Default Environment Variables", "📋", (
-          <div>
-            <p className="settings-hint">Default env vars injected into all project runtimes. Project-level vars override these.</p>
-            <div className="settings-list">
-              {settings.default_env_vars.vars.map((v, idx) => (
-                <div className="settings-list-row" key={idx}>
-                  <span className="settings-env-key">{v.key}</span>
-                  <span className="settings-env-val">{v.value}</span>
-                  <button className="settings-btn-sm danger" onClick={() => deleteEnvVar(idx)}>Delete</button>
-                </div>
-              ))}
             </div>
-            <div className="settings-add-row">
-              <input placeholder="KEY" value={newEnvKey} onChange={(e) => setNewEnvKey(e.target.value)} className="settings-input sm" />
-              <input placeholder="Value" value={newEnvValue} onChange={(e) => setNewEnvValue(e.target.value)} className="settings-input sm" />
-              <button className="settings-btn-sm" onClick={addEnvVar}>Add</button>
+            {selectedSkill.description && <p className="stg-skill-view-desc">{selectedSkill.description}</p>}
+            {selectedSkill.tags && <div className="stg-skill-view-tags">{selectedSkill.tags.split(",").map((t) => <span key={t.trim()} className="stg-tag">{t.trim()}</span>)}</div>}
+            <div className="stg-skill-view-instructions">
+              <pre>{selectedSkill.instructions}</pre>
             </div>
           </div>
-        ))}
+        ) : (
+          <div className="stg-skill-empty">
+            <p>Select a skill from the list or create a new one.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
-        {renderSection("workspace_limits", "Workspace Limits", "📐", (
-          <div>
-            <div className="settings-field-group">
-              <label>Port Range Start</label>
-              <input type="number" value={settings.workspace_limits.portRangeStart} onChange={(e) => {
-                const updated = { ...settings.workspace_limits, portRangeStart: parseInt(e.target.value) || 4000 };
-                setSettings({ ...settings, workspace_limits: updated });
-              }} onBlur={() => saveSetting("workspace_limits", settings.workspace_limits)} className="settings-input" />
-            </div>
-            <div className="settings-field-group">
-              <label>Port Range End</label>
-              <input type="number" value={settings.workspace_limits.portRangeEnd} onChange={(e) => {
-                const updated = { ...settings.workspace_limits, portRangeEnd: parseInt(e.target.value) || 4099 };
-                setSettings({ ...settings, workspace_limits: updated });
-              }} onBlur={() => saveSetting("workspace_limits", settings.workspace_limits)} className="settings-input" />
-            </div>
-            <div className="settings-field-group">
-              <label>Max Concurrent Apps</label>
-              <input type="number" value={settings.workspace_limits.maxConcurrentApps} onChange={(e) => {
-                const updated = { ...settings.workspace_limits, maxConcurrentApps: parseInt(e.target.value) || 5 };
-                setSettings({ ...settings, workspace_limits: updated });
-              }} onBlur={() => saveSetting("workspace_limits", settings.workspace_limits)} className="settings-input" />
-            </div>
-            <div className="settings-field-group">
-              <label>Log Retention (lines)</label>
-              <input type="number" value={settings.workspace_limits.logRetention} onChange={(e) => {
-                const updated = { ...settings.workspace_limits, logRetention: parseInt(e.target.value) || 2000 };
-                setSettings({ ...settings, workspace_limits: updated });
-              }} onBlur={() => saveSetting("workspace_limits", settings.workspace_limits)} className="settings-input" />
-            </div>
-            {saving === "workspace_limits" && <span className="settings-saving">Saving...</span>}
+  const renderActivePanel = () => {
+    switch (activeTab) {
+      case "secrets": return renderSecretsPanel();
+      case "models": return renderModelsPanel();
+      case "auto_approve": return renderAutoApprovePanel();
+      case "env_vars": return renderEnvVarsPanel();
+      case "limits": return renderLimitsPanel();
+      case "tech_stack": return renderTechStackPanel();
+      case "skills": return renderSkillsPanel();
+    }
+  };
+
+  return (
+    <div className="stg-page">
+      <div className="stg-sidebar">
+        <div className="stg-sidebar-title">Settings</div>
+        {TABS.map((tab) => (
+          <div
+            key={tab.id}
+            className={`stg-tab${activeTab === tab.id ? " active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span className="stg-tab-icon">{tab.icon}</span>
+            <span className="stg-tab-label">{tab.label}</span>
           </div>
         ))}
-
-        {renderSection("tech_stack", "Allowed Tech Stack", "📦", (
-          <div>
-            <div className="settings-field-group">
-              <label>Allowed Packages <span className="settings-hint-inline">(comma-separated)</span></label>
-              <textarea value={allowedText} onChange={(e) => setAllowedText(e.target.value)} onBlur={() => {
-                const updated = {
-                  allowed: allowedText.split(",").map((s) => s.trim()).filter(Boolean),
-                  banned: bannedText.split(",").map((s) => s.trim()).filter(Boolean),
-                };
-                setSettings({ ...settings, allowed_tech_stack: updated });
-                saveSetting("allowed_tech_stack", updated);
-              }} className="settings-textarea" rows={3} />
-            </div>
-            <div className="settings-field-group">
-              <label>Banned Packages <span className="settings-hint-inline">(comma-separated)</span></label>
-              <textarea value={bannedText} onChange={(e) => setBannedText(e.target.value)} onBlur={() => {
-                const updated = {
-                  allowed: allowedText.split(",").map((s) => s.trim()).filter(Boolean),
-                  banned: bannedText.split(",").map((s) => s.trim()).filter(Boolean),
-                };
-                setSettings({ ...settings, allowed_tech_stack: updated });
-                saveSetting("allowed_tech_stack", updated);
-              }} className="settings-textarea" rows={3} />
-            </div>
-          </div>
-        ))}
-
-        {renderSection("skills", "Skills Library", "📚", (
-          <div>
-            <p className="settings-hint">Skills are injected into Planner and Executor prompts as reusable knowledge.</p>
-            <div className="settings-skills-list">
-              {skills.map((skill) => (
-                <div className="settings-skill-card" key={skill.id}>
-                  <div className="settings-skill-header">
-                    <span className="settings-skill-name">{skill.name}</span>
-                    {skill.tags && <span className="settings-skill-tags">{skill.tags}</span>}
-                    <div className="settings-skill-actions">
-                      <button className="settings-btn-sm" onClick={() => startEditSkill(skill)}>Edit</button>
-                      <button className="settings-btn-sm danger" onClick={() => deleteSkill(skill.id)}>Delete</button>
-                    </div>
-                  </div>
-                  {skill.description && <p className="settings-skill-desc">{skill.description}</p>}
-                </div>
-              ))}
-            </div>
-
-            <div className="settings-import-section">
-              <h4>Import from SkillsMP</h4>
-              <p className="settings-hint">Paste a SkillsMP URL to import the skill directly into your library.</p>
-              <div className="settings-import-row">
-                <input
-                  value={importUrl}
-                  onChange={(e) => { setImportUrl(e.target.value); setImportError(""); }}
-                  onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") importFromUrl(); }}
-                  className="settings-input"
-                  placeholder="https://skillsmp.com/skills/..."
-                  disabled={importing}
-                />
-                <button className="settings-btn" onClick={importFromUrl} disabled={importing || !importUrl.trim()}>
-                  {importing ? "Importing..." : "Import"}
-                </button>
-              </div>
-              {importError && <p className="settings-import-error">{importError}</p>}
-            </div>
-
-            {(newSkill || editingSkill) ? (
-              <div className="settings-skill-form">
-                <h4>{editingSkill ? "Edit Skill" : "New Skill"}</h4>
-                <div className="settings-field-group">
-                  <label>Name</label>
-                  <input value={skillForm.name} onChange={(e) => setSkillForm({ ...skillForm, name: e.target.value })} className="settings-input" placeholder="e.g. hCaptcha Integration" />
-                </div>
-                <div className="settings-field-group">
-                  <label>Description</label>
-                  <input value={skillForm.description} onChange={(e) => setSkillForm({ ...skillForm, description: e.target.value })} className="settings-input" placeholder="Short description" />
-                </div>
-                <div className="settings-field-group">
-                  <label>Tags <span className="settings-hint-inline">(comma-separated)</span></label>
-                  <input value={skillForm.tags} onChange={(e) => setSkillForm({ ...skillForm, tags: e.target.value })} className="settings-input" placeholder="e.g. captcha, security" />
-                </div>
-                <div className="settings-field-group">
-                  <label>Instructions</label>
-                  <textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className="settings-textarea" rows={8} placeholder="Detailed instructions for the agent..." />
-                </div>
-                <div className="settings-skill-form-actions">
-                  <button className="settings-btn" onClick={saveSkill}>Save</button>
-                  <button className="settings-btn secondary" onClick={() => { setNewSkill(false); setEditingSkill(null); }}>Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <button className="settings-btn" onClick={startNewSkill}>+ Add Skill</button>
-            )}
-          </div>
-        ))}
+      </div>
+      <div className="stg-canvas">
+        {renderActivePanel()}
       </div>
     </div>
   );

@@ -61,7 +61,7 @@ None specified.
 - `server/settings/manager.js` — Settings, secrets, skills CRUD
 - `client/src/App.tsx` — Main app shell, navigation, state management
 - `client/src/components/Workspace.tsx` — Tabbed workspace (Plan, Review, Diff, Auditor, Render, Shell, DB, Env, Publish)
-- `client/src/components/Settings.tsx` — Settings page with 7 collapsible sections
+- `client/src/components/Settings.tsx` — Settings page with two-panel layout (vertical tab sidebar + content canvas). Skills tab has three-column sub-layout (skill list + import + view/edit canvas). CSS namespace: `stg-*`
 - `client/src/components/PromptColumn.tsx` — Build prompt, pipeline visualization, chat, and ApprovalModal popup
 - `client/src/components/ProjectsList.tsx` — Project list view
 - `client/src/components/StressTest.tsx` — Stress test tool
