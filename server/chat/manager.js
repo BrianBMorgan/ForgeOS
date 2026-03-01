@@ -137,6 +137,76 @@ async function executeToolCall(toolCall) {
   }
 }
 
+function parseResponse(content) {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(content);
+    ChatResponseSchema.parse(parsed);
+  } catch {
+    parsed = null;
+  }
+
+  if (!parsed) {
+    const bracePositions = [];
+    for (let i = content.length - 1; i >= 0; i--) {
+      if (content[i] === "}") bracePositions.push(i);
+    }
+    for (const endPos of bracePositions) {
+      const startPos = content.lastIndexOf("{", endPos);
+      if (startPos === -1) continue;
+      try {
+        const candidate = JSON.parse(content.substring(startPos, endPos + 1));
+        if (candidate && typeof candidate.message === "string") {
+          parsed = { message: candidate.message, suggestBuild: !!candidate.suggestBuild, buildSuggestion: candidate.buildSuggestion || null };
+          break;
+        }
+      } catch { /* try next brace pair */ }
+    }
+  }
+
+  if (!parsed) {
+    parsed = { message: content, suggestBuild: false, buildSuggestion: null };
+  }
+
+  return parsed;
+}
+
+const BANNED_PATTERNS = [
+  { regex: /\bcomprehensive\b/i, rule: "Banned word: 'comprehensive'" },
+  { regex: /\brobust\b/i, rule: "Banned word: 'robust'" },
+  { regex: /\bproper\b/i, rule: "Banned word: 'proper'" },
+  { regex: /\bensure\b/i, rule: "Banned word: 'ensure'" },
+  { regex: /\badd\s+(detailed\s+)?logging\b/i, rule: "Banned fix: 'add logging' is not a bug fix" },
+  { regex: /\badd\s+(detailed\s+)?console\.error\b/i, rule: "Banned fix: 'add console.error' is not a bug fix" },
+  { regex: /\badd\s+(better\s+)?error\s+handling\b/i, rule: "Banned fix: 'add error handling' is not a bug fix" },
+  { regex: /\bwrap\s+.*\s+in\s+try[- ]?catch\b/i, rule: "Banned fix: 'wrap in try-catch' is not a bug fix" },
+  { regex: /\bto\s+prevent\s+/i, rule: "Banned padding: 'to prevent...' — stop after stating the code change" },
+  { regex: /\bto\s+reveal\s+/i, rule: "Banned padding: 'to reveal...' — stop after stating the code change" },
+  { regex: /\bto\s+ensure\s+/i, rule: "Banned padding: 'to ensure...' — stop after stating the code change" },
+  { regex: /\bensuring\s+(the|that)\b/i, rule: "Banned padding: 'ensuring the/that...' — stop after stating the code change" },
+  { regex: /\bso\s+the\s+(client|endpoint|server|request|response)\s+(does\s+not|doesn't|won't|will\s+not)\b/i, rule: "Banned padding: 'so the X does not...' — stop after stating the code change" },
+  { regex: /\bpreventing\s+(the|it|hanging|errors)\b/i, rule: "Banned padding: 'preventing...' — stop after stating the code change" },
+  { regex: /\bwithout\s+(a\s+)?(proper|hanging|crashing)\b/i, rule: "Banned padding: 'without hanging/crashing...' — stop after stating the code change" },
+  { regex: /\bpotential\s+causes?\b/i, rule: "Banned phrase: 'potential cause(s)'" },
+  { regex: /\bpossible\s+causes?\b/i, rule: "Banned phrase: 'possible cause(s)'" },
+  { regex: /\blikely\s+cause\b/i, rule: "Banned phrase: 'likely cause'" },
+  { regex: /\berror\s+handling\s+and\s+logging\b/i, rule: "Banned phrase: 'error handling and logging'" },
+];
+
+function detectBannedPatterns(message, buildSuggestion) {
+  const violations = [];
+  const textsToCheck = [message || "", buildSuggestion || ""];
+  const combined = textsToCheck.join(" ");
+
+  for (const { regex, rule } of BANNED_PATTERNS) {
+    if (regex.test(combined)) {
+      violations.push(`- ${rule}`);
+    }
+  }
+
+  return violations;
+}
+
 async function chat(projectId, userMessage) {
   const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
@@ -265,35 +335,7 @@ async function chat(projectId, userMessage) {
     }
 
     const content = choice.message.content;
-    let parsed = null;
-    try {
-      parsed = JSON.parse(content);
-      ChatResponseSchema.parse(parsed);
-    } catch {
-      parsed = null;
-    }
-
-    if (!parsed) {
-      const bracePositions = [];
-      for (let i = content.length - 1; i >= 0; i--) {
-        if (content[i] === "}") bracePositions.push(i);
-      }
-      for (const endPos of bracePositions) {
-        const startPos = content.lastIndexOf("{", endPos);
-        if (startPos === -1) continue;
-        try {
-          const candidate = JSON.parse(content.substring(startPos, endPos + 1));
-          if (candidate && typeof candidate.message === "string") {
-            parsed = { message: candidate.message, suggestBuild: !!candidate.suggestBuild, buildSuggestion: candidate.buildSuggestion || null };
-            break;
-          }
-        } catch { /* try next brace pair */ }
-      }
-    }
-
-    if (!parsed) {
-      parsed = { message: content, suggestBuild: false, buildSuggestion: null };
-    }
+    let parsed = parseResponse(content);
 
     const msg = parsed.message || "";
     const reforgeMatch = msg.match(/I'll reforge\s+(.+?)(?:\.|$)/i);
@@ -302,6 +344,17 @@ async function chat(projectId, userMessage) {
       if (!parsed.buildSuggestion) {
         parsed.buildSuggestion = msg;
       }
+    }
+
+    const violations = detectBannedPatterns(parsed.message, parsed.buildSuggestion);
+    if (violations.length > 0 && toolRound < MAX_TOOL_ROUNDS - 1) {
+      messages.push(choice.message);
+      messages.push({
+        role: "user",
+        content: `REJECTED — your response violates these rules:\n${violations.join("\n")}\n\nRewrite your response. TWO SENTENCES ONLY. Sentence 1: root cause citing file and function. Sentence 2: exact code change. No logging fixes, no try-catch fixes, no padding phrases, no outcome descriptions. Stop after the code change.`,
+      });
+      toolRound++;
+      continue;
     }
 
     const prefix = usedWebSearch ? "[Researched] " : "";
