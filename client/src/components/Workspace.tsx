@@ -192,7 +192,7 @@ function AuditorTab({ runData }: { runData: RunData | null }) {
                   {String(issue.severity)}
                 </span>
                 <span style={{ fontSize: 12, color: "#94a3b8" }}>{String(issue.rule)}</span>
-                {issue.file && <span style={{ fontSize: 11, color: "#64748b" }}>{String(issue.file)}</span>}
+                {issue.file ? <span style={{ fontSize: 11, color: "#64748b" }}>{String(issue.file)}</span> : null}
               </div>
               <div style={{ fontSize: 13, color: "#e2e8f0", marginBottom: 4 }}>{String(issue.description)}</div>
               <div style={{ fontSize: 12, color: "#22c55e" }}>Fix: {String(issue.fix)}</div>
