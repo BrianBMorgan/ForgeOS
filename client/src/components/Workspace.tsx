@@ -597,7 +597,18 @@ function ShellTab({ runData, projectId, onRefreshRunData }: { runData: RunData |
     }
   }, [cmdInput, runData?.id, isExecuting, addEntry]);
 
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setCmdInput((prev) => prev + text);
+      inputRef.current?.focus();
+    } catch {
+      addEntry("stderr", "Clipboard access denied — try Ctrl+V directly in the input field");
+    }
+  }, [addEntry]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    e.stopPropagation();
     if (e.key === "Enter") {
       e.preventDefault();
       executeCommand();
@@ -776,6 +787,9 @@ function ShellTab({ runData, projectId, onRefreshRunData }: { runData: RunData |
               spellCheck={false}
               autoComplete="off"
             />
+            <button className="shell-paste-btn" onClick={handlePaste} title="Paste from clipboard">
+              Paste
+            </button>
           </div>
         </div>
       ) : (

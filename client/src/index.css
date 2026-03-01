@@ -1517,6 +1517,25 @@ body {
   opacity: 0.5;
 }
 
+.shell-paste-btn {
+  background: rgba(59, 130, 246, 0.1);
+  color: #64748b;
+  border: 1px solid #1e293b;
+  border-radius: 3px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.65rem;
+  font-family: inherit;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.shell-paste-btn:hover {
+  color: #93c5fd;
+  border-color: #334155;
+}
+
 .log-viewer {
   flex: 1;
   display: flex;
