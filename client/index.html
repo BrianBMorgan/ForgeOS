@@ -8,68 +8,97 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <elevenlabs-convai agent-id="agent_0101kjmpctmffrvsbqen3ny1b5cc"></elevenlabs-convai>
-    <script src="https://elevenlabs.io/convai-widget/index.js" async></script>
     <script>
       (function() {
-        var lastAgentMessage = "";
-        function setupBridge() {
-          var widget = document.querySelector("elevenlabs-convai");
-          if (!widget) { setTimeout(setupBridge, 500); return; }
-          
-          widget.addEventListener("elevenlabs-convai:agent-response", function(e) {
-            if (e.detail && e.detail.text) {
-              lastAgentMessage = e.detail.text;
-            }
-          });
-          
-          widget.addEventListener("elevenlabs-convai:message", function(e) {
-            if (e.detail && e.detail.role === "agent" && e.detail.message) {
-              lastAgentMessage = e.detail.message;
-            }
-          });
+        window.__forgeLastAgentMsg = "";
+        window.__forgeAgentParts = "";
+        var sendBtn = null;
 
-          var observer = new MutationObserver(function() {
-            var shadow = widget.shadowRoot;
-            if (!shadow) return;
-            var msgs = shadow.querySelectorAll("[class*='message'], [class*='bubble'], [data-role='agent']");
-            msgs.forEach(function(m) {
-              var text = m.textContent?.trim();
-              if (text && text.length > 10 && text !== lastAgentMessage) {
-                lastAgentMessage = text;
+        var OrigWS = window.WebSocket;
+        window.WebSocket = function(url, protocols) {
+          var ws = protocols ? new OrigWS(url, protocols) : new OrigWS(url);
+          if (url && url.indexOf("elevenlabs") !== -1) {
+            ws.addEventListener("message", function(evt) {
+              try {
+                var data = JSON.parse(evt.data);
+                if (data.type === "agent_response" && data.agent_response_event === "agent_response") {
+                  window.__forgeAgentParts += (data.agent_response || "");
+                }
+                if (data.type === "agent_response" && data.agent_response_event === "agent_response_end") {
+                  if (window.__forgeAgentParts.length > 10) {
+                    window.__forgeLastAgentMsg = window.__forgeAgentParts.trim();
+                    showSendButton();
+                  }
+                  window.__forgeAgentParts = "";
+                }
+                if (data.type === "chat" && data.role === "agent" && data.message) {
+                  window.__forgeLastAgentMsg = data.message.trim();
+                  showSendButton();
+                }
+                if (data.type === "agent_chat_response_part" && data.text) {
+                  window.__forgeAgentParts += data.text;
+                }
+              } catch(e) {}
+            });
+            ws.addEventListener("close", function() {
+              if (window.__forgeAgentParts.length > 10) {
+                window.__forgeLastAgentMsg = window.__forgeAgentParts.trim();
+                window.__forgeAgentParts = "";
+              }
+              if (window.__forgeLastAgentMsg && window.__forgeSetPrompt) {
+                setTimeout(function() {
+                  window.__forgeSetPrompt(window.__forgeLastAgentMsg);
+                  window.__forgeLastAgentMsg = "";
+                  if (sendBtn) sendBtn.style.display = "none";
+                }, 300);
               }
             });
-          });
-          
-          if (widget.shadowRoot) {
-            observer.observe(widget.shadowRoot, { childList: true, subtree: true, characterData: true });
-          } else {
-            var shadowObserver = new MutationObserver(function() {
-              if (widget.shadowRoot) {
-                observer.observe(widget.shadowRoot, { childList: true, subtree: true, characterData: true });
-                shadowObserver.disconnect();
-              }
-            });
-            shadowObserver.observe(widget, { childList: true, subtree: true });
           }
+          return ws;
+        };
+        window.WebSocket.prototype = OrigWS.prototype;
+        window.WebSocket.CONNECTING = OrigWS.CONNECTING;
+        window.WebSocket.OPEN = OrigWS.OPEN;
+        window.WebSocket.CLOSING = OrigWS.CLOSING;
+        window.WebSocket.CLOSED = OrigWS.CLOSED;
 
-          widget.addEventListener("elevenlabs-convai:call-ended", function() {
-            if (lastAgentMessage && window.__forgeSetPrompt) {
-              window.__forgeSetPrompt(lastAgentMessage);
-              lastAgentMessage = "";
+        function createSendButton() {
+          sendBtn = document.createElement("button");
+          sendBtn.id = "forge-voice-send";
+          sendBtn.textContent = "Send to Prompt";
+          sendBtn.style.cssText = "display:none;position:fixed;bottom:8px;left:50%;transform:translateX(calc(-50% + 80px));z-index:10000;background:#e8630a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:system-ui;box-shadow:0 2px 8px rgba(232,99,10,0.4);transition:opacity 0.2s;white-space:nowrap;";
+          sendBtn.addEventListener("mouseenter", function() { sendBtn.style.opacity = "0.85"; });
+          sendBtn.addEventListener("mouseleave", function() { sendBtn.style.opacity = "1"; });
+          sendBtn.addEventListener("click", function() {
+            if (window.__forgeLastAgentMsg && window.__forgeSetPrompt) {
+              window.__forgeSetPrompt(window.__forgeLastAgentMsg);
+              window.__forgeLastAgentMsg = "";
+              sendBtn.style.display = "none";
             }
           });
-
-          widget.addEventListener("elevenlabs-convai:conversation-ended", function() {
-            if (lastAgentMessage && window.__forgeSetPrompt) {
-              window.__forgeSetPrompt(lastAgentMessage);
-              lastAgentMessage = "";
-            }
-          });
+          document.body.appendChild(sendBtn);
         }
-        setupBridge();
+
+        function showSendButton() {
+          if (!sendBtn) createSendButton();
+          if (sendBtn && window.__forgeLastAgentMsg) {
+            sendBtn.style.display = "block";
+          }
+        }
+
+        document.addEventListener("keydown", function(e) {
+          if (e.altKey && e.key === "p") {
+            if (window.__forgeLastAgentMsg && window.__forgeSetPrompt) {
+              window.__forgeSetPrompt(window.__forgeLastAgentMsg);
+              window.__forgeLastAgentMsg = "";
+              if (sendBtn) sendBtn.style.display = "none";
+            }
+          }
+        });
       })();
     </script>
+    <elevenlabs-convai agent-id="agent_0101kjmpctmffrvsbqen3ny1b5cc"></elevenlabs-convai>
+    <script src="https://elevenlabs.io/convai-widget/index.js" async></script>
     <style>
       elevenlabs-convai {
         position: fixed !important;
