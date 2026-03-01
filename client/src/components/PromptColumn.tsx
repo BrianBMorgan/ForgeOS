@@ -374,6 +374,18 @@ export default function PromptColumn({
   const [slashIndex, setSlashIndex] = useState(0);
   const [slashPos, setSlashPos] = useState(-1);
 
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__forgeSetPrompt = (text: string) => {
+      setPrompt((prev) => (prev ? prev + "\n" + text : text));
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    };
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__forgeSetPrompt;
+    };
+  }, []);
+
   const stages = deriveStages(runData);
   const isRunning = runData?.status === "running";
   const isAwaitingApproval = runData?.status === "awaiting-approval";

@@ -10,6 +10,66 @@
     <script type="module" src="/src/main.tsx"></script>
     <elevenlabs-convai agent-id="agent_0101kjmpctmffrvsbqen3ny1b5cc"></elevenlabs-convai>
     <script src="https://elevenlabs.io/convai-widget/index.js" async></script>
+    <script>
+      (function() {
+        var lastAgentMessage = "";
+        function setupBridge() {
+          var widget = document.querySelector("elevenlabs-convai");
+          if (!widget) { setTimeout(setupBridge, 500); return; }
+          
+          widget.addEventListener("elevenlabs-convai:agent-response", function(e) {
+            if (e.detail && e.detail.text) {
+              lastAgentMessage = e.detail.text;
+            }
+          });
+          
+          widget.addEventListener("elevenlabs-convai:message", function(e) {
+            if (e.detail && e.detail.role === "agent" && e.detail.message) {
+              lastAgentMessage = e.detail.message;
+            }
+          });
+
+          var observer = new MutationObserver(function() {
+            var shadow = widget.shadowRoot;
+            if (!shadow) return;
+            var msgs = shadow.querySelectorAll("[class*='message'], [class*='bubble'], [data-role='agent']");
+            msgs.forEach(function(m) {
+              var text = m.textContent?.trim();
+              if (text && text.length > 10 && text !== lastAgentMessage) {
+                lastAgentMessage = text;
+              }
+            });
+          });
+          
+          if (widget.shadowRoot) {
+            observer.observe(widget.shadowRoot, { childList: true, subtree: true, characterData: true });
+          } else {
+            var shadowObserver = new MutationObserver(function() {
+              if (widget.shadowRoot) {
+                observer.observe(widget.shadowRoot, { childList: true, subtree: true, characterData: true });
+                shadowObserver.disconnect();
+              }
+            });
+            shadowObserver.observe(widget, { childList: true, subtree: true });
+          }
+
+          widget.addEventListener("elevenlabs-convai:call-ended", function() {
+            if (lastAgentMessage && window.__forgeSetPrompt) {
+              window.__forgeSetPrompt(lastAgentMessage);
+              lastAgentMessage = "";
+            }
+          });
+
+          widget.addEventListener("elevenlabs-convai:conversation-ended", function() {
+            if (lastAgentMessage && window.__forgeSetPrompt) {
+              window.__forgeSetPrompt(lastAgentMessage);
+              lastAgentMessage = "";
+            }
+          });
+        }
+        setupBridge();
+      })();
+    </script>
     <style>
       elevenlabs-convai {
         position: fixed !important;
