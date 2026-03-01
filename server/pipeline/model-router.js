@@ -73,16 +73,32 @@ async function callStructured(model, systemPrompt, userMessages, schema, formatN
 
 async function callChat(model, systemPrompt, messages, tools, temperature) {
   if (usesResponsesAPI(model)) {
-    const input = messages.filter(m => m.role !== "system").map(m => {
+    const input = [];
+    for (const m of messages) {
+      if (m.role === "system") continue;
       if (m.role === "tool") {
-        return {
+        input.push({
           type: "function_call_output",
           call_id: m.tool_call_id,
           output: m.content,
-        };
+        });
+      } else if (m.role === "assistant" && m.tool_calls && m.tool_calls.length > 0) {
+        for (const tc of m.tool_calls) {
+          input.push({
+            type: "function_call",
+            id: tc.id,
+            call_id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          });
+        }
+        if (m.content) {
+          input.push({ role: "assistant", content: m.content });
+        }
+      } else {
+        input.push({ role: m.role, content: m.content || "" });
       }
-      return { role: m.role, content: m.content };
-    });
+    }
 
     const responsesTools = tools ? tools.map(t => ({
       type: "function",
