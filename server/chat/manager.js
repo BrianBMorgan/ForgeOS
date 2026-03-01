@@ -155,6 +155,23 @@ async function chat(projectId, userMessage) {
     codeContext = "\n\nCURRENT PROJECT FILES:\n" + existingFiles.map(f => `--- ${f.path} ---\n${f.content}`).join("\n\n");
   }
 
+  let logsContext = "";
+  if (lastRunId) {
+    try {
+      const workspace = require("../workspace/manager");
+      const logData = workspace.getWorkspaceLogs(lastRunId, { maxEntries: 50 });
+      if (logData) {
+        const appLog = (logData.app || "").trim();
+        const recentEntries = (logData.entries || []).map(e => `[${e.level}] ${e.message}`).join("\n");
+        if (appLog || recentEntries) {
+          logsContext = "\n\nRUNTIME LOGS (last 50 entries from running app):\n";
+          if (appLog) logsContext += "--- stdout/stderr ---\n" + appLog.slice(-3000) + "\n";
+          if (recentEntries) logsContext += "--- structured logs ---\n" + recentEntries.slice(-3000) + "\n";
+        }
+      }
+    } catch {}
+  }
+
   let skillContext = "";
   const slashRefs = userMessage.match(/\/([a-z0-9-]+)/gi);
   if (slashRefs && slashRefs.length > 0) {
@@ -176,7 +193,7 @@ async function chat(projectId, userMessage) {
     content: m.content,
   }));
 
-  const systemMessage = CHAT_AGENT_INSTRUCTIONS + codeContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
+  const systemMessage = CHAT_AGENT_INSTRUCTIONS + codeContext + logsContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
 
   const messages = [
     { role: "system", content: systemMessage },
