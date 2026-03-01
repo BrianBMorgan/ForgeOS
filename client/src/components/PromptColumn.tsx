@@ -344,6 +344,13 @@ function ApprovalModal({
   );
 }
 
+interface SkillOption {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+}
+
 export default function PromptColumn({
   runData,
   projectData,
@@ -360,6 +367,11 @@ export default function PromptColumn({
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [skillOptions, setSkillOptions] = useState<SkillOption[]>([]);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [slashPos, setSlashPos] = useState(-1);
 
   const stages = deriveStages(runData);
   const isRunning = runData?.status === "running";
@@ -377,6 +389,60 @@ export default function PromptColumn({
     }
   }, [chatMessages]);
 
+  useEffect(() => {
+    fetch("/api/skills").then(r => r.json()).then(data => {
+      const skills = (data.skills || []).map((s: { id: number; name: string; description: string }) => ({
+        id: s.id,
+        name: s.name,
+        slug: s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+        description: s.description || "",
+      }));
+      setSkillOptions(skills);
+    }).catch(() => {});
+  }, []);
+
+  const filteredSkills = slashQuery !== null
+    ? skillOptions.filter(s =>
+        s.slug.includes(slashQuery.toLowerCase()) || s.name.toLowerCase().includes(slashQuery.toLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setPrompt(val);
+
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = val.slice(0, cursorPos);
+    const slashMatch = textBeforeCursor.match(/\/([a-z0-9-]*)$/i);
+    if (slashMatch) {
+      setSlashQuery(slashMatch[1]);
+      setSlashPos(cursorPos - slashMatch[0].length);
+      setSlashIndex(0);
+    } else {
+      setSlashQuery(null);
+      setSlashPos(-1);
+    }
+  };
+
+  const insertSkill = (skill: SkillOption) => {
+    if (slashPos < 0) return;
+    const cursorPos = textareaRef.current?.selectionStart || prompt.length;
+    const before = prompt.slice(0, slashPos);
+    const after = prompt.slice(cursorPos);
+    const inserted = `/${skill.slug} `;
+    const newPrompt = before + inserted + after;
+    setPrompt(newPrompt);
+    setSlashQuery(null);
+    setSlashPos(-1);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const pos = before.length + inserted.length;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
   const handleSubmit = () => {
     if (!prompt.trim() || isRunning || chatLoading) return;
     if (isProjectView) {
@@ -385,6 +451,8 @@ export default function PromptColumn({
       onRunBuild(prompt);
     }
     setPrompt("");
+    setSlashQuery(null);
+    setSlashPos(-1);
   };
 
   const handleBuildFromSuggestion = (suggestion: string) => {
@@ -392,6 +460,29 @@ export default function PromptColumn({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashQuery !== null && filteredSkills.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((prev) => Math.min(prev + 1, filteredSkills.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        insertSkill(filteredSkills[slashIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashQuery(null);
+        setSlashPos(-1);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -486,19 +577,37 @@ export default function PromptColumn({
 
       {!isViewingHistory && (
         <div className="prompt-input-area">
-          <textarea
-            className="prompt-textarea"
-            placeholder={
-              isProjectView
-                ? "Ask a question or describe a change..."
-                : "Describe what you want to build..."
-            }
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={isProjectView ? 3 : 6}
-            disabled={isRunning || chatLoading}
-          />
+          <div className="prompt-textarea-wrap">
+            {slashQuery !== null && filteredSkills.length > 0 && (
+              <div className="slash-dropdown">
+                {filteredSkills.map((skill, i) => (
+                  <div
+                    key={skill.id}
+                    className={`slash-option${i === slashIndex ? " active" : ""}`}
+                    onMouseDown={(e) => { e.preventDefault(); insertSkill(skill); }}
+                    onMouseEnter={() => setSlashIndex(i)}
+                  >
+                    <span className="slash-option-name">/{skill.slug}</span>
+                    {skill.description && <span className="slash-option-desc">{skill.description}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              className="prompt-textarea"
+              placeholder={
+                isProjectView
+                  ? "Ask a question or type / for skills..."
+                  : "Describe what you want to build..."
+              }
+              value={prompt}
+              onChange={handlePromptChange}
+              onKeyDown={handleKeyDown}
+              rows={isProjectView ? 3 : 6}
+              disabled={isRunning || chatLoading}
+            />
+          </div>
           <div className="prompt-actions">
             {isProjectView && canIterate && (
               <button

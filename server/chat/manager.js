@@ -4,6 +4,7 @@ const { ChatResponseSchema } = require("../pipeline/schemas");
 const { CHAT_AGENT_INSTRUCTIONS } = require("../pipeline/agents");
 const { neon } = require("@neondatabase/serverless");
 const projectManager = require("../projects/manager");
+const settingsManager = require("../settings/manager");
 const { webSearch, fetchUrl } = require("./search");
 
 const openai = new OpenAI();
@@ -154,12 +155,28 @@ async function chat(projectId, userMessage) {
     codeContext = "\n\nCURRENT PROJECT FILES:\n" + existingFiles.map(f => `--- ${f.path} ---\n${f.content}`).join("\n\n");
   }
 
+  let skillContext = "";
+  const slashRefs = userMessage.match(/\/([a-z0-9-]+)/gi);
+  if (slashRefs && slashRefs.length > 0) {
+    const allSkills = await settingsManager.getAllSkills();
+    for (const ref of slashRefs) {
+      const slug = ref.slice(1).toLowerCase();
+      const matched = allSkills.find(s => {
+        const sSlug = s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        return sSlug === slug;
+      });
+      if (matched) {
+        skillContext += `\n\n--- SKILL: ${matched.name} ---\n${matched.instructions}`;
+      }
+    }
+  }
+
   const conversationMessages = history.map(m => ({
     role: m.role === "assistant" ? "assistant" : "user",
     content: m.content,
   }));
 
-  const systemMessage = CHAT_AGENT_INSTRUCTIONS + codeContext;
+  const systemMessage = CHAT_AGENT_INSTRUCTIONS + codeContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
 
   const messages = [
     { role: "system", content: systemMessage },
