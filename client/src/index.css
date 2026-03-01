@@ -3178,3 +3178,40 @@ body {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
+
+.settings-import-section {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.settings-import-section h4 {
+  font-size: 0.88rem;
+  color: #93c5fd;
+  margin-bottom: 0.25rem;
+}
+
+.settings-import-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.settings-import-row .settings-input {
+  flex: 1;
+}
+
+.settings-import-row .settings-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.settings-import-error {
+  color: #f87171;
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+}

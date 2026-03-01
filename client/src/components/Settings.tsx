@@ -50,6 +50,9 @@ export default function Settings() {
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [newSkill, setNewSkill] = useState(false);
   const [skillForm, setSkillForm] = useState({ name: "", description: "", instructions: "", tags: "" });
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
   const [allowedText, setAllowedText] = useState("");
   const [bannedText, setBannedText] = useState("");
   const [revealedSecrets, setRevealedSecrets] = useState<Record<string, string>>({});
@@ -208,6 +211,31 @@ export default function Settings() {
     setEditingSkill(null);
     setNewSkill(true);
     setSkillForm({ name: "", description: "", instructions: "", tags: "" });
+  };
+
+  const importFromUrl = async () => {
+    if (!importUrl.trim()) return;
+    setImporting(true);
+    setImportError("");
+    try {
+      const resp = await fetch("/api/skills/import-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setImportError(data.error || "Import failed");
+        return;
+      }
+      setSkills((prev) => [...prev, data]);
+      setImportUrl("");
+      setImportError("");
+    } catch {
+      setImportError("Network error — could not reach server");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const renderSection = (id: string, title: string, icon: string, content: React.ReactNode) => (
@@ -418,6 +446,25 @@ export default function Settings() {
                   {skill.description && <p className="settings-skill-desc">{skill.description}</p>}
                 </div>
               ))}
+            </div>
+
+            <div className="settings-import-section">
+              <h4>Import from SkillsMP</h4>
+              <p className="settings-hint">Paste a SkillsMP URL to import the skill directly into your library.</p>
+              <div className="settings-import-row">
+                <input
+                  value={importUrl}
+                  onChange={(e) => { setImportUrl(e.target.value); setImportError(""); }}
+                  onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") importFromUrl(); }}
+                  className="settings-input"
+                  placeholder="https://skillsmp.com/skills/..."
+                  disabled={importing}
+                />
+                <button className="settings-btn" onClick={importFromUrl} disabled={importing || !importUrl.trim()}>
+                  {importing ? "Importing..." : "Import"}
+                </button>
+              </div>
+              {importError && <p className="settings-import-error">{importError}</p>}
             </div>
 
             {(newSkill || editingSkill) ? (

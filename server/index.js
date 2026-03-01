@@ -429,6 +429,131 @@ app.put("/api/skills/:id", async (req, res) => {
   res.json({ updated: true });
 });
 
+app.post("/api/skills/import-url", async (req, res) => {
+  const { url } = req.body;
+  if (!url) {
+    return res.status(400).json({ error: "Please provide a valid SkillsMP URL" });
+  }
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return res.status(400).json({ error: "Invalid URL format" });
+  }
+  if (parsedUrl.hostname !== "skillsmp.com" && parsedUrl.hostname !== "www.skillsmp.com") {
+    return res.status(400).json({ error: "URL must be from skillsmp.com" });
+  }
+  const pathMatch = parsedUrl.pathname.match(/^\/skills\/([a-z0-9-]+)$/);
+  if (!pathMatch) {
+    return res.status(400).json({ error: "URL must point to a specific skill page (e.g. https://skillsmp.com/skills/...)" });
+  }
+  try {
+    const slug = pathMatch[1];
+    const skillContent = await resolveSkillFromSlug(slug);
+    if (!skillContent) {
+      return res.status(422).json({ error: "Could not resolve this skill. The GitHub repository may be private or the URL format is unrecognized." });
+    }
+    const skill = await settingsManager.createSkill({
+      name: skillContent.name,
+      description: skillContent.description,
+      instructions: skillContent.instructions,
+      tags: "skillsmp,imported",
+    });
+    if (!skill) {
+      return res.status(500).json({ error: "Failed to save imported skill" });
+    }
+    res.status(201).json(skill);
+  } catch (err) {
+    console.error("SkillsMP import error:", err.message);
+    res.status(500).json({ error: `Import failed: ${err.message}` });
+  }
+});
+
+async function resolveSkillFromSlug(slug) {
+  if (slug.length > 200) return null;
+  const parts = slug.replace(/-skill-md$/, "").split("-");
+  if (parts.length < 3 || parts.length > 20) return null;
+
+  const githubToken = process.env.GITHUB_TOKEN || "";
+  const headers = { "User-Agent": "ForgeOS/1.0", "Accept": "application/vnd.github.v3.raw" };
+  if (githubToken) headers["Authorization"] = `token ${githubToken}`;
+
+  let attempts = 0;
+  const MAX_ATTEMPTS = 30;
+
+  for (let userEnd = 1; userEnd < Math.min(parts.length - 1, 4); userEnd++) {
+    const user = parts.slice(0, userEnd).join("-");
+    for (let repoEnd = userEnd + 1; repoEnd < Math.min(parts.length, userEnd + 6); repoEnd++) {
+      const repo = parts.slice(userEnd, repoEnd).join("-");
+      const pathParts = parts.slice(repoEnd);
+      const skillFolder = pathParts.join("-");
+
+      const candidates = [
+        `.claude/skills/${skillFolder}/SKILL.md`,
+      ];
+
+      if (pathParts.length >= 3 && pathParts[1] === "skills") {
+        const prefix = pathParts[0];
+        const restFolder = pathParts.slice(2).join("-");
+        candidates.unshift(`.${prefix}/skills/${restFolder}/SKILL.md`);
+      }
+      if (pathParts.length >= 2) {
+        const firstSegment = pathParts[0];
+        const restFolder = pathParts.slice(1).join("-");
+        candidates.push(`.${firstSegment}/skills/${restFolder}/SKILL.md`);
+      }
+
+      candidates.push(`.cursor/skills/${skillFolder}/SKILL.md`);
+      candidates.push(`skills/${skillFolder}/SKILL.md`);
+
+      for (const filePath of candidates) {
+        if (++attempts > MAX_ATTEMPTS) return null;
+        try {
+          const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${filePath}`;
+          const resp = await fetch(apiUrl, { headers });
+          if (resp.ok) {
+            const content = await resp.text();
+            return parseSkillMd(content);
+          }
+        } catch {}
+      }
+    }
+  }
+  return null;
+}
+
+function parseSkillMd(content) {
+  const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
+  let name = "";
+  let description = "";
+  let instructions = "";
+
+  if (frontmatterMatch) {
+    const fm = frontmatterMatch[1];
+    const body = frontmatterMatch[2].trim();
+
+    const nameMatch = fm.match(/^name:\s*(.+)$/m);
+    name = nameMatch ? nameMatch[1].trim() : "";
+
+    const descMatch = fm.match(/description:\s*\|?\s*\n([\s\S]*?)(?=\n\w|\n---)/);
+    if (descMatch) {
+      description = descMatch[1].replace(/^\s{2}/gm, "").trim();
+    } else {
+      const descInline = fm.match(/^description:\s*(.+)$/m);
+      description = descInline ? descInline[1].trim() : "";
+    }
+
+    instructions = body;
+  } else {
+    instructions = content.trim();
+    const headingMatch = instructions.match(/^#\s+(.+)$/m);
+    name = headingMatch ? headingMatch[1].trim() : "Imported Skill";
+  }
+
+  if (!instructions || instructions.length < 20) return null;
+  return { name, description, instructions };
+}
+
 app.delete("/api/skills/:id", async (req, res) => {
   const ok = await settingsManager.deleteSkill(parseInt(req.params.id));
   if (!ok) {
