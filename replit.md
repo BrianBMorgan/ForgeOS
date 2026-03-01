@@ -101,6 +101,15 @@ ForgeOS includes a built-in MCP (Model Context Protocol) server at `/mcp` that e
 
 **Production URL**: `https://forge-os.ai/mcp` — register this in Replit Integrations as a custom MCP server.
 
+## Voice Agent
+ForgeOS includes an embedded ElevenLabs Conversational AI voice agent widget in the bottom-right corner of the UI.
+
+**Agent ID**: `agent_0101kjmpctmffrvsbqen3ny1b5cc`
+**Voice**: Eric (Smooth, Trustworthy — conversational male)
+**Widget**: Compact variant, dark theme (bg #1a1a2e, orange accent #f97316), transcript enabled, text input enabled
+**Embedding**: `<elevenlabs-convai>` web component in `client/index.html`
+**Purpose**: Voice interface for asking questions about ForgeOS features, troubleshooting builds, and getting guidance
+
 ## External Dependencies
 - **OpenAI**: Used for agent pipeline calls (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface.
 - **Neon Postgres**: Utilized for project persistence (projects, iterations, run snapshots, chat messages) and can be provisioned for generated applications via `DATABASE_URL`.
