@@ -585,6 +585,12 @@ async function executeAfterApproval(run) {
       auditRound++;
       updateStage(run, "auditor", "failed", currentAuditResult);
 
+      let fixDiffInfo = "";
+      if (isIteration && existingFiles.length > 0 && executorOutput.files) {
+        const preDiff = computeFileDiff(existingFiles, executorOutput.files);
+        fixDiffInfo = `\n\nDIFF FROM PREVIOUS ITERATION (what you actually changed):\n${formatDiffSummary(preDiff)}\n\nUse this diff to understand what you DID change vs what the Auditor says you SHOULD have changed.`;
+      }
+
       const fixMessages = [
         {
           role: "user",
@@ -596,7 +602,7 @@ async function executeAfterApproval(run) {
         },
         {
           role: "user",
-          content: `The Auditor found the following issues that must be fixed before deployment:\n\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nFix ALL issues and return the complete corrected output.`,
+          content: `The Auditor found the following issues that must be fixed before deployment:\n\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nFix ALL issues and return the complete corrected output.${fixDiffInfo}`,
         },
       ];
 
@@ -636,6 +642,21 @@ async function executeAfterApproval(run) {
         REVIEWER_MODEL,
         "auditor_output"
       );
+    }
+
+    if (!currentAuditResult.approved) {
+      const criticalIssues = (currentAuditResult.issues || []).filter(i => i.severity === "critical" || i.severity === "high");
+      updateStage(run, "auditor", "failed", {
+        ...currentAuditResult,
+        fixApplied: auditRound > 0,
+        originalIssueCount: auditorOutput.issues?.length || 0,
+        auditRounds: auditRound + 1,
+        exhaustedFixRounds: true,
+      });
+      run.status = "failed";
+      run.error = `Auditor rejected after ${auditRound + 1} round(s). ${criticalIssues.length} critical/high issue(s) remain: ${criticalIssues.map(i => i.description || i.rule || "unknown").join("; ").slice(0, 500)}`;
+      await saveRunSnapshot(run);
+      return;
     }
 
     updateStage(run, "auditor", "passed", {
