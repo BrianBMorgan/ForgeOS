@@ -71,7 +71,35 @@ app.post("/api/runs/:id/exec", async (req, res) => {
   if (!command || typeof command !== "string") {
     return res.status(400).json({ error: "Command is required" });
   }
-  const result = await workspace.execCommand(req.params.id, command.trim());
+  const runId = req.params.id;
+  let ws = workspace.getWorkspaceStatus(runId);
+  if (!ws || ws.status !== "running") {
+    const run = await getRun(runId);
+    if (run && run.status === "completed" && run.stages?.executor?.output?.startCommand) {
+      const eo = run.stages.executor.output;
+      let wakeEnv = {};
+      try {
+        const ds = await settingsManager.getSetting("default_env_vars");
+        if (ds?.vars && Array.isArray(ds.vars)) for (const v of ds.vars) { if (v.key) wakeEnv[v.key] = v.value || ""; }
+        wakeEnv = { ...wakeEnv, ...(await settingsManager.getSecretsAsObject()) };
+      } catch {}
+      const allProjects = await projectManager.getAllProjects();
+      const proj = allProjects.find(p => p.currentRunId === runId);
+      if (proj) try { wakeEnv = { ...wakeEnv, ...(await projectManager.getEnvVarsAsObject(proj.id)) }; } catch {}
+      const wakeResult = await workspace.restoreWorkspace(runId, eo.startCommand, eo.port || 4000, wakeEnv);
+      if (wakeResult.success) {
+        run.workspace = { status: "running", port: wakeResult.port, error: null };
+        if (proj) await projectManager.updateProjectStatus(proj.id, "active");
+        console.log(`Auto-woke workspace ${runId} for shell command`);
+      } else {
+        return res.json({ exitCode: 1, stdout: "", stderr: "Failed to wake workspace: " + wakeResult.error });
+      }
+    } else {
+      return res.json({ exitCode: 1, stdout: "", stderr: "Workspace not found" });
+    }
+  }
+  workspace.touchActivity(runId);
+  const result = await workspace.execCommand(runId, command.trim());
   res.json(result);
 });
 
