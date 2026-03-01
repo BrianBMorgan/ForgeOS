@@ -457,7 +457,7 @@ app.post("/api/skills/import-url", async (req, res) => {
       name: skillContent.name,
       description: skillContent.description,
       instructions: skillContent.instructions,
-      tags: "skillsmp,imported",
+      tags: skillContent.tags || "skillsmp,imported",
     });
     if (!skill) {
       return res.status(500).json({ error: "Failed to save imported skill" });
@@ -527,6 +527,7 @@ function parseSkillMd(content) {
   let name = "";
   let description = "";
   let instructions = "";
+  let tags = "skillsmp,imported";
 
   if (frontmatterMatch) {
     const fm = frontmatterMatch[1];
@@ -535,15 +536,41 @@ function parseSkillMd(content) {
     const nameMatch = fm.match(/^name:\s*(.+)$/m);
     name = nameMatch ? nameMatch[1].trim() : "";
 
-    const descMatch = fm.match(/description:\s*\|?\s*\n([\s\S]*?)(?=\n\w|\n---)/);
+    let fullDesc = "";
+    const descMatch = fm.match(/description:\s*\|?\s*\n([\s\S]*?)(?=\n[a-z][\w-]*:|\n---)/);
     if (descMatch) {
-      description = descMatch[1].replace(/^\s{2}/gm, "").trim();
+      fullDesc = descMatch[1].replace(/^\s{2}/gm, "").trim();
     } else {
       const descInline = fm.match(/^description:\s*(.+)$/m);
-      description = descInline ? descInline[1].trim() : "";
+      fullDesc = descInline ? descInline[1].trim() : "";
     }
 
-    instructions = body;
+    const firstSentenceEnd = fullDesc.search(/\.\s|\.$|\n\s*\n|\n\s*[A-Z]/);
+    if (firstSentenceEnd > 0 && firstSentenceEnd < 200) {
+      description = fullDesc.substring(0, firstSentenceEnd + 1).trim();
+      const remainder = fullDesc.substring(firstSentenceEnd + 1).trim();
+      if (remainder) {
+        instructions = remainder + "\n\n" + body;
+      } else {
+        instructions = body;
+      }
+    } else if (fullDesc.length <= 200) {
+      description = fullDesc;
+      instructions = body;
+    } else {
+      description = fullDesc.substring(0, 200).replace(/\s+\S*$/, "") + "...";
+      instructions = fullDesc + "\n\n" + body;
+    }
+
+    const toolsMatch = fm.match(/^allowed-tools:\s*(.+)$/m);
+    if (toolsMatch) {
+      instructions = `Allowed Tools: ${toolsMatch[1].trim()}\n\n${instructions}`;
+    }
+
+    const tagTokens = name.split(/[-_\s]+/).filter(t => t.length > 2).slice(0, 4);
+    if (tagTokens.length > 0) {
+      tags = "skillsmp,imported," + tagTokens.join(",");
+    }
   } else {
     instructions = content.trim();
     const headingMatch = instructions.match(/^#\s+(.+)$/m);
@@ -551,7 +578,7 @@ function parseSkillMd(content) {
   }
 
   if (!instructions || instructions.length < 20) return null;
-  return { name, description, instructions };
+  return { name, description, instructions, tags };
 }
 
 app.delete("/api/skills/:id", async (req, res) => {
