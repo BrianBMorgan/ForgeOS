@@ -66,7 +66,7 @@
           sendBtn = document.createElement("button");
           sendBtn.id = "forge-voice-send";
           sendBtn.textContent = "Send to Prompt";
-          sendBtn.style.cssText = "display:none;position:fixed;bottom:8px;left:50%;transform:translateX(calc(-50% + 80px));z-index:10000;background:#e8630a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:system-ui;box-shadow:0 2px 8px rgba(232,99,10,0.4);transition:opacity 0.2s;white-space:nowrap;";
+          sendBtn.style.cssText = "display:none;position:fixed;bottom:8px;right:80px;z-index:10000;background:#e8630a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:system-ui;box-shadow:0 2px 8px rgba(232,99,10,0.4);transition:opacity 0.2s;white-space:nowrap;";
           sendBtn.addEventListener("mouseenter", function() { sendBtn.style.opacity = "0.85"; });
           sendBtn.addEventListener("mouseleave", function() { sendBtn.style.opacity = "1"; });
           sendBtn.addEventListener("click", function() {
@@ -103,9 +103,9 @@
       elevenlabs-convai {
         position: fixed !important;
         bottom: 8px !important;
-        left: 50% !important;
-        right: auto !important;
-        transform: translateX(-50%) !important;
+        right: 16px !important;
+        left: auto !important;
+        transform: none !important;
         z-index: 9999 !important;
       }
     </style>
