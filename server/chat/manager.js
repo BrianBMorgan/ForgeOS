@@ -1,13 +1,10 @@
-const OpenAI = require("openai");
-const { zodResponseFormat } = require("openai/helpers/zod");
 const { ChatResponseSchema } = require("../pipeline/schemas");
 const { CHAT_AGENT_INSTRUCTIONS } = require("../pipeline/agents");
 const { neon } = require("@neondatabase/serverless");
 const projectManager = require("../projects/manager");
 const settingsManager = require("../settings/manager");
 const { webSearch, fetchUrl } = require("./search");
-
-const openai = new OpenAI();
+const { callChat } = require("../pipeline/model-router");
 
 const SEARCH_TOOLS = [
   {
@@ -323,26 +320,18 @@ async function chat(projectId, userMessage) {
   let usedWebSearch = false;
 
   while (toolRound < MAX_TOOL_ROUNDS) {
-    const requestParams = {
-      model: chatModel,
-      temperature: 0.3,
-      messages,
-      tools: SEARCH_TOOLS,
-    };
+    const result = await callChat(chatModel, systemMessage, messages.filter(m => m.role !== "system"), SEARCH_TOOLS, 0.3);
 
-    const response = await openai.chat.completions.create(requestParams);
-    const choice = response.choices[0];
+    if (result.tool_calls && result.tool_calls.length > 0) {
+      messages.push({ role: "assistant", content: result.content, tool_calls: result.tool_calls });
 
-    if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
-      messages.push(choice.message);
-
-      for (const toolCall of choice.message.tool_calls) {
-        const result = await executeToolCall(toolCall);
+      for (const toolCall of result.tool_calls) {
+        const toolResult = await executeToolCall(toolCall);
         usedWebSearch = true;
         messages.push({
           role: "tool",
           tool_call_id: toolCall.id,
-          content: result,
+          content: toolResult,
         });
       }
 
@@ -350,7 +339,7 @@ async function chat(projectId, userMessage) {
       continue;
     }
 
-    const content = choice.message.content;
+    const content = result.content;
     let parsed = parseResponse(content);
 
     const msg = parsed.message || "";
@@ -364,7 +353,7 @@ async function chat(projectId, userMessage) {
 
     const violations = detectBannedPatterns(parsed.message, parsed.buildSuggestion);
     if (violations.length > 0 && toolRound < MAX_TOOL_ROUNDS - 1) {
-      messages.push(choice.message);
+      messages.push({ role: "assistant", content });
       messages.push({
         role: "user",
         content: `REJECTED — your response violates these rules:\n${violations.join("\n")}\n\nRewrite your response. TWO SENTENCES ONLY. Sentence 1: root cause citing file and function. Sentence 2: exact code change. No logging fixes, no try-catch fixes, no padding phrases, no outcome descriptions. Stop after the code change.`,

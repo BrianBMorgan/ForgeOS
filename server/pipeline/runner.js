@@ -1,6 +1,4 @@
-const OpenAI = require("openai");
 const { v4: uuidv4 } = require("uuid");
-const { zodResponseFormat } = require("openai/helpers/zod");
 const {
   PlannerSchema,
   ReviewerSchema,
@@ -8,6 +6,7 @@ const {
   ExecutorSchema,
   AuditorSchema,
 } = require("./schemas");
+const { callStructured } = require("./model-router");
 const {
   PLANNER_INSTRUCTIONS,
   REVIEWER_PASS1_INSTRUCTIONS,
@@ -25,7 +24,7 @@ const {
 
 const { neon } = require("@neondatabase/serverless");
 
-const openai = new OpenAI();
+const { NO_TEMPERATURE_MODELS } = require("./model-router");
 
 const dbUrl = process.env.NEON_DATABASE_URL;
 const sql = dbUrl ? neon(dbUrl) : null;
@@ -104,20 +103,8 @@ async function loadSkillsContext() {
 }
 
 async function callAgent(messages, instructions, schema, model, formatName) {
-  const response = await openai.chat.completions.create({
-    model,
-    temperature: model === REVIEWER_MODEL ? REVIEWER_TEMP : PLANNER_TEMP,
-    messages: [
-      { role: "system", content: instructions },
-      ...messages,
-    ],
-    response_format: zodResponseFormat(schema, formatName),
-  });
-
-  const content = response.choices[0].message.content;
-  const parsed = JSON.parse(content);
-  schema.parse(parsed);
-  return parsed;
+  const temp = NO_TEMPERATURE_MODELS.has(model) ? undefined : (model === REVIEWER_MODEL ? REVIEWER_TEMP : PLANNER_TEMP);
+  return await callStructured(model, instructions, messages, schema, formatName, temp);
 }
 
 function createRun(prompt, context) {
