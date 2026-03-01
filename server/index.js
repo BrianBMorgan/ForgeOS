@@ -432,7 +432,7 @@ app.put("/api/skills/:id", async (req, res) => {
 app.post("/api/skills/import-url", async (req, res) => {
   const { url } = req.body;
   if (!url) {
-    return res.status(400).json({ error: "Please provide a valid SkillsMP URL" });
+    return res.status(400).json({ error: "Please provide a URL" });
   }
   let parsedUrl;
   try {
@@ -440,31 +440,40 @@ app.post("/api/skills/import-url", async (req, res) => {
   } catch {
     return res.status(400).json({ error: "Invalid URL format" });
   }
-  if (parsedUrl.hostname !== "skillsmp.com" && parsedUrl.hostname !== "www.skillsmp.com") {
-    return res.status(400).json({ error: "URL must be from skillsmp.com" });
-  }
-  const pathMatch = parsedUrl.pathname.match(/^\/skills\/([a-z0-9-]+)$/);
-  if (!pathMatch) {
-    return res.status(400).json({ error: "URL must point to a specific skill page (e.g. https://skillsmp.com/skills/...)" });
-  }
+
+  const host = parsedUrl.hostname;
+  let skillContent = null;
+
   try {
-    const slug = pathMatch[1];
-    const skillContent = await resolveSkillFromSlug(slug);
+    if (host === "skillsmp.com" || host === "www.skillsmp.com") {
+      const pathMatch = parsedUrl.pathname.match(/^\/skills\/([a-z0-9-]+)$/);
+      if (!pathMatch) {
+        return res.status(400).json({ error: "URL must point to a specific skill page (e.g. https://skillsmp.com/skills/...)" });
+      }
+      skillContent = await resolveSkillFromSlug(pathMatch[1]);
+    } else if (host === "github.com" || host === "www.github.com") {
+      skillContent = await resolveSkillFromGitHub(parsedUrl.pathname);
+    } else if (host === "raw.githubusercontent.com") {
+      skillContent = await resolveSkillFromRawGitHub(parsedUrl.href);
+    } else {
+      return res.status(400).json({ error: "URL must be from skillsmp.com, github.com, or raw.githubusercontent.com" });
+    }
+
     if (!skillContent) {
-      return res.status(422).json({ error: "Could not resolve this skill. The GitHub repository may be private or the URL format is unrecognized." });
+      return res.status(422).json({ error: "Could not resolve this skill. The repository may be private, the file may not exist, or the path doesn't contain a valid SKILL.md." });
     }
     const skill = await settingsManager.createSkill({
       name: skillContent.name,
       description: skillContent.description,
       instructions: skillContent.instructions,
-      tags: skillContent.tags || "skillsmp,imported",
+      tags: skillContent.tags || "imported",
     });
     if (!skill) {
       return res.status(500).json({ error: "Failed to save imported skill" });
     }
     res.status(201).json(skill);
   } catch (err) {
-    console.error("SkillsMP import error:", err.message);
+    console.error("Skill import error:", err.message);
     res.status(500).json({ error: `Import failed: ${err.message}` });
   }
 });
@@ -519,6 +528,69 @@ async function resolveSkillFromSlug(slug) {
       }
     }
   }
+  return null;
+}
+
+async function resolveSkillFromGitHub(pathname) {
+  const githubToken = process.env.GITHUB_TOKEN || "";
+  const headers = { "User-Agent": "ForgeOS/1.0", "Accept": "application/vnd.github.v3.raw" };
+  if (githubToken) headers["Authorization"] = `token ${githubToken}`;
+
+  const cleaned = pathname.replace(/^\//, "").replace(/\/(blob|tree)\/[^/]+\//, "/");
+  const segments = cleaned.split("/").filter(Boolean);
+  if (segments.length < 2) return null;
+
+  const user = segments[0];
+  const repo = segments[1];
+  const restPath = segments.slice(2).join("/");
+
+  const candidates = [];
+  if (restPath) {
+    if (restPath.endsWith(".md")) {
+      candidates.push(restPath);
+    } else {
+      candidates.push(`${restPath}/SKILL.md`);
+      candidates.push(`${restPath}.md`);
+    }
+  } else {
+    candidates.push(".claude/skills/SKILL.md");
+    candidates.push("SKILL.md");
+    candidates.push(".cursor/skills/SKILL.md");
+  }
+
+  for (const filePath of candidates) {
+    try {
+      const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${filePath}`;
+      const resp = await fetch(apiUrl, { headers });
+      if (resp.ok) {
+        const content = await resp.text();
+        const parsed = parseSkillMd(content);
+        if (parsed) {
+          parsed.tags = (parsed.tags || "imported").replace("skillsmp,", "");
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+  return null;
+}
+
+async function resolveSkillFromRawGitHub(rawUrl) {
+  const githubToken = process.env.GITHUB_TOKEN || "";
+  const headers = { "User-Agent": "ForgeOS/1.0" };
+  if (githubToken) headers["Authorization"] = `token ${githubToken}`;
+
+  try {
+    const resp = await fetch(rawUrl, { headers });
+    if (resp.ok) {
+      const content = await resp.text();
+      const parsed = parseSkillMd(content);
+      if (parsed) {
+        parsed.tags = (parsed.tags || "imported").replace("skillsmp,", "");
+        return parsed;
+      }
+    }
+  } catch {}
   return null;
 }
 

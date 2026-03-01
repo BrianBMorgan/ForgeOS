@@ -479,14 +479,14 @@ export default function Settings() {
           {skills.length === 0 && <div className="stg-empty">No skills yet</div>}
         </div>
         <div className="stg-skills-import">
-          <div className="stg-skills-import-label">Import from SkillsMP</div>
+          <div className="stg-skills-import-label">Import Skill</div>
           <div className="stg-skills-import-row">
             <input
               value={importUrl}
               onChange={(e) => { setImportUrl(e.target.value); setImportError(""); }}
               onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") importFromUrl(); }}
               className="stg-input sm"
-              placeholder="Paste URL..."
+              placeholder="SkillsMP or GitHub URL..."
               disabled={importing}
             />
             <button className="stg-btn-sm" onClick={importFromUrl} disabled={importing || !importUrl.trim()}>

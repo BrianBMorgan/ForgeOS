@@ -46,7 +46,7 @@ None specified.
 - `DELETE /api/secrets/:key` — delete secret
 - `GET /api/skills` — list all skills
 - `POST /api/skills` — create skill `{ name, description, instructions, tags }`
-- `POST /api/skills/import-url` — import skill from SkillsMP URL `{ url }`. Resolves SkillsMP slug → GitHub repo/path → raw SKILL.md → parses YAML frontmatter + markdown body. Validates hostname is skillsmp.com, caps GitHub API attempts at 30.
+- `POST /api/skills/import-url` — import skill from URL `{ url }`. Accepts three URL types: (1) SkillsMP URLs — resolves slug → GitHub repo/path combinator (capped at 30 attempts), (2) GitHub URLs — parses `user/repo/path` directly, strips `blob/branch` segments, tries SKILL.md at path, (3) raw.githubusercontent.com URLs — fetches directly. All parse YAML frontmatter + markdown body from SKILL.md.
 - `PUT /api/skills/:id` — update skill
 - `DELETE /api/skills/:id` — delete skill
 
