@@ -40,13 +40,13 @@ const DEFAULT_SETTINGS: SettingValues = {
 type TabId = "secrets" | "models" | "auto_approve" | "env_vars" | "limits" | "tech_stack" | "skills";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: "secrets", label: "Secrets Vault", icon: "🔐" },
-  { id: "models", label: "Model Config", icon: "🧠" },
-  { id: "auto_approve", label: "Auto-Approve", icon: "✅" },
-  { id: "env_vars", label: "Default Env Vars", icon: "📋" },
-  { id: "limits", label: "Workspace Limits", icon: "📐" },
-  { id: "tech_stack", label: "Tech Stack", icon: "📦" },
-  { id: "skills", label: "Skills Library", icon: "📚" },
+  { id: "secrets", label: "Secrets Vault", icon: "⛓" },
+  { id: "models", label: "Model Config", icon: "◆" },
+  { id: "auto_approve", label: "Auto-Approve", icon: "⊘" },
+  { id: "env_vars", label: "Default Env Vars", icon: "▧" },
+  { id: "limits", label: "Workspace Limits", icon: "⊞" },
+  { id: "tech_stack", label: "Tech Stack", icon: "⚒" },
+  { id: "skills", label: "Skills Library", icon: "◈" },
 ];
 
 export default function Settings() {

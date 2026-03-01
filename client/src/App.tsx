@@ -12,7 +12,7 @@ type NavId = "new-project" | "projects" | "stress-test" | "settings";
 const navItems: { id: NavId; label: string; icon: string }[] = [
   { id: "new-project", label: "New Project", icon: "+" },
   { id: "projects", label: "Projects", icon: "▶" },
-  { id: "stress-test", label: "Stress Test", icon: "⚡" },
+  { id: "stress-test", label: "Stress Test", icon: "⚔" },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
