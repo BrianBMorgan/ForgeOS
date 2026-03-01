@@ -196,6 +196,11 @@ const BANNED_PATTERNS = [
   { regex: /\b(a\s+valid|a\s+supported|a\s+correct)\s+(model|endpoint|version|package)\b/i, rule: "Banned vagueness: 'a valid model' — name the exact model" },
   { regex: /\band\s+(also|additionally)\b/i, rule: "Banned bundling: 'and also/additionally' — ONE fix only" },
   { regex: /\b(instead\s+of\s+hanging|instead\s+of\s+crashing|instead\s+of\s+failing)\b/i, rule: "Banned padding: 'instead of hanging/crashing...' — stop after stating the code change" },
+  { regex: /\bto\s+properly\s+/i, rule: "Banned padding: 'to properly...' — stop after stating the code change" },
+  { regex: /\band\s+allow\s+(the|it)\b/i, rule: "Banned padding: 'and allow the/it...' — stop after stating the code change" },
+  { regex: /\bto\s+allow\s+(the|it)\b/i, rule: "Banned padding: 'to allow the/it...' — stop after stating the code change" },
+  { regex: /\band\s+(respond|complete|finish|return)\b/i, rule: "Banned padding: 'and respond/complete...' — stop after stating the code change" },
+  { regex: /\bcausing\s+(the\s+)?(request|endpoint|server|app|application)\s+to\s+(hang|crash|fail)\b/i, rule: "Banned diagnosis padding: 'causing the request to hang' — the user already told you it hangs, state the code fix" },
 ];
 
 function detectBannedPatterns(message, buildSuggestion) {
