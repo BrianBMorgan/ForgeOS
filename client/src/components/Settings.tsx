@@ -53,6 +53,7 @@ export default function Settings() {
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
+  const [selectedSkillId, setSelectedSkillId] = useState<number | null>(null);
   const [allowedText, setAllowedText] = useState("");
   const [bannedText, setBannedText] = useState("");
   const [revealedSecrets, setRevealedSecrets] = useState<Record<string, string>>({});
