@@ -466,6 +466,19 @@ body {
   white-space: nowrap;
 }
 
+.stage-label-short {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .stage-label-full {
+    display: none;
+  }
+  .stage-label-short {
+    display: inline;
+  }
+}
+
 .stage-connector {
   position: absolute;
   left: calc(50% + 6px);

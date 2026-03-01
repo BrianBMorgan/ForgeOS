@@ -6,6 +6,7 @@ type StageStatus = "pending" | "running" | "passed" | "blocked" | "failed";
 interface Stage {
   id: string;
   label: string;
+  short: string;
   status: StageStatus;
 }
 
@@ -24,18 +25,18 @@ interface PromptColumnProps {
   chatLoading: boolean;
 }
 
-const STAGE_MAP: { id: string; keys: string[]; label: string }[] = [
-  { id: "planner", keys: ["planner", "revise_p2", "revise_p3"], label: "Planner" },
-  { id: "reviewer", keys: ["reviewer_p1", "reviewer_p2", "reviewer_p3"], label: "Reviewer" },
-  { id: "policy", keys: ["policy_gate"], label: "Policy" },
-  { id: "human", keys: ["human_approval"], label: "Human" },
-  { id: "executor", keys: ["executor"], label: "Executor" },
-  { id: "auditor", keys: ["auditor"], label: "Auditor" },
+const STAGE_MAP: { id: string; keys: string[]; label: string; short: string }[] = [
+  { id: "planner", keys: ["planner", "revise_p2", "revise_p3"], label: "Planner", short: "Plan" },
+  { id: "reviewer", keys: ["reviewer_p1", "reviewer_p2", "reviewer_p3"], label: "Reviewer", short: "Rev" },
+  { id: "policy", keys: ["policy_gate"], label: "Policy", short: "Pol" },
+  { id: "human", keys: ["human_approval"], label: "Human", short: "OK" },
+  { id: "executor", keys: ["executor"], label: "Executor", short: "Exec" },
+  { id: "auditor", keys: ["auditor"], label: "Auditor", short: "Aud" },
 ];
 
 function deriveStages(runData: RunData | null): Stage[] {
   if (!runData) {
-    return STAGE_MAP.map((s) => ({ id: s.id, label: s.label, status: "pending" as StageStatus }));
+    return STAGE_MAP.map((s) => ({ id: s.id, label: s.label, short: s.short, status: "pending" as StageStatus }));
   }
 
   return STAGE_MAP.map((stageGroup) => {
@@ -54,7 +55,7 @@ function deriveStages(runData: RunData | null): Stage[] {
       status = "passed";
     }
 
-    return { id: stageGroup.id, label: stageGroup.label, status };
+    return { id: stageGroup.id, label: stageGroup.label, short: stageGroup.short, status };
   });
 }
 
@@ -641,7 +642,7 @@ export default function PromptColumn({
             {stages.map((stage, i) => (
               <div key={stage.id} className="pipeline-stage">
                 <div className={`stage-dot ${stage.status}`} />
-                <span className="stage-label">{stage.label}</span>
+                <span className="stage-label"><span className="stage-label-full">{stage.label}</span><span className="stage-label-short">{stage.short}</span></span>
                 {i < stages.length - 1 && <div className="stage-connector" />}
               </div>
             ))}
@@ -656,7 +657,7 @@ export default function PromptColumn({
             {stages.map((stage, i) => (
               <div key={stage.id} className="pipeline-stage">
                 <div className={`stage-dot ${stage.status}`} />
-                <span className="stage-label">{stage.label}</span>
+                <span className="stage-label"><span className="stage-label-full">{stage.label}</span><span className="stage-label-short">{stage.short}</span></span>
                 {i < stages.length - 1 && <div className="stage-connector" />}
               </div>
             ))}
