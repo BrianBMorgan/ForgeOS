@@ -34,7 +34,7 @@ async function callStructured(model, systemPrompt, userMessages, schema, formatN
         format: {
           type: "json_schema",
           name: formatName,
-          schema: zodToJsonSchema(schema),
+          schema: zodToJsonSchema(schema, formatName),
           strict: true,
         },
       },
@@ -168,11 +168,10 @@ async function callChat(model, systemPrompt, messages, tools, temperature) {
   };
 }
 
-function zodToJsonSchema(zodSchema) {
-  const { zodToJsonSchema: convert } = require("zod-to-json-schema");
-  const full = convert(zodSchema);
-  delete full.$schema;
-  return full;
+function zodToJsonSchema(zodSchema, name) {
+  const { zodResponseFormat } = require("openai/helpers/zod");
+  const fmt = zodResponseFormat(zodSchema, name || "output");
+  return fmt.json_schema.schema;
 }
 
 module.exports = {
