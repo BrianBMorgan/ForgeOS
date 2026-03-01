@@ -312,13 +312,19 @@ async function chat(projectId, userMessage) {
     ...conversationMessages,
   ];
 
+  let chatModel = "gpt-4.1-mini";
+  try {
+    const config = await settingsManager.getSetting("model_config");
+    if (config && config.chatModel) chatModel = config.chatModel;
+  } catch {}
+
   const MAX_TOOL_ROUNDS = 5;
   let toolRound = 0;
   let usedWebSearch = false;
 
   while (toolRound < MAX_TOOL_ROUNDS) {
     const requestParams = {
-      model: "gpt-4.1-mini",
+      model: chatModel,
       temperature: 0.3,
       messages,
       tools: SEARCH_TOOLS,

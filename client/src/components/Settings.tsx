@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 
 interface SettingValues {
-  model_config: { plannerModel: string; reviewerModel: string; plannerTemp: number; reviewerTemp: number };
+  model_config: { plannerModel: string; reviewerModel: string; chatModel: string; plannerTemp: number; reviewerTemp: number };
   auto_approve: { enabled: boolean; maxRiskLevel: string };
   default_env_vars: { vars: { key: string; value: string }[] };
   workspace_limits: { portRangeStart: number; portRangeEnd: number; maxConcurrentApps: number; logRetention: number };
@@ -19,6 +19,9 @@ interface Skill {
 }
 
 const MODEL_OPTIONS = [
+  "gpt-5.2-pro",
+  "gpt-5.2",
+  "gpt-5.2-mini",
   "gpt-4.1",
   "gpt-4.1-mini",
   "gpt-4.1-nano",
@@ -30,7 +33,7 @@ const MODEL_OPTIONS = [
 ];
 
 const DEFAULT_SETTINGS: SettingValues = {
-  model_config: { plannerModel: "gpt-4.1", reviewerModel: "gpt-4.1-mini", plannerTemp: 0.7, reviewerTemp: 0.2 },
+  model_config: { plannerModel: "gpt-4.1", reviewerModel: "gpt-4.1-mini", chatModel: "gpt-4.1-mini", plannerTemp: 0.7, reviewerTemp: 0.2 },
   auto_approve: { enabled: false, maxRiskLevel: "low" },
   default_env_vars: { vars: [] },
   workspace_limits: { portRangeStart: 4000, portRangeEnd: 4099, maxConcurrentApps: 5, logRetention: 2000 },
@@ -300,9 +303,17 @@ export default function Settings() {
           }} className="stg-select">{MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
         </div>
         <div className="stg-field">
-          <label>Reviewer Model</label>
+          <label>Reviewer / Auditor Model</label>
           <select value={settings.model_config.reviewerModel} onChange={(e) => {
             const updated = { ...settings.model_config, reviewerModel: e.target.value };
+            setSettings({ ...settings, model_config: updated });
+            saveSetting("model_config", updated);
+          }} className="stg-select">{MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+        </div>
+        <div className="stg-field">
+          <label>Chat Agent Model</label>
+          <select value={settings.model_config.chatModel || "gpt-4.1-mini"} onChange={(e) => {
+            const updated = { ...settings.model_config, chatModel: e.target.value };
             setSettings({ ...settings, model_config: updated });
             saveSetting("model_config", updated);
           }} className="stg-select">{MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
