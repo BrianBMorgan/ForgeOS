@@ -196,6 +196,22 @@ async function updateProjectStatus(projectId, status) {
   }
 }
 
+async function renameProject(projectId, newName) {
+  await loadFromDb();
+  const project = projects.get(projectId);
+  if (!project) return null;
+  project.name = newName;
+  project.updatedAt = Date.now();
+  if (sql) {
+    try {
+      await sql`UPDATE projects SET name = ${newName}, updated_at = ${project.updatedAt} WHERE id = ${projectId}`;
+    } catch (err) {
+      console.error("Failed to persist rename:", err.message);
+    }
+  }
+  return project;
+}
+
 async function getProject(projectId) {
   await loadFromDb();
   return projects.get(projectId) || null;
@@ -275,6 +291,7 @@ module.exports = {
   addIteration,
   captureCurrentFiles,
   updateProjectStatus,
+  renameProject,
   getProject,
   getAllProjects,
   stopProject,

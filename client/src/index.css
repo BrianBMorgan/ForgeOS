@@ -2241,6 +2241,46 @@ body {
   font-weight: 600;
   font-size: 0.9rem;
   color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-card-edit-btn {
+  background: none;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.project-card:hover .project-card-edit-btn {
+  opacity: 1;
+}
+
+.project-card-edit-btn:hover {
+  color: #94a3b8;
+}
+
+.project-card-name-input {
+  background: #0f172a;
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  outline: none;
+  width: 100%;
+  font-family: inherit;
 }
 
 .project-card-status {

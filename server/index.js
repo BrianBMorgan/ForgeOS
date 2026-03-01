@@ -148,6 +148,16 @@ app.get("/api/projects", async (_req, res) => {
   res.json(await projectManager.getAllProjects());
 });
 
+app.patch("/api/projects/:id", async (req, res) => {
+  const { name } = req.body;
+  if (!name || typeof name !== "string" || !name.trim()) {
+    return res.status(400).json({ error: "Name is required" });
+  }
+  const project = await projectManager.renameProject(req.params.id, name.trim());
+  if (!project) return res.status(404).json({ error: "Project not found" });
+  res.json({ success: true, name: project.name });
+});
+
 app.get("/api/projects/:id", async (req, res) => {
   const project = await projectManager.getProject(req.params.id);
   if (!project) {

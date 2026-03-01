@@ -43,9 +43,24 @@ function timeAgo(timestamp: number): string {
   return `${days}d ago`;
 }
 
+async function renameProject(projectId: string, newName: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -65,6 +80,34 @@ export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
     const interval = setInterval(fetchProjects, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const startEditing = (e: React.MouseEvent, project: ProjectSummary) => {
+    e.stopPropagation();
+    setEditingId(project.id);
+    setEditValue(project.name);
+  };
+
+  const commitRename = async (projectId: string) => {
+    const trimmed = editValue.trim();
+    if (!trimmed) {
+      setEditingId(null);
+      return;
+    }
+    const success = await renameProject(projectId, trimmed);
+    if (success) {
+      setProjects(prev => prev.map(p => p.id === projectId ? { ...p, name: trimmed } : p));
+    }
+    setEditingId(null);
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent, projectId: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitRename(projectId);
+    } else if (e.key === "Escape") {
+      setEditingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -103,10 +146,25 @@ export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
           <div
             key={project.id}
             className="project-card"
-            onClick={() => onSelectProject(project.id)}
+            onClick={() => editingId !== project.id && onSelectProject(project.id)}
           >
             <div className="project-card-header">
-              <span className="project-card-name">{project.name}</span>
+              {editingId === project.id ? (
+                <input
+                  className="project-card-name-input"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => handleEditKeyDown(e, project.id)}
+                  onBlur={() => commitRename(project.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                />
+              ) : (
+                <span className="project-card-name" title="Double-click to rename" onDoubleClick={(e) => startEditing(e, project)}>
+                  {project.name}
+                  <button className="project-card-edit-btn" onClick={(e) => startEditing(e, project)} title="Rename project">&#9998;</button>
+                </span>
+              )}
               <span
                 className="project-card-status"
                 style={{ color: statusColors[project.status] || "#64748b" }}
