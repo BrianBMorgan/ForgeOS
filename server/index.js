@@ -902,13 +902,17 @@ app.use("/preview/:runId", async (req, res) => {
   req.pipe(proxyReq);
 });
 
-if (process.env.NODE_ENV === "production") {
-  const clientDist = path.join(__dirname, "..", "client", "dist");
-  app.use(express.static(clientDist));
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(clientDist, "index.html"));
-  });
-}
+const clientDist = path.join(__dirname, "..", "client", "dist");
+try {
+  const fs = require("fs");
+  if (fs.existsSync(path.join(clientDist, "index.html"))) {
+    app.use(express.static(clientDist));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(clientDist, "index.html"));
+    });
+    console.log("[static] Serving client from", clientDist);
+  }
+} catch {}
 
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`ForgeOS server running on port ${PORT}`);
