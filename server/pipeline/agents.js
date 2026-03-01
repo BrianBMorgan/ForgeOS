@@ -189,6 +189,9 @@ BANNED PACKAGES (never use these — any of these in your output will cause a bu
 - esbuild, webpack, vite, parcel, rollup, babel (no build steps allowed)
 - react, react-dom, vue, svelte, angular (use plain HTML/CSS/JS)
 
+ACCOUNTABILITY WARNING:
+Your implementationSummary will be verified against the actual code diff. If you claim a change was made but the code does not reflect it, the Auditor will reject your output and you will be asked to redo it. Be accurate in your summary — describe only changes you actually made.
+
 Produce:
 1. implementationSummary — a concise description of what was built.
 2. files — an array of ALL files with path, purpose, and complete content (source code). The FIRST file MUST be package.json. Double-check: does every require("some-package") in your code have a matching entry in package.json dependencies? If not, add it now.
@@ -306,6 +309,19 @@ AUDIT CHECKLIST — check every item:
     - The Executor's implementationSummary is self-reported and may be inaccurate. Trust the CODE, not the summary.
     - Flag as a CRITICAL issue if the plan was not executed correctly — the Executor must redo it.
 
+13. DIFF VERIFICATION (iterations only)
+    - For iteration builds, you receive a DIFF SUMMARY showing exactly what changed between the previous iteration's files and the new files.
+    - The diff shows: files added, files removed, files modified (with line-level changes), and files unchanged.
+    - Use the diff to verify the Executor actually made the planned changes. If the plan targeted a specific file but the diff shows that file is UNCHANGED, flag as CRITICAL — the Executor claimed to fix it but didn't.
+    - If the diff shows zero meaningful changes across all files but the Executor claims changes were made, flag as CRITICAL with severity "executor-lied".
+    - Cross-reference: plan says "change X to Y in file.js" → diff must show file.js was modified with relevant lines changed.
+
+14. REGRESSION GUARD (iterations only)
+    - For iteration builds, you receive REGRESSION WARNINGS if routes or files from the previous iteration are missing in the new output.
+    - Unless the plan explicitly called for removing a route or file, treat missing routes/files as CRITICAL regressions.
+    - Route removals are especially dangerous — they break the running app's API contract.
+    - Missing files mean the Executor accidentally dropped them from the output (common failure mode).
+
 RESPONSE:
 - approved = true ONLY if zero critical or high severity issues are found.
 - approved = false if ANY critical or high issue exists.
@@ -330,6 +346,9 @@ Your job:
 - If the Auditor says a banned package is used, replace it with the correct alternative.
 - If the Auditor says port is hardcoded, add process.env.PORT fallback.
 
+ACCOUNTABILITY WARNING:
+The Auditor caught issues with your previous output. This is your correction pass. Every fix the Auditor requested MUST be applied. Your output will be diff-verified again — the Auditor receives a line-by-line diff showing exactly what changed. If you claim fixes were applied but the code doesn't reflect them, you will be rejected again.
+
 Return the complete corrected output as valid JSON matching the executor response schema.`;
 
 const PLANNER_ITERATE_INSTRUCTIONS = `You are Forge Planner v1 (Iteration Mode).
@@ -341,6 +360,12 @@ You will receive:
 2. A complete listing of all current source files in the project.
 
 Your job is to produce a structured build plan for the INCREMENTAL changes needed. This is NOT a full rebuild — focus on what needs to change.
+
+ITERATION AWARENESS:
+- You may receive an ITERATION HISTORY block showing all previous build attempts and their outcomes (success/failure, what was tried, what errors occurred, workspace status).
+- If the same issue has been attempted before and failed, do NOT repeat the same approach. Identify why the previous fix failed and try a fundamentally different strategy.
+- If you see 3+ iterations that all failed with the same error, the approach itself is wrong — step back and rethink the architecture, not just the parameter.
+- Use the history to avoid known-dead-ends. The user's patience decreases with each failed iteration.
 
 CRITICAL — PRECISION OVER VAGUENESS:
 - The user's request may come from the Chat Agent's buildSuggestion. It will often name the EXACT file, function, and fix needed. Your plan must reflect that precision.
@@ -411,6 +436,9 @@ Produce the same output schema as always:
 2. files — ALL files (modified + unchanged), with package.json FIRST.
 3. environmentVariables, databaseSchema, installCommand, startCommand, port, buildTasks.
 
+ACCOUNTABILITY WARNING:
+Your implementationSummary will be verified against the actual code diff. The Auditor receives a line-by-line diff showing exactly what you changed vs the previous iteration. If you claim a change was made but the diff shows the relevant file is unchanged, the Auditor will reject your output and you will be asked to redo it. Be accurate in your summary — describe only changes you actually made.
+
 FINAL CHECK: Does your output include ALL existing files? Did you accidentally drop any files from the current codebase? If so, add them back now.
 
 Return only valid JSON matching the response schema.`;
@@ -444,6 +472,13 @@ PLATFORM CAPABILITIES YOU SHOULD KNOW ABOUT:
 - **Global Secrets Vault**: The platform has a global secrets vault (in Settings). Secrets stored there are automatically injected as environment variables into all project runtimes. If the user needs an API key for an integration, tell them to add it to the Global Secrets Vault in Settings, then reference it via process.env.KEY_NAME in code.
 - **Skills Library**: The platform has a Skills Library (in Settings) where curated integration instructions are stored. These are automatically injected into the Planner and Executor prompts during builds. If the user wants the agents to follow specific patterns for a technology, they should add a Skill.
 - **Default Environment Variables**: Global default env vars can be set in Settings and are injected into all project runtimes.
+
+ITERATION AWARENESS:
+- You may receive an ITERATION HISTORY block showing all previous build attempts and their outcomes for this project.
+- When the user says "this still isn't working" or "it's broken again", check the iteration history FIRST to see what was already tried.
+- If previous iterations attempted the same fix and it failed, your buildSuggestion MUST try a DIFFERENT approach. Do not repeat a failed fix.
+- If you see 3+ iterations that all failed with the same workspace status (e.g., start-failed), the fundamental approach is wrong — suggest a different architecture, not another tweak.
+- You also receive health check results showing whether the app actually responds to HTTP requests after startup. Use this to distinguish between "app crashes on start" vs "app starts but returns errors".
 
 IMPORTANT RULES — YOU ARE AN AGENTIC AI, NOT A CONSULTANT:
 

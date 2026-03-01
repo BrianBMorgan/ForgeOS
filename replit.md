@@ -25,6 +25,12 @@ None specified.
   - **Allowed Tech Stack**: Lists of allowed and banned packages for policy enforcement.
   - **Skills Library**: Reusable knowledge entries (name, description, instructions, tags) injected into Planner and Executor system prompts.
   - **Env Merge Order**: global default env vars → global secrets → project env vars (project wins).
+- **Pipeline Accountability System**: Added in the pipeline to give agents situational awareness and catch failures:
+  - **Iteration History Injection**: When iterating (iteration > 1), the Planner and Chat Agent receive a full history of all previous build attempts — prompt, status, workspace result, auditor issues, health check results. Agents are instructed to try different approaches if previous fixes failed.
+  - **Diff Verification Gate**: After the Executor produces output for iterations, a line-level diff is computed against previous files and injected into the Auditor's context. The Auditor can verify the Executor actually made the changes it claims.
+  - **Regression Guard**: Missing routes and files from the previous iteration are detected and reported to the Auditor as regression warnings.
+  - **Workspace Health Check**: After buildAndRun completes, the system waits 3 seconds then performs an HTTP GET to the app's root route. Results (HTTP status, response size, startup logs) are stored on `run.healthCheck` and persisted in the run snapshot.
+  - **Executor Accountability**: All Executor variants warn that implementationSummary is diff-verified, reducing self-reported inaccuracies.
 - **Persistence**: Projects, iterations, run snapshots, chat messages, project env vars, settings, secrets, and skills are persisted in Neon Postgres via `@neondatabase/serverless`. Run data survives restarts, and the system can restore and re-launch workspace applications from existing files on disk upon server startup.
 
 **Pipeline Stages**:
@@ -34,7 +40,7 @@ None specified.
 4.  **Policy Gate**: Determines if human approval is required. Auto-approve setting can override.
 5.  **Human Approval**: A pause point for manual approval or rejection (skipped when auto-approve fires). Displays a full-screen ApprovalModal popup summarizing the plan in human language — project name, template, risk level, reviewer summary, policy reason, API endpoints, UI pages, DB tables, packages, env vars, risks, security concerns, architectural concerns, required changes, background workers, data flows, and acceptance criteria.
 6.  **Executor**: Produces complete runnable code, outputting all files (modified and unchanged) for iterations. Skills context appended to instructions.
-7.  **Auditor**: A pre-deployment quality gate that performs an 11-point checklist and can trigger fix loops.
+7.  **Auditor**: A pre-deployment quality gate that performs a 14-point checklist (including diff verification, regression guard, and plan execution verification) and can trigger fix loops.
 
 **Executor Output**: Includes an array of files with `path`, `purpose`, and `content`, along with `installCommand`, `startCommand`, `port`, `implementationSummary`, `environmentVariables`, `databaseSchema`, and `buildTasks`.
 

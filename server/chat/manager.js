@@ -172,6 +172,38 @@ async function chat(projectId, userMessage) {
     } catch {}
   }
 
+  let iterHistoryContext = "";
+  if (sql) {
+    try {
+      const rows = await sql`
+        SELECT i.iteration_number, i.prompt, rs.data
+        FROM iterations i
+        LEFT JOIN run_snapshots rs ON rs.id = i.run_id
+        WHERE i.project_id = ${projectId}
+        ORDER BY i.iteration_number ASC
+      `;
+      if (rows.length > 0) {
+        const lines = rows.map(row => {
+          const num = row.iteration_number;
+          const prompt = (row.prompt || "").slice(0, 100);
+          const data = row.data;
+          if (!data) return `- Iter ${num}: "${prompt}" → no data`;
+          const status = data.status || "unknown";
+          const wsStatus = data.workspace?.status || "unknown";
+          const wsError = data.workspace?.error ? ` error: ${data.workspace.error.slice(0, 150)}` : "";
+          const hc = data.healthCheck;
+          let healthNote = "";
+          if (hc) {
+            healthNote = hc.healthy ? ` health:OK` : ` health:FAILED(${hc.httpStatus || "no-response"})`;
+            if (hc.startupLogs) healthNote += ` logs: ${hc.startupLogs.slice(0, 150)}`;
+          }
+          return `- Iter ${num}: "${prompt}" → ${status}, ws:${wsStatus}${wsError}${healthNote}`;
+        });
+        iterHistoryContext = `\n\nITERATION HISTORY (${rows.length} builds for this project):\n${lines.join("\n")}\n`;
+      }
+    } catch {}
+  }
+
   let skillContext = "";
   const slashRefs = userMessage.match(/\/([a-z0-9-]+)/gi);
   if (slashRefs && slashRefs.length > 0) {
@@ -193,7 +225,7 @@ async function chat(projectId, userMessage) {
     content: m.content,
   }));
 
-  const systemMessage = CHAT_AGENT_INSTRUCTIONS + codeContext + logsContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
+  const systemMessage = CHAT_AGENT_INSTRUCTIONS + iterHistoryContext + codeContext + logsContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
 
   const messages = [
     { role: "system", content: systemMessage },

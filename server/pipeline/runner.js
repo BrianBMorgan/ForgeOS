@@ -150,6 +150,203 @@ function updateStage(run, stageName, status, output = null) {
   }
 }
 
+async function buildIterationHistory(projectId) {
+  if (!sql) return "";
+  try {
+    const rows = await sql`
+      SELECT i.iteration_number, i.prompt, i.run_id, rs.data
+      FROM iterations i
+      LEFT JOIN run_snapshots rs ON rs.id = i.run_id
+      WHERE i.project_id = ${projectId}
+      ORDER BY i.iteration_number ASC
+    `;
+    if (rows.length === 0) return "";
+
+    const lines = [];
+    for (const row of rows) {
+      const num = row.iteration_number;
+      const prompt = (row.prompt || "").slice(0, 120);
+      const data = row.data;
+      if (!data) {
+        lines.push(`- Iter ${num}: "${prompt}" → no snapshot data`);
+        continue;
+      }
+
+      const status = data.status || "unknown";
+      const wsStatus = data.workspace?.status || "unknown";
+      const wsError = data.workspace?.error ? ` error: ${data.workspace.error.slice(0, 200)}` : "";
+
+      let failedStage = null;
+      if (data.stages) {
+        for (const [name, stage] of Object.entries(data.stages)) {
+          if (stage.status === "failed") {
+            failedStage = name;
+            break;
+          }
+        }
+      }
+
+      const auditorIssues = data.stages?.auditor?.output?.issues;
+      let auditorSummary = "";
+      if (auditorIssues && auditorIssues.length > 0) {
+        auditorSummary = ` auditor-issues: ${auditorIssues.map(i => i.description || i.rule).join("; ").slice(0, 300)}`;
+      }
+
+      const implSummary = data.stages?.executor?.output?.implementationSummary;
+      let implNote = "";
+      if (implSummary) {
+        implNote = ` impl: "${implSummary.slice(0, 150)}"`;
+      }
+
+      const healthCheck = data.healthCheck;
+      let healthNote = "";
+      if (healthCheck) {
+        healthNote = healthCheck.healthy
+          ? ` health: OK (HTTP ${healthCheck.httpStatus})`
+          : ` health: FAILED (HTTP ${healthCheck.httpStatus || "no-response"})`;
+        if (healthCheck.startupLogs) {
+          healthNote += ` startup-logs: ${healthCheck.startupLogs.slice(0, 200)}`;
+        }
+      }
+
+      let line = `- Iter ${num}: "${prompt}" → ${status}, workspace: ${wsStatus}${wsError}`;
+      if (failedStage) line += ` failed-at: ${failedStage}`;
+      line += auditorSummary + implNote + healthNote;
+      lines.push(line);
+    }
+
+    return `\n\nITERATION HISTORY (${rows.length} previous attempts):\n${lines.join("\n")}\n`;
+  } catch (err) {
+    console.error("Failed to build iteration history:", err.message);
+    return "";
+  }
+}
+
+function computeFileDiff(oldFiles, newFiles) {
+  const oldMap = new Map();
+  for (const f of oldFiles) {
+    oldMap.set(f.path, f.content);
+  }
+  const newMap = new Map();
+  for (const f of newFiles) {
+    newMap.set(f.path, f.content);
+  }
+
+  const added = [];
+  const removed = [];
+  const modified = [];
+  const unchanged = [];
+
+  for (const [path, content] of newMap) {
+    if (!oldMap.has(path)) {
+      added.push(path);
+    } else if (oldMap.get(path) !== content) {
+      const oldLines = oldMap.get(path).split("\n");
+      const newLines = content.split("\n");
+      const changes = [];
+      const maxLines = Math.max(oldLines.length, newLines.length);
+      let addedCount = 0, removedCount = 0, changedCount = 0;
+
+      for (let i = 0; i < maxLines; i++) {
+        const oldLine = i < oldLines.length ? oldLines[i] : undefined;
+        const newLine = i < newLines.length ? newLines[i] : undefined;
+        if (oldLine === undefined) {
+          addedCount++;
+          if (changes.length < 10) changes.push(`+L${i + 1}: ${newLine.slice(0, 120)}`);
+        } else if (newLine === undefined) {
+          removedCount++;
+          if (changes.length < 10) changes.push(`-L${i + 1}: ${oldLine.slice(0, 120)}`);
+        } else if (oldLine !== newLine) {
+          changedCount++;
+          if (changes.length < 10) {
+            changes.push(`~L${i + 1}: "${oldLine.slice(0, 60)}" → "${newLine.slice(0, 60)}"`);
+          }
+        }
+      }
+
+      modified.push({ path, addedCount, removedCount, changedCount, changes });
+    } else {
+      unchanged.push(path);
+    }
+  }
+
+  for (const path of oldMap.keys()) {
+    if (!newMap.has(path)) {
+      removed.push(path);
+    }
+  }
+
+  return { added, removed, modified, unchanged };
+}
+
+function formatDiffSummary(diff) {
+  const lines = ["DIFF SUMMARY (previous iteration → this iteration):"];
+  if (diff.added.length > 0) lines.push(`Files ADDED: ${diff.added.join(", ")}`);
+  if (diff.removed.length > 0) lines.push(`Files REMOVED: ${diff.removed.join(", ")}`);
+  if (diff.unchanged.length > 0) lines.push(`Files UNCHANGED: ${diff.unchanged.join(", ")}`);
+  for (const m of diff.modified) {
+    lines.push(`File MODIFIED: ${m.path} (+${m.addedCount} -${m.removedCount} ~${m.changedCount} lines)`);
+    for (const c of m.changes) {
+      lines.push(`  ${c}`);
+    }
+  }
+  if (diff.added.length === 0 && diff.removed.length === 0 && diff.modified.length === 0) {
+    lines.push("WARNING: ZERO changes detected. The Executor output is identical to the previous iteration.");
+  }
+  return lines.join("\n");
+}
+
+function detectRegressions(oldFiles, newFiles, planDescription) {
+  const warnings = [];
+  const oldMap = new Map();
+  for (const f of oldFiles) oldMap.set(f.path, f.content);
+  const newMap = new Map();
+  for (const f of newFiles) newMap.set(f.path, f.content);
+
+  for (const path of oldMap.keys()) {
+    if (!newMap.has(path)) {
+      warnings.push(`REGRESSION: File "${path}" existed in previous iteration but is MISSING in new output.`);
+    }
+  }
+
+  const routePattern = /app\.(get|post|put|delete|patch|use)\s*\(\s*["'`]([^"'`]+)["'`]/g;
+  const oldServerFiles = oldFiles.filter(f => f.path.endsWith(".js") && (f.path.includes("server") || f.path.includes("index") || f.path.includes("app")));
+  const newServerFiles = newFiles.filter(f => f.path.endsWith(".js") && (f.path.includes("server") || f.path.includes("index") || f.path.includes("app")));
+
+  const oldRoutes = new Set();
+  for (const f of oldServerFiles) {
+    let match;
+    const re = new RegExp(routePattern.source, routePattern.flags);
+    while ((match = re.exec(f.content)) !== null) {
+      oldRoutes.add(`${match[1].toUpperCase()} ${match[2]}`);
+    }
+  }
+
+  const newRoutes = new Set();
+  for (const f of newServerFiles) {
+    let match;
+    const re = new RegExp(routePattern.source, routePattern.flags);
+    while ((match = re.exec(f.content)) !== null) {
+      newRoutes.add(`${match[1].toUpperCase()} ${match[2]}`);
+    }
+  }
+
+  for (const route of oldRoutes) {
+    if (!newRoutes.has(route)) {
+      const planLower = (planDescription || "").toLowerCase();
+      const routePath = route.split(" ")[1] || "";
+      const planMentionsRemoval = planLower.includes("remove") && planLower.includes(routePath.toLowerCase());
+      const planMentionsDelete = planLower.includes("delete") && planLower.includes(routePath.toLowerCase());
+      const planMentionsReplace = planLower.includes("replace") && planLower.includes(routePath.toLowerCase());
+      if (!planMentionsRemoval && !planMentionsDelete && !planMentionsReplace) {
+        warnings.push(`REGRESSION: Route ${route} existed in previous iteration but is MISSING in new output.`);
+      }
+    }
+  }
+
+  return warnings;
+}
+
 async function executePipeline(runId) {
   const run = runs.get(runId);
   if (!run) return;
@@ -162,11 +359,17 @@ async function executePipeline(runId) {
   let userMessageContent = run.prompt;
   if (isIteration) {
     const existingFiles = run.existingFiles || [];
+
+    let iterationHistory = "";
+    if (run.projectId) {
+      iterationHistory = await buildIterationHistory(run.projectId);
+    }
+
     if (existingFiles.length > 0) {
       const fileList = existingFiles.map((f) => `--- ${f.path} ---\n${f.content}`).join("\n\n");
-      userMessageContent = `FOLLOW-UP REQUEST: ${run.prompt}\n\nCURRENT PROJECT FILES (iteration ${run.iterationNumber}):\n\n${fileList}`;
+      userMessageContent = `FOLLOW-UP REQUEST: ${run.prompt}${iterationHistory}\n\nCURRENT PROJECT FILES (iteration ${run.iterationNumber}):\n\n${fileList}`;
     } else {
-      userMessageContent = `FOLLOW-UP REQUEST: ${run.prompt}\n\nNote: This is iteration ${run.iterationNumber} but no existing files were captured. Treat this as a fresh build incorporating the original intent plus this new request.`;
+      userMessageContent = `FOLLOW-UP REQUEST: ${run.prompt}${iterationHistory}\n\nNote: This is iteration ${run.iterationNumber} but no existing files were captured. Treat this as a fresh build incorporating the original intent plus this new request.`;
     }
   }
   const userMessage = { role: "user", content: userMessageContent };
@@ -346,10 +549,23 @@ async function executeAfterApproval(run) {
     updateStage(run, "executor", "passed", executorOutput);
 
     updateStage(run, "auditor", "running");
+
+    let diffContext = "";
+    let regressionContext = "";
+    if (isIteration && existingFiles.length > 0 && executorOutput.files) {
+      const diff = computeFileDiff(existingFiles, executorOutput.files);
+      diffContext = "\n\n" + formatDiffSummary(diff);
+
+      const regressions = detectRegressions(existingFiles, executorOutput.files, revisedPlan.description || "");
+      if (regressions.length > 0) {
+        regressionContext = "\n\nREGRESSION WARNINGS:\n" + regressions.join("\n");
+      }
+    }
+
     const auditorMessages = [
       {
         role: "user",
-        content: `Audit the following Executor output for deployment readiness. Check every item on your checklist.\n\nORIGINAL USER REQUEST:\n${run.prompt}\n\nAPPROVED PLAN:\n${JSON.stringify(revisedPlan, null, 2)}\n\nExecutor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
+        content: `Audit the following Executor output for deployment readiness. Check every item on your checklist.\n\nORIGINAL USER REQUEST:\n${run.prompt}\n\nAPPROVED PLAN:\n${JSON.stringify(revisedPlan, null, 2)}\n\nExecutor Output:\n${JSON.stringify(executorOutput, null, 2)}${diffContext}${regressionContext}`,
       },
     ];
 
@@ -394,10 +610,22 @@ async function executeAfterApproval(run) {
       updateStage(run, "executor", "passed", executorOutput);
 
       run.currentStage = "auditor";
+
+      let fixDiffContext = "";
+      let fixRegressionContext = "";
+      if (isIteration && existingFiles.length > 0 && executorOutput.files) {
+        const fixDiff = computeFileDiff(existingFiles, executorOutput.files);
+        fixDiffContext = "\n\n" + formatDiffSummary(fixDiff);
+        const fixRegressions = detectRegressions(existingFiles, executorOutput.files, revisedPlan.description || "");
+        if (fixRegressions.length > 0) {
+          fixRegressionContext = "\n\nREGRESSION WARNINGS:\n" + fixRegressions.join("\n");
+        }
+      }
+
       const reAuditMessages = [
         {
           role: "user",
-          content: `Audit the following CORRECTED Executor output for deployment readiness. The Executor was asked to fix ${currentAuditResult.issues.length} issue(s). Verify all fixes were applied.\n\nORIGINAL USER REQUEST:\n${run.prompt}\n\nAPPROVED PLAN:\n${JSON.stringify(revisedPlan, null, 2)}\n\nCorrected Executor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
+          content: `Audit the following CORRECTED Executor output for deployment readiness. The Executor was asked to fix ${currentAuditResult.issues.length} issue(s). Verify all fixes were applied.\n\nORIGINAL USER REQUEST:\n${run.prompt}\n\nAPPROVED PLAN:\n${JSON.stringify(revisedPlan, null, 2)}\n\nCorrected Executor Output:\n${JSON.stringify(executorOutput, null, 2)}${fixDiffContext}${fixRegressionContext}`,
         },
       ];
 
@@ -497,9 +725,12 @@ async function buildAndRun(run, executorOutput) {
       if (startResult.success) {
         run.workspace.status = "running";
         run.workspace.port = startResult.port;
+
+        await performHealthCheck(run, workspace);
       } else {
         run.workspace.status = "start-failed";
         run.workspace.error = startResult.error;
+        captureStartupLogs(run, workspace);
       }
     }
 
@@ -509,6 +740,77 @@ async function buildAndRun(run, executorOutput) {
     run.workspace.error = err.message;
     run.status = "completed";
   }
+}
+
+async function performHealthCheck(run, workspace) {
+  const port = run.workspace.port;
+  if (!port) return;
+
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  try {
+    const http = require("http");
+    const result = await new Promise((resolve) => {
+      const req = http.get(`http://127.0.0.1:${port}/`, { timeout: 5000 }, (res) => {
+        let body = "";
+        res.on("data", (chunk) => { body += chunk; });
+        res.on("end", () => {
+          resolve({ httpStatus: res.statusCode, responseSize: body.length, healthy: res.statusCode >= 200 && res.statusCode < 400 });
+        });
+      });
+      req.on("error", (err) => {
+        resolve({ httpStatus: null, responseSize: 0, healthy: false, error: err.message });
+      });
+      req.on("timeout", () => {
+        req.destroy();
+        resolve({ httpStatus: null, responseSize: 0, healthy: false, error: "timeout" });
+      });
+    });
+
+    let startupLogs = "";
+    try {
+      const logData = workspace.getWorkspaceLogs(run.id, { maxEntries: 30 });
+      if (logData) {
+        const appLog = (logData.app || "").trim();
+        if (appLog) startupLogs = appLog.slice(-2000);
+      }
+    } catch {}
+
+    run.healthCheck = {
+      httpStatus: result.httpStatus,
+      responseSize: result.responseSize,
+      healthy: result.healthy,
+      startupLogs: startupLogs || null,
+      checkedAt: Date.now(),
+    };
+
+    if (!result.healthy) {
+      console.log(`[health-check] FAILED for run ${run.id}: HTTP ${result.httpStatus || "no-response"} — ${result.error || ""}`);
+    } else {
+      console.log(`[health-check] OK for run ${run.id}: HTTP ${result.httpStatus}, ${result.responseSize} bytes`);
+    }
+  } catch (err) {
+    run.healthCheck = { httpStatus: null, responseSize: 0, healthy: false, startupLogs: null, error: err.message, checkedAt: Date.now() };
+    console.error("[health-check] Error:", err.message);
+  }
+}
+
+function captureStartupLogs(run, workspace) {
+  try {
+    const logData = workspace.getWorkspaceLogs(run.id, { maxEntries: 30 });
+    if (logData) {
+      const appLog = (logData.app || "").trim();
+      if (appLog) {
+        run.healthCheck = {
+          httpStatus: null,
+          responseSize: 0,
+          healthy: false,
+          startupLogs: appLog.slice(-2000),
+          checkedAt: Date.now(),
+        };
+      }
+    }
+  } catch {}
 }
 
 async function handleApproval(runId) {
