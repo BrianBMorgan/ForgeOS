@@ -148,6 +148,12 @@ app.get("/api/projects", async (_req, res) => {
   res.json(await projectManager.getAllProjects());
 });
 
+app.delete("/api/projects/:id", async (req, res) => {
+  const success = await projectManager.deleteProject(req.params.id);
+  if (!success) return res.status(404).json({ error: "Project not found" });
+  res.json({ success: true });
+});
+
 app.patch("/api/projects/:id", async (req, res) => {
   const { name } = req.body;
   if (!name || typeof name !== "string" || !name.trim()) {

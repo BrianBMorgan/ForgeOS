@@ -241,6 +241,40 @@ async function stopProject(projectId) {
   return project;
 }
 
+async function deleteProject(projectId) {
+  await loadFromDb();
+  const project = projects.get(projectId);
+  if (!project) return false;
+
+  if (project.currentRunId) {
+    try {
+      const workspace = require("../workspace/manager");
+      workspace.stopApp(project.currentRunId);
+    } catch {}
+  }
+
+  if (sql) {
+    try {
+      await sql`DELETE FROM chat_messages WHERE project_id = ${projectId}`;
+      await sql`DELETE FROM project_env_vars WHERE project_id = ${projectId}`;
+      const iters = await sql`SELECT run_id FROM iterations WHERE project_id = ${projectId}`;
+      for (const iter of iters) {
+        if (iter.run_id) {
+          await sql`DELETE FROM run_snapshots WHERE id = ${iter.run_id}`;
+        }
+      }
+      await sql`DELETE FROM iterations WHERE project_id = ${projectId}`;
+      await sql`DELETE FROM projects WHERE id = ${projectId}`;
+    } catch (err) {
+      console.error("Failed to delete project from DB:", err.message);
+      return false;
+    }
+  }
+
+  projects.delete(projectId);
+  return true;
+}
+
 async function getEnvVars(projectId) {
   if (!sql) return [];
   try {
@@ -292,6 +326,7 @@ module.exports = {
   captureCurrentFiles,
   updateProjectStatus,
   renameProject,
+  deleteProject,
   getProject,
   getAllProjects,
   stopProject,

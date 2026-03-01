@@ -61,6 +61,7 @@ export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -98,6 +99,22 @@ export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
       setProjects(prev => prev.map(p => p.id === projectId ? { ...p, name: trimmed } : p));
     }
     setEditingId(null);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation();
+    if (confirmDeleteId === projectId) {
+      try {
+        const res = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+        if (res.ok) {
+          setProjects(prev => prev.filter(p => p.id !== projectId));
+        }
+      } catch {}
+      setConfirmDeleteId(null);
+    } else {
+      setConfirmDeleteId(projectId);
+      setTimeout(() => setConfirmDeleteId(prev => prev === projectId ? null : prev), 3000);
+    }
   };
 
   const handleEditKeyDown = (e: React.KeyboardEvent, projectId: string) => {
@@ -182,7 +199,16 @@ export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
             </div>
             <div className="project-card-footer">
               <span className="project-card-version">v{project.iterations.length}</span>
-              <span className="project-card-time">{timeAgo(project.updatedAt)}</span>
+              <span className="project-card-footer-right">
+                <button
+                  className={`project-card-delete-btn ${confirmDeleteId === project.id ? "project-card-delete-confirm" : ""}`}
+                  onClick={(e) => handleDelete(e, project.id)}
+                  title={confirmDeleteId === project.id ? "Click again to confirm" : "Delete project"}
+                >
+                  {confirmDeleteId === project.id ? "Confirm?" : "\u2715"}
+                </button>
+                <span className="project-card-time">{timeAgo(project.updatedAt)}</span>
+              </span>
             </div>
           </div>
         ))}
