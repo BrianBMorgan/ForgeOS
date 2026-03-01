@@ -7,114 +7,39 @@ ForgeOS is an internal agentic AI build platform designed to orchestrate a Plann
 None specified.
 
 ## System Architecture
-**Frontend**: Built with React, Vite, and TypeScript in the `/client` directory. The UI features a three-zone layout: a collapsible sidebar for navigation, a project list, and a main workspace area. The workspace is a tabbed interface including Plan, Review, Diff, Auditor, Render (live preview + file viewer), and Shell (build logs). The styling is dark-mode only, featuring an institutional, calm, and operational aesthetic with no playful elements or Replit-specific dependencies.
+**Frontend**: Built with React, Vite, and TypeScript in the `/client` directory. The UI features a three-zone layout: a collapsible sidebar for navigation, a project list, and a main workspace area. The workspace is a tabbed interface including Plan, Review, Diff, Auditor, Render (live preview + file viewer), and Shell (build logs). The styling is dark-mode only, featuring an institutional, calm, and operational aesthetic.
 
 **Backend**: An Express (Node.js) server located in `/server`.
 - **Agent Orchestration**: The `server/pipeline/` module manages the agent workflow, defining Zod schemas for agent outputs and instruction prompts for each stage (Planner, Reviewer, Policy Gate, Executor, Auditor), including iteration-aware variants. It handles run creation, stage execution, approval/rejection flows, and workspace build/run processes.
 - **Project Management**: `server/projects/` manages projects, including an in-memory store, iteration tracking, and file capture for context. Each project can have multiple build iterations.
-- **Workspace Management**: `server/workspace/` handles the lifecycle of generated applications. It creates isolated directories, writes generated files, patches hardcoded ports to use `process.env.PORT`, resolves `npm start` commands, allocates dynamic ports (4000-4099), installs dependencies, starts applications, and proxies requests. The preview proxy at `/preview/:runId` sets `no-cache` headers on all responses to prevent stale content between iterations. The preview iframe uses `key={runId}` to force React remount on iteration changes, plus a `_t=` cache-busting query parameter. It also manages workspace states (writing-files, installing, starting, running, failed) and ensures previous workspace apps are stopped when new runs begin. Stop/restart controls are available in the Shell tab header — `restartApp()` stores `lastStartCommand`/`lastPort` for re-launching; if workspace isn't in memory, the restart endpoint falls back to `restoreWorkspace()` using executor output from the run snapshot. **Idle Timeout**: Workspaces automatically stop after 5 minutes of inactivity (no proxy requests, no status polls, no log fetches). On server startup, all workspaces are marked "stopped" instead of eagerly restored. **Auto-Wake**: When a preview proxy request arrives for a stopped workspace, the system automatically restores and starts it on demand, merging env vars with the standard priority order.
-- **Chat System**: A conversational interface powered by gpt-4.1-mini allows users to interact with the project. It features an agent that can analyze code, answer questions, diagnose issues, and use web search tools (DuckDuckGo, URL fetching) to gather external information. It detects user intent to suggest builds, which can be confirmed to trigger an iteration. **Runtime Log Injection**: The Chat Agent receives the running app's stdout/stderr and structured log entries (last 50) as context alongside the source code, enabling diagnosis from actual errors rather than guessing from code alone. **Slash Commands**: Typing `/` in the chat textarea triggers a skill autocomplete dropdown. Skills are fetched from `/api/skills` on mount. Arrow keys navigate, Tab/Enter selects, Escape dismisses. Selected skills are inserted as `/skill-slug` tokens. On the backend, `/skill-slug` references in messages are resolved to skill instructions and injected into the system prompt as "ACTIVATED SKILLS" context. **Response Parsing**: When the LLM returns mixed content (preamble text + JSON object), the parser scans backward through brace positions to extract valid JSON with a `message` field. If the parsed message contains "I'll reforge" but `suggestBuild` is false, it's auto-corrected to true. **Banned Pattern Enforcement**: After parsing the Chat Agent's response, a programmatic `detectBannedPatterns()` check scans both `message` and `buildSuggestion` for banned words (comprehensive, robust, proper, ensure), banned fixes (add logging, wrap in try-catch, add error handling), and banned padding phrases (to prevent, ensuring the, so the client does not). If violations are found, the response is REJECTED and the agent is retried with a correction prompt listing the specific violations. This loops up to MAX_TOOL_ROUNDS-1 times before accepting the best available response.
-- **Database Viewer**: The workspace includes a DB tab for read-only inspection of the Neon Postgres database. It offers a table browser, a paginated data grid, and a SQL query runner with blocked DDL statements for safety.
-- **Per-Project Environment Variables**: Each project can have custom environment variables (stored in `project_env_vars` table) that are injected into workspace processes during install and app start. CRUD via `GET/PUT/DELETE /api/projects/:id/env`. Reserved system keys (PORT, DATABASE_URL, JWT_SECRET, etc.) are blocked from override at both API and runtime levels. The Env tab in the workspace UI provides add/delete/show-hide controls and lists auto-injected platform variables plus inherited global defaults/secrets with badges.
-- **Settings System**: `server/settings/manager.js` manages global platform settings, secrets, and skills. Data stored in `global_settings`, `global_secrets`, and `skills` tables in Neon Postgres. Settings are consumed by the pipeline at runtime:
-  - **Model Configuration**: Controls planner/reviewer model names and temperatures. Loaded at pipeline start.
-  - **Auto-Approve Policy**: When enabled, skips human approval for builds at or below the configured risk level.
-  - **Default Environment Variables**: Key-value pairs injected into all project runtimes (merged before project-level overrides).
-  - **Global Secrets Vault**: Encrypted secrets injected into all project runtimes. API never exposes secret values — only key names.
-  - **Workspace Limits**: Port range, max concurrent apps, log retention.
-  - **Allowed Tech Stack**: Lists of allowed and banned packages for policy enforcement.
-  - **Skills Library**: Reusable knowledge entries (name, description, instructions, tags) injected into Planner and Executor system prompts.
-  - **Env Merge Order**: global default env vars → global secrets → project env vars (project wins).
-- **Pipeline Accountability System**: Added in the pipeline to give agents situational awareness and catch failures:
-  - **Iteration History Injection**: When iterating (iteration > 1), the Planner and Chat Agent receive a full history of all previous build attempts — prompt, status, workspace result, auditor issues, health check results. Agents are instructed to try different approaches if previous fixes failed.
-  - **Diff Verification Gate**: After the Executor produces output for iterations, a line-level diff is computed against previous files and injected into the Auditor's context. The Auditor can verify the Executor actually made the changes it claims.
-  - **Regression Guard**: Missing routes and files from the previous iteration are detected and reported to the Auditor as regression warnings.
-  - **Workspace Health Check**: After buildAndRun completes, the system waits 3 seconds then performs an HTTP GET to the app's root route. Results (HTTP status, response size, startup logs) are stored on `run.healthCheck` and persisted in the run snapshot.
-  - **Executor Accountability**: All Executor variants warn that implementationSummary is diff-verified, reducing self-reported inaccuracies.
-- **Model Router**: `server/pipeline/model-router.js` provides a model-agnostic abstraction over OpenAI's Chat Completions and Responses APIs. Models like gpt-5.2-pro, gpt-5.2, gpt-5.2-mini, o3, and o3-mini are automatically routed to the Responses API (`openai.responses.create`) with proper parameter translation (instructions/input instead of messages, no temperature for reasoning models). All other models use the standard Chat Completions API. Both `callStructured` (for pipeline agents with schema enforcement) and `callChat` (for the Chat Agent with tool support) are provided. Tool calls from the Responses API are normalized to the same format as Chat Completions for transparent handling.
-- **Persistence**: Projects, iterations, run snapshots, chat messages, project env vars, settings, secrets, and skills are persisted in Neon Postgres via `@neondatabase/serverless`. Run data survives restarts, and the system can restore and re-launch workspace applications from existing files on disk upon server startup.
+- **Workspace Management**: `server/workspace/` handles the lifecycle of generated applications, including creating isolated directories, writing generated files, patching ports, installing dependencies, starting applications, and proxying requests. Workspaces automatically stop after 5 minutes of inactivity and can auto-wake on demand.
+- **Chat System**: A conversational interface powered by gpt-4.1-mini allows users to interact with the project. It features an agent that can analyze code, answer questions, diagnose issues, and use web search tools. It detects user intent to suggest builds and incorporates runtime logs for diagnosis. Slash commands trigger skill autocomplete. The system includes a robust response parsing and banned pattern enforcement mechanism to ensure quality and adherence to guidelines.
+- **Database Viewer**: The workspace includes a DB tab for read-only inspection of the Neon Postgres database, offering a table browser, paginated data grid, and a SQL query runner with blocked DDL statements.
+- **Per-Project Environment Variables**: Each project can have custom environment variables (stored in `project_env_vars` table) injected into workspace processes.
+- **Settings System**: `server/settings/manager.js` manages global platform settings, secrets, and skills. This includes model configuration, auto-approve policy, default environment variables, a global secrets vault, workspace limits, allowed tech stack, and a skills library.
+- **Pipeline Accountability System**: Implements checks like iteration history injection, diff verification gate, regression guard, and workspace health checks to ensure agent accountability and catch failures.
+- **Model Router**: `server/pipeline/model-router.js` provides a model-agnostic abstraction over OpenAI's Chat Completions and Responses APIs, routing calls based on the model used and normalizing tool calls.
+- **Persistence**: Projects, iterations, run snapshots, chat messages, project env vars, settings, secrets, and skills are persisted in Neon Postgres via `@neondatabase/serverless`.
 
 **Pipeline Stages**:
-1.  **Planner**: Generates structured build plans from user prompts, adapting for iterations. Skills context appended to instructions.
-2.  **Reviewer P1 & P2**: Reviews plans for issues and ensures production readiness.
-3.  **Revise P2**: Incorporates reviewer feedback into the plan.
-4.  **Policy Gate**: Determines if human approval is required. Auto-approve setting can override.
-5.  **Human Approval**: A pause point for manual approval or rejection (skipped when auto-approve fires). Displays a full-screen ApprovalModal popup summarizing the plan in human language — project name, template, risk level, reviewer summary, policy reason, API endpoints, UI pages, DB tables, packages, env vars, risks, security concerns, architectural concerns, required changes, background workers, data flows, and acceptance criteria.
-6.  **Executor**: Produces complete runnable code, outputting all files (modified and unchanged) for iterations. Skills context appended to instructions.
-7.  **Auditor**: A pre-deployment quality gate that performs a 14-point checklist (including diff verification, regression guard, and plan execution verification) and can trigger fix loops.
+1.  **Planner**: Generates structured build plans.
+2.  **Reviewer P1 & P2**: Reviews plans for issues.
+3.  **Revise P2**: Incorporates reviewer feedback.
+4.  **Policy Gate**: Determines if human approval is required.
+5.  **Human Approval**: Manual approval or rejection pause point.
+6.  **Executor**: Produces complete runnable code.
+7.  **Auditor**: A pre-deployment quality gate with a 14-point checklist.
 
-**Executor Output**: Includes an array of files with `path`, `purpose`, and `content`, along with `installCommand`, `startCommand`, `port`, `implementationSummary`, `environmentVariables`, `databaseSchema`, and `buildTasks`.
+**MCP Server**: ForgeOS includes a built-in MCP (Model Context Protocol) server at `/mcp` that exposes ElevenLabs tools for voice synthesis and speech-to-text.
 
-**Settings API Endpoints**:
-- `GET /api/settings` — all settings as key-value object
-- `PUT /api/settings/:key` — update one setting
-- `GET /api/secrets` — list secret keys only (no values)
-- `PUT /api/secrets` — upsert `{ key, value }`
-- `DELETE /api/secrets/:key` — delete secret
-- `GET /api/skills` — list all skills
-- `POST /api/skills` — create skill `{ name, description, instructions, tags }`
-- `POST /api/skills/import-url` — import skill from URL `{ url }`. Accepts three URL types: (1) SkillsMP URLs — resolves slug → GitHub repo/path combinator (capped at 30 attempts), (2) GitHub URLs — parses `user/repo/path` directly, strips `blob/branch` segments, tries SKILL.md at path, (3) raw.githubusercontent.com URLs — fetches directly. All parse YAML frontmatter + markdown body from SKILL.md.
-- `PUT /api/skills/:id` — update skill
-- `DELETE /api/skills/:id` — delete skill
-
-## Key Files
-- `server/index.js` — Express server, all API routes
-- `server/pipeline/runner.js` — Pipeline orchestration, agent calls, workspace build
-- `server/pipeline/agents.js` — Agent instruction prompts
-- `server/pipeline/schemas.js` — Zod schemas for agent outputs
-- `server/projects/manager.js` — Project CRUD, iterations, env vars
-- `server/workspace/manager.js` — Workspace lifecycle (files, install, start, proxy)
-- `server/pipeline/model-router.js` — Model-agnostic API router (Chat Completions vs Responses API)
-- `server/chat/manager.js` — Chat system with web search tools
-- `server/settings/manager.js` — Settings, secrets, skills CRUD
-- `client/src/App.tsx` — Main app shell, navigation, state management
-- `client/src/components/Workspace.tsx` — Tabbed workspace (Plan, Review, Diff, Auditor, Render, Shell, DB, Env, Publish)
-- `client/src/components/Settings.tsx` — Settings page with two-panel layout (vertical tab sidebar + content canvas). Skills tab has three-column sub-layout (skill list + import + view/edit canvas). CSS namespace: `stg-*`
-- `client/src/components/PromptColumn.tsx` — Build prompt, pipeline visualization, chat, and ApprovalModal popup
-- `client/src/components/ProjectsList.tsx` — Project list view
-- `client/src/components/StressTest.tsx` — Stress test tool
-- `client/src/index.css` — All styles (dark theme)
-
-## DB Tables
-- `projects` — Project metadata
-- `iterations` — Build iterations per project
-- `run_snapshots` — Pipeline run state snapshots
-- `chat_messages` — Chat history per project
-- `project_env_vars` — Per-project environment variables
-- `global_settings` — Global settings (key → JSONB value)
-- `global_secrets` — Global secrets (key → encrypted value)
-- `skills` — Skills library entries
-
-## NavId Type
-`"new-project" | "projects" | "stress-test" | "settings"`
-
-## MCP Server
-ForgeOS includes a built-in MCP (Model Context Protocol) server at `/mcp` that exposes ElevenLabs tools. It follows the Streamable HTTP transport spec (protocol version 2025-03-26) with JSON-RPC 2.0.
-
-**Files**:
-- `server/mcp/handler.js` — MCP protocol handler (initialize, tools/list, tools/call, session management)
-- `server/mcp/elevenlabs.js` — 12 ElevenLabs tools (voices, TTS, agents, conversations, models, usage, STT)
-
-**Tools**: elevenlabs_list_voices, elevenlabs_get_voice, elevenlabs_text_to_speech, elevenlabs_list_models, elevenlabs_get_user, elevenlabs_get_usage, elevenlabs_list_agents, elevenlabs_get_agent, elevenlabs_create_agent, elevenlabs_list_conversations, elevenlabs_get_conversation, elevenlabs_speech_to_text
-
-**Auth**: Uses `ELEVENLABS_API_KEY` from the Global Secrets Vault (process.env).
-
-**Production URL**: `https://forge-os.ai/mcp` — register this in Replit Integrations as a custom MCP server.
-
-## Voice Agent
-ForgeOS includes an embedded ElevenLabs Conversational AI voice agent widget in the bottom-right corner of the UI.
-
-**Agent ID**: `agent_0101kjmpctmffrvsbqen3ny1b5cc`
-**Voice**: Eric (Smooth, Trustworthy — conversational male)
-**Widget**: Compact variant, dark theme (bg #1a1a2e, orange accent #f97316), transcript enabled, text input enabled
-**Embedding**: `<elevenlabs-convai>` web component in `client/index.html`
-**Purpose**: Voice interface for asking questions about ForgeOS features, troubleshooting builds, and getting guidance
+**Voice Agent**: An embedded ElevenLabs Conversational AI voice agent widget provides a voice interface for user interaction within the UI.
 
 ## External Dependencies
 - **OpenAI**: Used for agent pipeline calls (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface.
-- **Neon Postgres**: Utilized for project persistence (projects, iterations, run snapshots, chat messages) and can be provisioned for generated applications via `DATABASE_URL`.
+- **Neon Postgres**: Utilized for project persistence and can be provisioned for generated applications.
 - **@neondatabase/serverless**: Node.js driver for Neon Postgres.
 - **http-proxy-middleware**: For proxying requests to running workspace applications.
 - **uuid**: For generating unique identifiers.
 - **zod**: For schema validation of agent outputs.
 - **DuckDuckGo**: Integrated via the chat agent's `web_search` tool for fetching external information.
+- **ElevenLabs**: Integrated for voice synthesis (TTS) and speech-to-text (STT) capabilities via the MCP server and embedded voice agent.

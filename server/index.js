@@ -356,6 +356,52 @@ app.delete("/api/projects/:id/env/:key", async (req, res) => {
   res.json({ deleted: true });
 });
 
+const publishManager = require("./publish/manager");
+
+app.post("/api/projects/:id/publish", async (req, res) => {
+  try {
+    const result = await publishManager.publishProject(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/projects/:id/publish", async (req, res) => {
+  try {
+    await publishManager.unpublishProject(req.params.id);
+    res.json({ unpublished: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get("/api/projects/:id/publish", async (req, res) => {
+  const app = publishManager.getPublishedApp(req.params.id);
+  if (!app) return res.json({ published: false });
+  res.json({ published: true, ...app });
+});
+
+app.get("/api/published", async (_req, res) => {
+  res.json(publishManager.listPublishedApps());
+});
+
+app.get("/api/projects/:id/export", async (req, res) => {
+  try {
+    const { zipPath, filename } = await publishManager.exportProject(req.params.id);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", "application/zip");
+    const stream = require("fs").createReadStream(zipPath);
+    const cleanup = () => { try { require("fs").unlinkSync(zipPath); } catch {} };
+    stream.pipe(res);
+    stream.on("end", cleanup);
+    stream.on("error", cleanup);
+    res.on("close", cleanup);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 const settingsManager = require("./settings/manager");
 
 app.get("/api/settings", async (_req, res) => {
@@ -902,6 +948,42 @@ app.use("/preview/:runId", async (req, res) => {
   req.pipe(proxyReq);
 });
 
+app.use("/apps/:slug", (req, res) => {
+  const slug = req.params.slug;
+  const pubApp = publishManager.getPublishedAppBySlug(slug);
+  if (!pubApp || pubApp.status !== "running" || !pubApp.port) {
+    return res.status(503).send(`<html><body style="background:#111;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h1>App Offline</h1><p>This app is not currently running.</p></div></body></html>`);
+  }
+
+  const basePath = `/apps/${slug}`;
+  let targetPath = req.originalUrl;
+  if (targetPath.startsWith(basePath)) {
+    targetPath = targetPath.slice(basePath.length) || "/";
+  }
+  if (!targetPath.startsWith("/")) targetPath = "/" + targetPath;
+
+  const options = {
+    hostname: "127.0.0.1",
+    port: pubApp.port,
+    path: targetPath,
+    method: req.method,
+    headers: { ...req.headers, host: `127.0.0.1:${pubApp.port}` },
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res, { end: true });
+  });
+
+  proxyReq.on("error", () => {
+    if (!res.headersSent) {
+      res.status(502).send("App unavailable");
+    }
+  });
+
+  req.pipe(proxyReq);
+});
+
 const clientDist = path.join(__dirname, "..", "client", "dist");
 try {
   const fs = require("fs");
@@ -931,5 +1013,12 @@ app.listen(PORT, "0.0.0.0", async () => {
     }
   } catch (err) {
     console.error("Workspace restoration error:", err.message);
+  }
+
+  try {
+    await publishManager.ensureSchema();
+    await publishManager.restorePublishedApps();
+  } catch (err) {
+    console.error("Published apps restoration error:", err.message);
   }
 });

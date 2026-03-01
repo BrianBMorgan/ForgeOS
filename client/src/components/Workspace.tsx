@@ -2,6 +2,182 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { RunData, ProjectData } from "../App";
 import DbTab from "./DbTab";
 
+interface PublishStatus {
+  published: boolean;
+  projectId?: string;
+  slug?: string;
+  port?: number;
+  status?: string;
+  publishedAt?: number;
+  logs?: string;
+}
+
+function PublishTab({ projectId }: { projectId: string | null }) {
+  const [pubStatus, setPubStatus] = useState<PublishStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const fetchStatus = useCallback(async () => {
+    if (!projectId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/publish`);
+      const data = await res.json();
+      setPubStatus(data);
+    } catch {
+      setPubStatus({ published: false });
+    }
+    setLoading(false);
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  const handlePublish = async () => {
+    if (!projectId) return;
+    setPublishing(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/publish`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Publish failed");
+      await fetchStatus();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Publish failed");
+    }
+    setPublishing(false);
+  };
+
+  const handleUnpublish = async () => {
+    if (!projectId) return;
+    try {
+      await fetch(`/api/projects/${projectId}/publish`, { method: "DELETE" });
+      setConfirmUnpublish(false);
+      await fetchStatus();
+    } catch {
+      setError("Failed to unpublish");
+    }
+  };
+
+  const handleExport = () => {
+    if (!projectId) return;
+    window.open(`/api/projects/${projectId}/export`, "_blank");
+  };
+
+  const handleCopy = (url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (!projectId) {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-title">Publish</div>
+        <div className="panel-desc">Create a project and run a build first.</div>
+      </div>
+    );
+  }
+
+  if (loading && !pubStatus) {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-desc">Loading publish status...</div>
+      </div>
+    );
+  }
+
+  const isPublished = pubStatus?.published && pubStatus.status === "running";
+  const baseUrl = window.location.origin;
+  const appUrl = pubStatus?.slug ? `${baseUrl}/apps/${pubStatus.slug}` : "";
+
+  return (
+    <div className="pub-container">
+      <div className="pub-header">
+        <h2 className="pub-title">Publish</h2>
+        <p className="pub-subtitle">
+          {isPublished
+            ? "Your app is live and publicly accessible."
+            : "Publish your app to make it publicly accessible."}
+        </p>
+      </div>
+
+      {error && <div className="pub-error">{error}</div>}
+
+      {isPublished ? (
+        <div className="pub-live-section">
+          <div className="pub-status-row">
+            <span className="pub-status-dot pub-status-running" />
+            <span className="pub-status-text">Live</span>
+            {pubStatus?.publishedAt && (
+              <span className="pub-status-time">
+                Published {new Date(pubStatus.publishedAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          <div className="pub-url-section">
+            <label className="pub-url-label">Public URL</label>
+            <div className="pub-url-row">
+              <a href={appUrl} target="_blank" rel="noopener noreferrer" className="pub-url-link">
+                {appUrl}
+              </a>
+              <button className="pub-copy-btn" onClick={() => handleCopy(appUrl)}>
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
+
+          <div className="pub-actions">
+            <button className="pub-republish-btn" onClick={handlePublish} disabled={publishing}>
+              {publishing ? "Republishing..." : "Republish"}
+            </button>
+            <button className="pub-export-btn" onClick={handleExport}>
+              Export ZIP
+            </button>
+            {!confirmUnpublish ? (
+              <button className="pub-unpublish-btn" onClick={() => setConfirmUnpublish(true)}>
+                Unpublish
+              </button>
+            ) : (
+              <button className="pub-unpublish-confirm" onClick={handleUnpublish}>
+                Confirm Unpublish
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="pub-unpublished-section">
+          {pubStatus?.published && pubStatus.status === "failed" && (
+            <div className="pub-failed-notice">
+              Previous publish failed. Check logs and try again.
+              {pubStatus.logs && (
+                <pre className="pub-failed-logs">{pubStatus.logs.slice(-2000)}</pre>
+              )}
+            </div>
+          )}
+          <div className="pub-actions">
+            <button className="pub-publish-btn" onClick={handlePublish} disabled={publishing}>
+              {publishing ? "Publishing..." : "Publish App"}
+            </button>
+            <button className="pub-export-btn" onClick={handleExport}>
+              Export ZIP
+            </button>
+          </div>
+          <p className="pub-info">
+            Publishing copies your latest build and serves it at a public URL.
+            You can iterate on the project without affecting the published version.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Tab {
   id: string;
   label: string;
@@ -1080,6 +1256,8 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
         return <DbTab />;
       case "env":
         return <EnvTab projectId={projectData?.id || null} />;
+      case "publish":
+        return <PublishTab projectId={projectData?.id || null} />;
       default:
         return (
           <div className="panel-placeholder">
