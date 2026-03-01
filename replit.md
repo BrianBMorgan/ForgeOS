@@ -88,6 +88,19 @@ None specified.
 ## NavId Type
 `"new-project" | "projects" | "stress-test" | "settings"`
 
+## MCP Server
+ForgeOS includes a built-in MCP (Model Context Protocol) server at `/mcp` that exposes ElevenLabs tools. It follows the Streamable HTTP transport spec (protocol version 2025-03-26) with JSON-RPC 2.0.
+
+**Files**:
+- `server/mcp/handler.js` — MCP protocol handler (initialize, tools/list, tools/call, session management)
+- `server/mcp/elevenlabs.js` — 12 ElevenLabs tools (voices, TTS, agents, conversations, models, usage, STT)
+
+**Tools**: elevenlabs_list_voices, elevenlabs_get_voice, elevenlabs_text_to_speech, elevenlabs_list_models, elevenlabs_get_user, elevenlabs_get_usage, elevenlabs_list_agents, elevenlabs_get_agent, elevenlabs_create_agent, elevenlabs_list_conversations, elevenlabs_get_conversation, elevenlabs_speech_to_text
+
+**Auth**: Uses `ELEVENLABS_API_KEY` from the Global Secrets Vault (process.env).
+
+**Production URL**: `https://forge-os.ai/mcp` — register this in Replit Integrations as a custom MCP server.
+
 ## External Dependencies
 - **OpenAI**: Used for agent pipeline calls (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface.
 - **Neon Postgres**: Utilized for project persistence (projects, iterations, run snapshots, chat messages) and can be provisioned for generated applications via `DATABASE_URL`.

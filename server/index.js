@@ -10,11 +10,14 @@ const {
   getAllRuns,
 } = require("./pipeline/runner");
 const workspace = require("./workspace/manager");
+const { mountMcp } = require("./mcp/handler");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
+
+mountMcp(app);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
