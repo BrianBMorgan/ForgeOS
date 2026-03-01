@@ -297,6 +297,15 @@ AUDIT CHECKLIST — check every item:
     - No truncated files — every function must be complete with all closing brackets.
     - Every file referenced by require() or script src must exist in the output.
 
+12. PLAN EXECUTION VERIFICATION
+    - You receive the APPROVED PLAN and the ORIGINAL USER REQUEST alongside the Executor output.
+    - Verify the Executor actually implemented what the plan described. Read the actual code, not just the implementationSummary.
+    - If the plan says "change model X to Y", verify the code actually uses model Y, not X.
+    - If the plan says "remove property Z", verify Z is actually removed from the code.
+    - If the plan says "add endpoint /api/foo", verify that endpoint exists in the code.
+    - The Executor's implementationSummary is self-reported and may be inaccurate. Trust the CODE, not the summary.
+    - Flag as a CRITICAL issue if the plan was not executed correctly — the Executor must redo it.
+
 RESPONSE:
 - approved = true ONLY if zero critical or high severity issues are found.
 - approved = false if ANY critical or high issue exists.

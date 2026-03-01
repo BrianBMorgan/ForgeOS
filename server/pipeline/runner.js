@@ -349,7 +349,7 @@ async function executeAfterApproval(run) {
     const auditorMessages = [
       {
         role: "user",
-        content: `Audit the following Executor output for deployment readiness. Check every item on your checklist.\n\nExecutor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
+        content: `Audit the following Executor output for deployment readiness. Check every item on your checklist.\n\nORIGINAL USER REQUEST:\n${run.prompt}\n\nAPPROVED PLAN:\n${JSON.stringify(revisedPlan, null, 2)}\n\nExecutor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
       },
     ];
 
@@ -397,7 +397,7 @@ async function executeAfterApproval(run) {
       const reAuditMessages = [
         {
           role: "user",
-          content: `Audit the following CORRECTED Executor output for deployment readiness. The Executor was asked to fix ${currentAuditResult.issues.length} issue(s). Verify all fixes were applied.\n\nCorrected Executor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
+          content: `Audit the following CORRECTED Executor output for deployment readiness. The Executor was asked to fix ${currentAuditResult.issues.length} issue(s). Verify all fixes were applied.\n\nORIGINAL USER REQUEST:\n${run.prompt}\n\nAPPROVED PLAN:\n${JSON.stringify(revisedPlan, null, 2)}\n\nCorrected Executor Output:\n${JSON.stringify(executorOutput, null, 2)}`,
         },
       ];
 
