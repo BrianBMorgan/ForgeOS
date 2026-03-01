@@ -216,11 +216,33 @@ async function chat(projectId, userMessage) {
     }
 
     const content = choice.message.content;
-    let parsed;
+    let parsed = null;
     try {
       parsed = JSON.parse(content);
       ChatResponseSchema.parse(parsed);
     } catch {
+      parsed = null;
+    }
+
+    if (!parsed) {
+      const bracePositions = [];
+      for (let i = content.length - 1; i >= 0; i--) {
+        if (content[i] === "}") bracePositions.push(i);
+      }
+      for (const endPos of bracePositions) {
+        const startPos = content.lastIndexOf("{", endPos);
+        if (startPos === -1) continue;
+        try {
+          const candidate = JSON.parse(content.substring(startPos, endPos + 1));
+          if (candidate && typeof candidate.message === "string") {
+            parsed = { message: candidate.message, suggestBuild: !!candidate.suggestBuild, buildSuggestion: candidate.buildSuggestion || null };
+            break;
+          }
+        } catch { /* try next brace pair */ }
+      }
+    }
+
+    if (!parsed) {
       parsed = { message: content, suggestBuild: false, buildSuggestion: null };
     }
 
