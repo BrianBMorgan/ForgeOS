@@ -31,6 +31,7 @@ None specified.
   - **Regression Guard**: Missing routes and files from the previous iteration are detected and reported to the Auditor as regression warnings.
   - **Workspace Health Check**: After buildAndRun completes, the system waits 3 seconds then performs an HTTP GET to the app's root route. Results (HTTP status, response size, startup logs) are stored on `run.healthCheck` and persisted in the run snapshot.
   - **Executor Accountability**: All Executor variants warn that implementationSummary is diff-verified, reducing self-reported inaccuracies.
+- **Model Router**: `server/pipeline/model-router.js` provides a model-agnostic abstraction over OpenAI's Chat Completions and Responses APIs. Models like gpt-5.2-pro, gpt-5.2, gpt-5.2-mini, o3, and o3-mini are automatically routed to the Responses API (`openai.responses.create`) with proper parameter translation (instructions/input instead of messages, no temperature for reasoning models). All other models use the standard Chat Completions API. Both `callStructured` (for pipeline agents with schema enforcement) and `callChat` (for the Chat Agent with tool support) are provided. Tool calls from the Responses API are normalized to the same format as Chat Completions for transparent handling.
 - **Persistence**: Projects, iterations, run snapshots, chat messages, project env vars, settings, secrets, and skills are persisted in Neon Postgres via `@neondatabase/serverless`. Run data survives restarts, and the system can restore and re-launch workspace applications from existing files on disk upon server startup.
 
 **Pipeline Stages**:
@@ -63,6 +64,7 @@ None specified.
 - `server/pipeline/schemas.js` — Zod schemas for agent outputs
 - `server/projects/manager.js` — Project CRUD, iterations, env vars
 - `server/workspace/manager.js` — Workspace lifecycle (files, install, start, proxy)
+- `server/pipeline/model-router.js` — Model-agnostic API router (Chat Completions vs Responses API)
 - `server/chat/manager.js` — Chat system with web search tools
 - `server/settings/manager.js` — Settings, secrets, skills CRUD
 - `client/src/App.tsx` — Main app shell, navigation, state management
