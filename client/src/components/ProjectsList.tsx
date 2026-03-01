@@ -161,7 +161,7 @@ export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
                 />
               ) : (
                 <span className="project-card-name" title="Double-click to rename" onDoubleClick={(e) => startEditing(e, project)}>
-                  {project.name}
+                  <span className="project-card-name-text">{project.name}</span>
                   <button className="project-card-edit-btn" onClick={(e) => startEditing(e, project)} title="Rename project">&#9998;</button>
                 </span>
               )}
