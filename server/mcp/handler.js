@@ -163,6 +163,22 @@ function authenticateRequest(req) {
 }
 
 function mountMcp(app) {
+  app.options("/mcp", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, x-mcp-auth, Mcp-Session-Id");
+    res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+    res.status(204).end();
+  });
+
+  const mcpCors = (req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, x-mcp-auth, Mcp-Session-Id");
+    res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+    next();
+  };
+
   const mcpAuth = (req, res, next) => {
     if (!authenticateRequest(req)) {
       return res.status(401).json(jsonRpcError(null, -32600, "Unauthorized: invalid or missing authentication"));
@@ -176,7 +192,7 @@ function mountMcp(app) {
     next();
   };
 
-  app.post("/mcp", mcpAuth, async (req, res) => {
+  app.post("/mcp", mcpCors, mcpAuth, async (req, res) => {
     const contentType = req.headers["content-type"] || "";
     if (!contentType.includes("application/json")) {
       return res.status(415).json(jsonRpcError(null, -32700, "Content-Type must be application/json"));
@@ -229,7 +245,7 @@ function mountMcp(app) {
     res.json(response);
   });
 
-  app.get("/mcp", mcpAuth, (req, res) => {
+  app.get("/mcp", mcpCors, mcpAuth, (req, res) => {
     const accept = req.headers["accept"] || "";
     if (accept.includes("text/event-stream")) {
       res.setHeader("Content-Type", "text/event-stream");
@@ -257,7 +273,7 @@ function mountMcp(app) {
     });
   });
 
-  app.delete("/mcp", mcpAuth, (req, res) => {
+  app.delete("/mcp", mcpCors, mcpAuth, (req, res) => {
     const sessionId = req.headers["mcp-session-id"];
     if (sessionId && sessions.has(sessionId)) {
       sessions.delete(sessionId);
