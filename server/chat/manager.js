@@ -191,6 +191,11 @@ const BANNED_PATTERNS = [
   { regex: /\bpossible\s+causes?\b/i, rule: "Banned phrase: 'possible cause(s)'" },
   { regex: /\blikely\s+cause\b/i, rule: "Banned phrase: 'likely cause'" },
   { regex: /\berror\s+handling\s+and\s+logging\b/i, rule: "Banned phrase: 'error handling and logging'" },
+  { regex: /\bor\s+(switch|change|use|try|replace|fall\s*back)\b/i, rule: "Banned hedging: 'or switch/change/use...' — pick ONE fix, do not offer alternatives" },
+  { regex: /\b(like|such\s+as)\s+'[^']+'/i, rule: "Banned hedging: 'like X' or 'such as X' — name the exact value, not an example" },
+  { regex: /\b(a\s+valid|a\s+supported|a\s+correct)\s+(model|endpoint|version|package)\b/i, rule: "Banned vagueness: 'a valid model' — name the exact model" },
+  { regex: /\band\s+(also|additionally)\b/i, rule: "Banned bundling: 'and also/additionally' — ONE fix only" },
+  { regex: /\b(instead\s+of\s+hanging|instead\s+of\s+crashing|instead\s+of\s+failing)\b/i, rule: "Banned padding: 'instead of hanging/crashing...' — stop after stating the code change" },
 ];
 
 function detectBannedPatterns(message, buildSuggestion) {
