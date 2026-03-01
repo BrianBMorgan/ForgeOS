@@ -577,7 +577,7 @@ async function executeAfterApproval(run) {
       "auditor_output"
     );
 
-    const MAX_AUDIT_ROUNDS = 2;
+    const MAX_AUDIT_ROUNDS = 3;
     let auditRound = 0;
     let currentAuditResult = auditorOutput;
 
@@ -585,11 +585,18 @@ async function executeAfterApproval(run) {
       auditRound++;
       updateStage(run, "auditor", "failed", currentAuditResult);
 
+      const preFixFiles = executorOutput.files || [];
+
       let fixDiffInfo = "";
       if (isIteration && existingFiles.length > 0 && executorOutput.files) {
         const preDiff = computeFileDiff(existingFiles, executorOutput.files);
         fixDiffInfo = `\n\nDIFF FROM PREVIOUS ITERATION (what you actually changed):\n${formatDiffSummary(preDiff)}\n\nUse this diff to understand what you DID change vs what the Auditor says you SHOULD have changed.`;
       }
+
+      const affectedFiles = new Set(currentAuditResult.issues.map(i => i.file || i.affectedFile || "").filter(Boolean));
+      const affectedFilesList = affectedFiles.size > 0
+        ? `\n\nFILES THAT MUST BE MODIFIED (the Auditor flagged these specifically): ${[...affectedFiles].join(", ")}`
+        : "";
 
       const fixMessages = [
         {
@@ -602,7 +609,7 @@ async function executeAfterApproval(run) {
         },
         {
           role: "user",
-          content: `The Auditor found the following issues that must be fixed before deployment:\n\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nFix ALL issues and return the complete corrected output.${fixDiffInfo}`,
+          content: `The Auditor REJECTED your output. Fix round ${auditRound} of ${MAX_AUDIT_ROUNDS} — if you fail again, the build DIES.\n\nAUDITOR ISSUES (${currentAuditResult.issues.length}):\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nYou MUST modify the code in the affected files to fix these issues. Returning unchanged code = immediate failure.${affectedFilesList}${fixDiffInfo}`,
         },
       ];
 
@@ -613,6 +620,47 @@ async function executeAfterApproval(run) {
         PLANNER_MODEL,
         "executor_output"
       );
+
+      const postFixDiff = computeFileDiff(preFixFiles, executorOutput.files || []);
+      const affectedFilesChanged = [...affectedFiles].some(af =>
+        postFixDiff.modified.some(m => m.path === af) ||
+        postFixDiff.added.includes(af)
+      );
+      const anyChanges = postFixDiff.modified.length > 0 || postFixDiff.added.length > 0 || postFixDiff.removed.length > 0;
+
+      if (!anyChanges) {
+        console.log(`[fix-loop] Round ${auditRound}: Executor returned IDENTICAL code. Zero changes detected. Failing immediately.`);
+        updateStage(run, "executor", "failed", { ...executorOutput, fixRoundFailed: true, reason: "Executor returned identical code — no fixes applied" });
+        updateStage(run, "auditor", "failed", {
+          ...currentAuditResult,
+          fixApplied: false,
+          auditRounds: auditRound + 1,
+          exhaustedFixRounds: true,
+          executorRefusedToFix: true,
+        });
+        run.status = "failed";
+        run.error = `Executor returned identical code in fix round ${auditRound} — refused to apply Auditor fixes. Issues: ${currentAuditResult.issues.map(i => i.description || i.rule || "unknown").join("; ").slice(0, 500)}`;
+        await saveRunSnapshot(run);
+        return;
+      }
+
+      if (affectedFiles.size > 0 && !affectedFilesChanged) {
+        console.log(`[fix-loop] Round ${auditRound}: Executor made changes but NOT to the flagged files (${[...affectedFiles].join(", ")}). Failing.`);
+        updateStage(run, "executor", "failed", { ...executorOutput, fixRoundFailed: true, reason: `Changed wrong files — Auditor flagged ${[...affectedFiles].join(", ")} but those were untouched` });
+        updateStage(run, "auditor", "failed", {
+          ...currentAuditResult,
+          fixApplied: false,
+          auditRounds: auditRound + 1,
+          exhaustedFixRounds: true,
+          executorFixedWrongFiles: true,
+        });
+        run.status = "failed";
+        run.error = `Executor made changes in fix round ${auditRound} but not to the files the Auditor flagged (${[...affectedFiles].join(", ")}). Issues: ${currentAuditResult.issues.map(i => i.description || i.rule || "unknown").join("; ").slice(0, 500)}`;
+        await saveRunSnapshot(run);
+        return;
+      }
+
+      console.log(`[fix-loop] Round ${auditRound}: Executor made changes — ${postFixDiff.modified.length} modified, ${postFixDiff.added.length} added, ${postFixDiff.removed.length} removed. Re-auditing.`);
       updateStage(run, "executor", "passed", executorOutput);
 
       run.currentStage = "auditor";
