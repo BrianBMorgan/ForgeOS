@@ -1022,10 +1022,43 @@ app.listen(PORT, "0.0.0.0", async () => {
       (p) => (p.status === "active" || p.status === "building") && p.currentRunId
     );
     if (activeProjects.length > 0) {
-      console.log(`Marking ${activeProjects.length} workspace(s) as stopped (will auto-wake on demand)...`);
+      console.log(`Auto-restoring ${activeProjects.length} workspace(s) from database...`);
       for (const project of activeProjects) {
-        await projectManager.updateProjectStatus(project.id, "stopped");
-        console.log(`  "${project.name}" marked stopped (will wake on first visit)`);
+        try {
+          const run = await getRun(project.currentRunId);
+          const startCmd = run?.stages?.executor?.output?.startCommand || null;
+          const port = run?.stages?.executor?.output?.port || 4000;
+
+          let globalDefaults = {};
+          let globalSecrets = {};
+          try {
+            const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
+            if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
+              for (const v of defaultEnvSetting.vars) {
+                if (v.key) globalDefaults[v.key] = v.value || "";
+              }
+            }
+            globalSecrets = await settingsManager.getSecretsAsObject();
+          } catch {}
+          const projectEnv = await projectManager.getEnvVarsAsObject(project.id);
+          const customEnv = { ...globalDefaults, ...globalSecrets, ...projectEnv };
+
+          const result = await workspace.restoreWorkspace(project.currentRunId, startCmd, port, customEnv);
+          if (result.success) {
+            await projectManager.updateProjectStatus(project.id, "active");
+            if (run && run.workspace) {
+              run.workspace.status = "running";
+              run.workspace.port = result.port;
+            }
+            console.log(`  "${project.name}" restored and running on port ${result.port}`);
+          } else {
+            await projectManager.updateProjectStatus(project.id, "stopped");
+            console.log(`  "${project.name}" restore failed: ${result.error} — marked stopped`);
+          }
+        } catch (err) {
+          await projectManager.updateProjectStatus(project.id, "stopped");
+          console.log(`  "${project.name}" restore error: ${err.message} — marked stopped`);
+        }
       }
     }
   } catch (err) {

@@ -584,9 +584,42 @@ function getWorkspaceLogs(runId, opts = {}) {
   };
 }
 
+async function rebuildWorkspaceFromSnapshot(runId) {
+  try {
+    const { getRun } = require("../pipeline/runner");
+    const run = await getRun(runId);
+    if (!run) return false;
+
+    const files = run.stages?.executor?.output?.files;
+    if (!files || !Array.isArray(files) || files.length === 0) return false;
+
+    ensureWorkspacesDir();
+    const wsDir = path.join(WORKSPACES_DIR, runId);
+    fs.mkdirSync(wsDir, { recursive: true });
+
+    for (const file of files) {
+      if (!file.path || file.content == null) continue;
+      const filePath = path.join(wsDir, file.path);
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(filePath, file.content);
+    }
+
+    console.log(`[restore] Rebuilt workspace ${runId} from snapshot (${files.length} files)`);
+    return true;
+  } catch (err) {
+    console.error(`[restore] Failed to rebuild workspace ${runId}:`, err.message);
+    return false;
+  }
+}
+
 async function restoreWorkspace(runId, startCommand, port, customEnv = {}) {
   const wsDir = path.join(WORKSPACES_DIR, runId);
-  if (!fs.existsSync(wsDir)) return { success: false, error: "Workspace directory not found" };
+  if (!fs.existsSync(wsDir)) {
+    console.log(`[restore] Workspace ${runId} not found on disk, rebuilding from database...`);
+    const rebuilt = await rebuildWorkspaceFromSnapshot(runId);
+    if (!rebuilt) return { success: false, error: "Workspace not found and could not be rebuilt from database" };
+  }
 
   const nodeModules = path.join(wsDir, "node_modules");
   const pkgJson = path.join(wsDir, "package.json");

@@ -529,8 +529,36 @@ async function restorePublishedApps() {
   for (const row of rows) {
     const publishDir = path.join(PUBLISHED_DIR, row.project_id);
     if (!fs.existsSync(publishDir)) {
-      console.log(`[publish] Skipping restore for ${row.slug} — files missing`);
-      continue;
+      console.log(`[publish] Published files missing for ${row.slug}, rebuilding from database...`);
+      try {
+        const projectManager = require("../projects/manager");
+        const project = await projectManager.getProject(row.project_id);
+        if (project && project.currentRunId) {
+          const { getRun } = require("../pipeline/runner");
+          const run = await getRun(project.currentRunId);
+          const files = run?.stages?.executor?.output?.files;
+          if (files && Array.isArray(files) && files.length > 0) {
+            fs.mkdirSync(publishDir, { recursive: true });
+            for (const file of files) {
+              if (!file.path || file.content == null) continue;
+              const filePath = path.join(publishDir, file.path);
+              const dir = path.dirname(filePath);
+              if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+              fs.writeFileSync(filePath, file.content);
+            }
+            console.log(`[publish] Rebuilt ${row.slug} from snapshot (${files.length} files)`);
+          } else {
+            console.log(`[publish] No executor files found for ${row.slug} — skipping`);
+            continue;
+          }
+        } else {
+          console.log(`[publish] Project not found for ${row.slug} — skipping`);
+          continue;
+        }
+      } catch (err) {
+        console.log(`[publish] Failed to rebuild ${row.slug}: ${err.message} — skipping`);
+        continue;
+      }
     }
 
     let assignedPort;
