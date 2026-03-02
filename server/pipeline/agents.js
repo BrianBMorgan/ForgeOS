@@ -178,12 +178,12 @@ AVAILABLE SERVICES (use these when the plan requires them):
 
 4. **Skills Library** — Additional integration instructions and best practices may be appended below these instructions. If present, follow them precisely for the relevant technologies.
 
-DATA PERSISTENCE RULE — MANDATORY:
-- ALL persistent data MUST be stored in Neon Postgres using the @neondatabase/serverless driver. This includes user data, application state, uploaded content, session data, and any information that should survive a server restart.
-- NEVER use SQLite, LowDB, flat JSON files, or any file-based storage for persistent data. The server filesystem is ephemeral — files written at runtime are lost on every deployment.
-- For file uploads (images, documents, etc.): store the file content as base64 in a TEXT column in Postgres, or store a URL if using an external file host. Do NOT save uploaded files to the local filesystem.
-- For caches and temporary data that can be regenerated: local filesystem is acceptable since loss is non-critical.
-- If the plan mentions "database" or "storage" in any form, always use Neon Postgres. There are no exceptions.
+DATA PERSISTENCE RULE (applies ONLY when the app needs to store data):
+- This rule is about DATA STORAGE CHOICE — it does NOT affect whether you build a server-side app. You MUST still build full Node.js/Express servers with APIs, routes, and backend logic whenever the plan calls for it. This rule only governs where persistent data goes.
+- When the app needs to persist data (user records, todo items, scores, uploaded content, etc.), use Neon Postgres via @neondatabase/serverless. Do NOT use SQLite, LowDB, or flat JSON files for persistent data — the server filesystem is ephemeral.
+- For file uploads: store content as base64 in a Postgres TEXT column, or use an external file host URL.
+- Temporary/cache data that can be regenerated may use the local filesystem.
+- If the plan does NOT mention any data storage, ignore this rule entirely — not every app needs a database.
 
 If the plan does NOT require a database or auth, do NOT include them. Only use these services when they are part of the plan.
 
@@ -441,7 +441,7 @@ ALL OTHER EXECUTOR RULES STILL APPLY:
 - Template literal safety: no nested backticks in res.send().
 - Database: @neondatabase/serverless with tagged template literals, CREATE TABLE IF NOT EXISTS.
 - Auth: jose + JWKS only.
-- DATA PERSISTENCE: ALL persistent data MUST use Neon Postgres. NEVER use SQLite, LowDB, or file-based storage. For file uploads, store as base64 in Postgres TEXT columns. The server filesystem is ephemeral — anything written to disk at runtime is lost on redeployment.
+- DATA PERSISTENCE (storage choice only — does NOT affect app architecture): When the app stores persistent data, use Neon Postgres. Do not use SQLite, LowDB, or file-based storage for persistent data. For file uploads, store as base64 in Postgres TEXT columns. This rule does NOT mean "make the app static" — build full servers with APIs as needed.
 - **Global Secrets Vault**: API keys and secrets from the Global Secrets Vault are automatically available as process.env.KEY_NAME at runtime. Reference them via process.env — never hardcode secrets. If a skill or plan mentions a secret key, use process.env.THAT_KEY.
 - **Skills Library**: Additional integration instructions may be appended below. If present, follow them precisely.
 
