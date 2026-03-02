@@ -996,6 +996,18 @@ try {
   }
 } catch {}
 
+const fs_startup = require("fs");
+const dirs_to_ensure = [
+  path.join(__dirname, "..", "workspaces"),
+  path.join(__dirname, "..", "published"),
+];
+for (const d of dirs_to_ensure) {
+  if (!fs_startup.existsSync(d)) {
+    fs_startup.mkdirSync(d, { recursive: true });
+    console.log(`[startup] Created directory: ${d}`);
+  }
+}
+
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`ForgeOS server running on port ${PORT}`);
 
