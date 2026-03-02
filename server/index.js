@@ -1071,4 +1071,21 @@ app.listen(PORT, "0.0.0.0", async () => {
   } catch (err) {
     console.error("Published apps restoration error:", err.message);
   }
+
+  try {
+    const runtimeBackup = require("./workspace/runtime-backup");
+    runtimeBackup.startPeriodicBackup(() => {
+      const allWs = [];
+      const projects = projectManager.getAllProjectsSync ? projectManager.getAllProjectsSync() : [];
+      for (const p of projects) {
+        if ((p.status === "active" || p.status === "building") && p.currentRunId) {
+          allWs.push(p.currentRunId);
+        }
+      }
+      return allWs;
+    });
+    console.log("[runtime-backup] Periodic backup started (every 5 minutes)");
+  } catch (err) {
+    console.error("Runtime backup setup error:", err.message);
+  }
 });

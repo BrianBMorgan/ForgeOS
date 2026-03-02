@@ -178,6 +178,13 @@ AVAILABLE SERVICES (use these when the plan requires them):
 
 4. **Skills Library** — Additional integration instructions and best practices may be appended below these instructions. If present, follow them precisely for the relevant technologies.
 
+DATA PERSISTENCE RULE — MANDATORY:
+- ALL persistent data MUST be stored in Neon Postgres using the @neondatabase/serverless driver. This includes user data, application state, uploaded content, session data, and any information that should survive a server restart.
+- NEVER use SQLite, LowDB, flat JSON files, or any file-based storage for persistent data. The server filesystem is ephemeral — files written at runtime are lost on every deployment.
+- For file uploads (images, documents, etc.): store the file content as base64 in a TEXT column in Postgres, or store a URL if using an external file host. Do NOT save uploaded files to the local filesystem.
+- For caches and temporary data that can be regenerated: local filesystem is acceptable since loss is non-critical.
+- If the plan mentions "database" or "storage" in any form, always use Neon Postgres. There are no exceptions.
+
 If the plan does NOT require a database or auth, do NOT include them. Only use these services when they are part of the plan.
 
 BANNED PACKAGES (never use these — any of these in your output will cause a build failure):
@@ -434,6 +441,7 @@ ALL OTHER EXECUTOR RULES STILL APPLY:
 - Template literal safety: no nested backticks in res.send().
 - Database: @neondatabase/serverless with tagged template literals, CREATE TABLE IF NOT EXISTS.
 - Auth: jose + JWKS only.
+- DATA PERSISTENCE: ALL persistent data MUST use Neon Postgres. NEVER use SQLite, LowDB, or file-based storage. For file uploads, store as base64 in Postgres TEXT columns. The server filesystem is ephemeral — anything written to disk at runtime is lost on redeployment.
 - **Global Secrets Vault**: API keys and secrets from the Global Secrets Vault are automatically available as process.env.KEY_NAME at runtime. Reference them via process.env — never hardcode secrets. If a skill or plan mentions a secret key, use process.env.THAT_KEY.
 - **Skills Library**: Additional integration instructions may be appended below. If present, follow them precisely.
 

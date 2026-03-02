@@ -606,6 +606,12 @@ async function rebuildWorkspaceFromSnapshot(runId) {
     }
 
     console.log(`[restore] Rebuilt workspace ${runId} from snapshot (${files.length} files)`);
+
+    try {
+      const { restoreRuntimeFiles } = require("./runtime-backup");
+      await restoreRuntimeFiles(runId);
+    } catch {}
+
     return true;
   } catch (err) {
     console.error(`[restore] Failed to rebuild workspace ${runId}:`, err.message);

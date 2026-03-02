@@ -320,6 +320,10 @@ async function getEnvVarsAsObject(projectId) {
   return obj;
 }
 
+function getAllProjectsSync() {
+  return Array.from(projects.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 module.exports = {
   createProject,
   addIteration,
@@ -329,6 +333,7 @@ module.exports = {
   deleteProject,
   getProject,
   getAllProjects,
+  getAllProjectsSync,
   stopProject,
   getEnvVars,
   setEnvVar,
