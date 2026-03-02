@@ -1,5 +1,16 @@
 # ForgeOS
 
+## GOLDEN RULE #1 — DO NOT MODIFY THE FILE STRUCTURE
+The ForgeOS deployment on Render is extremely sensitive to file structure changes. The build and start commands depend on exact paths:
+- **Build**: `npm install && npm install --prefix client && npm run build --prefix client`
+- **Start**: `node server/index.js`
+
+**NEVER** move, rename, or reorganize the top-level directories (`server/`, `client/`, `package.json`). Do not create wrapper directories, nest the project inside a subdirectory, or restructure the root layout. Any change to where `server/index.js`, `client/`, or `package.json` live will crash the production deployment immediately.
+
+When pushing to GitHub (`BrianBMorgan/ForgeOS`), platform source files go to the **repo root** — not inside a subdirectory. Published project apps go into `{slug}/` subdirectories. The platform source itself is never namespaced.
+
+This rule applies to all operations: file edits, git pushes, refactors, and migrations. If in doubt, don't move files.
+
 ## Overview
 ForgeOS is an internal agentic AI build platform designed to orchestrate a Planner → Reviewer → Policy Gate → Human Approval → Executor → Auditor pipeline. It uses OpenAI models to generate, review, and refine structured build plans, produce runnable code, and launch live applications. The platform supports iterative development, allowing follow-up prompts to evolve existing applications with full context of the current codebase.
 
