@@ -192,6 +192,10 @@ body {
   background: #111827;
 }
 
+.prompt-column-spacer {
+  flex: 1;
+}
+
 .prompt-input-area {
   padding: 1.25rem;
   display: flex;

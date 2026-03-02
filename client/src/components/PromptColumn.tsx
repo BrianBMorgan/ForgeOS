@@ -588,6 +588,8 @@ export default function PromptColumn({
         </div>
       )}
 
+      {!(isProjectView && !isViewingHistory && hasChatHistory) && <div className="prompt-column-spacer" />}
+
       {!isViewingHistory && (
         <div className="prompt-input-area">
           <div className="prompt-textarea-wrap">
