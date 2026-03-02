@@ -1,3 +1,17 @@
 node_modules
 client/dist
 .DS_Store
+workspaces
+stress-test-results
+published
+.cache
+.config
+.upm
+.agents
+.local
+.replit
+attached_assets
+*.pem
+*.key
+.env
+.env.*
