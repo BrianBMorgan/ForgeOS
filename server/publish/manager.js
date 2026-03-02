@@ -412,8 +412,32 @@ async function _doPublish(projectId) {
 
   await saveToDb(app);
 
+  let github = null;
+  let githubError = null;
+  try {
+    const settingsManager = require("../settings/manager");
+    const githubSettings = await settingsManager.getSetting("github");
+    if (githubSettings?.repo && githubSettings?.autoPush !== false) {
+      app.logs += "\n--- Pushing to GitHub ---\n";
+      const { pushProjectToGitHub } = require("./github");
+      const result = await pushProjectToGitHub(
+        githubSettings.repo,
+        existingSlug,
+        publishDir,
+        `[ForgeOS] Publish ${project.name} (${existingSlug})`
+      );
+      app.logs += `Pushed ${result.filesCount} files to GitHub\nCommit: ${result.commitUrl}\n`;
+      github = result;
+      console.log(`[publish] Pushed ${project.name} to GitHub: ${result.commitUrl}`);
+    }
+  } catch (err) {
+    githubError = err.message;
+    app.logs += `\nGitHub push failed: ${err.message}\n`;
+    console.log(`[publish] GitHub push failed for ${project.name}: ${err.message}`);
+  }
+
   console.log(`[publish] Published ${project.name} at /apps/${existingSlug} (port ${assignedPort})`);
-  return { slug: existingSlug, port: assignedPort, status: app.status };
+  return { slug: existingSlug, port: assignedPort, status: app.status, github, githubError };
 }
 
 async function saveToDb(app) {

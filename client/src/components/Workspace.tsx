@@ -10,6 +10,7 @@ interface PublishStatus {
   status?: string;
   publishedAt?: number;
   logs?: string;
+  github?: { commitSha?: string; commitUrl?: string; filesCount?: number };
 }
 
 function PublishTab({ projectId }: { projectId: string | null }) {
@@ -37,14 +38,19 @@ function PublishTab({ projectId }: { projectId: string | null }) {
     fetchStatus();
   }, [fetchStatus]);
 
+  const [githubResult, setGithubResult] = useState<PublishStatus["github"]>(undefined);
+
   const handlePublish = async () => {
     if (!projectId) return;
     setPublishing(true);
     setError(null);
+    setGithubResult(undefined);
     try {
       const res = await fetch(`/api/projects/${projectId}/publish`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Publish failed");
+      if (data.github) setGithubResult(data.github);
+      if (data.githubError) setError((prev) => (prev ? prev + " | GitHub: " + data.githubError : "GitHub push failed: " + data.githubError));
       await fetchStatus();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Publish failed");
@@ -131,6 +137,17 @@ function PublishTab({ projectId }: { projectId: string | null }) {
               </button>
             </div>
           </div>
+
+          {githubResult?.commitUrl && (
+            <div className="pub-github-section">
+              <label className="pub-url-label">GitHub</label>
+              <div className="pub-url-row">
+                <a href={githubResult.commitUrl} target="_blank" rel="noopener noreferrer" className="pub-url-link">
+                  {githubResult.commitSha?.slice(0, 7)} — {githubResult.filesCount} files pushed
+                </a>
+              </div>
+            </div>
+          )}
 
           <div className="pub-actions">
             <button className="pub-republish-btn" onClick={handlePublish} disabled={publishing}>

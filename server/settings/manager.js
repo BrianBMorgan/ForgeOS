@@ -23,6 +23,10 @@ const DEFAULTS = {
     maxConcurrentApps: 5,
     logRetention: 2000,
   },
+  github: {
+    repo: "BrianBMorgan/ForgeOS",
+    autoPush: true,
+  },
   allowed_tech_stack: {
     allowed: [
       "express",

@@ -6,6 +6,7 @@ interface SettingValues {
   default_env_vars: { vars: { key: string; value: string }[] };
   workspace_limits: { portRangeStart: number; portRangeEnd: number; maxConcurrentApps: number; logRetention: number };
   allowed_tech_stack: { allowed: string[]; banned: string[] };
+  github: { repo: string; autoPush: boolean };
 }
 
 interface Skill {
@@ -38,9 +39,10 @@ const DEFAULT_SETTINGS: SettingValues = {
   default_env_vars: { vars: [] },
   workspace_limits: { portRangeStart: 4000, portRangeEnd: 4099, maxConcurrentApps: 5, logRetention: 2000 },
   allowed_tech_stack: { allowed: [], banned: [] },
+  github: { repo: "BrianBMorgan/ForgeOS", autoPush: true },
 };
 
-type TabId = "secrets" | "models" | "auto_approve" | "env_vars" | "limits" | "tech_stack" | "skills";
+type TabId = "secrets" | "models" | "auto_approve" | "env_vars" | "limits" | "tech_stack" | "github" | "skills";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "secrets", label: "Secrets Vault", icon: "⛓" },
@@ -49,6 +51,7 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "env_vars", label: "Default Env Vars", icon: "▧" },
   { id: "limits", label: "Workspace Limits", icon: "⊞" },
   { id: "tech_stack", label: "Tech Stack", icon: "⚒" },
+  { id: "github", label: "GitHub", icon: "⊛" },
   { id: "skills", label: "Skills Library", icon: "◈" },
 ];
 
@@ -469,6 +472,48 @@ export default function Settings() {
     </div>
   );
 
+  const renderGitHubPanel = () => (
+    <div className="stg-panel">
+      <div className="stg-panel-header">
+        <h3>GitHub Integration</h3>
+      </div>
+      <div className="stg-panel-body">
+        <div className="stg-field">
+          <label>Repository <span className="stg-hint-inline">(owner/repo)</span></label>
+          <input
+            type="text"
+            value={settings.github?.repo || ""}
+            onChange={(e) => setSettings({ ...settings, github: { ...settings.github, repo: e.target.value } })}
+            onBlur={() => saveSetting("github", settings.github)}
+            className="stg-input"
+            placeholder="BrianBMorgan/ForgeOS"
+          />
+        </div>
+        <div className="stg-field">
+          <label className="stg-toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.github?.autoPush ?? true}
+              onChange={(e) => {
+                const updated = { ...settings.github, autoPush: e.target.checked };
+                setSettings({ ...settings, github: updated });
+                saveSetting("github", updated);
+              }}
+            />
+            <span>Auto-push to GitHub on Publish</span>
+          </label>
+          <div className="stg-hint">When enabled, project files are automatically pushed to a subdirectory in the repo each time you publish.</div>
+        </div>
+        <div className="stg-field">
+          <div className="stg-hint">
+            Projects are pushed to <code>{settings.github?.repo || "owner/repo"}/project-slug/</code> on the <code>main</code> branch.
+            Make sure <code>GITHUB_TOKEN</code> is set in the Secrets Vault with repo push access.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderSkillsPanel = () => (
     <div className="stg-panel stg-skills-layout">
       <div className="stg-skills-sidebar">
@@ -564,6 +609,7 @@ export default function Settings() {
       case "env_vars": return renderEnvVarsPanel();
       case "limits": return renderLimitsPanel();
       case "tech_stack": return renderTechStackPanel();
+      case "github": return renderGitHubPanel();
       case "skills": return renderSkillsPanel();
     }
   };

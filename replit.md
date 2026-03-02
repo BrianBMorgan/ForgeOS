@@ -32,7 +32,9 @@ None specified.
 
 **MCP Server**: ForgeOS includes a built-in MCP (Model Context Protocol) server at `/mcp` that exposes ElevenLabs tools for voice synthesis and speech-to-text.
 
-**Voice Agent**: An embedded ElevenLabs Conversational AI voice agent widget provides a voice interface for user interaction within the UI.
+**Voice Agent**: An embedded ElevenLabs Conversational AI voice agent widget provides a voice interface for user interaction within the UI. Includes a WebSocket intercept bridge that captures agent responses and injects them into the ForgeOS prompt textarea when the call ends, with a manual "Send to Prompt" button and Alt+P shortcut.
+
+**Publishing System**: `server/publish/manager.js` publishes ForgeOS-built projects. The pipeline: copy workspace → install deps → build (auto-detected from package.json) → start on ports 4100-4199 → proxy at `/apps/:slug`. Published apps are also automatically pushed to GitHub (`server/publish/github.js`) as a subdirectory of the configured repo (default: `BrianBMorgan/ForgeOS`). GitHub settings (repo, auto-push toggle) are configurable in Settings → GitHub tab. The `GITHUB_TOKEN` secret provides push access. The `published_apps` DB table tracks state.
 
 ## External Dependencies
 - **OpenAI**: Used for agent pipeline calls (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface.
