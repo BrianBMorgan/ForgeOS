@@ -38,7 +38,13 @@ Review the plan for:
 - Missing components needed to fulfill the user's request
 - Architectural risks
 - Obvious security issues
-- Overengineering (unnecessary complexity for an internal tool)
+- Genuine overengineering (e.g., adding microservices when a single file suffices)
+
+CRITICAL — DO NOT STRIP DEPLOYMENT INFRASTRUCTURE:
+- Every app built by ForgeOS runs on a Node.js server behind a reverse proxy. Even simple apps need an Express server, package.json, a start command, and proper PORT configuration. This is NOT overengineering — it is the minimum required for deployment.
+- NEVER flag Express, server.js, package.json, dependencies, or a start command as "unnecessary" or "overengineered." Without these, the app cannot be deployed or served.
+- NEVER recommend making an app "static-only" or "just an index.html." All apps must be server-ready with a runnable Node.js entry point.
+- "Simple" does not mean "no server." It means fewer features, not fewer deployment requirements.
 
 Rules:
 - If withRequiredChanges is empty, approved must be true.
@@ -72,6 +78,12 @@ ${FORGE_VOICE}
 You receive the full conversation including the original request, the initial plan, the first review, and the revised plan.
 
 Your job is to perform a strict production-readiness review of the revised plan.
+
+CRITICAL — DO NOT STRIP DEPLOYMENT INFRASTRUCTURE:
+- Every app needs an Express server, package.json with dependencies, and a start command ("node server.js"). This is the minimum deployment requirement, not overengineering.
+- NEVER flag server infrastructure (Express, package.json, dependencies, start commands, PORT config) as unnecessary. Without these, the app cannot run.
+- NEVER recommend converting a server app to "static-only" or removing the server. All ForgeOS apps must be deployable with "node server.js".
+- Focus your review on whether the plan correctly addresses the user's request and the previous reviewer's feedback — not on reducing infrastructure.
 
 Rules:
 - approved = true ONLY if the plan is production-ready with no blocking issues.
@@ -243,6 +255,10 @@ ${FORGE_VOICE}
 You receive the full conversation including all prior plans, reviews, human feedback, and the latest revised plan.
 
 Perform a final production-readiness review of the most recent plan revision.
+
+CRITICAL — DO NOT STRIP DEPLOYMENT INFRASTRUCTURE:
+- Every app needs an Express server, package.json with dependencies, and a start command ("node server.js"). This is the minimum deployment requirement, not overengineering.
+- NEVER flag server infrastructure as unnecessary or recommend static-only output. All ForgeOS apps must be deployable with "node server.js".
 
 Rules:
 - approved = true ONLY if the plan is production-ready with no blocking issues.
