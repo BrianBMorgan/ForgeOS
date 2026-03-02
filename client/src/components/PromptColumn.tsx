@@ -712,6 +712,38 @@ export default function PromptColumn({
             <span className="meta-value">v{runData.iterationNumber}</span>
           </div>
         )}
+        {runData?.tokenUsage && (
+          <div className="token-usage-section">
+            <div className="meta-row token-usage-header">
+              <span className="meta-label">Tokens</span>
+              <span className="meta-value token-total">{runData.tokenUsage.totals.totalTokens.toLocaleString()}</span>
+            </div>
+            <div className="token-breakdown">
+              <div className="token-row">
+                <span className="token-label">Prompt</span>
+                <span className="token-val">{runData.tokenUsage.totals.promptTokens.toLocaleString()}</span>
+              </div>
+              <div className="token-row">
+                <span className="token-label">Completion</span>
+                <span className="token-val">{runData.tokenUsage.totals.completionTokens.toLocaleString()}</span>
+              </div>
+              {runData.tokenUsage.totals.totalTokens > 0 && (
+                <div className="token-row token-cost">
+                  <span className="token-label">Est. Cost</span>
+                  <span className="token-val">${((runData.tokenUsage.totals.promptTokens * 2.5 / 1_000_000) + (runData.tokenUsage.totals.completionTokens * 10 / 1_000_000)).toFixed(4)}</span>
+                </div>
+              )}
+              <div className="token-stages">
+                {Object.entries(runData.tokenUsage.stages).map(([stage, data]: [string, any]) => (
+                  <div className="token-stage-row" key={stage}>
+                    <span className="token-stage-name">{stage}</span>
+                    <span className="token-stage-val">{data.totalTokens.toLocaleString()} ({data.calls} call{data.calls !== 1 ? "s" : ""})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

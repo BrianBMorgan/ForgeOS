@@ -1,6 +1,22 @@
 const OpenAI = require("openai");
 const openai = new OpenAI();
 
+let _lastUsage = null;
+function getLastUsage() { const u = _lastUsage; _lastUsage = null; return u; }
+
+function extractUsage(response) {
+  if (response?.usage) {
+    _lastUsage = {
+      promptTokens: response.usage.prompt_tokens ?? response.usage.input_tokens ?? 0,
+      completionTokens: response.usage.completion_tokens ?? response.usage.output_tokens ?? 0,
+      totalTokens: response.usage.total_tokens ?? 0,
+    };
+    if (!_lastUsage.totalTokens) {
+      _lastUsage.totalTokens = _lastUsage.promptTokens + _lastUsage.completionTokens;
+    }
+  }
+}
+
 const RESPONSES_API_MODELS = new Set([
   "gpt-5.2-pro",
   "gpt-5.2",
@@ -45,6 +61,7 @@ async function callStructured(model, systemPrompt, userMessages, schema, formatN
     }
 
     const response = await openai.responses.create(params);
+    extractUsage(response);
     const content = response.output_text;
     const parsed = JSON.parse(content);
     schema.parse(parsed);
@@ -65,6 +82,7 @@ async function callStructured(model, systemPrompt, userMessages, schema, formatN
   }
 
   const response = await openai.chat.completions.create(params);
+  extractUsage(response);
   const content = response.choices[0].message.content;
   const parsed = JSON.parse(content);
   schema.parse(parsed);
@@ -120,6 +138,7 @@ async function callChat(model, systemPrompt, messages, tools, temperature) {
     }
 
     const response = await openai.responses.create(params);
+    extractUsage(response);
 
     const functionCalls = response.output.filter(o => o.type === "function_call");
     if (functionCalls.length > 0) {
@@ -160,6 +179,7 @@ async function callChat(model, systemPrompt, messages, tools, temperature) {
   }
 
   const response = await openai.chat.completions.create(params);
+  extractUsage(response);
   const choice = response.choices[0];
   return {
     content: choice.message.content,
@@ -179,4 +199,5 @@ module.exports = {
   callChat,
   usesResponsesAPI,
   NO_TEMPERATURE_MODELS,
+  getLastUsage,
 };

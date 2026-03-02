@@ -7,7 +7,7 @@ const {
   ExecutorSchema,
   AuditorSchema,
 } = require("./schemas");
-const { callStructured } = require("./model-router");
+const { callStructured, getLastUsage } = require("./model-router");
 const {
   PLANNER_INSTRUCTIONS,
   REVIEWER_PASS1_INSTRUCTIONS,
@@ -106,6 +106,21 @@ async function loadSkillsContext() {
 async function callAgent(messages, instructions, schema, model, formatName) {
   const temp = NO_TEMPERATURE_MODELS.has(model) ? undefined : (model === REVIEWER_MODEL ? REVIEWER_TEMP : PLANNER_TEMP);
   return await callStructured(model, instructions, messages, schema, formatName, temp);
+}
+
+function trackUsage(run, stageName) {
+  const usage = getLastUsage();
+  if (!usage) return;
+  if (!run.tokenUsage) run.tokenUsage = { stages: {}, totals: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } };
+  if (!run.tokenUsage.stages[stageName]) run.tokenUsage.stages[stageName] = { promptTokens: 0, completionTokens: 0, totalTokens: 0, calls: 0 };
+  const s = run.tokenUsage.stages[stageName];
+  s.promptTokens += usage.promptTokens;
+  s.completionTokens += usage.completionTokens;
+  s.totalTokens += usage.totalTokens;
+  s.calls += 1;
+  run.tokenUsage.totals.promptTokens += usage.promptTokens;
+  run.tokenUsage.totals.completionTokens += usage.completionTokens;
+  run.tokenUsage.totals.totalTokens += usage.totalTokens;
 }
 
 function createRun(prompt, context) {
@@ -372,6 +387,7 @@ async function executePipeline(runId) {
       PLANNER_MODEL,
       "planner_output"
     );
+    trackUsage(run, "planner");
     updateStage(run, "planner", "passed", plannerOutput);
 
     updateStage(run, "reviewer_p1", "running");
@@ -389,6 +405,7 @@ async function executePipeline(runId) {
       REVIEWER_MODEL,
       "reviewer_output"
     );
+    trackUsage(run, "reviewer");
     updateStage(run, "reviewer_p1", "passed", reviewer1Output);
 
     updateStage(run, "revise_p2", "running");
@@ -410,6 +427,7 @@ async function executePipeline(runId) {
       PLANNER_MODEL,
       "planner_output"
     );
+    trackUsage(run, "planner");
     updateStage(run, "revise_p2", "passed", revisedPlan);
 
     updateStage(run, "reviewer_p2", "running");
@@ -427,6 +445,7 @@ async function executePipeline(runId) {
       REVIEWER_MODEL,
       "reviewer_output"
     );
+    trackUsage(run, "reviewer");
     updateStage(run, "reviewer_p2", "passed", reviewer2Output);
 
     updateStage(run, "policy_gate", "running");
@@ -457,6 +476,7 @@ async function executePipeline(runId) {
       REVIEWER_MODEL,
       "policy_gate_output"
     );
+    trackUsage(run, "policy_gate");
     updateStage(run, "policy_gate", "passed", policyOutput);
 
     let forceAutoApprove = false;
@@ -534,6 +554,7 @@ async function executeAfterApproval(run) {
       PLANNER_MODEL,
       "executor_output"
     );
+    trackUsage(run, "executor");
     updateStage(run, "executor", "passed", executorOutput);
 
     updateStage(run, "auditor", "running");
@@ -557,7 +578,7 @@ async function executeAfterApproval(run) {
       },
     ];
 
-    const auditorOutput = await callAgent(
+    let auditorOutput = await callAgent(
       auditorMessages,
       AUDITOR_INSTRUCTIONS,
       AuditorSchema,
@@ -565,6 +586,7 @@ async function executeAfterApproval(run) {
       "auditor_output"
     );
 
+    trackUsage(run, "auditor");
     const MAX_AUDIT_ROUNDS = 3;
     let auditRound = 0;
     let currentAuditResult = auditorOutput;
@@ -608,6 +630,7 @@ async function executeAfterApproval(run) {
         PLANNER_MODEL,
         "executor_output"
       );
+      trackUsage(run, "executor");
 
       const postFixDiff = computeFileDiff(preFixFiles, executorOutput.files || []);
       const affectedFilesChanged = [...affectedFiles].some(af =>
@@ -678,6 +701,7 @@ async function executeAfterApproval(run) {
         REVIEWER_MODEL,
         "auditor_output"
       );
+      trackUsage(run, "auditor");
     }
 
     if (!currentAuditResult.approved) {
@@ -942,6 +966,7 @@ async function executeRevisionPass(run, feedback) {
       PLANNER_MODEL,
       "planner_output"
     );
+    trackUsage(run, "planner");
     updateStage(run, "revise_p3", "passed", revisedPlan);
 
     updateStage(run, "reviewer_p3", "running");
@@ -962,6 +987,7 @@ async function executeRevisionPass(run, feedback) {
       REVIEWER_MODEL,
       "reviewer_output"
     );
+    trackUsage(run, "reviewer");
     updateStage(run, "reviewer_p3", "passed", reviewer3Output);
 
     if (

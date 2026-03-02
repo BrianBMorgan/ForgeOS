@@ -18,7 +18,9 @@ None specified.
 - **Per-Project Environment Variables**: Each project can have custom environment variables (stored in `project_env_vars` table) injected into workspace processes.
 - **Settings System**: `server/settings/manager.js` manages global platform settings, secrets, and skills. This includes model configuration, auto-approve policy, default environment variables, a global secrets vault, workspace limits, allowed tech stack, and a skills library.
 - **Pipeline Accountability System**: Implements checks like iteration history injection, diff verification gate, regression guard, and workspace health checks to ensure agent accountability and catch failures.
-- **Model Router**: `server/pipeline/model-router.js` provides a model-agnostic abstraction over OpenAI's Chat Completions and Responses APIs, routing calls based on the model used and normalizing tool calls.
+- **Model Router**: `server/pipeline/model-router.js` provides a model-agnostic abstraction over OpenAI's Chat Completions and Responses APIs, routing calls based on the model used and normalizing tool calls. Tracks token usage (prompt/completion/total) per API call via `getLastUsage()`.
+- **Token Usage Tracking**: The pipeline captures OpenAI token usage per stage (planner, reviewer, policy_gate, executor, auditor) on each run. Usage data includes per-stage breakdowns (tokens + call count) and totals with estimated cost. Displayed in the PromptColumn sidebar below iteration info. Cost estimate uses gpt-4o pricing ($2.50/M prompt, $10/M completion).
+- **Static Site Support**: Workspace manager auto-detects static sites (index.html present, no server/start script) and serves them with a built-in Node.js static file server (`__static_server.js`). Pipeline runner also triggers auto-start for static sites.
 - **Persistence**: Projects, iterations, run snapshots, chat messages, project env vars, settings, secrets, and skills are persisted in Neon Postgres via `@neondatabase/serverless`.
 
 **Pipeline Stages**:
