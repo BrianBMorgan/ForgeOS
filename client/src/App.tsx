@@ -22,6 +22,22 @@ export interface WorkspaceStatus {
   error: string | null;
 }
 
+export interface TokenStageUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  calls: number;
+}
+
+export interface TokenUsage {
+  stages: Record<string, TokenStageUsage>;
+  totals: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+
 export interface RunData {
   id: string;
   prompt: string;
@@ -36,6 +52,7 @@ export interface RunData {
   workspace?: WorkspaceStatus;
   projectId?: string | null;
   iterationNumber?: number;
+  tokenUsage?: TokenUsage;
 }
 
 export interface IterationData {
