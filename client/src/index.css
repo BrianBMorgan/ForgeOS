@@ -3304,6 +3304,22 @@ body {
   font-weight: 400;
 }
 
+.stg-hint {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-top: 0.25rem;
+}
+
+.stg-hint code {
+  background: #1e293b;
+  color: #38bdf8;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.75rem;
+}
+
 .stg-toggle-row {
   display: flex;
   align-items: center;
