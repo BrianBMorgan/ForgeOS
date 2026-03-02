@@ -749,13 +749,18 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 });
 
 app.get("/api/projects/:id/chat", async (req, res) => {
-  const project = await projectManager.getProject(req.params.id);
-  if (!project) {
-    return res.status(404).json({ error: "Project not found" });
-  }
+  try {
+    const project = await projectManager.getProject(req.params.id);
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
 
-  const history = await chatManager.getChatHistory(req.params.id);
-  res.json(history);
+    const history = await chatManager.getChatHistory(req.params.id);
+    res.json(history);
+  } catch (err) {
+    console.error("Chat history error:", err.message);
+    res.status(500).json({ error: "Failed to load chat history" });
+  }
 });
 
 const { runStressTest, getStressTestStatus } = require("./stress-test/runner");
