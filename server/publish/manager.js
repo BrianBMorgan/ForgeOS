@@ -30,9 +30,13 @@ async function ensureSchema() {
     status VARCHAR(20) DEFAULT 'stopped',
     start_command TEXT,
     install_command TEXT,
+    build_command TEXT,
     published_at BIGINT,
     updated_at BIGINT
   )`;
+  try {
+    await sql`ALTER TABLE published_apps ADD COLUMN IF NOT EXISTS build_command TEXT`;
+  } catch {}
 }
 
 function ensurePublishedDir() {
@@ -258,6 +262,7 @@ async function _doPublish(projectId) {
 
   let startCommand = "npm start";
   let installCommand = "npm install";
+  let buildCommand = null;
   try {
     const { getRun } = require("../pipeline/runner");
     const run = await getRun(currentRunId);
@@ -267,6 +272,9 @@ async function _doPublish(projectId) {
     if (run?.stages?.executor?.output?.installCommand) {
       installCommand = run.stages.executor.output.installCommand;
     }
+    if (run?.stages?.executor?.output?.buildCommand) {
+      buildCommand = run.stages.executor.output.buildCommand;
+    }
   } catch {}
   try {
     const pkgPath = path.join(publishDir, "package.json");
@@ -274,6 +282,9 @@ async function _doPublish(projectId) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
       if (pkg.scripts?.start && startCommand === "npm start") {
         startCommand = "npm start";
+      }
+      if (!buildCommand && pkg.scripts?.build) {
+        buildCommand = "npm run build";
       }
     }
   } catch {}
@@ -287,6 +298,7 @@ async function _doPublish(projectId) {
     process: null,
     startCommand,
     installCommand,
+    buildCommand,
     publishedAt: Date.now(),
     logs: "",
   };
@@ -314,6 +326,34 @@ async function _doPublish(projectId) {
     app.logs += "\nInstall failed: " + err.message;
     await saveToDb(app);
     throw err;
+  }
+
+  if (buildCommand) {
+    app.status = "building";
+    app.logs += "\n--- Build: " + buildCommand + " ---\n";
+    try {
+      const buildParts = validateCommand(buildCommand);
+      await new Promise((resolve, reject) => {
+        const proc = spawn(buildParts[0], buildParts.slice(1), {
+          cwd: publishDir,
+          env: { ...process.env, NODE_ENV: "production" },
+        });
+        let output = "";
+        proc.stdout.on("data", (d) => { output += d.toString(); });
+        proc.stderr.on("data", (d) => { output += d.toString(); });
+        proc.on("close", (code) => {
+          app.logs += output;
+          if (code === 0) resolve();
+          else reject(new Error("Build failed with code " + code));
+        });
+        proc.on("error", reject);
+      });
+    } catch (err) {
+      app.status = "failed";
+      app.logs += "\nBuild failed: " + err.message;
+      await saveToDb(app);
+      throw err;
+    }
   }
 
   let assignedPort;
@@ -380,14 +420,15 @@ async function saveToDb(app) {
   const sql = await getDb();
   if (!sql) return;
   const now = Date.now();
-  await sql`INSERT INTO published_apps (project_id, slug, port, status, start_command, install_command, published_at, updated_at)
-    VALUES (${app.projectId}, ${app.slug}, ${app.port}, ${app.status}, ${app.startCommand}, ${app.installCommand}, ${app.publishedAt}, ${now})
+  await sql`INSERT INTO published_apps (project_id, slug, port, status, start_command, install_command, build_command, published_at, updated_at)
+    VALUES (${app.projectId}, ${app.slug}, ${app.port}, ${app.status}, ${app.startCommand}, ${app.installCommand}, ${app.buildCommand || null}, ${app.publishedAt}, ${now})
     ON CONFLICT (project_id) DO UPDATE SET
       slug = ${app.slug},
       port = ${app.port},
       status = ${app.status},
       start_command = ${app.startCommand},
       install_command = ${app.installCommand},
+      build_command = ${app.buildCommand || null},
       updated_at = ${now}`;
 }
 
@@ -485,6 +526,7 @@ async function restorePublishedApps() {
       process: null,
       startCommand: row.start_command || "npm start",
       installCommand: row.install_command || "npm install",
+      buildCommand: row.build_command || null,
       publishedAt: row.published_at,
       logs: "",
     };
