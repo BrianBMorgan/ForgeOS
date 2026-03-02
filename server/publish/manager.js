@@ -224,7 +224,7 @@ async function publishProject(projectId) {
 
 async function _doPublish(projectId) {
   const projectManager = require("../projects/manager");
-  const project = projectManager.getProject(projectId);
+  const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
 
   const currentRunId = project.currentRunId;
@@ -608,7 +608,7 @@ async function restorePublishedApps() {
 
 async function exportProject(projectId) {
   const projectManager = require("../projects/manager");
-  const project = projectManager.getProject(projectId);
+  const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
 
   const currentRunId = project.currentRunId;
