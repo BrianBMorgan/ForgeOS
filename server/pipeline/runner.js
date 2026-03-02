@@ -1,3 +1,4 @@
+const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 const {
   PlannerSchema,
@@ -770,11 +771,12 @@ async function buildAndRun(run, executorOutput) {
 
     run.workspace.status = "installed";
 
-    if (executorOutput.startCommand) {
+    const shouldStart = executorOutput.startCommand || workspace.isStaticSite(path.join(__dirname, "..", "..", "workspaces", run.id));
+    if (shouldStart) {
       run.workspace.status = "starting";
       const startResult = await workspace.startApp(
         run.id,
-        executorOutput.startCommand,
+        executorOutput.startCommand || null,
         executorOutput.port || 4000,
         customEnv
       );

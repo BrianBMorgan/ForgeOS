@@ -302,10 +302,69 @@ function resolveStartCommand(wsDir, startCommand) {
   return startCommand;
 }
 
+function isStaticSite(wsDir) {
+  const hasIndex = fs.existsSync(path.join(wsDir, "index.html"));
+  if (!hasIndex) return false;
+  const pkgPath = path.join(wsDir, "package.json");
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      if (pkg.scripts?.start) return false;
+      if (pkg.dependencies?.express || pkg.dependencies?.fastify || pkg.dependencies?.koa) return false;
+    } catch {}
+  }
+  const hasServerJs = fs.existsSync(path.join(wsDir, "server.js")) || fs.existsSync(path.join(wsDir, "app.js"));
+  if (hasServerJs) return false;
+  return true;
+}
+
+function ensureStaticServer(wsDir) {
+  const serverPath = path.join(wsDir, "__static_server.js");
+  if (!fs.existsSync(serverPath)) {
+    fs.writeFileSync(serverPath, `
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const PORT = process.env.PORT || 4000;
+const ROOT = __dirname;
+const MIME = {
+  ".html": "text/html", ".css": "text/css", ".js": "application/javascript",
+  ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml",
+  ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2",
+  ".ttf": "font/ttf", ".mp3": "audio/mpeg", ".mp4": "video/mp4",
+  ".webp": "image/webp", ".webm": "video/webm", ".pdf": "application/pdf",
+};
+http.createServer((req, res) => {
+  let url = req.url.split("?")[0];
+  if (url === "/") url = "/index.html";
+  let filePath = path.join(ROOT, url);
+  if (filePath.includes("__static_server")) { res.writeHead(403); res.end(); return; }
+  if (!fs.existsSync(filePath)) filePath = path.join(ROOT, "index.html");
+  try {
+    const data = fs.readFileSync(filePath);
+    const ext = path.extname(filePath);
+    res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });
+    res.end(data);
+  } catch {
+    res.writeHead(404);
+    res.end("Not found");
+  }
+}).listen(PORT, () => console.log("Static server running on port " + PORT));
+`.trim());
+  }
+  return "node __static_server.js";
+}
+
 async function startApp(runId, startCommand, port, customEnv = {}) {
   const ws = workspaces.get(runId);
   if (!ws) {
     return { success: false, error: "Workspace not found" };
+  }
+
+  if (!startCommand && isStaticSite(ws.dir)) {
+    startCommand = ensureStaticServer(ws.dir);
+    ws.logEntries.push(createLogEntry("Detected static site — auto-serving with built-in server", "info", "system"));
   }
 
   if (!startCommand) {
@@ -720,4 +779,5 @@ module.exports = {
   execCommand,
   touchActivity,
   stopIdleWorkspaces,
+  isStaticSite,
 };
