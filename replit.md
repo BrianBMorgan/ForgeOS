@@ -11,6 +11,9 @@ When pushing to GitHub (`BrianBMorgan/ForgeOS`), platform source files go to the
 
 This rule applies to all operations: file edits, git pushes, refactors, and migrations. If in doubt, don't move files.
 
+## GOLDEN RULE #2 — ALWAYS PUSH TO GITHUB
+After every code change (no matter how small), push the updated files to `BrianBMorgan/ForgeOS` on GitHub. The repo must always reflect the current state of the codebase. Use the `pushProjectToGitHub` function from `server/publish/github.js` pointed at the workspace root (`.`) with NO slug prefix — files go to the **repo root**, not a subdirectory. Never skip this step, never batch changes silently. Every edit = a push.
+
 ## Overview
 ForgeOS is an internal agentic AI build platform designed to orchestrate a Planner → Reviewer → Policy Gate → Human Approval → Executor → Auditor pipeline. It uses OpenAI models to generate, review, and refine structured build plans, produce runnable code, and launch live applications. The platform supports iterative development, allowing follow-up prompts to evolve existing applications with full context of the current codebase.
 
