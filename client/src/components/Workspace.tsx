@@ -283,6 +283,12 @@ function PlanTab({ runData }: { runData: RunData | null }) {
 
   return (
     <div className="plan-content">
+      {runData?.prompt && (
+        <div className="plan-user-prompt">
+          <div className="plan-user-prompt-label">User Prompt</div>
+          <div className="plan-user-prompt-text">{runData.prompt}</div>
+        </div>
+      )}
       <div className="plan-header">
         <span className="plan-project-name">{String(plan.projectName || "")}</span>
         <span className="plan-template">{String(plan.template || "")}</span>
