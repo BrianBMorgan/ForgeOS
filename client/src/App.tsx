@@ -162,7 +162,12 @@ function App() {
         const data: ChatMessage = await res.json();
         setChatMessages((prev) => [...prev, data]);
       } else {
-        setChatMessages((prev) => [...prev, { role: "assistant", content: "Something went wrong. Please try again.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
+        let errorMsg = "Something went wrong. Please try again.";
+        try {
+          const errData = await res.json();
+          if (errData.error) errorMsg = errData.error;
+        } catch {}
+        setChatMessages((prev) => [...prev, { role: "assistant", content: errorMsg, suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
       }
     } catch {
       setChatMessages((prev) => [...prev, { role: "assistant", content: "Connection error. Please try again.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);

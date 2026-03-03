@@ -744,7 +744,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     res.json(response);
   } catch (err) {
     console.error("Chat error:", err.message);
-    res.status(500).json({ error: "Chat failed" });
+    res.status(500).json({ error: `Chat failed: ${err.message}` });
   }
 });
 
