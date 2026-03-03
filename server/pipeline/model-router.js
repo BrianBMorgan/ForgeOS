@@ -91,21 +91,26 @@ async function callStructured(model, systemPrompt, userMessages, schema, formatN
 
 async function callChat(model, systemPrompt, messages, tools, temperature) {
   if (usesResponsesAPI(model)) {
+    const sanitizeId = (id) => {
+      if (id && id.startsWith("call_")) return "fc_" + id.slice(5);
+      return id;
+    };
     const input = [];
     for (const m of messages) {
       if (m.role === "system") continue;
       if (m.role === "tool") {
         input.push({
           type: "function_call_output",
-          call_id: m.tool_call_id,
+          call_id: sanitizeId(m.tool_call_id),
           output: m.content,
         });
       } else if (m.role === "assistant" && m.tool_calls && m.tool_calls.length > 0) {
         for (const tc of m.tool_calls) {
+          const safeId = sanitizeId(tc.id);
           input.push({
             type: "function_call",
-            id: tc.id,
-            call_id: tc.id,
+            id: safeId,
+            call_id: safeId,
             name: tc.function.name,
             arguments: tc.function.arguments,
           });
