@@ -393,7 +393,7 @@ export default function PromptColumn({
 
   const isProjectView = !isNewProject && projectData;
   const hasIterations = projectData && projectData.iterations.length > 0;
-  const canIterate = isProjectView && runData?.status === "completed" && runData?.workspace?.status === "running";
+  const canIterate = isProjectView && (runData?.status === "completed" || runData?.status === "failed");
   const hasChatHistory = chatMessages.length > 0;
 
   useEffect(() => {
