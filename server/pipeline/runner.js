@@ -651,6 +651,7 @@ async function executeAfterApproval(run) {
         });
         run.status = "failed";
         run.error = `Executor returned identical code in fix round ${auditRound} — refused to apply Auditor fixes. Issues: ${currentAuditResult.issues.map(i => i.description || i.rule || "unknown").join("; ").slice(0, 500)}`;
+        await buildAndRun(run, executorOutput);
         await saveRunSnapshot(run);
         return;
       }
@@ -667,6 +668,7 @@ async function executeAfterApproval(run) {
         });
         run.status = "failed";
         run.error = `Executor made changes in fix round ${auditRound} but not to the files the Auditor flagged (${[...affectedFiles].join(", ")}). Issues: ${currentAuditResult.issues.map(i => i.description || i.rule || "unknown").join("; ").slice(0, 500)}`;
+        await buildAndRun(run, executorOutput);
         await saveRunSnapshot(run);
         return;
       }
@@ -715,6 +717,7 @@ async function executeAfterApproval(run) {
       });
       run.status = "failed";
       run.error = `Auditor rejected after ${auditRound + 1} round(s). ${criticalIssues.length} critical/high issue(s) remain: ${criticalIssues.map(i => i.description || i.rule || "unknown").join("; ").slice(0, 500)}`;
+      await buildAndRun(run, executorOutput);
       await saveRunSnapshot(run);
       return;
     }
@@ -788,7 +791,7 @@ async function buildAndRun(run, executorOutput) {
       if (!installResult.success) {
         run.workspace.status = "install-failed";
         run.workspace.error = installResult.error;
-        run.status = "completed";
+        if (run.status !== "failed") run.status = "completed";
         return;
       }
     }
@@ -816,11 +819,11 @@ async function buildAndRun(run, executorOutput) {
       }
     }
 
-    run.status = "completed";
+    if (run.status !== "failed") run.status = "completed";
   } catch (err) {
     run.workspace.status = "build-failed";
     run.workspace.error = err.message;
-    run.status = "completed";
+    if (run.status !== "failed") run.status = "completed";
   }
 }
 
