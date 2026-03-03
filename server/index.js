@@ -929,12 +929,21 @@ app.use("/preview/:runId", async (req, res) => {
   }
   if (!targetPath.startsWith("/")) targetPath = "/" + targetPath;
 
+  const bodyBuffer = (req.body !== undefined && req.body !== null)
+    ? Buffer.from(JSON.stringify(req.body))
+    : null;
+
+  const fwdHeaders = { ...req.headers, host: `127.0.0.1:${status.port}` };
+  if (bodyBuffer) {
+    fwdHeaders["content-length"] = String(bodyBuffer.length);
+  }
+
   const options = {
     hostname: "127.0.0.1",
     port: status.port,
     path: targetPath,
     method: req.method,
-    headers: { ...req.headers, host: `127.0.0.1:${status.port}` },
+    headers: fwdHeaders,
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
@@ -947,10 +956,14 @@ app.use("/preview/:runId", async (req, res) => {
   });
 
   proxyReq.on("error", () => {
-    res.status(502).json({ error: "Preview app not reachable" });
+    if (!res.headersSent) res.status(502).json({ error: "Preview app not reachable" });
   });
 
-  req.pipe(proxyReq);
+  if (bodyBuffer) {
+    proxyReq.end(bodyBuffer);
+  } else {
+    req.pipe(proxyReq);
+  }
 });
 
 app.use("/apps/:slug", (req, res) => {
@@ -967,12 +980,21 @@ app.use("/apps/:slug", (req, res) => {
   }
   if (!targetPath.startsWith("/")) targetPath = "/" + targetPath;
 
+  const bodyBuffer = (req.body !== undefined && req.body !== null)
+    ? Buffer.from(JSON.stringify(req.body))
+    : null;
+
+  const fwdHeaders = { ...req.headers, host: `127.0.0.1:${pubApp.port}` };
+  if (bodyBuffer) {
+    fwdHeaders["content-length"] = String(bodyBuffer.length);
+  }
+
   const options = {
     hostname: "127.0.0.1",
     port: pubApp.port,
     path: targetPath,
     method: req.method,
-    headers: { ...req.headers, host: `127.0.0.1:${pubApp.port}` },
+    headers: fwdHeaders,
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
@@ -986,7 +1008,11 @@ app.use("/apps/:slug", (req, res) => {
     }
   });
 
-  req.pipe(proxyReq);
+  if (bodyBuffer) {
+    proxyReq.end(bodyBuffer);
+  } else {
+    req.pipe(proxyReq);
+  }
 });
 
 const clientDist = path.join(__dirname, "..", "client", "dist");
