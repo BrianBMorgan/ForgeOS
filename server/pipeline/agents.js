@@ -145,6 +145,9 @@ NO BUILD STEPS — DIRECT EXECUTION ONLY:
 - Do NOT use React, Vue, Svelte, or any framework that requires compilation. Use plain HTML with vanilla JavaScript in the browser.
 - For frontend-only features (clocks, calculators, visualizations, games), implement ALL logic client-side in plain HTML/CSS/JS. Do not create unnecessary API endpoints when the browser can do the work directly.
 
+BASE TAG PROHIBITION:
+- NEVER use <base href="/"> or any <base> tag in HTML files. It breaks relative URL resolution when the app is served behind a reverse proxy under a subpath. All <script src>, <link href>, and fetch() URLs must be purely relative without relying on a <base> tag.
+
 TEMPLATE LITERAL SAFETY:
 - When returning HTML from Express using res.send() with backtick template literals, NEVER include JavaScript code that itself uses backtick template literals inside <script> tags. This creates nested backticks which cause a SyntaxError.
 - WRONG: res.send(\`<script>fetch(\\\`api/items/\\\${id}\\\`)</script>\`) — nested backticks break the outer template literal.
@@ -374,6 +377,7 @@ CRITICAL RULES:
 - If the Auditor says package.json is missing, add one with all dependencies.
 - If the Auditor says a banned package is used, replace it with the correct alternative.
 - If the Auditor says port is hardcoded, add process.env.PORT fallback.
+- NEVER add a <base href="/"> tag to fix relative URL issues. It makes things worse under the reverse proxy. Use purely relative URLs (e.g., fetch("api/items"), <script src="app.js">) without any <base> tag.
 - Your output will be diff-verified. The Auditor receives a line-by-line diff between your previous output and this one. If the diff shows ZERO changes to the files the Auditor flagged, you will be REJECTED IMMEDIATELY without re-audit.
 
 In your implementationSummary, list each Auditor issue and the EXACT change you made to fix it. Example: "Fixed issue #1: Changed model 'gpt-4.1-mini' to 'gpt-4o-mini' on line 42 of server.js."
@@ -455,6 +459,7 @@ ALL OTHER EXECUTOR RULES STILL APPLY:
 - No build steps — startCommand must be "node server.js" or similar single command.
 - No banned packages (bcrypt, bcryptjs, jsonwebtoken, passport, dotenv, pg, esbuild, webpack, vite, parcel, rollup, react, react-dom, vue, svelte, angular).
 - Template literal safety: no nested backticks in res.send().
+- No <base href="/"> tags — they break URL resolution under the reverse proxy.
 - Database: @neondatabase/serverless with tagged template literals, CREATE TABLE IF NOT EXISTS.
 - Auth: jose + JWKS only.
 - DATA PERSISTENCE (storage choice only — does NOT affect app architecture): When the app stores persistent data, use Neon Postgres. Do not use SQLite, LowDB, or file-based storage for persistent data. For file uploads, store as base64 in Postgres TEXT columns. This rule does NOT mean "make the app static" — build full servers with APIs as needed.
