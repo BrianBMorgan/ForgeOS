@@ -1,3 +1,5 @@
+"use strict";
+
 const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
@@ -6,8 +8,33 @@ const net = require("net");
 const PUBLISHED_DIR = path.join(__dirname, "..", "..", "published");
 const PORT_RANGE_START = 4100;
 const PORT_RANGE_END = 4199;
+const LOG_MAX_BYTES = 50_000;
+const LOG_TAIL_BYTES = 30_000;
+const STARTUP_GRACE_MS = 3_000;
+const RESTORE_STARTUP_GRACE_MS = 2_000;
+const SIGKILL_TIMEOUT_MS = 5_000;
+const GITHUB_PUSH_TIMEOUT_MS = 30_000;
 
+// ---------------------------------------------------------------------------
+// In-memory state
+// ---------------------------------------------------------------------------
+
+/** @type {Map<string, AppState>} */
 const publishedApps = new Map();
+
+/**
+ * Ports that have been claimed by getNextFreePort() but whose process has not
+ * yet bound the socket. Prevents concurrent allocations from returning the
+ * same port during restore or rapid publish sequences.
+ * @type {Set<number>}
+ */
+const reservedPorts = new Set();
+
+let publishLock = false;
+
+// ---------------------------------------------------------------------------
+// Database
+// ---------------------------------------------------------------------------
 
 let db = null;
 
@@ -22,185 +49,61 @@ async function getDb() {
 async function ensureSchema() {
   const sql = await getDb();
   if (!sql) return;
-  await sql`CREATE TABLE IF NOT EXISTS published_apps (
-    id SERIAL PRIMARY KEY,
-    project_id VARCHAR(8) NOT NULL UNIQUE,
-    slug VARCHAR(255) NOT NULL UNIQUE,
-    port INT,
-    status VARCHAR(20) DEFAULT 'stopped',
-    start_command TEXT,
-    install_command TEXT,
-    build_command TEXT,
-    published_at BIGINT,
-    updated_at BIGINT
-  )`;
-  try {
-    await sql`ALTER TABLE published_apps ADD COLUMN IF NOT EXISTS build_command TEXT`;
-  } catch {}
+  await sql`
+    CREATE TABLE IF NOT EXISTS published_apps (
+      id              SERIAL PRIMARY KEY,
+      project_id      VARCHAR(8)   NOT NULL UNIQUE,
+      slug            VARCHAR(255) NOT NULL UNIQUE,
+      port            INT,
+      status          VARCHAR(20)  DEFAULT 'stopped',
+      start_command   TEXT,
+      install_command TEXT,
+      build_command   TEXT,
+      published_at    BIGINT,
+      updated_at      BIGINT
+    )
+  `;
+  await sql`
+    ALTER TABLE published_apps
+      ADD COLUMN IF NOT EXISTS build_command TEXT
+  `.catch(() => {});
 }
+
+async function saveToDb(app) {
+  const sql = await getDb();
+  if (!sql) return;
+  const now = Date.now();
+  await sql`
+    INSERT INTO published_apps
+      (project_id, slug, port, status, start_command, install_command,
+       build_command, published_at, updated_at)
+    VALUES
+      (${app.projectId}, ${app.slug}, ${app.port}, ${app.status},
+       ${app.startCommand}, ${app.installCommand}, ${app.buildCommand ?? null},
+       ${app.publishedAt}, ${now})
+    ON CONFLICT (project_id) DO UPDATE SET
+      slug            = ${app.slug},
+      port            = ${app.port},
+      status          = ${app.status},
+      start_command   = ${app.startCommand},
+      install_command = ${app.installCommand},
+      build_command   = ${app.buildCommand ?? null},
+      updated_at      = ${now}
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// File system helpers
+// ---------------------------------------------------------------------------
 
 function ensurePublishedDir() {
-  if (!fs.existsSync(PUBLISHED_DIR)) {
-    fs.mkdirSync(PUBLISHED_DIR, { recursive: true });
-  }
-}
-
-function generateSlug(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .substring(0, 60) || "app";
-}
-
-function getNextFreePort() {
-  return new Promise((resolve, reject) => {
-    const usedPorts = new Set();
-    for (const [, app] of publishedApps) {
-      if (app.port && app.status === "running") usedPorts.add(app.port);
-    }
-    function tryPort(port) {
-      if (port > PORT_RANGE_END) {
-        reject(new Error("No free ports in published range"));
-        return;
-      }
-      if (usedPorts.has(port)) {
-        tryPort(port + 1);
-        return;
-      }
-      const server = net.createServer();
-      server.once("error", () => tryPort(port + 1));
-      server.once("listening", () => {
-        server.close(() => resolve(port));
-      });
-      server.listen(port, "127.0.0.1");
-    }
-    tryPort(PORT_RANGE_START);
-  });
-}
-
-function forceKillPort(port) {
-  try { execSync(`fuser -k ${port}/tcp 2>/dev/null || true`); } catch {}
-  try { execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`); } catch {}
-}
-
-function patchHardcodedPort(dir) {
-  try {
-    const files = collectJsFiles(dir);
-    for (const filePath of files) {
-      let content;
-      try { content = fs.readFileSync(filePath, "utf8"); } catch { continue; }
-      if (/process\.env\.PORT/.test(content)) continue;
-      let patched = content;
-      patched = patched.replace(
-        /(const|let|var)\s+(PORT|port)\s*=\s*(\d{3,5})\s*;/g,
-        "$1 $2 = process.env.PORT || $3;"
-      );
-      patched = patched.replace(
-        /\.listen\(\s*(\d{3,5})\s*,/g,
-        ".listen(process.env.PORT || $1,"
-      );
-      patched = patched.replace(
-        /\.listen\(\s*(\d{3,5})\s*\)/g,
-        ".listen(process.env.PORT || $1)"
-      );
-      if (patched !== content) {
-        fs.writeFileSync(filePath, patched, "utf8");
-      }
-    }
-  } catch {}
-}
-
-function collectJsFiles(dir, files = []) {
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        collectJsFiles(full, files);
-      } else if (/\.(js|ts|mjs|cjs)$/.test(entry.name)) {
-        files.push(full);
-      }
-    }
-  } catch {}
-  return files;
-}
-
-function resolveStartCommand(dir, startCommand) {
-  if (startCommand === "npm start" || startCommand === "npm run start") {
-    try {
-      const pkgPath = path.join(dir, "package.json");
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-        const script = pkg.scripts?.start;
-        if (script && /^node\s+\S+/.test(script)) {
-          return script;
-        }
-      }
-    } catch {}
-  }
-  return startCommand;
-}
-
-function validateCommand(cmd) {
-  const parts = cmd.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) throw new Error("Empty command");
-  return parts;
-}
-
-function cleanDatabaseUrl(url) {
-  if (!url) return url;
-  return url.replace(/\?.*$/, "") + "?sslmode=require";
-}
-
-function getPublishedEnv(customEnv = {}) {
-  const RESERVED = ["PORT", "DATABASE_URL", "NEON_AUTH_JWKS_URL", "JWT_SECRET", "NODE_ENV", "HOME", "PATH", "TERM"];
-  const filtered = { ...customEnv };
-  for (const k of RESERVED) delete filtered[k];
-  const env = { ...filtered };
-  if (process.env.NEON_DATABASE_URL) {
-    env.DATABASE_URL = cleanDatabaseUrl(process.env.NEON_DATABASE_URL);
-  }
-  if (process.env.NEON_AUTH_JWKS_URL) {
-    env.NEON_AUTH_JWKS_URL = process.env.NEON_AUTH_JWKS_URL;
-  }
-  env.JWT_SECRET = "forgeos-published-app-secret-" + Date.now();
-  return env;
-}
-
-let publishLock = false;
-
-async function getMergedEnv(projectId) {
-  let globalDefaults = {};
-  let projectEnv = {};
-  try {
-    const settingsManager = require("../settings/manager");
-    const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
-    if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
-      for (const v of defaultEnvSetting.vars) {
-        if (v.key) globalDefaults[v.key] = v.value || "";
-      }
-    }
-  } catch {}
-  if (projectId) {
-    try {
-      const projectManager = require("../projects/manager");
-      projectEnv = await projectManager.getEnvVarsAsObject(projectId);
-    } catch {}
-  }
-  return { ...globalDefaults, ...projectEnv };
+  fs.mkdirSync(PUBLISHED_DIR, { recursive: true });
 }
 
 function copyDirectory(src, dest) {
-  if (!fs.existsSync(dest)) {
-    fs.mkdirSync(dest, { recursive: true });
-  }
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.name === "node_modules") continue;
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name === ".git") continue;
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.isDirectory()) {
@@ -211,10 +114,297 @@ function copyDirectory(src, dest) {
   }
 }
 
+function collectJsFiles(dir, files = []) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return files;
+  }
+  for (const entry of entries) {
+    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      collectJsFiles(full, files);
+    } else if (/\.(js|ts|mjs|cjs)$/.test(entry.name)) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+// ---------------------------------------------------------------------------
+// Slug generation
+// ---------------------------------------------------------------------------
+
+function generateSlug(name) {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .substring(0, 60);
+  return slug || "app";
+}
+
+// ---------------------------------------------------------------------------
+// Port management
+// ---------------------------------------------------------------------------
+
+function getNextFreePort() {
+  return new Promise((resolve, reject) => {
+    const unavailable = new Set(reservedPorts);
+    for (const [, app] of publishedApps) {
+      if (app.port && (app.status === "running" || app.status === "starting")) {
+        unavailable.add(app.port);
+      }
+    }
+
+    function tryPort(port) {
+      if (port > PORT_RANGE_END) {
+        reject(new Error("No free ports available in the publish range (4100-4199)"));
+        return;
+      }
+      if (unavailable.has(port)) {
+        tryPort(port + 1);
+        return;
+      }
+      const server = net.createServer();
+      server.once("error", () => tryPort(port + 1));
+      server.once("listening", () => {
+        server.close(() => {
+          reservedPorts.add(port);
+          resolve(port);
+        });
+      });
+      server.listen(port, "127.0.0.1");
+    }
+
+    tryPort(PORT_RANGE_START);
+  });
+}
+
+function releasePort(port) {
+  reservedPorts.delete(port);
+}
+
+function forceKillPort(port) {
+  try { execSync(`fuser -k ${port}/tcp 2>/dev/null || true`); } catch {}
+  try { execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`); } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// Port patching
+// ---------------------------------------------------------------------------
+
+function patchHardcodedPort(dir) {
+  for (const filePath of collectJsFiles(dir)) {
+    let content;
+    try { content = fs.readFileSync(filePath, "utf8"); } catch { continue; }
+    if (/process\.env\.PORT/.test(content)) continue;
+
+    let patched = content;
+    patched = patched.replace(
+      /(const|let|var)\s+(PORT|port)\s*=\s*(\d{3,5})\s*;/g,
+      "$1 $2 = process.env.PORT || $3;"
+    );
+    patched = patched.replace(
+      /\.listen\(\s*(\d{3,5})\s*,/g,
+      ".listen(process.env.PORT || $1,"
+    );
+    patched = patched.replace(
+      /\.listen\(\s*(\d{3,5})\s*\)/g,
+      ".listen(process.env.PORT || $1)"
+    );
+    if (patched !== content) {
+      try { fs.writeFileSync(filePath, patched, "utf8"); } catch {}
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Command helpers
+// ---------------------------------------------------------------------------
+
+function resolveStartCommand(dir, startCommand) {
+  if (startCommand === "npm start" || startCommand === "npm run start") {
+    try {
+      const pkgPath = path.join(dir, "package.json");
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        const script = pkg.scripts?.start;
+        if (script && /^node\s+\S+/.test(script)) return script;
+      }
+    } catch {}
+  }
+  return startCommand;
+}
+
+function validateCommand(cmd) {
+  const parts = cmd.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) throw new Error("Empty command");
+  return parts;
+}
+
+// ---------------------------------------------------------------------------
+// Environment variable helpers
+// ---------------------------------------------------------------------------
+
+const RESERVED_ENV_KEYS = new Set([
+  "PORT", "DATABASE_URL", "NEON_AUTH_JWKS_URL", "JWT_SECRET",
+  "NODE_ENV", "HOME", "PATH", "TERM",
+]);
+
+function cleanDatabaseUrl(url) {
+  if (!url) return url;
+  return url.replace(/\?.*$/, "") + "?sslmode=require";
+}
+
+function buildProcessEnv(port, mergedCustomEnv) {
+  const safeCustom = { ...mergedCustomEnv };
+  for (const k of RESERVED_ENV_KEYS) delete safeCustom[k];
+
+  return {
+    HOME: process.env.HOME,
+    PATH: process.env.PATH,
+    TERM: process.env.TERM || "xterm",
+    NODE_ENV: "production",
+    PORT: String(port),
+    ...(process.env.NEON_DATABASE_URL
+      ? { DATABASE_URL: cleanDatabaseUrl(process.env.NEON_DATABASE_URL) }
+      : {}),
+    ...(process.env.NEON_AUTH_JWKS_URL
+      ? { NEON_AUTH_JWKS_URL: process.env.NEON_AUTH_JWKS_URL }
+      : {}),
+    ...safeCustom,
+  };
+}
+
+async function getMergedEnv(projectId) {
+  let globalDefaults = {};
+  let projectEnv = {};
+
+  try {
+    const settingsManager = require("../settings/manager");
+    const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
+    if (Array.isArray(defaultEnvSetting?.vars)) {
+      for (const v of defaultEnvSetting.vars) {
+        if (v.key) globalDefaults[v.key] = v.value || "";
+      }
+    }
+  } catch {}
+
+  if (projectId) {
+    try {
+      const projectManager = require("../projects/manager");
+      projectEnv = await projectManager.getEnvVarsAsObject(projectId);
+    } catch {}
+  }
+
+  return { ...globalDefaults, ...projectEnv };
+}
+
+// ---------------------------------------------------------------------------
+// Process lifecycle
+// ---------------------------------------------------------------------------
+
+function attachLogs(proc, app) {
+  const handler = (d) => {
+    app.logs += d.toString();
+    if (app.logs.length > LOG_MAX_BYTES) {
+      app.logs = app.logs.slice(-LOG_TAIL_BYTES);
+    }
+  };
+  proc.stdout.on("data", handler);
+  proc.stderr.on("data", handler);
+}
+
+function killProcess(proc, port) {
+  return new Promise((resolve) => {
+    if (!proc || proc.killed) {
+      if (port) forceKillPort(port);
+      return resolve();
+    }
+
+    const cleanup = () => {
+      if (port) forceKillPort(port);
+      resolve();
+    };
+
+    proc.once("close", cleanup);
+
+    try { proc.kill("SIGTERM"); } catch {}
+
+    const forceTimer = setTimeout(() => {
+      try { if (!proc.killed) proc.kill("SIGKILL"); } catch {}
+    }, SIGKILL_TIMEOUT_MS);
+
+    if (forceTimer.unref) forceTimer.unref();
+  });
+}
+
+async function stopPublishedApp(projectId) {
+  const app = publishedApps.get(projectId);
+  if (!app) return;
+
+  app.status = "stopped";
+  const proc = app.process;
+  app.process = null;
+
+  await killProcess(proc, app.port);
+  if (app.port) releasePort(app.port);
+}
+
+// ---------------------------------------------------------------------------
+// npm install / build helpers (shared between publish and restore)
+// ---------------------------------------------------------------------------
+
+async function runInstall(installCommand, dir, logTarget) {
+  const parts = validateCommand(installCommand);
+  await new Promise((resolve, reject) => {
+    const proc = spawn(parts[0], parts.slice(1), {
+      cwd: dir,
+      env: { HOME: process.env.HOME, PATH: process.env.PATH, NODE_ENV: "production" },
+    });
+    let output = "";
+    proc.stdout.on("data", (d) => { output += d.toString(); });
+    proc.stderr.on("data", (d) => { output += d.toString(); });
+    proc.on("close", (code) => {
+      if (logTarget) logTarget.logs += output;
+      if (code === 0) resolve();
+      else reject(new Error(`Install failed with exit code ${code}\n${output.slice(-2000)}`));
+    });
+    proc.on("error", reject);
+  });
+}
+
+async function runBuild(buildCommand, dir, logTarget) {
+  const parts = validateCommand(buildCommand);
+  await new Promise((resolve, reject) => {
+    const proc = spawn(parts[0], parts.slice(1), {
+      cwd: dir,
+      env: { HOME: process.env.HOME, PATH: process.env.PATH, NODE_ENV: "production" },
+    });
+    let output = "";
+    proc.stdout.on("data", (d) => { output += d.toString(); });
+    proc.stderr.on("data", (d) => { output += d.toString(); });
+    proc.on("close", (code) => {
+      if (logTarget) logTarget.logs += output;
+      if (code === 0) resolve();
+      else reject(new Error(`Build failed with exit code ${code}\n${output.slice(-2000)}`));
+    });
+    proc.on("error", reject);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Publish
+// ---------------------------------------------------------------------------
+
 async function publishProject(projectId) {
   if (publishLock) throw new Error("Another publish is in progress. Please wait.");
   publishLock = true;
-
   try {
     return await _doPublish(projectId);
   } finally {
@@ -227,71 +417,70 @@ async function _doPublish(projectId) {
   const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
 
-  const currentRunId = project.currentRunId;
+  const { currentRunId } = project;
   if (!currentRunId) throw new Error("No build to publish — run a build first");
 
   const workspaceDir = path.join(__dirname, "..", "..", "workspaces", currentRunId);
   if (!fs.existsSync(workspaceDir)) throw new Error("Workspace files not found");
 
+  // ---- Slug resolution ----
   const sql = await getDb();
-  const slug = generateSlug(project.name);
+  const baseSlug = generateSlug(project.name);
+  let slug = baseSlug;
 
-  let existingSlug = slug;
   if (sql) {
-    const existing = await sql`SELECT slug FROM published_apps WHERE project_id = ${projectId}`;
-    if (existing.length > 0) {
-      existingSlug = existing[0].slug;
+    const [existing] = await sql`
+      SELECT slug FROM published_apps WHERE project_id = ${projectId}
+    `;
+    if (existing) {
+      slug = existing.slug;
     } else {
-      const conflicts = await sql`SELECT slug FROM published_apps WHERE slug = ${slug} AND project_id != ${projectId}`;
-      if (conflicts.length > 0) {
-        existingSlug = slug + "-" + projectId;
-      }
+      const [conflict] = await sql`
+        SELECT slug FROM published_apps
+        WHERE slug = ${baseSlug} AND project_id != ${projectId}
+      `;
+      if (conflict) slug = baseSlug + "-" + projectId;
     }
   }
 
+  // ---- Stop any existing process and await its exit ----
   await stopPublishedApp(projectId);
 
+  // ---- Copy workspace files ----
   ensurePublishedDir();
   const publishDir = path.join(PUBLISHED_DIR, projectId);
   if (fs.existsSync(publishDir)) {
     fs.rmSync(publishDir, { recursive: true, force: true });
   }
-
   copyDirectory(workspaceDir, publishDir);
   patchHardcodedPort(publishDir);
 
+  // ---- Resolve commands from executor output ----
   let startCommand = "npm start";
   let installCommand = "npm install";
   let buildCommand = null;
+
   try {
     const { getRun } = require("../pipeline/runner");
     const run = await getRun(currentRunId);
-    if (run?.stages?.executor?.output?.startCommand) {
-      startCommand = run.stages.executor.output.startCommand;
-    }
-    if (run?.stages?.executor?.output?.installCommand) {
-      installCommand = run.stages.executor.output.installCommand;
-    }
-    if (run?.stages?.executor?.output?.buildCommand) {
-      buildCommand = run.stages.executor.output.buildCommand;
-    }
+    const out = run?.stages?.executor?.output;
+    if (out?.startCommand)   startCommand   = out.startCommand;
+    if (out?.installCommand) installCommand = out.installCommand;
+    if (out?.buildCommand)   buildCommand   = out.buildCommand;
   } catch {}
+
   try {
     const pkgPath = path.join(publishDir, "package.json");
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-      if (pkg.scripts?.start && startCommand === "npm start") {
-        startCommand = "npm start";
-      }
-      if (!buildCommand && pkg.scripts?.build) {
-        buildCommand = "npm run build";
-      }
+      if (!buildCommand && pkg.scripts?.build) buildCommand = "npm run build";
     }
   } catch {}
 
+  // ---- Create app state entry ----
   const app = {
     projectId,
-    slug: existingSlug,
+    slug,
     dir: publishDir,
     port: null,
     status: "installing",
@@ -304,114 +493,91 @@ async function _doPublish(projectId) {
   };
   publishedApps.set(projectId, app);
 
+  // ---- Install ----
   try {
-    const parts = validateCommand(installCommand);
-    await new Promise((resolve, reject) => {
-      const proc = spawn(parts[0], parts.slice(1), {
-        cwd: publishDir,
-        env: { ...process.env, NODE_ENV: "production" },
-      });
-      let output = "";
-      proc.stdout.on("data", (d) => { output += d.toString(); });
-      proc.stderr.on("data", (d) => { output += d.toString(); });
-      proc.on("close", (code) => {
-        app.logs += output;
-        if (code === 0) resolve();
-        else reject(new Error("Install failed with code " + code));
-      });
-      proc.on("error", reject);
-    });
+    await runInstall(installCommand, publishDir, app);
   } catch (err) {
     app.status = "failed";
-    app.logs += "\nInstall failed: " + err.message;
-    await saveToDb(app);
+    app.logs += `\nInstall failed: ${err.message}`;
+    await saveToDb(app).catch(() => {});
     throw err;
   }
 
+  // ---- Optional build step ----
   if (buildCommand) {
     app.status = "building";
-    app.logs += "\n--- Build: " + buildCommand + " ---\n";
+    app.logs += `\n--- Build: ${buildCommand} ---\n`;
     try {
-      const buildParts = validateCommand(buildCommand);
-      await new Promise((resolve, reject) => {
-        const proc = spawn(buildParts[0], buildParts.slice(1), {
-          cwd: publishDir,
-          env: { ...process.env, NODE_ENV: "production" },
-        });
-        let output = "";
-        proc.stdout.on("data", (d) => { output += d.toString(); });
-        proc.stderr.on("data", (d) => { output += d.toString(); });
-        proc.on("close", (code) => {
-          app.logs += output;
-          if (code === 0) resolve();
-          else reject(new Error("Build failed with code " + code));
-        });
-        proc.on("error", reject);
-      });
+      await runBuild(buildCommand, publishDir, app);
     } catch (err) {
       app.status = "failed";
-      app.logs += "\nBuild failed: " + err.message;
-      await saveToDb(app);
+      app.logs += `\nBuild failed: ${err.message}`;
+      await saveToDb(app).catch(() => {});
       throw err;
     }
   }
 
+  // ---- Allocate port ----
   let assignedPort;
   try {
     assignedPort = await getNextFreePort();
-  } catch {
-    assignedPort = PORT_RANGE_START;
-    forceKillPort(assignedPort);
+  } catch (err) {
+    app.status = "failed";
+    app.logs += `\nPort allocation failed: ${err.message}`;
+    await saveToDb(app).catch(() => {});
+    throw err;
   }
   app.port = assignedPort;
+  app.status = "starting";
 
+  // ---- Spawn ----
   const mergedEnv = await getMergedEnv(projectId);
   const resolvedCmd = resolveStartCommand(publishDir, startCommand);
   const cmdParts = validateCommand(resolvedCmd);
+  const processEnv = buildProcessEnv(assignedPort, mergedEnv);
 
   const proc = spawn(cmdParts[0], cmdParts.slice(1), {
     cwd: publishDir,
-    env: {
-      ...process.env,
-      PORT: String(assignedPort),
-      NODE_ENV: "production",
-      ...getPublishedEnv(mergedEnv),
-    },
+    env: processEnv,
   });
 
   app.process = proc;
-  app.status = "starting";
+  attachLogs(proc, app);
 
-  proc.stdout.on("data", (d) => {
-    app.logs += d.toString();
-    if (app.logs.length > 50000) app.logs = app.logs.slice(-30000);
-  });
-  proc.stderr.on("data", (d) => {
-    app.logs += d.toString();
-    if (app.logs.length > 50000) app.logs = app.logs.slice(-30000);
-  });
   proc.on("close", (code) => {
+    releasePort(assignedPort);
+    app.process = null;
     if (app.status !== "stopped") {
       app.status = "failed";
       app.logs += `\nProcess exited with code ${code}`;
       saveToDb(app).catch(() => {});
     }
-    app.process = null;
   });
+
   proc.on("error", (err) => {
+    releasePort(assignedPort);
+    app.process = null;
     app.status = "failed";
     app.logs += `\nProcess error: ${err.message}`;
     saveToDb(app).catch(() => {});
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 3000));
+  // ---- Startup health check ----
+  await new Promise((r) => setTimeout(r, STARTUP_GRACE_MS));
 
-  if (app.process && !app.process.killed) {
-    app.status = "running";
+  if (!app.process || app.process.killed) {
+    app.status = "failed";
+    await saveToDb(app).catch(() => {});
+    throw new Error(
+      `App failed to stay running after ${STARTUP_GRACE_MS}ms.\n` +
+      app.logs.slice(-1000)
+    );
   }
 
+  app.status = "running";
   await saveToDb(app);
 
+  // ---- GitHub push (best-effort, non-blocking on publish success) ----
   let github = null;
   let githubError = null;
   try {
@@ -420,53 +586,39 @@ async function _doPublish(projectId) {
     if (githubSettings?.repo && githubSettings?.autoPush !== false) {
       app.logs += "\n--- Pushing to GitHub ---\n";
       const { pushProjectToGitHub } = require("./github");
-      const result = await pushProjectToGitHub(
-        githubSettings.repo,
-        existingSlug,
-        publishDir,
-        `[ForgeOS] Publish ${project.name} (${existingSlug})`
-      );
-      app.logs += `Pushed ${result.filesCount} files to GitHub\nCommit: ${result.commitUrl}\n`;
-      github = result;
-      console.log(`[publish] Pushed ${project.name} to GitHub: ${result.commitUrl}`);
+
+      const pushResult = await Promise.race([
+        pushProjectToGitHub(
+          githubSettings.repo,
+          slug,
+          publishDir,
+          `[ForgeOS] Publish ${project.name} (${slug})`
+        ),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("GitHub push timed out after 30s")),
+            GITHUB_PUSH_TIMEOUT_MS
+          )
+        ),
+      ]);
+
+      app.logs += `Pushed ${pushResult.filesCount} files to GitHub\nCommit: ${pushResult.commitUrl}\n`;
+      github = pushResult;
+      console.log(`[publish] Pushed ${project.name} to GitHub: ${pushResult.commitUrl}`);
     }
   } catch (err) {
     githubError = err.message;
     app.logs += `\nGitHub push failed: ${err.message}\n`;
-    console.log(`[publish] GitHub push failed for ${project.name}: ${err.message}`);
+    console.warn(`[publish] GitHub push failed for ${project.name}: ${err.message}`);
   }
 
-  console.log(`[publish] Published ${project.name} at /apps/${existingSlug} (port ${assignedPort})`);
-  return { slug: existingSlug, port: assignedPort, status: app.status, github, githubError };
+  console.log(`[publish] Published ${project.name} at /apps/${slug} (port ${assignedPort})`);
+  return { slug, port: assignedPort, status: app.status, github, githubError };
 }
 
-async function saveToDb(app) {
-  const sql = await getDb();
-  if (!sql) return;
-  const now = Date.now();
-  await sql`INSERT INTO published_apps (project_id, slug, port, status, start_command, install_command, build_command, published_at, updated_at)
-    VALUES (${app.projectId}, ${app.slug}, ${app.port}, ${app.status}, ${app.startCommand}, ${app.installCommand}, ${app.buildCommand || null}, ${app.publishedAt}, ${now})
-    ON CONFLICT (project_id) DO UPDATE SET
-      slug = ${app.slug},
-      port = ${app.port},
-      status = ${app.status},
-      start_command = ${app.startCommand},
-      install_command = ${app.installCommand},
-      build_command = ${app.buildCommand || null},
-      updated_at = ${now}`;
-}
-
-async function stopPublishedApp(projectId) {
-  const app = publishedApps.get(projectId);
-  if (app?.process) {
-    app.status = "stopped";
-    try { app.process.kill("SIGTERM"); } catch {}
-    setTimeout(() => {
-      try { if (app.process && !app.process.killed) app.process.kill("SIGKILL"); } catch {}
-    }, 3000);
-    if (app.port) forceKillPort(app.port);
-  }
-}
+// ---------------------------------------------------------------------------
+// Unpublish
+// ---------------------------------------------------------------------------
 
 async function unpublishProject(projectId) {
   await stopPublishedApp(projectId);
@@ -484,6 +636,147 @@ async function unpublishProject(projectId) {
 
   console.log(`[publish] Unpublished project ${projectId}`);
 }
+
+// ---------------------------------------------------------------------------
+// Restore
+// ---------------------------------------------------------------------------
+
+async function restorePublishedApps() {
+  const sql = await getDb();
+  if (!sql) return;
+
+  await ensureSchema();
+  const rows = await sql`SELECT * FROM published_apps`;
+
+  for (const row of rows) {
+    await _restoreOne(row, sql).catch((err) => {
+      console.error(`[publish] Failed to restore ${row.slug}: ${err.message}`);
+    });
+  }
+}
+
+async function _restoreOne(row, sql) {
+  const publishDir = path.join(PUBLISHED_DIR, row.project_id);
+
+  // ---- Rebuild files from DB snapshot if directory is missing ----
+  if (!fs.existsSync(publishDir)) {
+    console.log(`[publish] Published files missing for ${row.slug}, rebuilding from snapshot...`);
+
+    const projectManager = require("../projects/manager");
+    const project = await projectManager.getProject(row.project_id);
+    if (!project?.currentRunId) {
+      console.warn(`[publish] No current run for ${row.slug} — marking failed`);
+      await sql`UPDATE published_apps SET status = 'failed' WHERE project_id = ${row.project_id}`;
+      return;
+    }
+
+    const { getRun } = require("../pipeline/runner");
+    const run = await getRun(project.currentRunId);
+    const files = run?.stages?.executor?.output?.files;
+
+    if (!Array.isArray(files) || files.length === 0) {
+      console.warn(`[publish] No executor snapshot for ${row.slug} — marking failed`);
+      await sql`UPDATE published_apps SET status = 'failed' WHERE project_id = ${row.project_id}`;
+      return;
+    }
+
+    fs.mkdirSync(publishDir, { recursive: true });
+    for (const file of files) {
+      if (!file.path || file.content == null) continue;
+      const filePath = path.join(publishDir, file.path);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, file.content);
+    }
+    console.log(`[publish] Rebuilt ${row.slug} from snapshot (${files.length} files)`);
+
+    patchHardcodedPort(publishDir);
+    const installCommand = row.install_command || "npm install";
+    try {
+      await runInstall(installCommand, publishDir, null);
+      console.log(`[publish] Installed dependencies for ${row.slug}`);
+    } catch (err) {
+      console.error(`[publish] Dependency install failed for ${row.slug}: ${err.message}`);
+      await sql`UPDATE published_apps SET status = 'failed' WHERE project_id = ${row.project_id}`;
+      return;
+    }
+  } else {
+    patchHardcodedPort(publishDir);
+  }
+
+  // ---- Allocate port ----
+  let assignedPort;
+  try {
+    assignedPort = await getNextFreePort();
+  } catch (err) {
+    console.error(`[publish] No free port for ${row.slug}: ${err.message}`);
+    await sql`UPDATE published_apps SET status = 'failed' WHERE project_id = ${row.project_id}`;
+    return;
+  }
+
+  const app = {
+    projectId: row.project_id,
+    slug: row.slug,
+    dir: publishDir,
+    port: assignedPort,
+    status: "starting",
+    process: null,
+    startCommand:   row.start_command   || "npm start",
+    installCommand: row.install_command || "npm install",
+    buildCommand:   row.build_command   || null,
+    publishedAt: row.published_at,
+    logs: "",
+  };
+  publishedApps.set(row.project_id, app);
+
+  // ---- Spawn ----
+  const mergedEnv = await getMergedEnv(row.project_id);
+  const resolvedCmd = resolveStartCommand(publishDir, app.startCommand);
+  const cmdParts = validateCommand(resolvedCmd);
+  const processEnv = buildProcessEnv(assignedPort, mergedEnv);
+
+  const proc = spawn(cmdParts[0], cmdParts.slice(1), {
+    cwd: publishDir,
+    env: processEnv,
+  });
+
+  app.process = proc;
+  attachLogs(proc, app);
+
+  proc.on("close", (code) => {
+    releasePort(assignedPort);
+    app.process = null;
+    if (app.status !== "stopped") {
+      app.status = "failed";
+      app.logs += `\nProcess exited with code ${code}`;
+      saveToDb(app).catch(() => {});
+    }
+  });
+
+  proc.on("error", (err) => {
+    releasePort(assignedPort);
+    app.process = null;
+    app.status = "failed";
+    app.logs += `\nProcess error: ${err.message}`;
+    saveToDb(app).catch(() => {});
+  });
+
+  await new Promise((r) => setTimeout(r, RESTORE_STARTUP_GRACE_MS));
+
+  if (!app.process || app.process.killed) {
+    app.status = "failed";
+    console.error(`[publish] ${row.slug} exited during startup:\n${app.logs.slice(-500)}`);
+    await saveToDb(app).catch(() => {});
+    return;
+  }
+
+  app.status = "running";
+  await saveToDb(app);
+  console.log(`[publish] Restored ${row.slug} on port ${assignedPort}`);
+}
+
+// ---------------------------------------------------------------------------
+// Read helpers
+// ---------------------------------------------------------------------------
 
 function getPublishedApp(projectId) {
   const app = publishedApps.get(projectId);
@@ -519,127 +812,16 @@ function listPublishedApps() {
   return apps;
 }
 
-async function restorePublishedApps() {
-  const sql = await getDb();
-  if (!sql) return;
-
-  await ensureSchema();
-  const rows = await sql`SELECT * FROM published_apps`;
-
-  for (const row of rows) {
-    const publishDir = path.join(PUBLISHED_DIR, row.project_id);
-    if (!fs.existsSync(publishDir)) {
-      console.log(`[publish] Published files missing for ${row.slug}, rebuilding from database...`);
-      try {
-        const projectManager = require("../projects/manager");
-        const project = await projectManager.getProject(row.project_id);
-        if (project && project.currentRunId) {
-          const { getRun } = require("../pipeline/runner");
-          const run = await getRun(project.currentRunId);
-          const files = run?.stages?.executor?.output?.files;
-          if (files && Array.isArray(files) && files.length > 0) {
-            fs.mkdirSync(publishDir, { recursive: true });
-            for (const file of files) {
-              if (!file.path || file.content == null) continue;
-              const filePath = path.join(publishDir, file.path);
-              const dir = path.dirname(filePath);
-              if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-              fs.writeFileSync(filePath, file.content);
-            }
-            console.log(`[publish] Rebuilt ${row.slug} from snapshot (${files.length} files)`);
-          } else {
-            console.log(`[publish] No executor files found for ${row.slug} — skipping`);
-            continue;
-          }
-        } else {
-          console.log(`[publish] Project not found for ${row.slug} — skipping`);
-          continue;
-        }
-      } catch (err) {
-        console.log(`[publish] Failed to rebuild ${row.slug}: ${err.message} — skipping`);
-        continue;
-      }
-    }
-
-    let assignedPort;
-    try {
-      assignedPort = await getNextFreePort();
-    } catch {
-      console.log(`[publish] No free port for ${row.slug}`);
-      continue;
-    }
-
-    const app = {
-      projectId: row.project_id,
-      slug: row.slug,
-      dir: publishDir,
-      port: assignedPort,
-      status: "starting",
-      process: null,
-      startCommand: row.start_command || "npm start",
-      installCommand: row.install_command || "npm install",
-      buildCommand: row.build_command || null,
-      publishedAt: row.published_at,
-      logs: "",
-    };
-    publishedApps.set(row.project_id, app);
-
-    patchHardcodedPort(publishDir);
-    const mergedEnv = await getMergedEnv(row.project_id);
-    const resolvedCmd = resolveStartCommand(publishDir, app.startCommand);
-
-    try {
-      const cmdParts = validateCommand(resolvedCmd);
-      const proc = spawn(cmdParts[0], cmdParts.slice(1), {
-        cwd: publishDir,
-        env: {
-          ...process.env,
-          PORT: String(assignedPort),
-          NODE_ENV: "production",
-          ...getPublishedEnv(mergedEnv),
-        },
-      });
-
-      app.process = proc;
-      proc.stdout.on("data", (d) => {
-        app.logs += d.toString();
-        if (app.logs.length > 50000) app.logs = app.logs.slice(-30000);
-      });
-      proc.stderr.on("data", (d) => {
-        app.logs += d.toString();
-        if (app.logs.length > 50000) app.logs = app.logs.slice(-30000);
-      });
-      proc.on("close", (code) => {
-        if (app.status !== "stopped") {
-          app.status = "failed";
-          saveToDb(app).catch(() => {});
-        }
-        app.process = null;
-      });
-      proc.on("error", () => {
-        app.status = "failed";
-        saveToDb(app).catch(() => {});
-      });
-
-      await new Promise((r) => setTimeout(r, 2000));
-      if (app.process && !app.process.killed) {
-        app.status = "running";
-        await saveToDb(app);
-        console.log(`[publish] Restored ${row.slug} on port ${assignedPort}`);
-      }
-    } catch (err) {
-      app.status = "failed";
-      console.log(`[publish] Failed to restore ${row.slug}: ${err.message}`);
-    }
-  }
-}
+// ---------------------------------------------------------------------------
+// Export
+// ---------------------------------------------------------------------------
 
 async function exportProject(projectId) {
   const projectManager = require("../projects/manager");
   const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
 
-  const currentRunId = project.currentRunId;
+  const { currentRunId } = project;
   if (!currentRunId) throw new Error("No build to export");
 
   const workspaceDir = path.join(__dirname, "..", "..", "workspaces", currentRunId);
@@ -650,12 +832,19 @@ async function exportProject(projectId) {
 
   try { fs.unlinkSync(zipPath); } catch {}
 
-  execSync(`cd "${workspaceDir}" && zip -r "${zipPath}" . -x "node_modules/*" ".git/*"`, {
-    timeout: 30000,
-  });
+  const { execFileSync } = require("child_process");
+  execFileSync(
+    "zip",
+    ["-r", zipPath, ".", "-x", "node_modules/*", ".git/*"],
+    { cwd: workspaceDir, timeout: 30_000 }
+  );
 
   return { zipPath, filename: `${slug}.zip` };
 }
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
 
 module.exports = {
   ensureSchema,
