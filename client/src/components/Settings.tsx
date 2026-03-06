@@ -19,7 +19,7 @@ interface Skill {
   updated_at: number;
 }
 
-const MODEL_OPTIONS = [
+const OPENAI_MODELS = [
   "gpt-5.2-pro",
   "gpt-5.2",
   "gpt-5.2-mini",
@@ -32,6 +32,23 @@ const MODEL_OPTIONS = [
   "o3-mini",
   "o4-mini",
 ];
+
+const CLAUDE_MODELS = [
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5",
+];
+
+const ModelSelect = ({ value, onChange, className }: { value: string; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; className?: string }) => (
+  <select value={value} onChange={onChange} className={className}>
+    <optgroup label="OpenAI">
+      {OPENAI_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+    </optgroup>
+    <optgroup label="Anthropic">
+      {CLAUDE_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+    </optgroup>
+  </select>
+);
 
 const DEFAULT_SETTINGS: SettingValues = {
   model_config: { plannerModel: "gpt-4.1", reviewerModel: "gpt-4.1-mini", chatModel: "gpt-4.1-mini", plannerTemp: 0.7, reviewerTemp: 0.2 },
@@ -299,27 +316,27 @@ export default function Settings() {
       <div className="stg-panel-body">
         <div className="stg-field">
           <label>Planner Model</label>
-          <select value={settings.model_config.plannerModel} onChange={(e) => {
+          <ModelSelect value={settings.model_config.plannerModel} onChange={(e) => {
             const updated = { ...settings.model_config, plannerModel: e.target.value };
             setSettings({ ...settings, model_config: updated });
             saveSetting("model_config", updated);
-          }} className="stg-select">{MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+          }} className="stg-select" />
         </div>
         <div className="stg-field">
           <label>Reviewer / Auditor Model</label>
-          <select value={settings.model_config.reviewerModel} onChange={(e) => {
+          <ModelSelect value={settings.model_config.reviewerModel} onChange={(e) => {
             const updated = { ...settings.model_config, reviewerModel: e.target.value };
             setSettings({ ...settings, model_config: updated });
             saveSetting("model_config", updated);
-          }} className="stg-select">{MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+          }} className="stg-select" />
         </div>
         <div className="stg-field">
           <label>Chat Agent Model</label>
-          <select value={settings.model_config.chatModel || "gpt-4.1-mini"} onChange={(e) => {
+          <ModelSelect value={settings.model_config.chatModel || "gpt-4.1-mini"} onChange={(e) => {
             const updated = { ...settings.model_config, chatModel: e.target.value };
             setSettings({ ...settings, model_config: updated });
             saveSetting("model_config", updated);
-          }} className="stg-select">{MODEL_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+          }} className="stg-select" />
         </div>
         <div className="stg-field">
           <label>Planner Temperature <span className="stg-badge">{settings.model_config.plannerTemp}</span></label>

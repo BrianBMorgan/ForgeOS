@@ -3267,6 +3267,22 @@ body {
   border-color: #38bdf8;
 }
 
+.stg-select optgroup {
+  background: #0f172a;
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stg-select option {
+  background: #0f172a;
+  color: #e2e8f0;
+  font-weight: 400;
+  padding: 4px 8px;
+}
+
 .stg-range {
   width: 100%;
   accent-color: #38bdf8;

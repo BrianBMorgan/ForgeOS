@@ -33,7 +33,7 @@ None specified.
 - **Per-Project Environment Variables**: Each project can have custom environment variables (stored in `project_env_vars` table) injected into workspace processes.
 - **Settings System**: `server/settings/manager.js` manages global platform settings, secrets, and skills. This includes model configuration, auto-approve policy, default environment variables, a global secrets vault, workspace limits, allowed tech stack, and a skills library.
 - **Pipeline Accountability System**: Implements checks like iteration history injection, diff verification gate, regression guard, and workspace health checks to ensure agent accountability and catch failures.
-- **Model Router**: `server/pipeline/model-router.js` provides a model-agnostic abstraction over OpenAI's Chat Completions and Responses APIs, routing calls based on the model used and normalizing tool calls. Tracks token usage (prompt/completion/total) per API call via `getLastUsage()`.
+- **Model Router**: `server/pipeline/model-router.js` provides a model-agnostic abstraction over OpenAI's Chat Completions/Responses APIs and Anthropic's Messages API, routing calls based on the model name. Models starting with `claude-` are routed to Anthropic via `@anthropic-ai/sdk` (using Replit AI Integrations env vars `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` and `AI_INTEGRATIONS_ANTHROPIC_API_KEY`). All other models use OpenAI. Structured output for Claude uses system prompt injection with JSON schema + Zod validation. Tracks token usage (prompt/completion/total) per API call via `getLastUsage()`. Available Claude models: `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
 - **Token Usage Tracking**: The pipeline captures OpenAI token usage per stage (planner, reviewer, policy_gate, executor, auditor) on each run. Usage data includes per-stage breakdowns (tokens + call count) and totals with estimated cost. Displayed in the PromptColumn sidebar below iteration info. Cost estimate uses gpt-4o pricing ($2.50/M prompt, $10/M completion).
 - **Static Site Support**: Workspace manager auto-detects static sites (index.html present, no server/start script) and serves them with a built-in Node.js static file server (`__static_server.js`). Pipeline runner also triggers auto-start for static sites.
 - **Persistence**: Projects, iterations, run snapshots, chat messages, project env vars, settings, secrets, and skills are persisted in Neon Postgres via `@neondatabase/serverless`.
@@ -55,6 +55,7 @@ None specified.
 
 ## External Dependencies
 - **OpenAI**: Used for agent pipeline calls (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface.
+- **Anthropic**: Available as an alternative AI provider for all pipeline stages and chat. Uses `@anthropic-ai/sdk` via Replit AI Integrations. Selectable per-role in Settings → Model Config.
 - **Neon Postgres**: Utilized for project persistence and can be provisioned for generated applications.
 - **@neondatabase/serverless**: Node.js driver for Neon Postgres.
 - **http-proxy-middleware**: For proxying requests to running workspace applications.
