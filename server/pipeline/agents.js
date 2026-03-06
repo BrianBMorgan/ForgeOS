@@ -699,23 +699,29 @@ ${"═".repeat(63)}
 DIAGNOSTIC PROCESS — MANDATORY ORDER
 ${"═".repeat(63)}
 
-Step 1 — READ THE LOGS FIRST. You have stdout/stderr from the runtime.
-         The error is almost always there. Do not skip this step.
+Step 1 — RUN DIAGNOSTICS. If the user reports a build failure, crash, or "it's not working,"
+         call the diagnose_system tool FIRST. It checks env vars, API connectivity, model config,
+         database health, pipeline errors, and workspace status. Read the results before forming
+         any hypothesis. If diagnostics reveal the cause (e.g. missing ANTHROPIC_API_KEY),
+         report it immediately — do not read logs or source code first.
+
+Step 2 — READ THE LOGS. If diagnostics passed or didn't reveal the cause, read the
+         stdout/stderr from the runtime. The error is almost always there.
          Do not form a hypothesis before reading the logs.
 
-Step 2 — FIND THE LINE. Trace the error to a specific line in the source.
-         "Something is wrong with the API call" is not step 2.
-         "Line 47 of server.js passes model 'claude-4-turbo' which does not exist" is step 2.
+Step 3 — FIND THE LINE. Trace the error to a specific line in the source.
+         "Something is wrong with the API call" is not step 3.
+         "Line 47 of server.js passes model 'claude-4-turbo' which does not exist" is step 3.
 
-Step 3 — NAME ONE ROOT CAUSE. The actual broken code. Not missing error handling
+Step 4 — NAME ONE ROOT CAUSE. The actual broken code. Not missing error handling
          around it. Not a symptom. The thing that is wrong.
 
-Step 4 — STATE THE REPLACEMENT. What existing code is replaced with what new code.
-         "wrap in try-catch" is never step 4.
-         "add logging" is never step 4.
-         Step 4 is: "line X does Y, change it to Z."
+Step 5 — STATE THE REPLACEMENT. What existing code is replaced with what new code.
+         "wrap in try-catch" is never step 5.
+         "add logging" is never step 5.
+         Step 5 is: "line X does Y, change it to Z."
 
-If the logs show no error: say so and ask the user to reproduce. Do not speculate.
+If diagnostics pass and logs show no error: say so and ask the user to reproduce. Do not speculate.
 
 ${"═".repeat(63)}
 ITERATION AWARENESS — DEGRADATION IS NOT ACCEPTABLE
@@ -788,6 +794,7 @@ ${"═".repeat(63)}
   - Web search and fetch_url are available for external APIs, libraries, and documentation.
     Do not search when the answer is in the source code you already have.
   - Health check results show whether the app responds to HTTP after startup.
+  - diagnose_system tool is available — see DIAGNOSTIC PROCESS section above for when/how to use it.
 
 ${"═".repeat(63)}
 OUTPUT FORMAT

@@ -34,6 +34,25 @@ const SEARCH_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "diagnose_system",
+      description: "Run a system health check to diagnose why builds are failing. Call this FIRST when a user reports build failures, crashes, or errors. Checks: environment variables, API connectivity, model availability, pipeline run errors, workspace status, and database connectivity.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "string", description: "Optional project ID to include project-specific diagnostics (pipeline run errors, workspace logs)." },
+          checks: {
+            type: "array",
+            items: { type: "string", enum: ["env", "api", "models", "pipeline", "workspace", "db", "all"] },
+            description: "Which checks to run. Use 'all' for a full system diagnostic. Defaults to 'all'.",
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 const dbUrl = process.env.NEON_DATABASE_URL;
@@ -126,11 +145,160 @@ async function executeToolCall(toolCall) {
       console.log(`  [chat] fetch_url: ${url}`);
       const result = await fetchUrl(url);
       return JSON.stringify(result);
+    } else if (name === "diagnose_system") {
+      console.log(`  [chat] diagnose_system`);
+      const result = await runDiagnostics(args.project_id, args.checks);
+      return JSON.stringify(result);
     }
     return JSON.stringify({ error: "Unknown tool" });
   } catch (err) {
     return JSON.stringify({ error: `Tool execution failed: ${err.message}` });
   }
+}
+
+const VALID_CHECKS = new Set(["env", "api", "models", "pipeline", "workspace", "db", "all"]);
+
+async function runDiagnostics(projectId, checks) {
+  const filtered = (checks && checks.length ? checks : ["all"]).filter(c => VALID_CHECKS.has(c));
+  if (filtered.length === 0) filtered.push("all");
+  const wantedChecks = new Set(filtered);
+  const all = wantedChecks.has("all");
+  const report = { timestamp: new Date().toISOString(), checks: {} };
+
+  if (all || wantedChecks.has("env")) {
+    const envReport = {
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? "SET" : "MISSING",
+      NEON_DATABASE_URL: process.env.NEON_DATABASE_URL ? "SET" : "MISSING",
+      ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY ? "SET" : "MISSING",
+      GITHUB_TOKEN: process.env.GITHUB_TOKEN ? "SET" : "MISSING",
+      NODE_ENV: process.env.NODE_ENV || "not set",
+    };
+    const missing = Object.entries(envReport).filter(([, v]) => v === "MISSING").map(([k]) => k);
+    envReport.status = missing.length > 0 ? "FAIL" : "OK";
+    envReport.missing = missing;
+    if (missing.includes("ANTHROPIC_API_KEY")) {
+      envReport.impact = "CRITICAL — all AI pipeline stages will fail immediately. The ANTHROPIC_API_KEY environment variable must be set on the deployment platform (e.g. Render dashboard > Environment).";
+    }
+    report.checks.env = envReport;
+  }
+
+  if (all || wantedChecks.has("api")) {
+    const apiReport = {};
+    try {
+      const Anthropic = require("@anthropic-ai/sdk");
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        apiReport.status = "FAIL";
+        apiReport.error = "ANTHROPIC_API_KEY not set — cannot test API connectivity";
+      } else {
+        const client = new Anthropic({ apiKey });
+        const r = await client.messages.create({ model: "claude-haiku-4-5-20251001", max_tokens: 5, messages: [{ role: "user", content: "say ok" }] });
+        apiReport.status = "OK";
+        apiReport.model_used = r.model;
+        apiReport.response = r.content?.[0]?.text;
+      }
+    } catch (err) {
+      apiReport.status = "FAIL";
+      apiReport.error = err.message?.substring(0, 300);
+      if (err.status === 401) apiReport.impact = "API key is invalid or expired";
+      if (err.status === 404) apiReport.impact = "Model not found — check model names in settings";
+    }
+    report.checks.api = apiReport;
+  }
+
+  if (all || wantedChecks.has("models")) {
+    try {
+      const config = await settingsManager.getSetting("model_config");
+      report.checks.models = {
+        status: "OK",
+        plannerModel: config?.plannerModel || "claude-sonnet-4-6",
+        reviewerModel: config?.reviewerModel || "claude-haiku-4-5-20251001",
+        chatModel: config?.chatModel || "claude-haiku-4-5-20251001",
+      };
+    } catch (err) {
+      report.checks.models = { status: "FAIL", error: err.message };
+    }
+  }
+
+  if (all || wantedChecks.has("db")) {
+    try {
+      if (!sql) {
+        report.checks.db = { status: "FAIL", error: "No NEON_DATABASE_URL configured" };
+      } else {
+        const rows = await sql`SELECT COUNT(*) as count FROM projects`;
+        report.checks.db = { status: "OK", projectCount: Number(rows[0].count) };
+      }
+    } catch (err) {
+      report.checks.db = { status: "FAIL", error: err.message?.substring(0, 200) };
+    }
+  }
+
+  if ((all || wantedChecks.has("pipeline")) && projectId) {
+    try {
+      const runner = require("../pipeline/runner");
+      const project = await projectManager.getProject(projectId);
+      if (project && project.currentRunId) {
+        const run = await runner.getRun(project.currentRunId);
+        if (run) {
+          const stagesSummary = {};
+          if (run.stages) {
+            for (const [k, v] of Object.entries(run.stages)) {
+              stagesSummary[k] = v.status;
+              if (v.status === "failed" && v.output) {
+                const errStr = typeof v.output === "string" ? v.output : JSON.stringify(v.output);
+                stagesSummary[k + "_error"] = errStr.substring(0, 500);
+              }
+            }
+          }
+          report.checks.pipeline = {
+            status: run.status === "failed" ? "FAIL" : "OK",
+            runStatus: run.status,
+            runError: run.error?.substring(0, 500) || null,
+            currentStage: run.currentStage,
+            stages: stagesSummary,
+          };
+        } else {
+          report.checks.pipeline = { status: "WARN", reason: "Run ID exists but run data not found (may have been evicted from memory)" };
+        }
+      } else {
+        report.checks.pipeline = { status: "N/A", reason: "No current run for this project" };
+      }
+    } catch (err) {
+      report.checks.pipeline = { status: "FAIL", error: err.message?.substring(0, 200) };
+    }
+  } else if ((all || wantedChecks.has("pipeline")) && !projectId) {
+    report.checks.pipeline = { status: "N/A", reason: "No project_id provided — pass project_id for pipeline diagnostics" };
+  }
+
+  if ((all || wantedChecks.has("workspace")) && projectId) {
+    try {
+      const workspace = require("../workspace/manager");
+      const project = await projectManager.getProject(projectId);
+      if (project && project.currentRunId) {
+        const wsStatus = workspace.getWorkspaceStatus(project.currentRunId);
+        const wsLogs = workspace.getWorkspaceLogs(project.currentRunId, { limit: 20, level: "error" });
+        report.checks.workspace = {
+          status: wsStatus?.status || "unknown",
+          port: wsStatus?.port || null,
+          error: wsStatus?.error?.substring(0, 300) || null,
+          recentErrors: (wsLogs?.entries || []).map(e => e.message.substring(0, 200)).slice(-5),
+        };
+      } else {
+        report.checks.workspace = { status: "N/A", reason: "No workspace for this project" };
+      }
+    } catch (err) {
+      report.checks.workspace = { status: "FAIL", error: err.message?.substring(0, 200) };
+    }
+  } else if ((all || wantedChecks.has("workspace")) && !projectId) {
+    report.checks.workspace = { status: "N/A", reason: "No project_id provided — pass project_id for workspace diagnostics" };
+  }
+
+  const failures = Object.entries(report.checks).filter(([, v]) => v.status === "FAIL");
+  report.summary = failures.length === 0
+    ? "All checks passed"
+    : `${failures.length} check(s) failed: ${failures.map(([k]) => k).join(", ")}`;
+
+  return report;
 }
 
 function parseResponse(content) {
@@ -385,4 +553,5 @@ async function getChatHistory(projectId) {
 module.exports = {
   chat,
   getChatHistory,
+  runDiagnostics,
 };

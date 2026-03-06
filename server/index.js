@@ -404,6 +404,24 @@ app.get("/api/projects/:id/export", async (req, res) => {
 
 const settingsManager = require("./settings/manager");
 
+app.get("/api/diagnostics", async (req, res) => {
+  const origin = req.get("origin") || req.get("referer") || "";
+  const isInternal = req.headers["x-forge-internal"] === "1" || origin.includes(req.hostname);
+  if (!isInternal && req.ip !== "127.0.0.1" && req.ip !== "::1") {
+    return res.status(403).json({ error: "Diagnostics only available from the ForgeOS UI" });
+  }
+  try {
+    const chatManager = require("./chat/manager");
+    const { runDiagnostics } = chatManager;
+    const projectId = req.query.project_id || null;
+    const checks = req.query.checks ? req.query.checks.split(",") : ["all"];
+    const report = await runDiagnostics(projectId, checks);
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/settings", async (_req, res) => {
   const settings = await settingsManager.getAllSettings();
   res.json(settings);
