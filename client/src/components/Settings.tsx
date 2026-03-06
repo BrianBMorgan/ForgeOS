@@ -21,8 +21,7 @@ interface Skill {
 
 const CLAUDE_MODELS = [
   "claude-opus-4-20250514",
-  "claude-sonnet-4-5-20250514",
-  "claude-haiku-3-5-20241022",
+  "claude-sonnet-4-20250514",
 ];
 
 const ModelSelect = ({ value, onChange, className }: { value: string; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; className?: string }) => (
@@ -34,7 +33,7 @@ const ModelSelect = ({ value, onChange, className }: { value: string; onChange: 
 );
 
 const DEFAULT_SETTINGS: SettingValues = {
-  model_config: { plannerModel: "claude-sonnet-4-5-20250514", reviewerModel: "claude-haiku-3-5-20241022", chatModel: "claude-haiku-3-5-20241022", plannerTemp: 0.7, reviewerTemp: 0.2 },
+  model_config: { plannerModel: "claude-sonnet-4-20250514", reviewerModel: "claude-sonnet-4-20250514", chatModel: "claude-sonnet-4-20250514", plannerTemp: 0.7, reviewerTemp: 0.2 },
   auto_approve: { enabled: false, maxRiskLevel: "low" },
   default_env_vars: { vars: [] },
   workspace_limits: { portRangeStart: 4000, portRangeEnd: 4099, maxConcurrentApps: 5, logRetention: 2000 },
@@ -315,7 +314,7 @@ export default function Settings() {
         </div>
         <div className="stg-field">
           <label>Chat Agent Model</label>
-          <ModelSelect value={settings.model_config.chatModel || "claude-haiku-3-5-20241022"} onChange={(e) => {
+          <ModelSelect value={settings.model_config.chatModel || "claude-sonnet-4-20250514"} onChange={(e) => {
             const updated = { ...settings.model_config, chatModel: e.target.value };
             setSettings({ ...settings, model_config: updated });
             saveSetting("model_config", updated);

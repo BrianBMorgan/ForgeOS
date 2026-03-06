@@ -5,9 +5,9 @@ const sql = dbUrl ? neon(dbUrl) : null;
 
 const DEFAULTS = {
   model_config: {
-    plannerModel: "claude-sonnet-4-5-20250514",
-    reviewerModel: "claude-haiku-3-5-20241022",
-    chatModel: "claude-haiku-3-5-20241022",
+    plannerModel: "claude-sonnet-4-20250514",
+    reviewerModel: "claude-sonnet-4-20250514",
+    chatModel: "claude-sonnet-4-20250514",
     plannerTemp: 0.7,
     reviewerTemp: 0.2,
   },

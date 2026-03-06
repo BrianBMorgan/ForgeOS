@@ -35,7 +35,7 @@ function zodToJsonSchema(zodSchema) {
 
 async function callClaudeStructured(model, systemPrompt, userMessages, schema, formatName, temperature) {
   const client = getAnthropic();
-  if (!client) throw new Error("Anthropic not configured — missing AI_INTEGRATIONS_ANTHROPIC_BASE_URL or AI_INTEGRATIONS_ANTHROPIC_API_KEY");
+  if (!client) throw new Error("Anthropic not configured — missing ANTHROPIC_API_KEY environment variable");
 
   const jsonSchema = zodToJsonSchema(schema);
   const schemaInstruction = `\n\nYou MUST respond with ONLY valid JSON matching this exact schema — no prose, no markdown, no explanation outside the JSON:\n${JSON.stringify(jsonSchema, null, 2)}`;
@@ -106,7 +106,7 @@ async function callClaudeStructured(model, systemPrompt, userMessages, schema, f
 
 async function callClaudeChat(model, systemPrompt, messages, tools, temperature) {
   const client = getAnthropic();
-  if (!client) throw new Error("Anthropic not configured — missing AI_INTEGRATIONS_ANTHROPIC_BASE_URL or AI_INTEGRATIONS_ANTHROPIC_API_KEY");
+  if (!client) throw new Error("Anthropic not configured — missing ANTHROPIC_API_KEY environment variable");
 
   const anthropicMessages = [];
   for (const m of messages) {
@@ -188,15 +188,15 @@ async function callClaudeChat(model, systemPrompt, messages, tools, temperature)
 async function callStructured(model, systemPrompt, userMessages, schema, formatName, temperature) {
   if (!isClaudeModel(model)) {
     console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude sonnet as fallback`);
-    model = "claude-sonnet-4-5-20250514";
+    model = "claude-sonnet-4-20250514";
   }
   return callClaudeStructured(model, systemPrompt, userMessages, schema, formatName, temperature);
 }
 
 async function callChat(model, systemPrompt, messages, tools, temperature) {
   if (!isClaudeModel(model)) {
-    console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude haiku as fallback`);
-    model = "claude-haiku-3-5-20241022";
+    console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude sonnet as fallback`);
+    model = "claude-sonnet-4-20250514";
   }
   return callClaudeChat(model, systemPrompt, messages, tools, temperature);
 }
