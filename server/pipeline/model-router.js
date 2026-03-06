@@ -38,7 +38,7 @@ async function callClaudeStructured(model, systemPrompt, userMessages, schema, f
   const client = getAnthropic();
   if (!client) throw new Error("Anthropic not configured — missing AI_INTEGRATIONS_ANTHROPIC_BASE_URL or AI_INTEGRATIONS_ANTHROPIC_API_KEY");
 
-  const jsonSchema = zodToJsonSchema(schema, formatName);
+  const jsonSchema = zodToJsonSchema(schema);
   const schemaInstruction = `\n\nYou MUST respond with ONLY valid JSON matching this exact schema — no prose, no markdown, no explanation outside the JSON:\n${JSON.stringify(jsonSchema, null, 2)}`;
 
   const messages = userMessages.map(m => ({
@@ -65,11 +65,42 @@ async function callClaudeStructured(model, systemPrompt, userMessages, schema, f
   }
 
   content = content.trim();
+
   if (content.startsWith("```")) {
     content = content.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
   }
 
-  const parsed = JSON.parse(content);
+  let jsonStr = content;
+  if (!jsonStr.startsWith("{") && !jsonStr.startsWith("[")) {
+    const braceStart = jsonStr.indexOf("{");
+    const bracketStart = jsonStr.indexOf("[");
+    let start = -1;
+    if (braceStart >= 0 && bracketStart >= 0) start = Math.min(braceStart, bracketStart);
+    else if (braceStart >= 0) start = braceStart;
+    else if (bracketStart >= 0) start = bracketStart;
+
+    if (start >= 0) {
+      jsonStr = jsonStr.substring(start);
+    }
+  }
+
+  const lastBrace = jsonStr.lastIndexOf("}");
+  const lastBracket = jsonStr.lastIndexOf("]");
+  const lastClose = Math.max(lastBrace, lastBracket);
+  if (lastClose >= 0 && lastClose < jsonStr.length - 1) {
+    jsonStr = jsonStr.substring(0, lastClose + 1);
+  }
+
+  jsonStr = jsonStr.trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (parseErr) {
+    console.error("[model-router] JSON parse failed. Raw content (first 500 chars):", content.substring(0, 500));
+    throw new Error(`Failed to parse AI response as JSON: ${parseErr.message}`);
+  }
+
   schema.parse(parsed);
   return parsed;
 }

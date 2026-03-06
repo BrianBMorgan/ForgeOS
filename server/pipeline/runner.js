@@ -105,7 +105,22 @@ async function loadSkillsContext() {
 
 async function callAgent(messages, instructions, schema, model, formatName) {
   const temp = NO_TEMPERATURE_MODELS.has(model) ? undefined : (model === REVIEWER_MODEL ? REVIEWER_TEMP : PLANNER_TEMP);
-  return await callStructured(model, instructions, messages, schema, formatName, temp);
+  const MAX_RETRIES = 2;
+  let lastErr;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await callStructured(model, instructions, messages, schema, formatName, temp);
+    } catch (err) {
+      lastErr = err;
+      const isParseError = err.message && (err.message.includes("JSON") || err.message.includes("parse") || err.message.includes("invalid_type") || err.message.includes("expected"));
+      if (isParseError && attempt < MAX_RETRIES) {
+        console.warn(`[runner] Structured call attempt ${attempt + 1} failed (${err.message.substring(0, 100)}), retrying...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
 
 function trackUsage(run, stageName) {
