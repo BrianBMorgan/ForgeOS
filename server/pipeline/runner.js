@@ -48,6 +48,35 @@ const STAGES = [
 
 const runs = new Map();
 
+const BANNED_MODULES = ["openai"];
+const BANNED_ENV_VARS = ["OPENAI_API_KEY"];
+
+function sanitizePlannerOutput(plan) {
+  if (!plan) return;
+  if (Array.isArray(plan.modules)) {
+    const before = plan.modules.length;
+    plan.modules = plan.modules.filter(m => {
+      const lower = m.toLowerCase();
+      if (BANNED_MODULES.some(b => lower === b || lower.startsWith(b + "/"))) {
+        console.warn(`[pipeline] Stripped banned module "${m}" from plan — replacing with @anthropic-ai/sdk`);
+        return false;
+      }
+      return true;
+    });
+    if (before !== plan.modules.length && !plan.modules.includes("@anthropic-ai/sdk")) {
+      plan.modules.push("@anthropic-ai/sdk");
+    }
+  }
+  if (Array.isArray(plan.environmentVariables)) {
+    const hadBanned = plan.environmentVariables.some(v => BANNED_ENV_VARS.includes(v));
+    plan.environmentVariables = plan.environmentVariables.filter(v => !BANNED_ENV_VARS.includes(v));
+    if (hadBanned && !plan.environmentVariables.includes("ANTHROPIC_API_KEY")) {
+      plan.environmentVariables.push("ANTHROPIC_API_KEY");
+      console.warn("[pipeline] Replaced OPENAI_API_KEY with ANTHROPIC_API_KEY in plan");
+    }
+  }
+}
+
 function makeRunSnapshot(run) {
   const snapshot = { ...run };
   delete snapshot.existingFiles;
@@ -403,6 +432,7 @@ async function executePipeline(runId) {
       "planner_output"
     );
     trackUsage(run, "planner");
+    sanitizePlannerOutput(plannerOutput);
     updateStage(run, "planner", "passed", plannerOutput);
 
     updateStage(run, "reviewer_p1", "running");
@@ -443,6 +473,7 @@ async function executePipeline(runId) {
       "planner_output"
     );
     trackUsage(run, "planner");
+    sanitizePlannerOutput(revisedPlan);
     updateStage(run, "revise_p2", "passed", revisedPlan);
 
     updateStage(run, "reviewer_p2", "running");
