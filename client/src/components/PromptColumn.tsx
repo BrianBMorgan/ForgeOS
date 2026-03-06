@@ -381,10 +381,15 @@ export default function PromptColumn({
         textareaRef.current.focus();
       }
     };
+    (window as unknown as Record<string, unknown>).__forgeRunBuild = (text: string) => {
+      if (!text || !text.trim()) return;
+      onRunBuild(text.trim());
+    };
     return () => {
       delete (window as unknown as Record<string, unknown>).__forgeSetPrompt;
+      delete (window as unknown as Record<string, unknown>).__forgeRunBuild;
     };
-  }, []);
+  }, [onRunBuild]);
 
   const stages = deriveStages(runData);
   const isRunning = runData?.status === "running";

@@ -12,7 +12,33 @@
       (function() {
         window.__forgeLastAgentMsg = "";
         window.__forgeAgentParts = "";
+        window.__forgeBuildPrompt = "";
         var sendBtn = null;
+
+        var BUILD_TRIGGERS = [
+          /starting the build/i,
+          /launching the build/i,
+          /kicking off the build/i,
+          /running the build/i,
+          /initiating the build/i,
+          /let me build/i,
+          /i'll build/i,
+          /i will build/i,
+          /building it now/i,
+          /starting it now/i,
+          /here we go/i,
+          /firing it up/i,
+          /let's go/i,
+          /approved.*build/i,
+          /build approved/i
+        ];
+
+        function checkForBuildTrigger(text) {
+          for (var i = 0; i < BUILD_TRIGGERS.length; i++) {
+            if (BUILD_TRIGGERS[i].test(text)) return true;
+          }
+          return false;
+        }
 
         var OrigWS = window.WebSocket;
         window.WebSocket = function(url, protocols) {
@@ -26,14 +52,36 @@
                 }
                 if (data.type === "agent_response" && data.agent_response_event === "agent_response_end") {
                   if (window.__forgeAgentParts.length > 10) {
-                    window.__forgeLastAgentMsg = window.__forgeAgentParts.trim();
-                    showSendButton();
+                    var msg = window.__forgeAgentParts.trim();
+                    window.__forgeLastAgentMsg = msg;
+                    if (checkForBuildTrigger(msg) && window.__forgeBuildPrompt) {
+                      if (window.__forgeRunBuild) {
+                        window.__forgeRunBuild(window.__forgeBuildPrompt);
+                        window.__forgeBuildPrompt = "";
+                        window.__forgeLastAgentMsg = "";
+                        if (sendBtn) sendBtn.style.display = "none";
+                      }
+                    } else if (!checkForBuildTrigger(msg)) {
+                      window.__forgeBuildPrompt = msg;
+                      showSendButton();
+                    }
                   }
                   window.__forgeAgentParts = "";
                 }
                 if (data.type === "chat" && data.role === "agent" && data.message) {
-                  window.__forgeLastAgentMsg = data.message.trim();
-                  showSendButton();
+                  var chatMsg = data.message.trim();
+                  window.__forgeLastAgentMsg = chatMsg;
+                  if (checkForBuildTrigger(chatMsg) && window.__forgeBuildPrompt) {
+                    if (window.__forgeRunBuild) {
+                      window.__forgeRunBuild(window.__forgeBuildPrompt);
+                      window.__forgeBuildPrompt = "";
+                      window.__forgeLastAgentMsg = "";
+                      if (sendBtn) sendBtn.style.display = "none";
+                    }
+                  } else if (!checkForBuildTrigger(chatMsg)) {
+                    window.__forgeBuildPrompt = chatMsg;
+                    showSendButton();
+                  }
                 }
                 if (data.type === "agent_chat_response_part" && data.text) {
                   window.__forgeAgentParts += data.text;
@@ -45,7 +93,14 @@
                 window.__forgeLastAgentMsg = window.__forgeAgentParts.trim();
                 window.__forgeAgentParts = "";
               }
-              if (window.__forgeLastAgentMsg && window.__forgeSetPrompt) {
+              if (window.__forgeBuildPrompt && window.__forgeSetPrompt) {
+                setTimeout(function() {
+                  window.__forgeSetPrompt(window.__forgeBuildPrompt);
+                  window.__forgeBuildPrompt = "";
+                  window.__forgeLastAgentMsg = "";
+                  if (sendBtn) sendBtn.style.display = "none";
+                }, 300);
+              } else if (window.__forgeLastAgentMsg && window.__forgeSetPrompt) {
                 setTimeout(function() {
                   window.__forgeSetPrompt(window.__forgeLastAgentMsg);
                   window.__forgeLastAgentMsg = "";
