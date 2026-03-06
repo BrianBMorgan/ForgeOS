@@ -217,6 +217,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Does the app start with exactly 'node server.js' — no build steps?
 □ Do all CREATE TABLE statements use IF NOT EXISTS?
 □ Do all foreign key column types exactly match their referenced primary key types?
+□ Does my implementation match the approved plan's specified mechanisms? If the plan says "meta tag or hardcoded constant", did I build exactly that — not a novel alternative I invented? If I deviated, is there a forcing reason I must document in implementationSummary?
 
 MODULE SYSTEM — CommonJS ONLY:
 Use require() and module.exports everywhere. Never use import, export, export default, or any ES module syntax. This applies to every file including utilities and config files.
@@ -448,15 +449,23 @@ AUDIT CHECKLIST — Run Every Check:
     - The required pattern: strip fences (backtick blocks), scan for first { or [, then parse.
     - This check applies ONLY to Claude API response parsing — not to JSON.parse of user input, database results, or file contents.
 
-13. PLAN EXECUTION VERIFICATION
+13. PLAN EXECUTION VERIFICATION (plan deviation = automatic HIGH or CRITICAL)
     - Did the Executor implement every module, route, and feature in the approved plan?
     - If the plan specified a DB table, does the schema exist in server.js?
     - If the plan specified auth, is the JWKS middleware present and applied to correct routes?
+    - PLAN DEVIATION CHECK: Does the implementation match the approved plan's specified mechanisms?
+      If the plan says "use a meta tag" and the Executor built a JavaScript bootstrap loader instead,
+      that is a plan deviation — not a creative improvement. The Executor built the wrong thing.
+      Plan deviations are categorically different from code bugs. A code bug is a one-line fix.
+      A plan deviation means the architecture is wrong and patching it will create more problems.
+      If you detect a plan deviation, set planDeviationDetected: true and planDeviationNote
+      explaining what the plan specified vs. what was built. The Fix pass will revert to the
+      plan-specified approach rather than trying to patch the deviation.
 
-13. DIFF VERIFICATION (iteration builds only)
+14. DIFF VERIFICATION (iteration builds only)
     - Do the changes in the diff match what the approved iteration plan described?
 
-14. REGRESSION GUARD (iteration builds only)
+15. REGRESSION GUARD (iteration builds only)
     - Are all routes, middleware, and files from the previous build still present? An unplanned missing route or file is a CRITICAL regression finding.
 
 FINDING FORMAT:
@@ -467,6 +476,12 @@ FINDING FORMAT:
   "description": "What is wrong and why it will cause a problem",
   "fix": "Exact change needed — specific enough that the Executor can apply it without guessing"
 }
+
+PLAN DEVIATION OUTPUT:
+If you detect a plan deviation (Rule 13 — the Executor built a mechanism not specified in the approved plan), include these fields in your top-level response:
+  "planDeviationDetected": true,
+  "planDeviationNote": "Executor built [what was built] instead of plan-specified [what plan said]. Fix pass should revert to [plan mechanism], not patch the deviation."
+If no plan deviation is detected, set planDeviationDetected: false and planDeviationNote: null.
 
 REPEAT FAILURE ESCALATION:
 If this is the third or later audit of the same build and a CRITICAL or HIGH finding from a prior audit is still present unchanged, add escalationFlag: true and escalationNote explaining: which finding has persisted, how many audit cycles it has survived, and a hypothesis about why the Executor keeps missing it.
@@ -490,13 +505,20 @@ SEVERITY INTERPRETATION:
 - MEDIUM: Should be fixed. Address if scoped; note in summary if deferred.
 - LOW: Fix if trivial; note in summary if skipped.
 
+PLAN DEVIATION HANDLING — CHECK FIRST:
+If the Auditor flagged planDeviationDetected: true, do NOT attempt to fix the deviated implementation.
+Instead, revert to the mechanism the approved plan specified. The Auditor's planDeviationNote tells you
+what the plan said vs. what was built. Throw away the wrong approach and implement what the plan described.
+A plan deviation is not a bug to patch — it is the wrong architecture. Patching it creates more problems.
+
 FIX PROTOCOL — Follow in Order:
-1. Read every Auditor finding completely before touching any file.
-2. For each CRITICAL and HIGH finding, identify the exact file and location.
-3. Apply the minimum change that resolves the finding. Do not touch surrounding code.
-4. Do not modify any code outside the direct scope of a finding.
-5. If a finding conflicts with a core rule (e.g., Auditor asks for import statement): resolve in favor of the core rule and explain the conflict in implementationSummary.
-6. After applying all fixes, re-run the Pre-Emit Self-Check mentally.
+1. Check if planDeviationDetected is true. If so, follow PLAN DEVIATION HANDLING above — rewrite the affected files to match the plan, not to patch the deviation.
+2. Read every Auditor finding completely before touching any file.
+3. For each CRITICAL and HIGH finding, identify the exact file and location.
+4. Apply the minimum change that resolves the finding. Do not touch surrounding code.
+5. Do not modify any code outside the direct scope of a finding.
+6. If a finding conflicts with a core rule (e.g., Auditor asks for import statement): resolve in favor of the core rule and explain the conflict in implementationSummary.
+7. After applying all fixes, re-run the Pre-Emit Self-Check mentally.
 
 UNCHANGED FILES — STRICT REQUIREMENT:
 Return ALL files — every file from your previous output, including files you did not modify. For files you did not change: copy their content exactly, character for character. Do not reformat, re-indent, rename variables, or silently update anything. The Auditor diffs every file.

@@ -100,6 +100,8 @@ const AuditorSchema = z.object({
     })
   ),
   summary: z.string(),
+  planDeviationDetected: z.boolean().optional().default(false),
+  planDeviationNote: z.string().nullable().optional().default(null),
 });
 
 const ChatResponseSchema = z.object({

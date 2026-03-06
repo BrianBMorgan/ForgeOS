@@ -670,7 +670,7 @@ async function executeAfterApproval(run) {
         },
         {
           role: "user",
-          content: `The Auditor REJECTED your output. ${urgency}\n\nAUDITOR ISSUES (${currentAuditResult.issues.length}):\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nFocus on the CRITICAL and HIGH severity issues first. Fix them precisely. Returning unchanged code = immediate failure.${affectedFilesList}${fixDiffInfo}`,
+          content: `The Auditor REJECTED your output. ${urgency}\n\n${currentAuditResult.planDeviationDetected ? `PLAN DEVIATION DETECTED:\n${currentAuditResult.planDeviationNote}\n\nDo NOT patch the deviated implementation. Revert to the mechanism the approved plan specified. Throw away the wrong approach.\n\n` : ""}AUDITOR ISSUES (${currentAuditResult.issues.length}):\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nFocus on the CRITICAL and HIGH severity issues first. Fix them precisely. Returning unchanged code = immediate failure.${affectedFilesList}${fixDiffInfo}`,
         },
       ];
 
