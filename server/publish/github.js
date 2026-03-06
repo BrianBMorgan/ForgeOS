@@ -49,6 +49,7 @@ const DENIED_DIRS = new Set([
   "node_modules", ".git", ".env", ".cache", ".tmp",
   "coverage", ".nyc_output",
   ".local", "attached_assets",
+  "workspaces", "published",
 ]);
 
 function isSensitiveFile(name) {
