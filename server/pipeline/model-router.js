@@ -3,10 +3,9 @@ const Anthropic = require("@anthropic-ai/sdk");
 let anthropic = null;
 function getAnthropic() {
   if (anthropic) return anthropic;
-  const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-  const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-  if (!baseURL || !apiKey) return null;
-  anthropic = new Anthropic({ apiKey, baseURL });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  anthropic = new Anthropic({ apiKey });
   return anthropic;
 }
 
@@ -189,7 +188,7 @@ async function callClaudeChat(model, systemPrompt, messages, tools, temperature)
 async function callStructured(model, systemPrompt, userMessages, schema, formatName, temperature) {
   if (!isClaudeModel(model)) {
     console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude sonnet as fallback`);
-    model = "claude-sonnet-4-6";
+    model = "claude-sonnet-4-5-20250514";
   }
   return callClaudeStructured(model, systemPrompt, userMessages, schema, formatName, temperature);
 }
@@ -197,7 +196,7 @@ async function callStructured(model, systemPrompt, userMessages, schema, formatN
 async function callChat(model, systemPrompt, messages, tools, temperature) {
   if (!isClaudeModel(model)) {
     console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude haiku as fallback`);
-    model = "claude-haiku-4-5";
+    model = "claude-haiku-3-5-20241022";
   }
   return callClaudeChat(model, systemPrompt, messages, tools, temperature);
 }

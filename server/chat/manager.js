@@ -302,7 +302,7 @@ async function chat(projectId, userMessage) {
     ...conversationMessages,
   ];
 
-  let chatModel = "claude-haiku-4-5";
+  let chatModel = "claude-haiku-3-5-20241022";
   try {
     const config = await settingsManager.getSetting("model_config");
     if (config && config.chatModel) chatModel = config.chatModel;
