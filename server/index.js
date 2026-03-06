@@ -876,6 +876,25 @@ app.post("/api/db/query", async (req, res) => {
 
 const http = require("http");
 
+function rewriteHtmlForProxy(html, basePath) {
+  html = html.replace(/(href|src|action)=(["'])\/((?!\/)[^"']*)\2/gi, (match, attr, quote, path) => {
+    if (path.startsWith(basePath.slice(1))) return match;
+    return `${attr}=${quote}${basePath}/${path}${quote}`;
+  });
+
+  const fetchPatch = `<script>(function(){var B="${basePath}";var _f=window.fetch;window.fetch=function(u,o){if(typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B))u=B+u;return _f.call(this,u,o)};var _o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B))u=B+u;return _o.apply(this,arguments)}})();</script>`;
+
+  if (html.includes("<head")) {
+    html = html.replace(/<head([^>]*)>/i, `<head$1>${fetchPatch}`);
+  } else if (html.includes("<html")) {
+    html = html.replace(/<html([^>]*)>/i, `<html$1>${fetchPatch}`);
+  } else {
+    html = fetchPatch + html;
+  }
+
+  return html;
+}
+
 app.use("/preview/:runId", async (req, res) => {
   const runId = req.params.runId;
 
@@ -947,12 +966,32 @@ app.use("/preview/:runId", async (req, res) => {
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
-    const headers = { ...proxyRes.headers };
-    headers["cache-control"] = "no-cache, no-store, must-revalidate";
-    headers["pragma"] = "no-cache";
-    headers["expires"] = "0";
-    res.writeHead(proxyRes.statusCode, headers);
-    proxyRes.pipe(res);
+    const contentType = (proxyRes.headers["content-type"] || "").toLowerCase();
+    const isHtml = contentType.includes("text/html");
+
+    if (isHtml) {
+      const chunks = [];
+      proxyRes.on("data", (chunk) => chunks.push(chunk));
+      proxyRes.on("end", () => {
+        let html = Buffer.concat(chunks).toString("utf-8");
+        html = rewriteHtmlForProxy(html, basePath);
+        const headers = { ...proxyRes.headers };
+        headers["cache-control"] = "no-cache, no-store, must-revalidate";
+        headers["pragma"] = "no-cache";
+        headers["expires"] = "0";
+        headers["content-length"] = String(Buffer.byteLength(html, "utf-8"));
+        delete headers["content-encoding"];
+        res.writeHead(proxyRes.statusCode, headers);
+        res.end(html);
+      });
+    } else {
+      const headers = { ...proxyRes.headers };
+      headers["cache-control"] = "no-cache, no-store, must-revalidate";
+      headers["pragma"] = "no-cache";
+      headers["expires"] = "0";
+      res.writeHead(proxyRes.statusCode, headers);
+      proxyRes.pipe(res);
+    }
   });
 
   proxyReq.on("error", () => {
@@ -998,8 +1037,25 @@ app.use("/apps/:slug", (req, res) => {
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
-    proxyRes.pipe(res, { end: true });
+    const contentType = (proxyRes.headers["content-type"] || "").toLowerCase();
+    const isHtml = contentType.includes("text/html");
+
+    if (isHtml) {
+      const chunks = [];
+      proxyRes.on("data", (chunk) => chunks.push(chunk));
+      proxyRes.on("end", () => {
+        let html = Buffer.concat(chunks).toString("utf-8");
+        html = rewriteHtmlForProxy(html, basePath);
+        const headers = { ...proxyRes.headers };
+        headers["content-length"] = String(Buffer.byteLength(html, "utf-8"));
+        delete headers["content-encoding"];
+        res.writeHead(proxyRes.statusCode, headers);
+        res.end(html);
+      });
+    } else {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res, { end: true });
+    }
   });
 
   proxyReq.on("error", () => {
