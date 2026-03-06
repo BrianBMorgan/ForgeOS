@@ -19,20 +19,6 @@ interface Skill {
   updated_at: number;
 }
 
-const OPENAI_MODELS = [
-  "gpt-5.2-pro",
-  "gpt-5.2",
-  "gpt-5.2-mini",
-  "gpt-4.1",
-  "gpt-4.1-mini",
-  "gpt-4.1-nano",
-  "gpt-4o",
-  "gpt-4o-mini",
-  "o3",
-  "o3-mini",
-  "o4-mini",
-];
-
 const CLAUDE_MODELS = [
   "claude-opus-4-6",
   "claude-sonnet-4-6",
@@ -41,9 +27,6 @@ const CLAUDE_MODELS = [
 
 const ModelSelect = ({ value, onChange, className }: { value: string; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; className?: string }) => (
   <select value={value} onChange={onChange} className={className}>
-    <optgroup label="OpenAI">
-      {OPENAI_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-    </optgroup>
     <optgroup label="Anthropic">
       {CLAUDE_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
     </optgroup>
@@ -51,7 +34,7 @@ const ModelSelect = ({ value, onChange, className }: { value: string; onChange: 
 );
 
 const DEFAULT_SETTINGS: SettingValues = {
-  model_config: { plannerModel: "gpt-4.1", reviewerModel: "gpt-4.1-mini", chatModel: "gpt-4.1-mini", plannerTemp: 0.7, reviewerTemp: 0.2 },
+  model_config: { plannerModel: "claude-sonnet-4-6", reviewerModel: "claude-haiku-4-5", chatModel: "claude-haiku-4-5", plannerTemp: 0.7, reviewerTemp: 0.2 },
   auto_approve: { enabled: false, maxRiskLevel: "low" },
   default_env_vars: { vars: [] },
   workspace_limits: { portRangeStart: 4000, portRangeEnd: 4099, maxConcurrentApps: 5, logRetention: 2000 },
@@ -332,7 +315,7 @@ export default function Settings() {
         </div>
         <div className="stg-field">
           <label>Chat Agent Model</label>
-          <ModelSelect value={settings.model_config.chatModel || "gpt-4.1-mini"} onChange={(e) => {
+          <ModelSelect value={settings.model_config.chatModel || "claude-haiku-4-5"} onChange={(e) => {
             const updated = { ...settings.model_config, chatModel: e.target.value };
             setSettings({ ...settings, model_config: updated });
             saveSetting("model_config", updated);

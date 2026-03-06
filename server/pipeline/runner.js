@@ -30,8 +30,8 @@ const { NO_TEMPERATURE_MODELS } = require("./model-router");
 const dbUrl = process.env.NEON_DATABASE_URL;
 const sql = dbUrl ? neon(dbUrl) : null;
 
-let PLANNER_MODEL = "gpt-4.1";
-let REVIEWER_MODEL = "gpt-4.1-mini";
+let PLANNER_MODEL = "claude-sonnet-4-6";
+let REVIEWER_MODEL = "claude-haiku-4-5";
 let PLANNER_TEMP = 0.7;
 let REVIEWER_TEMP = 0.2;
 
@@ -83,8 +83,8 @@ async function loadModelConfig() {
     const settingsManager = require("../settings/manager");
     const config = await settingsManager.getSetting("model_config");
     if (config) {
-      PLANNER_MODEL = config.plannerModel || "gpt-4.1";
-      REVIEWER_MODEL = config.reviewerModel || "gpt-4.1-mini";
+      PLANNER_MODEL = config.plannerModel || "claude-sonnet-4-6";
+      REVIEWER_MODEL = config.reviewerModel || "claude-haiku-4-5";
       PLANNER_TEMP = config.plannerTemp ?? 0.7;
       REVIEWER_TEMP = config.reviewerTemp ?? 0.2;
     }

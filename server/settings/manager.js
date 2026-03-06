@@ -5,8 +5,9 @@ const sql = dbUrl ? neon(dbUrl) : null;
 
 const DEFAULTS = {
   model_config: {
-    plannerModel: "gpt-4.1",
-    reviewerModel: "gpt-4.1-mini",
+    plannerModel: "claude-sonnet-4-6",
+    reviewerModel: "claude-haiku-4-5",
+    chatModel: "claude-haiku-4-5",
     plannerTemp: 0.7,
     reviewerTemp: 0.2,
   },
@@ -31,6 +32,7 @@ const DEFAULTS = {
     allowed: [
       "express",
       "@neondatabase/serverless",
+      "@anthropic-ai/sdk",
       "uuid",
       "cors",
       "cookie-parser",
@@ -62,6 +64,7 @@ const DEFAULTS = {
       "parcel",
       "esbuild",
       "tailwindcss",
+      "openai",
     ],
   },
 };

@@ -1,5 +1,4 @@
-const OpenAI = require("openai");
-const openai = new OpenAI();
+const Anthropic = require("@anthropic-ai/sdk");
 
 let anthropic = null;
 function getAnthropic() {
@@ -7,7 +6,6 @@ function getAnthropic() {
   const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
   const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
   if (!baseURL || !apiKey) return null;
-  const Anthropic = require("@anthropic-ai/sdk");
   anthropic = new Anthropic({ apiKey, baseURL });
   return anthropic;
 }
@@ -19,36 +17,7 @@ function isClaudeModel(model) {
 let _lastUsage = null;
 function getLastUsage() { const u = _lastUsage; _lastUsage = null; return u; }
 
-function extractUsage(response) {
-  if (response?.usage) {
-    _lastUsage = {
-      promptTokens: response.usage.prompt_tokens ?? response.usage.input_tokens ?? 0,
-      completionTokens: response.usage.completion_tokens ?? response.usage.output_tokens ?? 0,
-      totalTokens: response.usage.total_tokens ?? 0,
-    };
-    if (!_lastUsage.totalTokens) {
-      _lastUsage.totalTokens = _lastUsage.promptTokens + _lastUsage.completionTokens;
-    }
-  }
-}
-
-const RESPONSES_API_MODELS = new Set([
-  "gpt-5.2-pro",
-  "gpt-5.2",
-  "gpt-5.2-mini",
-  "o3",
-  "o3-mini",
-]);
-
-const NO_TEMPERATURE_MODELS = new Set([
-  "gpt-5.2-pro",
-  "o3",
-  "o3-mini",
-]);
-
-function usesResponsesAPI(model) {
-  return RESPONSES_API_MODELS.has(model);
-}
+const NO_TEMPERATURE_MODELS = new Set([]);
 
 function extractAnthropicUsage(response) {
   if (response?.usage) {
@@ -58,6 +27,16 @@ function extractAnthropicUsage(response) {
       totalTokens: (response.usage.input_tokens ?? 0) + (response.usage.output_tokens ?? 0),
     };
   }
+}
+
+function zodToJsonSchema(zodSchema, name) {
+  const { zodToJsonSchema: zToJ } = require("zod-to-json-schema");
+  const schema = zToJ(zodSchema, { name: name || "output", target: "jsonSchema7" });
+  if (schema.definitions && schema.$ref) {
+    const refName = schema.$ref.replace("#/definitions/", "");
+    return schema.definitions[refName] || schema;
+  }
+  return schema;
 }
 
 async function callClaudeStructured(model, systemPrompt, userMessages, schema, formatName, temperature) {
@@ -182,181 +161,24 @@ async function callClaudeChat(model, systemPrompt, messages, tools, temperature)
 }
 
 async function callStructured(model, systemPrompt, userMessages, schema, formatName, temperature) {
-  if (isClaudeModel(model)) {
-    return callClaudeStructured(model, systemPrompt, userMessages, schema, formatName, temperature);
+  if (!isClaudeModel(model)) {
+    console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude sonnet as fallback`);
+    model = "claude-sonnet-4-6";
   }
-
-  if (usesResponsesAPI(model)) {
-    const input = userMessages.map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    const params = {
-      model,
-      instructions: systemPrompt,
-      input,
-      text: {
-        format: {
-          type: "json_schema",
-          name: formatName,
-          schema: zodToJsonSchema(schema, formatName),
-          strict: true,
-        },
-      },
-    };
-
-    if (!NO_TEMPERATURE_MODELS.has(model) && temperature != null) {
-      params.temperature = temperature;
-    }
-
-    const response = await openai.responses.create(params);
-    extractUsage(response);
-    const content = response.output_text;
-    const parsed = JSON.parse(content);
-    schema.parse(parsed);
-    return parsed;
-  }
-
-  const { zodResponseFormat } = require("openai/helpers/zod");
-  const params = {
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...userMessages,
-    ],
-    response_format: zodResponseFormat(schema, formatName),
-  };
-  if (temperature != null) {
-    params.temperature = temperature;
-  }
-
-  const response = await openai.chat.completions.create(params);
-  extractUsage(response);
-  const content = response.choices[0].message.content;
-  const parsed = JSON.parse(content);
-  schema.parse(parsed);
-  return parsed;
+  return callClaudeStructured(model, systemPrompt, userMessages, schema, formatName, temperature);
 }
 
 async function callChat(model, systemPrompt, messages, tools, temperature) {
-  if (isClaudeModel(model)) {
-    return callClaudeChat(model, systemPrompt, messages, tools, temperature);
+  if (!isClaudeModel(model)) {
+    console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude haiku as fallback`);
+    model = "claude-haiku-4-5";
   }
-
-  if (usesResponsesAPI(model)) {
-    const sanitizeId = (id) => {
-      if (id && id.startsWith("call_")) return "fc_" + id.slice(5);
-      return id;
-    };
-    const input = [];
-    for (const m of messages) {
-      if (m.role === "system") continue;
-      if (m.role === "tool") {
-        input.push({
-          type: "function_call_output",
-          call_id: sanitizeId(m.tool_call_id),
-          output: m.content,
-        });
-      } else if (m.role === "assistant" && m.tool_calls && m.tool_calls.length > 0) {
-        for (const tc of m.tool_calls) {
-          const safeId = sanitizeId(tc.id);
-          input.push({
-            type: "function_call",
-            id: safeId,
-            call_id: safeId,
-            name: tc.function.name,
-            arguments: tc.function.arguments,
-          });
-        }
-        if (m.content) {
-          input.push({ role: "assistant", content: m.content });
-        }
-      } else {
-        input.push({ role: m.role, content: m.content || "" });
-      }
-    }
-
-    const responsesTools = tools ? tools.map(t => ({
-      type: "function",
-      name: t.function.name,
-      description: t.function.description,
-      parameters: t.function.parameters,
-    })) : undefined;
-
-    const params = {
-      model,
-      instructions: systemPrompt,
-      input,
-    };
-    if (responsesTools && responsesTools.length > 0) {
-      params.tools = responsesTools;
-    }
-    if (!NO_TEMPERATURE_MODELS.has(model) && temperature != null) {
-      params.temperature = temperature;
-    }
-
-    const response = await openai.responses.create(params);
-    extractUsage(response);
-
-    const functionCalls = response.output.filter(o => o.type === "function_call");
-    if (functionCalls.length > 0) {
-      const toolCalls = functionCalls.map(fc => ({
-        id: fc.call_id,
-        type: "function",
-        function: {
-          name: fc.name,
-          arguments: fc.arguments,
-        },
-      }));
-      return {
-        content: null,
-        tool_calls: toolCalls,
-        _raw: response,
-      };
-    }
-
-    return {
-      content: response.output_text,
-      tool_calls: null,
-      _raw: response,
-    };
-  }
-
-  const params = {
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...messages.filter(m => m.role !== "system"),
-    ],
-  };
-  if (tools && tools.length > 0) {
-    params.tools = tools;
-  }
-  if (temperature != null) {
-    params.temperature = temperature;
-  }
-
-  const response = await openai.chat.completions.create(params);
-  extractUsage(response);
-  const choice = response.choices[0];
-  return {
-    content: choice.message.content,
-    tool_calls: choice.message.tool_calls || null,
-    _raw: response,
-  };
-}
-
-function zodToJsonSchema(zodSchema, name) {
-  const { zodResponseFormat } = require("openai/helpers/zod");
-  const fmt = zodResponseFormat(zodSchema, name || "output");
-  return fmt.json_schema.schema;
+  return callClaudeChat(model, systemPrompt, messages, tools, temperature);
 }
 
 module.exports = {
   callStructured,
   callChat,
-  usesResponsesAPI,
   isClaudeModel,
   NO_TEMPERATURE_MODELS,
   getLastUsage,

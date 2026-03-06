@@ -302,7 +302,7 @@ async function chat(projectId, userMessage) {
     ...conversationMessages,
   ];
 
-  let chatModel = "gpt-4.1-mini";
+  let chatModel = "claude-haiku-4-5";
   try {
     const config = await settingsManager.getSetting("model_config");
     if (config && config.chatModel) chatModel = config.chatModel;

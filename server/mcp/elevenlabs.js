@@ -157,7 +157,7 @@ const TOOLS = [
         first_message: { type: "string", description: "The greeting message the agent says when a conversation starts" },
         system_prompt: { type: "string", description: "System prompt defining the agent's behavior and personality" },
         language: { type: "string", description: "Primary language code (e.g. en, es, fr)", default: "en" },
-        llm: { type: "string", description: "LLM provider to use (e.g. gpt-4o, claude-3-5-sonnet)", default: "gpt-4o" },
+        llm: { type: "string", description: "LLM provider to use (e.g. claude-sonnet-4-6, claude-haiku-4-5)", default: "claude-sonnet-4-6" },
       },
       required: ["name", "voice_id", "first_message", "system_prompt"],
     },
