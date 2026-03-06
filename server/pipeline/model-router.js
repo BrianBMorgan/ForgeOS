@@ -29,14 +29,9 @@ function extractAnthropicUsage(response) {
   }
 }
 
-function zodToJsonSchema(zodSchema, name) {
-  const { zodToJsonSchema: zToJ } = require("zod-to-json-schema");
-  const schema = zToJ(zodSchema, { name: name || "output", target: "jsonSchema7" });
-  if (schema.definitions && schema.$ref) {
-    const refName = schema.$ref.replace("#/definitions/", "");
-    return schema.definitions[refName] || schema;
-  }
-  return schema;
+function zodToJsonSchema(zodSchema) {
+  const { z } = require("zod");
+  return z.toJSONSchema(zodSchema);
 }
 
 async function callClaudeStructured(model, systemPrompt, userMessages, schema, formatName, temperature) {
