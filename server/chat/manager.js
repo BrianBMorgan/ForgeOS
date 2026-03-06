@@ -364,6 +364,7 @@ const BANNED_PATTERNS = [
   { regex: /\bretry\s+(usually|often|typically|generally)\s+(resolves?|fixes?|works?)\b/i, rule: "Banned dismissal: 'retry usually resolves' is not a diagnosis — state the root cause or say you don't know" },
   { regex: /\bI\s+(cannot|can't|don't)\s+(see|have\s+access|have\s+visibility)\b/i, rule: "Banned ignorance claim: you have diagnostics, iteration history, source code, and runtime logs in your context — read them" },
   { regex: /\bI\s+need\s+you\s+to\s+provide\b/i, rule: "Banned info request: the information is in your context (diagnostics, logs, source code) — read it instead of asking" },
+  { regex: /\bwhat\s+is\s+(your|the)\s+project\s*id\b/i, rule: "Banned question: the project ID is in your system context — you already have it" },
 ];
 
 function detectBannedPatterns(message, buildSuggestion) {
@@ -505,7 +506,9 @@ async function chat(projectId, userMessage) {
     content: m.content,
   }));
 
-  const systemMessage = CHAT_AGENT_INSTRUCTIONS + diagnosticsContext + iterHistoryContext + codeContext + logsContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
+  const projectContext = `\n\nCURRENT PROJECT CONTEXT:\nProject ID: ${projectId}\nProject Name: ${project.name}\nCurrent Run ID: ${lastRunId || "none"}\nYou are chatting inside this project. You already have full access to its pipeline state, workspace logs, source code, and diagnostics. Do not ask the user for the project ID — you have it.\n`;
+
+  const systemMessage = CHAT_AGENT_INSTRUCTIONS + projectContext + diagnosticsContext + iterHistoryContext + codeContext + logsContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
 
   const messages = [
     { role: "system", content: systemMessage },
