@@ -876,13 +876,30 @@ app.post("/api/db/query", async (req, res) => {
 
 const http = require("http");
 
+function rewriteLocationHeader(headers, basePath) {
+  if (headers.location && typeof headers.location === "string") {
+    const loc = headers.location;
+    if (loc.startsWith("/") && !loc.startsWith(basePath)) {
+      headers.location = basePath + loc;
+    }
+  }
+  return headers;
+}
+
 function rewriteHtmlForProxy(html, basePath) {
-  html = html.replace(/(href|src|action)=(["'])\/((?!\/)[^"']*)\2/gi, (match, attr, quote, path) => {
+  html = html.replace(/(href|src|action|formaction)=(["'])\/((?!\/)[^"']*)\2/gi, (match, attr, quote, path) => {
     if (path.startsWith(basePath.slice(1))) return match;
     return `${attr}=${quote}${basePath}/${path}${quote}`;
   });
+  html = html.replace(/(srcset)=(["'])([^"']+)\2/gi, (match, attr, quote, value) => {
+    const rewritten = value.replace(/(^|,\s*)\/((?!\/)[^\s,]+)/g, (m, prefix, p) => {
+      if (p.startsWith(basePath.slice(1))) return m;
+      return `${prefix}${basePath}/${p}`;
+    });
+    return `${attr}=${quote}${rewritten}${quote}`;
+  });
 
-  const fetchPatch = `<script>(function(){var B="${basePath}";var _f=window.fetch;window.fetch=function(u,o){if(typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B))u=B+u;return _f.call(this,u,o)};var _o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B))u=B+u;return _o.apply(this,arguments)}})();</script>`;
+  const fetchPatch = `<script>(function(){var B="${basePath}";function rw(u){return typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B)?B+u:u}var _f=window.fetch;window.fetch=function(u,o){if(typeof u==="string"){u=rw(u)}else if(u instanceof Request){var nu=rw(u.url);if(nu!==u.url)u=new Request(nu,u)}return _f.call(this,u,o)};var _o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==="string")u=rw(u);return _o.apply(this,arguments)};var _h=window.history;if(_h&&_h.pushState){var _ps=_h.pushState.bind(_h);_h.pushState=function(s,t,u){if(typeof u==="string")u=rw(u);return _ps(s,t,u)};var _rs=_h.replaceState.bind(_h);_h.replaceState=function(s,t,u){if(typeof u==="string")u=rw(u);return _rs(s,t,u)}}})();</script>`;
 
   if (html.includes("<head")) {
     html = html.replace(/<head([^>]*)>/i, `<head$1>${fetchPatch}`);
@@ -976,6 +993,7 @@ app.use("/preview/:runId", async (req, res) => {
         let html = Buffer.concat(chunks).toString("utf-8");
         html = rewriteHtmlForProxy(html, basePath);
         const headers = { ...proxyRes.headers };
+        rewriteLocationHeader(headers, basePath);
         headers["cache-control"] = "no-cache, no-store, must-revalidate";
         headers["pragma"] = "no-cache";
         headers["expires"] = "0";
@@ -986,6 +1004,7 @@ app.use("/preview/:runId", async (req, res) => {
       });
     } else {
       const headers = { ...proxyRes.headers };
+      rewriteLocationHeader(headers, basePath);
       headers["cache-control"] = "no-cache, no-store, must-revalidate";
       headers["pragma"] = "no-cache";
       headers["expires"] = "0";
@@ -1047,13 +1066,16 @@ app.use("/apps/:slug", (req, res) => {
         let html = Buffer.concat(chunks).toString("utf-8");
         html = rewriteHtmlForProxy(html, basePath);
         const headers = { ...proxyRes.headers };
+        rewriteLocationHeader(headers, basePath);
         headers["content-length"] = String(Buffer.byteLength(html, "utf-8"));
         delete headers["content-encoding"];
         res.writeHead(proxyRes.statusCode, headers);
         res.end(html);
       });
     } else {
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      const headers = { ...proxyRes.headers };
+      rewriteLocationHeader(headers, basePath);
+      res.writeHead(proxyRes.statusCode, headers);
       proxyRes.pipe(res, { end: true });
     }
   });

@@ -195,6 +195,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Does server.js use const PORT = process.env.PORT || 3000?
 □ Does server.js have an explicit GET / handler returning a complete HTML page?
 □ Are all fetch() calls in frontend code using /path format (starts with /, no ://)?
+□ Do all HTML attributes (href, src, action) use root-relative paths starting with /?
 □ Is every file using require() and module.exports — zero import/export statements?
 □ Are there zero nested backticks inside any template literal?
 □ Are there zero TODO, FIXME, placeholder, or stub comments?
@@ -202,6 +203,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Is dotenv absent from all files and from package.json?
 □ Is process.exit() absent from all files?
 □ Are there no <base> tags in any HTML?
+□ Are there no URL helper functions or base path variables for handling proxy prefixes?
 □ Does the app start with exactly 'node server.js' — no build steps?
 □ Do all CREATE TABLE statements use IF NOT EXISTS?
 □ Do all foreign key column types exactly match their referenced primary key types?
@@ -219,18 +221,26 @@ RUNTIME CONSTRAINTS:
 - No <base> tags in any HTML
 - GET / must return a complete HTML page — not a redirect, not JSON
 
-FRONTEND FETCH RULES:
-All fetch() calls in browser-side code must use origin-relative paths: a leading slash, no protocol, no hostname, no port.
+DEPLOYMENT CONTEXT — PATH-PREFIX PROXY:
+Your app will be served behind a reverse proxy at a path prefix (e.g., /preview/abc123/ or /apps/my-app/). The proxy rewrites root-relative URLs in HTML responses and intercepts fetch/XHR at runtime. Your job is to produce clean root-relative paths — the proxy handles the rest. Do NOT try to handle path prefixes in your app code. Do NOT inject base path variables, URL helper functions, or <base> tags.
+
+FRONTEND URL RULES (fetch, XHR, AND static assets):
+All URLs in browser-side code — fetch() calls, XHR requests, AND HTML attributes (href, src, action) — must use root-relative paths: a leading slash, no protocol, no hostname, no port.
 
 CORRECT:   fetch('/api/items')
 CORRECT:   fetch('/auth/login')
+CORRECT:   <link rel="stylesheet" href="/style.css" />
+CORRECT:   <script src="/app.js"></script>
+CORRECT:   <img src="/logo.png" />
+CORRECT:   <form action="/api/submit">
 INCORRECT: fetch('http://localhost:3000/api/items')   — absolute URL with hostname
 INCORRECT: fetch('https://example.com/api/items')     — absolute URL with hostname
-INCORRECT: fetch('api/items')                         — path-relative, breaks off root
+INCORRECT: fetch('api/items')                         — path-relative, breaks under sub-paths
+INCORRECT: <link href="style.css" />                  — path-relative, breaks under sub-paths
 INCORRECT: fetch(\`\${window.location.origin}/api/items\`) — absolute after construction
 INCORRECT: new URL('api/items', window.location.origin).toString()
 
-Do not build URL helper functions that produce absolute URLs and pass them to fetch. The string passed to fetch() must start with / and must not contain ://.
+Do not build URL helper functions that produce absolute URLs and pass them to fetch. The string passed to fetch() must start with / and must not contain ://. The same rule applies to href, src, and action attributes in HTML.
 
 TEMPLATE LITERAL SAFETY:
 Backticks cannot be nested. When a template literal must contain a string that itself needs backticks: assign the inner string to a variable first, or use array.join('') for complex multi-line HTML strings.
@@ -378,14 +388,20 @@ AUDIT CHECKLIST — Run Every Check:
 7. TEMPLATE LITERAL SAFETY
    - Are there any backticks nested inside template literals? Check HTML strings, SQL strings, and script tags especially carefully.
 
-8. FETCH URL CORRECTNESS
-   - Do all fetch() calls in browser-side code use origin-relative URLs? The fetch argument must start with / and must not contain ://.
+8. FRONTEND URL CORRECTNESS (fetch, XHR, AND static assets)
+   - Do all fetch() calls in browser-side code use root-relative URLs? The fetch argument must start with / and must not contain ://.
+   - Do all HTML attributes (href, src, action) for static assets and forms use root-relative paths starting with /?
+   - Apps are served behind a path-prefix proxy (/preview/:id/ or /apps/:slug/). The proxy rewrites root-relative paths automatically. Agents must NOT try to handle this themselves.
    - CORRECT:   fetch('/api/items')       — starts with /, no ://
    - CORRECT:   fetch('/auth/login')
+   - CORRECT:   <link href="/style.css" />  — root-relative, proxy rewrites
+   - CORRECT:   <script src="/app.js" />    — root-relative, proxy rewrites
    - INCORRECT: fetch('http://...')       — has ://
    - INCORRECT: fetch('https://...')      — has ://
-   - INCORRECT: fetch('api/items')        — no leading /, breaks off root
+   - INCORRECT: fetch('api/items')        — no leading /, breaks under sub-paths
+   - INCORRECT: <link href="style.css" /> — no leading /, breaks under sub-paths
    - INCORRECT: fetch(apiUrl('...'))      — helper that constructs absolute URL
+   - INCORRECT: <base href="/"> or any <base> tag — breaks proxy rewriting
 
 9. DATABASE SAFETY (if applicable)
    - Is @neondatabase/serverless the only database driver?
@@ -462,6 +478,7 @@ WHAT YOU MUST NEVER DO:
 - Never add new npm packages unless the Auditor finding explicitly requires one
 - Never emit a build with zero changes when the Auditor rejected it
 - Never introduce URL helper functions (apiUrl(), buildUrl(), etc.) that produce absolute URLs — fix the fetch() call directly with a /path string
+- Never inject base path variables or path-prefix logic into app code — the platform proxy handles path-prefix rewriting for /preview/ and /apps/ routes automatically
 
 ACCOUNTABILITY:
 Your implementationSummary must address each Auditor finding by its rule name:
@@ -554,6 +571,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Does server.js use const PORT = process.env.PORT || 3000?
 □ Does server.js have an explicit GET / handler returning a complete HTML page?
 □ Are all fetch() calls in frontend code using /path format (starts with /, no ://)?
+□ Do all HTML attributes (href, src, action) use root-relative paths starting with /?
 □ Is every file using require() and module.exports — zero import/export statements?
 □ Are there zero nested backticks inside any template literal?
 □ Are there zero TODO, FIXME, placeholder, or stub comments?
@@ -561,6 +579,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Is dotenv absent from all files and from package.json?
 □ Is process.exit() absent from all files?
 □ Are there no <base> tags in any HTML?
+□ Are there no URL helper functions or base path variables for handling proxy prefixes?
 □ Does the app start with exactly 'node server.js' — no build steps?
 □ Do all CREATE TABLE statements use IF NOT EXISTS?
 □ Do all foreign key column types exactly match their referenced primary key types?
@@ -568,7 +587,8 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 ALL EXECUTOR RULES APPLY — additionally in iteration mode:
 - All new features must be fully implemented — no stubs, no TODOs
 - New routes must be real implementations, not console.log placeholders
-- All fetch() calls in frontend code must use origin-relative paths (leading slash, no hostname)
+- All URLs in browser-side code (fetch, XHR, href, src, action) must use root-relative paths (leading slash, no hostname, no port) — the platform proxy rewrites them for path-prefix serving
+- Do NOT inject base path variables, URL helper functions, or <base> tags to handle path prefixes — the proxy handles this
 - CommonJS ONLY (require/module.exports)
 - No build steps — startCommand must be "node server.js"
 - No banned packages (including "openai" — use @anthropic-ai/sdk instead)
