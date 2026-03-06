@@ -899,6 +899,11 @@ function rewriteHtmlForProxy(html, basePath) {
     return `${attr}=${quote}${rewritten}${quote}`;
   });
 
+  html = html.replace(/<style([^>]*)>([\s\S]*?)<\/style>/gi, (match, attrs, cssBody) => {
+    const rewritten = rewriteCssForProxy(cssBody, basePath);
+    return `<style${attrs}>${rewritten}</style>`;
+  });
+
   const fetchPatch = `<script>(function(){var B="${basePath}";function rw(u){return typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B)?B+u:u}var _f=window.fetch;window.fetch=function(u,o){if(typeof u==="string"){u=rw(u)}else if(u instanceof Request){var nu=rw(u.url);if(nu!==u.url)u=new Request(nu,u)}return _f.call(this,u,o)};var _o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==="string")u=rw(u);return _o.apply(this,arguments)};var _h=window.history;if(_h&&_h.pushState){var _ps=_h.pushState.bind(_h);_h.pushState=function(s,t,u){if(typeof u==="string")u=rw(u);return _ps(s,t,u)};var _rs=_h.replaceState.bind(_h);_h.replaceState=function(s,t,u){if(typeof u==="string")u=rw(u);return _rs(s,t,u)}}})();</script>`;
 
   if (html.includes("<head")) {
@@ -910,6 +915,13 @@ function rewriteHtmlForProxy(html, basePath) {
   }
 
   return html;
+}
+
+function rewriteCssForProxy(css, basePath) {
+  return css.replace(/url\(\s*(["']?)\/((?!\/|data:)[^"')]+)\1\s*\)/gi, (match, quote, urlPath) => {
+    if (urlPath.startsWith(basePath.slice(1))) return match;
+    return `url(${quote}${basePath}/${urlPath}${quote})`;
+  });
 }
 
 app.use("/preview/:runId", async (req, res) => {
@@ -970,6 +982,7 @@ app.use("/preview/:runId", async (req, res) => {
     : null;
 
   const fwdHeaders = { ...req.headers, host: `127.0.0.1:${status.port}` };
+  delete fwdHeaders["accept-encoding"];
   if (bodyBuffer) {
     fwdHeaders["content-length"] = String(bodyBuffer.length);
   }
@@ -985,22 +998,27 @@ app.use("/preview/:runId", async (req, res) => {
   const proxyReq = http.request(options, (proxyRes) => {
     const contentType = (proxyRes.headers["content-type"] || "").toLowerCase();
     const isHtml = contentType.includes("text/html");
+    const isCss = contentType.includes("text/css");
 
-    if (isHtml) {
+    if (isHtml || isCss) {
       const chunks = [];
       proxyRes.on("data", (chunk) => chunks.push(chunk));
       proxyRes.on("end", () => {
-        let html = Buffer.concat(chunks).toString("utf-8");
-        html = rewriteHtmlForProxy(html, basePath);
+        let body = Buffer.concat(chunks).toString("utf-8");
+        if (isHtml) {
+          body = rewriteHtmlForProxy(body, basePath);
+        } else {
+          body = rewriteCssForProxy(body, basePath);
+        }
         const headers = { ...proxyRes.headers };
         rewriteLocationHeader(headers, basePath);
         headers["cache-control"] = "no-cache, no-store, must-revalidate";
         headers["pragma"] = "no-cache";
         headers["expires"] = "0";
-        headers["content-length"] = String(Buffer.byteLength(html, "utf-8"));
+        headers["content-length"] = String(Buffer.byteLength(body, "utf-8"));
         delete headers["content-encoding"];
         res.writeHead(proxyRes.statusCode, headers);
-        res.end(html);
+        res.end(body);
       });
     } else {
       const headers = { ...proxyRes.headers };
@@ -1043,6 +1061,7 @@ app.use("/apps/:slug", (req, res) => {
     : null;
 
   const fwdHeaders = { ...req.headers, host: `127.0.0.1:${pubApp.port}` };
+  delete fwdHeaders["accept-encoding"];
   if (bodyBuffer) {
     fwdHeaders["content-length"] = String(bodyBuffer.length);
   }
@@ -1058,19 +1077,24 @@ app.use("/apps/:slug", (req, res) => {
   const proxyReq = http.request(options, (proxyRes) => {
     const contentType = (proxyRes.headers["content-type"] || "").toLowerCase();
     const isHtml = contentType.includes("text/html");
+    const isCss = contentType.includes("text/css");
 
-    if (isHtml) {
+    if (isHtml || isCss) {
       const chunks = [];
       proxyRes.on("data", (chunk) => chunks.push(chunk));
       proxyRes.on("end", () => {
-        let html = Buffer.concat(chunks).toString("utf-8");
-        html = rewriteHtmlForProxy(html, basePath);
+        let body = Buffer.concat(chunks).toString("utf-8");
+        if (isHtml) {
+          body = rewriteHtmlForProxy(body, basePath);
+        } else {
+          body = rewriteCssForProxy(body, basePath);
+        }
         const headers = { ...proxyRes.headers };
         rewriteLocationHeader(headers, basePath);
-        headers["content-length"] = String(Buffer.byteLength(html, "utf-8"));
+        headers["content-length"] = String(Buffer.byteLength(body, "utf-8"));
         delete headers["content-encoding"];
         res.writeHead(proxyRes.statusCode, headers);
-        res.end(html);
+        res.end(body);
       });
     } else {
       const headers = { ...proxyRes.headers };

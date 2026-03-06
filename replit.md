@@ -53,7 +53,12 @@ None specified.
 
 **Publishing System**: `server/publish/manager.js` publishes ForgeOS-built projects. The pipeline: copy workspace → install deps → build (auto-detected from package.json) → start on ports 4100-4199 → proxy at `/apps/:slug`. Published apps are also automatically pushed to GitHub (`server/publish/github.js`) as a subdirectory of the configured repo (default: `BrianBMorgan/ForgeOS`). GitHub settings (repo, auto-push toggle) are configurable in Settings → GitHub tab. The `GITHUB_TOKEN` secret provides push access. The `published_apps` DB table tracks state.
 
-**Path-Prefix Proxy Rewriting**: Both `/preview/:runId` and `/apps/:slug` proxies use `rewriteHtmlForProxy()` in `server/index.js` to handle the path-prefix problem. For HTML responses: (1) server-side regex rewrites all `href="/..."`, `src="/..."`, and `action="/..."` attributes to prepend the proxy base path, and (2) injects a script that patches `window.fetch` and `XMLHttpRequest.open` to prepend the base path to root-relative URLs at runtime. Agent instructions (Executor, Executor Iterate, Executor Fix, Auditor) have been updated to document this context — agents must use root-relative paths and must NOT try to handle path prefixes themselves.
+**Path-Prefix Proxy Rewriting**: Both `/preview/:runId` and `/apps/:slug` proxies handle the path-prefix problem via three functions in `server/index.js`:
+- `rewriteHtmlForProxy()` — rewrites `href`, `src`, `action`, `formaction`, `srcset` attributes and inline `<style>` blocks; injects a runtime script patching `fetch()` (string + Request objects), `XMLHttpRequest.open()`, and `history.pushState/replaceState`
+- `rewriteCssForProxy()` — rewrites `url('/...')` references in CSS files served through the proxy
+- `rewriteLocationHeader()` — rewrites `Location` headers on redirect responses (302, 301, etc.)
+- Proxy strips `accept-encoding` from forwarded requests to ensure responses arrive uncompressed for reliable text rewriting
+- Agent instructions (Executor, Executor Iterate, Executor Fix, Auditor) enforce root-relative paths for fetch, HTML attributes, AND CSS url() references. Agents must NOT inject base path variables, URL helpers, or `<base>` tags.
 
 ## External Dependencies
 - **Anthropic Claude**: The exclusive AI provider for all pipeline stages (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface. Uses `@anthropic-ai/sdk` via Replit AI Integrations. Default models: `claude-sonnet-4-6` (planner), `claude-haiku-4-5` (reviewer/chat). OpenAI has been fully removed.

@@ -196,6 +196,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Does server.js have an explicit GET / handler returning a complete HTML page?
 □ Are all fetch() calls in frontend code using /path format (starts with /, no ://)?
 □ Do all HTML attributes (href, src, action) use root-relative paths starting with /?
+□ Do all CSS url() references use root-relative paths (e.g., url('/images/bg.png') not url('images/bg.png'))?
 □ Is every file using require() and module.exports — zero import/export statements?
 □ Are there zero nested backticks inside any template literal?
 □ Are there zero TODO, FIXME, placeholder, or stub comments?
@@ -388,20 +389,23 @@ AUDIT CHECKLIST — Run Every Check:
 7. TEMPLATE LITERAL SAFETY
    - Are there any backticks nested inside template literals? Check HTML strings, SQL strings, and script tags especially carefully.
 
-8. FRONTEND URL CORRECTNESS (fetch, XHR, AND static assets)
+8. FRONTEND URL CORRECTNESS (fetch, XHR, static assets, AND CSS)
    - Do all fetch() calls in browser-side code use root-relative URLs? The fetch argument must start with / and must not contain ://.
    - Do all HTML attributes (href, src, action) for static assets and forms use root-relative paths starting with /?
-   - Apps are served behind a path-prefix proxy (/preview/:id/ or /apps/:slug/). The proxy rewrites root-relative paths automatically. Agents must NOT try to handle this themselves.
-   - CORRECT:   fetch('/api/items')       — starts with /, no ://
+   - Do all CSS url() references use root-relative paths? e.g., url('/images/bg.png') not url('images/bg.png')
+   - Apps are served behind a path-prefix proxy (/preview/:id/ or /apps/:slug/). The proxy rewrites root-relative paths in HTML, CSS, and runtime fetch/XHR automatically. Agents must NOT try to handle this themselves.
+   - CORRECT:   fetch('/api/items')                    — starts with /, no ://
    - CORRECT:   fetch('/auth/login')
-   - CORRECT:   <link href="/style.css" />  — root-relative, proxy rewrites
-   - CORRECT:   <script src="/app.js" />    — root-relative, proxy rewrites
-   - INCORRECT: fetch('http://...')       — has ://
-   - INCORRECT: fetch('https://...')      — has ://
-   - INCORRECT: fetch('api/items')        — no leading /, breaks under sub-paths
-   - INCORRECT: <link href="style.css" /> — no leading /, breaks under sub-paths
-   - INCORRECT: fetch(apiUrl('...'))      — helper that constructs absolute URL
-   - INCORRECT: <base href="/"> or any <base> tag — breaks proxy rewriting
+   - CORRECT:   <link href="/style.css" />             — root-relative, proxy rewrites
+   - CORRECT:   <script src="/app.js" />               — root-relative, proxy rewrites
+   - CORRECT:   background-image: url('/images/bg.png') — root-relative, proxy rewrites CSS
+   - INCORRECT: fetch('http://...')                    — has ://
+   - INCORRECT: fetch('https://...')                   — has ://
+   - INCORRECT: fetch('api/items')                     — no leading /, breaks under sub-paths
+   - INCORRECT: <link href="style.css" />              — no leading /, breaks under sub-paths
+   - INCORRECT: url('images/bg.png')                   — no leading /, breaks under sub-paths
+   - INCORRECT: fetch(apiUrl('...'))                   — helper that constructs absolute URL
+   - INCORRECT: <base href="/"> or any <base> tag      — breaks proxy rewriting
 
 9. DATABASE SAFETY (if applicable)
    - Is @neondatabase/serverless the only database driver?
@@ -572,6 +576,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Does server.js have an explicit GET / handler returning a complete HTML page?
 □ Are all fetch() calls in frontend code using /path format (starts with /, no ://)?
 □ Do all HTML attributes (href, src, action) use root-relative paths starting with /?
+□ Do all CSS url() references use root-relative paths (e.g., url('/images/bg.png') not url('images/bg.png'))?
 □ Is every file using require() and module.exports — zero import/export statements?
 □ Are there zero nested backticks inside any template literal?
 □ Are there zero TODO, FIXME, placeholder, or stub comments?
