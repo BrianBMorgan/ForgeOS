@@ -362,6 +362,8 @@ const BANNED_PATTERNS = [
   { regex: /\btry\s+(rebuilding|again|rerunning|re-running|restarting)\b/i, rule: "Banned dismissal: 'try rebuilding/again' is not a diagnosis — state the root cause or say you don't know" },
   { regex: /\b(this\s+is\s+)?(typically|usually|often)\s+transient\b/i, rule: "Banned dismissal: 'typically transient' is not a diagnosis — state the root cause or say you don't know" },
   { regex: /\bretry\s+(usually|often|typically|generally)\s+(resolves?|fixes?|works?)\b/i, rule: "Banned dismissal: 'retry usually resolves' is not a diagnosis — state the root cause or say you don't know" },
+  { regex: /\bI\s+(cannot|can't|don't)\s+(see|have\s+access|have\s+visibility)\b/i, rule: "Banned ignorance claim: you have diagnostics, iteration history, source code, and runtime logs in your context — read them" },
+  { regex: /\bI\s+need\s+you\s+to\s+provide\b/i, rule: "Banned info request: the information is in your context (diagnostics, logs, source code) — read it instead of asking" },
 ];
 
 function detectBannedPatterns(message, buildSuggestion) {
