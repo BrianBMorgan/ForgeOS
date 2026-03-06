@@ -188,15 +188,15 @@ async function callClaudeChat(model, systemPrompt, messages, tools, temperature)
 async function callStructured(model, systemPrompt, userMessages, schema, formatName, temperature) {
   if (!isClaudeModel(model)) {
     console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude sonnet as fallback`);
-    model = "claude-sonnet-4-20250514";
+    model = "claude-sonnet-4-6";
   }
   return callClaudeStructured(model, systemPrompt, userMessages, schema, formatName, temperature);
 }
 
 async function callChat(model, systemPrompt, messages, tools, temperature) {
   if (!isClaudeModel(model)) {
-    console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude sonnet as fallback`);
-    model = "claude-sonnet-4-20250514";
+    console.warn(`[model-router] Non-Claude model "${model}" requested — routing to Claude haiku as fallback`);
+    model = "claude-haiku-4-5-20251001";
   }
   return callClaudeChat(model, systemPrompt, messages, tools, temperature);
 }
