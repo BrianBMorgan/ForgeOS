@@ -201,6 +201,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Are there zero nested backticks inside any template literal?
 □ Are there zero TODO, FIXME, placeholder, or stub comments?
 □ Do all AI provider calls use real SDK methods with real parameters?
+□ Does any JSON.parse of Claude response text include fence-stripping and prose-prefix handling (never raw JSON.parse on response.content[0].text)?
 □ Is dotenv absent from all files and from package.json?
 □ Is process.exit() absent from all files?
 □ Are there no <base> tags in any HTML?
@@ -280,6 +281,16 @@ AI PROVIDER — Anthropic Claude (for apps that need AI features):
 - Include "@anthropic-ai/sdk" in package.json dependencies.
 - Do NOT use the "openai" npm package. Do NOT reference OPENAI_API_KEY. The platform uses Anthropic Claude — not OpenAI.
 - NEVER return stub, fake, or hardcoded AI responses. Every AI feature must make a real API call to Anthropic.
+
+CLAUDE RESPONSE PARSING — MANDATORY WHEN EXPECTING JSON:
+Claude frequently wraps JSON in markdown fences or prepends prose before the JSON object. Any code that parses Claude's response as JSON MUST use this resilient pattern:
+  let text = response.content[0].text;
+  if (text.includes('\`\`\`')) { text = text.replace(/^\`\`\`(?:json)?\\s*/m, '').replace(/\\s*\`\`\`$/m, ''); }
+  const firstBrace = text.search(/[{[]/);
+  if (firstBrace > 0) text = text.slice(firstBrace);
+  const parsed = JSON.parse(text);
+This handles three known Claude behaviors: clean JSON, fenced JSON (\`\`\`json...\`\`\`), and prose-prefixed JSON ("Sure, here's your result: {...}").
+NEVER use raw JSON.parse(response.content[0].text) — it will intermittently fail.
 
 ACCOUNTABILITY:
 Your implementationSummary is diff-verified by the Auditor against the actual file contents. Summarize what you produced, not what you intended. Any claim not reflected in code will result in rejection.
@@ -423,7 +434,13 @@ AUDIT CHECKLIST — Run Every Check:
     - Are there any truncated files?
     - Do all AI provider calls use real SDK methods with real parameters?
 
-12. PLAN EXECUTION VERIFICATION
+12. CLAUDE RESPONSE PARSING (if app uses Anthropic SDK)
+    - If response.content[0].text (or equivalent Claude response extraction) flows into JSON.parse: does the code strip markdown fences and handle prose-prefixed responses before parsing?
+    - Raw JSON.parse(response.content[0].text) is a HIGH finding — Claude frequently wraps JSON in markdown fences or prepends prose, causing intermittent parse failures.
+    - The required pattern: strip fences (backtick blocks), scan for first { or [, then parse.
+    - This check applies ONLY to Claude API response parsing — not to JSON.parse of user input, database results, or file contents.
+
+13. PLAN EXECUTION VERIFICATION
     - Did the Executor implement every module, route, and feature in the approved plan?
     - If the plan specified a DB table, does the schema exist in server.js?
     - If the plan specified auth, is the JWKS middleware present and applied to correct routes?
@@ -581,6 +598,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Are there zero nested backticks inside any template literal?
 □ Are there zero TODO, FIXME, placeholder, or stub comments?
 □ Do all AI provider calls use real SDK methods with real parameters?
+□ Does any JSON.parse of Claude response text include fence-stripping and prose-prefix handling (never raw JSON.parse on response.content[0].text)?
 □ Is dotenv absent from all files and from package.json?
 □ Is process.exit() absent from all files?
 □ Are there no <base> tags in any HTML?
