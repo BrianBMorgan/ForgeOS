@@ -47,7 +47,7 @@ None specified.
 4.  **Policy Gate**: Determines if human approval is required.
 5.  **Human Approval**: Manual approval or rejection pause point.
 6.  **Executor**: Produces complete runnable code.
-7.  **Auditor**: A pre-deployment quality gate with a 14-point checklist.
+7.  **Auditor**: A pre-deployment quality gate with a 15-point checklist. Includes plan deviation detection (`planDeviationDetected` / `planDeviationNote` fields) — when the Executor builds a mechanism not specified in the approved plan, the Auditor flags it and the Fix pass reverts to the plan-specified approach rather than patching the deviation.
 
 **MCP Server**: ForgeOS includes a built-in MCP (Model Context Protocol) server at `/mcp` that exposes ElevenLabs tools for voice synthesis and speech-to-text.
 
@@ -63,7 +63,7 @@ None specified.
 - Agent instructions (Executor, Executor Iterate, Executor Fix, Auditor) enforce root-relative paths for fetch, HTML attributes, AND CSS url() references. Agents must NOT inject base path variables, URL helpers, or `<base>` tags.
 
 ## External Dependencies
-- **Anthropic Claude**: The exclusive AI provider for all pipeline stages (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface. Uses `@anthropic-ai/sdk` with `ANTHROPIC_API_KEY` directly (no Replit integration proxy). Default models: `claude-sonnet-4-6` (planner/executor), `claude-haiku-4-5-20251001` (reviewer/chat). OpenAI has been fully removed.
+- **Anthropic Claude**: The exclusive AI provider for all pipeline stages (Planner, Reviewer, Policy Gate, Executor, Auditor) and the conversational chat interface. Uses `@anthropic-ai/sdk` with `ANTHROPIC_API_KEY` directly (no Replit integration proxy). Default models: `claude-sonnet-4-6` (planner/executor), `claude-haiku-4-5-20251001` (reviewer/chat). OpenAI and `API_SECRET_KEY` are banned — `ANTHROPIC_API_KEY` is the only valid AI key. The sanitizer in `runner.js` strips both `OPENAI_API_KEY` and `API_SECRET_KEY` from all plans automatically.
 - **Neon Postgres**: Utilized for project persistence and can be provisioned for generated applications.
 - **@neondatabase/serverless**: Node.js driver for Neon Postgres.
 - **http-proxy-middleware**: For proxying requests to running workspace applications.

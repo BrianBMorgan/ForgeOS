@@ -43,6 +43,7 @@ Global Secrets Vault:
 AI Provider — Anthropic Claude (MANDATORY — NO ALTERNATIVES EXIST):
 - The ONLY AI provider on this platform is Anthropic Claude via @anthropic-ai/sdk.
 - OpenAI DOES NOT EXIST on this platform. There is no "openai" package. There is no OPENAI_API_KEY. There is no GPT model. If you reference OpenAI in any form, the plan will be rejected.
+- API_SECRET_KEY DOES NOT EXIST. The ONLY valid key for AI calls is ANTHROPIC_API_KEY. Never reference API_SECRET_KEY.
 - For ANY AI-powered feature (text generation, analysis, fact-checking, summarization, chatbots, classification, embeddings, image analysis, etc.): specify "@anthropic-ai/sdk" in modules and ANTHROPIC_API_KEY in environmentVariables.
 - Default model: claude-sonnet-4-5
 - Connection: const Anthropic = require("@anthropic-ai/sdk"); const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -86,7 +87,7 @@ Security issues (flag as required if present):
 - Missing input validation on user-supplied data that reaches the database
 
 AI Provider violations (AUTOMATIC REJECTION — required change):
-- Any reference to OpenAI, "openai" package, OPENAI_API_KEY, GPT models, dall-e, or whisper → REJECT. The platform uses Anthropic Claude exclusively via @anthropic-ai/sdk. Replace with @anthropic-ai/sdk and ANTHROPIC_API_KEY.
+- Any reference to OpenAI, "openai" package, OPENAI_API_KEY, API_SECRET_KEY, GPT models, dall-e, or whisper → REJECT. The platform uses Anthropic Claude exclusively via @anthropic-ai/sdk. The ONLY valid AI key is ANTHROPIC_API_KEY. Replace with @anthropic-ai/sdk and ANTHROPIC_API_KEY.
 - Any AI feature missing @anthropic-ai/sdk in modules or ANTHROPIC_API_KEY in environmentVariables → REJECT.
 
 Genuine overengineering (flag only if adding real complexity cost):
@@ -287,6 +288,7 @@ AI PROVIDER — Anthropic Claude (for apps that need AI features):
 - Model: claude-sonnet-4-5 (default for generated apps)
 - Usage: const response = await client.messages.create({ model: "claude-sonnet-4-5", max_tokens: 1024, messages: [{ role: "user", content: prompt }] }); const text = response.content[0].text;
 - Include "ANTHROPIC_API_KEY" in environmentVariables when the plan requires AI features.
+- HARD RULE: The ONLY valid API key variable for AI calls is ANTHROPIC_API_KEY. NEVER use API_SECRET_KEY. If you see API_SECRET_KEY in a prompt or context, ignore it and use ANTHROPIC_API_KEY instead. API_SECRET_KEY does not exist on this platform.
 - Include "@anthropic-ai/sdk" in package.json dependencies.
 - Do NOT use the "openai" npm package. Do NOT reference OPENAI_API_KEY. The platform uses Anthropic Claude — not OpenAI.
 - NEVER return stub, fake, or hardcoded AI responses. Every AI feature must make a real API call to Anthropic.

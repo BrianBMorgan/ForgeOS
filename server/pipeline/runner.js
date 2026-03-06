@@ -49,7 +49,7 @@ const STAGES = [
 const runs = new Map();
 
 const BANNED_MODULES = ["openai"];
-const BANNED_ENV_VARS = ["OPENAI_API_KEY"];
+const BANNED_ENV_VARS = ["OPENAI_API_KEY", "API_SECRET_KEY"];
 
 function sanitizePlannerOutput(plan) {
   if (!plan) return;
@@ -72,7 +72,7 @@ function sanitizePlannerOutput(plan) {
     plan.environmentVariables = plan.environmentVariables.filter(v => !BANNED_ENV_VARS.includes(v));
     if (hadBanned && !plan.environmentVariables.includes("ANTHROPIC_API_KEY")) {
       plan.environmentVariables.push("ANTHROPIC_API_KEY");
-      console.warn("[pipeline] Replaced OPENAI_API_KEY with ANTHROPIC_API_KEY in plan");
+      console.warn("[pipeline] Replaced banned AI key var with ANTHROPIC_API_KEY in plan");
     }
   }
 }
@@ -659,6 +659,10 @@ async function executeAfterApproval(run) {
         ? `URGENT: Only ${roundsLeft} fix round(s) remaining before the build FAILS permanently.`
         : `Fix round ${auditRound} of ${MAX_AUDIT_ROUNDS}.`;
 
+      const planContext = currentAuditResult.planDeviationDetected
+        ? `\n\nAPPROVED PLAN (you must revert to this — not patch your deviation):\n${JSON.stringify(revisedPlan, null, 2)}`
+        : "";
+
       const fixMessages = [
         {
           role: "user",
@@ -670,7 +674,7 @@ async function executeAfterApproval(run) {
         },
         {
           role: "user",
-          content: `The Auditor REJECTED your output. ${urgency}\n\n${currentAuditResult.planDeviationDetected ? `PLAN DEVIATION DETECTED:\n${currentAuditResult.planDeviationNote}\n\nDo NOT patch the deviated implementation. Revert to the mechanism the approved plan specified. Throw away the wrong approach.\n\n` : ""}AUDITOR ISSUES (${currentAuditResult.issues.length}):\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nFocus on the CRITICAL and HIGH severity issues first. Fix them precisely. Returning unchanged code = immediate failure.${affectedFilesList}${fixDiffInfo}`,
+          content: `The Auditor REJECTED your output. ${urgency}\n\n${currentAuditResult.planDeviationDetected ? `PLAN DEVIATION DETECTED:\n${currentAuditResult.planDeviationNote}\n\nDo NOT patch the deviated implementation. Revert to the mechanism the approved plan specified. Throw away the wrong approach.${planContext}\n\n` : ""}AUDITOR ISSUES (${currentAuditResult.issues.length}):\n${JSON.stringify(currentAuditResult.issues, null, 2)}\n\nFocus on the CRITICAL and HIGH severity issues first. Fix them precisely. Returning unchanged code = immediate failure.${affectedFilesList}${fixDiffInfo}`,
         },
       ];
 
@@ -1008,6 +1012,7 @@ async function executeRevisionPass(run, feedback) {
       "planner_output"
     );
     trackUsage(run, "planner");
+    sanitizePlannerOutput(revisedPlan);
     updateStage(run, "revise_p3", "passed", revisedPlan);
 
     updateStage(run, "reviewer_p3", "running");
