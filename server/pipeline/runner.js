@@ -138,7 +138,8 @@ async function callAgent(messages, instructions, schema, model, formatName) {
   let lastErr;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await callStructured(model, instructions, messages, schema, formatName, temp);
+      const result = await callStructured(model, instructions, messages, schema, formatName, temp);
+      return result;
     } catch (err) {
       lastErr = err;
       const isParseError = err.message && (err.message.includes("JSON") || err.message.includes("parse") || err.message.includes("invalid_type") || err.message.includes("expected"));
@@ -191,10 +192,25 @@ function createRun(prompt, context) {
 }
 
 function updateStage(run, stageName, status, output = null) {
-  run.stages[stageName] = { status, output };
+  const stage = { status, output };
+  if (output && output._rawOutput) {
+    stage.rawOutput = output._rawOutput;
+    delete output._rawOutput;
+  }
+  run.stages[stageName] = stage;
   if (status === "running") {
     run.currentStage = stageName;
   }
+}
+
+function updateStageWithParseError(run, stageName, err) {
+  run.stages[stageName] = {
+    status: "failed",
+    output: null,
+    parseError: err.parseErrorDetail || err.message,
+    parseErrorSnippet: err.parseErrorSnippet || null,
+    rawOutput: err.rawOutput || null,
+  };
 }
 
 async function buildIterationHistory(projectId) {
@@ -554,7 +570,11 @@ async function executePipeline(runId) {
     run.error = err.message || "Pipeline failed";
     const currentStage = run.currentStage;
     if (currentStage && run.stages[currentStage]) {
-      run.stages[currentStage].status = "failed";
+      if (err.rawOutput || err.parseErrorDetail) {
+        updateStageWithParseError(run, currentStage, err);
+      } else {
+        run.stages[currentStage].status = "failed";
+      }
     }
     await saveRunSnapshot(run);
   }
@@ -779,7 +799,11 @@ async function executeAfterApproval(run) {
     run.error = err.message || "Executor failed";
     const failStage = run.currentStage || "executor";
     if (run.stages[failStage]) {
-      run.stages[failStage].status = "failed";
+      if (err.rawOutput || err.parseErrorDetail) {
+        updateStageWithParseError(run, failStage, err);
+      } else {
+        run.stages[failStage].status = "failed";
+      }
     }
     await saveRunSnapshot(run);
   }
@@ -1052,6 +1076,14 @@ async function executeRevisionPass(run, feedback) {
   } catch (err) {
     run.status = "failed";
     run.error = err.message || "Revision pass failed";
+    const failStage = run.currentStage;
+    if (failStage && run.stages[failStage]) {
+      if (err.rawOutput || err.parseErrorDetail) {
+        updateStageWithParseError(run, failStage, err);
+      } else {
+        run.stages[failStage].status = "failed";
+      }
+    }
     await saveRunSnapshot(run);
   }
 }

@@ -97,10 +97,20 @@ async function callClaudeStructured(model, systemPrompt, userMessages, schema, f
     parsed = JSON.parse(jsonStr);
   } catch (parseErr) {
     console.error("[model-router] JSON parse failed. Raw content (first 500 chars):", content.substring(0, 500));
-    throw new Error(`Failed to parse AI response as JSON: ${parseErr.message}`);
+    const pos = parseErr.message.match(/position (\d+)/)?.[1];
+    const posNum = pos ? parseInt(pos, 10) : -1;
+    const snippet = posNum >= 0
+      ? jsonStr.substring(Math.max(0, posNum - 80), posNum + 80)
+      : jsonStr.substring(0, 200);
+    const err = new Error(`Failed to parse AI response as JSON: ${parseErr.message}`);
+    err.rawOutput = content.substring(0, 4000);
+    err.parseErrorDetail = parseErr.message;
+    err.parseErrorSnippet = snippet;
+    throw err;
   }
 
   schema.parse(parsed);
+  parsed._rawOutput = content.substring(0, 4000);
   return parsed;
 }
 

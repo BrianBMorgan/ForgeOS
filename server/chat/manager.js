@@ -460,10 +460,25 @@ async function chat(projectId, userMessage) {
             const stageOrder = ["planner", "reviewer_p1", "revise_p2", "reviewer_p2", "revise_p3", "reviewer_p3", "policy_gate", "executor", "auditor"];
             for (const sn of stageOrder) {
               const sd = data.stages[sn];
-              if (!sd || !sd.output) continue;
+              if (!sd) continue;
+              if (sd.parseError) {
+                lines.push(`\n  --- LATEST RUN: ${sn} (PARSE FAILED) ---`);
+                lines.push(`  Parse Error: ${sd.parseError}`);
+                if (sd.parseErrorSnippet) lines.push(`  Error Snippet (around failure position): ${sd.parseErrorSnippet}`);
+                if (sd.rawOutput) {
+                  const raw = sd.rawOutput.length > 3000 ? sd.rawOutput.slice(0, 3000) + "\n... [truncated]" : sd.rawOutput;
+                  lines.push(`  Raw Model Output:\n${raw}`);
+                }
+                continue;
+              }
+              if (!sd.output) continue;
               const outputStr = typeof sd.output === "string" ? sd.output : JSON.stringify(sd.output, null, 2);
               const truncated = outputStr.length > 3000 ? outputStr.slice(0, 3000) + "\n... [truncated]" : outputStr;
               lines.push(`\n  --- LATEST RUN: ${sn} (${sd.status}) ---\n${truncated}`);
+              if (sd.rawOutput && sd.status === "failed") {
+                const raw = sd.rawOutput.length > 2000 ? sd.rawOutput.slice(0, 2000) + "\n... [truncated]" : sd.rawOutput;
+                lines.push(`  Raw Model Output:\n${raw}`);
+              }
             }
           }
         }
