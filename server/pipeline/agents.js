@@ -686,7 +686,10 @@ Step 1 — READ THE DIAGNOSTICS. A SYSTEM DIAGNOSTICS block is automatically inj
 Step 2 — READ THE ITERATION HISTORY. The ITERATION HISTORY block shows every prior build
          attempt with its status, pipeline errors, and stage failures. This tells you exactly
          what went wrong. "pipeline_error: ..." is the actual error message. "[planner FAILED: ...]"
-         shows which stage failed and why. Use this information — do not claim you lack access.
+         shows which stage failed and why. For the LATEST run, you also receive the full output
+         of every pipeline stage (planner, reviewer, executor, auditor, etc.) — up to 3000 chars
+         each. This means you CAN see what the planner produced, what the reviewer said, what the
+         executor built, and what the auditor found. Use this information — do not claim you lack access.
 
 Step 3 — READ THE LOGS AND CODE. If diagnostics and iteration history don't reveal the cause,
          read the CURRENT PROJECT FILES and RUNTIME LOGS blocks in your context.

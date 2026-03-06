@@ -427,11 +427,13 @@ async function chat(projectId, userMessage) {
         ORDER BY i.iteration_number ASC
       `;
       if (rows.length > 0) {
-        const lines = rows.map(row => {
+        const lines = [];
+        for (let ri = 0; ri < rows.length; ri++) {
+          const row = rows[ri];
           const num = row.iteration_number;
           const prompt = (row.prompt || "").slice(0, 100);
           const data = row.data;
-          if (!data) return `- Iter ${num}: "${prompt}" → no data`;
+          if (!data) { lines.push(`- Iter ${num}: "${prompt}" → no data`); continue; }
           const status = data.status || "unknown";
           const wsStatus = data.workspace?.status || "unknown";
           const wsError = data.workspace?.error ? ` error: ${data.workspace.error.slice(0, 150)}` : "";
@@ -451,8 +453,20 @@ async function chat(projectId, userMessage) {
             healthNote = hc.healthy ? ` health:OK` : ` health:FAILED(${hc.httpStatus || "no-response"})`;
             if (hc.startupLogs) healthNote += ` logs: ${hc.startupLogs.slice(0, 150)}`;
           }
-          return `- Iter ${num}: "${prompt}" → ${status}, ws:${wsStatus}${wsError}${runError}${stageErrors}${healthNote}`;
-        });
+          lines.push(`- Iter ${num}: "${prompt}" → ${status}, ws:${wsStatus}${wsError}${runError}${stageErrors}${healthNote}`);
+
+          const isLatest = ri === rows.length - 1;
+          if (isLatest && data.stages) {
+            const stageOrder = ["planner", "reviewer_p1", "revise_p2", "reviewer_p2", "revise_p3", "reviewer_p3", "policy_gate", "executor", "auditor"];
+            for (const sn of stageOrder) {
+              const sd = data.stages[sn];
+              if (!sd || !sd.output) continue;
+              const outputStr = typeof sd.output === "string" ? sd.output : JSON.stringify(sd.output, null, 2);
+              const truncated = outputStr.length > 3000 ? outputStr.slice(0, 3000) + "\n... [truncated]" : outputStr;
+              lines.push(`\n  --- LATEST RUN: ${sn} (${sd.status}) ---\n${truncated}`);
+            }
+          }
+        }
         iterHistoryContext = `\n\nITERATION HISTORY (${rows.length} builds for this project):\n${lines.join("\n")}\n`;
       }
     } catch {}
