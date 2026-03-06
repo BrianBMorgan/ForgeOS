@@ -48,7 +48,7 @@ const DENIED_PATTERNS = [
 const DENIED_DIRS = new Set([
   "node_modules", ".git", ".env", ".cache", ".tmp",
   "coverage", ".nyc_output",
-  "workspaces", "published", ".local", "attached_assets",
+  ".local", "attached_assets",
 ]);
 
 function isSensitiveFile(name) {
