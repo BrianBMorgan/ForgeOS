@@ -130,7 +130,20 @@ CRITICAL RULES:
 - NEVER call process.exit() if an environment variable is missing. Instead, log a warning and continue with graceful defaults or disabled features. The runtime provides DATABASE_URL and NEON_AUTH_JWKS_URL — no other auth-related env vars (like NEON_AUTH_AUDIENCE, NEON_AUTH_ISSUER, JWT_SECRET, SESSION_SECRET) are available. Do not require them.
 - The app server port is provided at runtime via the PORT environment variable. ALWAYS use: const PORT = process.env.PORT || 4000; — NEVER hardcode const PORT = 4000. The PORT env var is set by the runtime and must be respected.
 - ALWAYS include a GET / root route. For APIs, return an HTML page with interactive API documentation or a simple UI. For web apps, serve the main page. The root route must never return 404.
-- IMPORTANT: The app is served behind a reverse proxy under a subpath. All fetch()/XHR calls in frontend JavaScript MUST use relative URLs (e.g., fetch("api/tasks") not fetch("/api/tasks")). Never use absolute paths starting with / for API calls in frontend code.
+FRONTEND FETCH RULES:
+All fetch() calls in browser-side code must use origin-relative paths:
+a leading slash, no protocol, no hostname, no port.
+
+CORRECT:   fetch('/api/items')
+CORRECT:   fetch('/auth/login')
+INCORRECT: fetch('http://localhost:3000/api/items')   — absolute, has hostname
+INCORRECT: fetch('https://example.com/api/items')     — absolute, has hostname
+INCORRECT: fetch('api/items')                         — path-relative, breaks off root
+INCORRECT: fetch(\`\${window.location.origin}/api/items\`) — absolute after construction
+INCORRECT: new URL('api/items', window.location.origin).toString() — absolute after construction
+
+Do not build URL helper functions that produce absolute URLs and pass them to fetch.
+The string passed to fetch() must start with / and must not contain ://.
 
 MODULE SYSTEM — CommonJS ONLY:
 - All .js files MUST use CommonJS: require() for imports, module.exports for exports.
@@ -307,9 +320,16 @@ AUDIT CHECKLIST — check every item:
 7. TEMPLATE LITERAL SAFETY
    - No nested backticks: if res.send() uses backtick template literals, any inline <script> blocks must NOT contain backtick template literals. JavaScript in inline scripts should use string concatenation or be in separate .js files.
 
-8. RELATIVE FETCH URLS
-   - All fetch() and XHR calls in frontend JavaScript must use relative URLs (e.g., fetch("api/tasks")).
-   - No absolute paths starting with / (e.g., fetch("/api/tasks") is WRONG).
+8. FETCH URL CORRECTNESS
+   - Do all fetch() calls in browser-side (frontend) code use origin-relative URLs?
+   - CORRECT:   fetch('/api/items')          — leading slash, no hostname
+   - CORRECT:   fetch('/auth/login')
+   - INCORRECT: fetch('http://localhost:3000/api/items')   — absolute URL with hostname
+   - INCORRECT: fetch('https://example.com/api/items')    — absolute URL with hostname
+   - INCORRECT: fetch('api/items')            — path-relative, breaks if page is not at root
+   - INCORRECT: fetch(apiUrl('api/items'))    — any helper that constructs an absolute URL string
+   - INCORRECT: new URL('/api/items', window.location.origin).toString() passed to fetch
+   - The rule is: the fetch argument must start with / and must not contain ://.
 
 9. DATABASE SAFETY (if applicable)
    - Must use @neondatabase/serverless, not pg.
@@ -378,7 +398,8 @@ CRITICAL RULES:
 - If the Auditor says package.json is missing, add one with all dependencies.
 - If the Auditor says a banned package is used, replace it with the correct alternative.
 - If the Auditor says port is hardcoded, add process.env.PORT fallback.
-- NEVER add a <base href="/"> tag to fix relative URL issues. It makes things worse under the reverse proxy. Use purely relative URLs (e.g., fetch("api/items"), <script src="app.js">) without any <base> tag.
+- NEVER add a <base href="/"> tag to fix relative URL issues. It makes things worse under the reverse proxy. Use origin-relative URLs (e.g., fetch("/api/items"), <script src="/app.js">) without any <base> tag.
+- Never introduce URL helper functions (apiUrl(), buildUrl(), etc.) that construct absolute URLs to pass to fetch(). Fix the fetch() call directly with a /path string.
 - Your output will be diff-verified. The Auditor receives a line-by-line diff between your previous output and this one. If the diff shows ZERO changes to the files the Auditor flagged, you will be REJECTED IMMEDIATELY without re-audit.
 
 In your implementationSummary, list each Auditor issue and the EXACT change you made to fix it. Example: "Fixed issue #1: Changed model 'gpt-4.1-mini' to 'gpt-4o-mini' on line 42 of server.js."
@@ -455,7 +476,7 @@ ALL OTHER EXECUTOR RULES STILL APPLY:
 - NEVER call process.exit() for missing env vars.
 - Use: const PORT = process.env.PORT || 4000;
 - ALWAYS include a GET / root route.
-- All fetch()/XHR calls in frontend JavaScript MUST use relative URLs.
+- All fetch() calls in frontend code must use origin-relative paths (leading slash, no hostname): fetch('/api/items'). Never path-relative fetch('api/items'), never absolute fetch('http://...'), never URL helpers that construct absolute URLs.
 - CommonJS ONLY (require/module.exports).
 - No build steps — startCommand must be "node server.js" or similar single command.
 - No banned packages (bcrypt, bcryptjs, jsonwebtoken, passport, dotenv, pg, esbuild, webpack, vite, parcel, rollup, react, react-dom, vue, svelte, angular).
