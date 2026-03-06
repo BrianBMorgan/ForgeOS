@@ -429,13 +429,23 @@ async function chat(projectId, userMessage) {
           const status = data.status || "unknown";
           const wsStatus = data.workspace?.status || "unknown";
           const wsError = data.workspace?.error ? ` error: ${data.workspace.error.slice(0, 150)}` : "";
+          const runError = data.error ? ` pipeline_error: ${data.error.slice(0, 300)}` : "";
+          let stageErrors = "";
+          if (data.stages) {
+            for (const [stageName, stageData] of Object.entries(data.stages)) {
+              if (stageData.status === "failed") {
+                const errDetail = stageData.output ? (typeof stageData.output === "string" ? stageData.output : JSON.stringify(stageData.output)).slice(0, 200) : "";
+                stageErrors += ` [${stageName} FAILED${errDetail ? ": " + errDetail : ""}]`;
+              }
+            }
+          }
           const hc = data.healthCheck;
           let healthNote = "";
           if (hc) {
             healthNote = hc.healthy ? ` health:OK` : ` health:FAILED(${hc.httpStatus || "no-response"})`;
             if (hc.startupLogs) healthNote += ` logs: ${hc.startupLogs.slice(0, 150)}`;
           }
-          return `- Iter ${num}: "${prompt}" → ${status}, ws:${wsStatus}${wsError}${healthNote}`;
+          return `- Iter ${num}: "${prompt}" → ${status}, ws:${wsStatus}${wsError}${runError}${stageErrors}${healthNote}`;
         });
         iterHistoryContext = `\n\nITERATION HISTORY (${rows.length} builds for this project):\n${lines.join("\n")}\n`;
       }
@@ -458,12 +468,39 @@ async function chat(projectId, userMessage) {
     }
   }
 
+  let diagnosticsContext = "";
+  try {
+    const diagReport = await runDiagnostics(projectId, ["env", "models", "pipeline", "workspace"]);
+    const parts = [];
+    if (diagReport.checks.env?.status === "FAIL") {
+      parts.push(`ENV: ${diagReport.checks.env.missing.join(", ")} MISSING. ${diagReport.checks.env.impact || ""}`);
+    }
+    if (diagReport.checks.pipeline?.status === "FAIL") {
+      parts.push(`PIPELINE: ${diagReport.checks.pipeline.runError || "failed"}`);
+      const stages = diagReport.checks.pipeline.stages || {};
+      for (const [k, v] of Object.entries(stages)) {
+        if (k.endsWith("_error")) parts.push(`  ${k}: ${v}`);
+      }
+    }
+    if (diagReport.checks.workspace?.error) {
+      parts.push(`WORKSPACE ERROR: ${diagReport.checks.workspace.error}`);
+    }
+    if (diagReport.checks.workspace?.recentErrors?.length > 0) {
+      parts.push(`WORKSPACE RECENT ERRORS:\n${diagReport.checks.workspace.recentErrors.join("\n")}`);
+    }
+    if (parts.length > 0) {
+      diagnosticsContext = `\n\nSYSTEM DIAGNOSTICS (auto-run):\n${parts.join("\n")}\n`;
+    } else {
+      diagnosticsContext = `\n\nSYSTEM DIAGNOSTICS (auto-run): All checks passed (env, models, pipeline, workspace).\n`;
+    }
+  } catch {}
+
   const conversationMessages = history.map(m => ({
     role: m.role === "assistant" ? "assistant" : "user",
     content: m.content,
   }));
 
-  const systemMessage = CHAT_AGENT_INSTRUCTIONS + iterHistoryContext + codeContext + logsContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
+  const systemMessage = CHAT_AGENT_INSTRUCTIONS + diagnosticsContext + iterHistoryContext + codeContext + logsContext + (skillContext ? "\n\nACTIVATED SKILLS:" + skillContext : "");
 
   const messages = [
     { role: "system", content: systemMessage },
