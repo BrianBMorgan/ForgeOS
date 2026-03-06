@@ -359,6 +359,9 @@ const BANNED_PATTERNS = [
   { regex: /\bto\s+allow\s+(the|it)\b/i, rule: "Banned padding: 'to allow the/it...' — stop after stating the code change" },
   { regex: /\band\s+(respond|complete|finish|return)\b/i, rule: "Banned padding: 'and respond/complete...' — stop after stating the code change" },
   { regex: /\bcausing\s+(the\s+)?(request|endpoint|server|app|application)\s+to\s+(hang|crash|fail)\b/i, rule: "Banned diagnosis padding: 'causing the request to hang' — the user already told you it hangs, state the code fix" },
+  { regex: /\btry\s+(rebuilding|again|rerunning|re-running|restarting)\b/i, rule: "Banned dismissal: 'try rebuilding/again' is not a diagnosis — state the root cause or say you don't know" },
+  { regex: /\b(this\s+is\s+)?(typically|usually|often)\s+transient\b/i, rule: "Banned dismissal: 'typically transient' is not a diagnosis — state the root cause or say you don't know" },
+  { regex: /\bretry\s+(usually|often|typically|generally)\s+(resolves?|fixes?|works?)\b/i, rule: "Banned dismissal: 'retry usually resolves' is not a diagnosis — state the root cause or say you don't know" },
 ];
 
 function detectBannedPatterns(message, buildSuggestion) {
