@@ -3,9 +3,12 @@ const Anthropic = require("@anthropic-ai/sdk");
 let anthropic = null;
 function getAnthropic() {
   if (anthropic) return anthropic;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+  const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
   if (!apiKey) return null;
-  anthropic = new Anthropic({ apiKey });
+  const opts = { apiKey };
+  if (baseURL) opts.baseURL = baseURL;
+  anthropic = new Anthropic(opts);
   return anthropic;
 }
 
