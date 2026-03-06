@@ -51,18 +51,20 @@ async function ensureSchema() {
   if (!sql) return;
   await sql`
     CREATE TABLE IF NOT EXISTS published_apps (
-      id              SERIAL PRIMARY KEY,
-      project_id      VARCHAR(8)   NOT NULL UNIQUE,
-      slug            VARCHAR(255) NOT NULL UNIQUE,
-      port            INT,
-      status          VARCHAR(20)  DEFAULT 'stopped',
-      start_command   TEXT,
+      id           SERIAL PRIMARY KEY,
+      project_id   VARCHAR(8)   NOT NULL UNIQUE,
+      slug         VARCHAR(255) NOT NULL UNIQUE,
+      port         INT,
+      status       VARCHAR(20)  DEFAULT 'stopped',
+      start_command  TEXT,
       install_command TEXT,
-      build_command   TEXT,
-      published_at    BIGINT,
-      updated_at      BIGINT
+      build_command  TEXT,
+      published_at BIGINT,
+      updated_at   BIGINT
     )
   `;
+  // One-time forward migration: add build_command if this table predates it.
+  // Safe to run on every startup — IF NOT EXISTS is a no-op once applied.
   await sql`
     ALTER TABLE published_apps
       ADD COLUMN IF NOT EXISTS build_command TEXT
@@ -103,6 +105,7 @@ function ensurePublishedDir() {
 function copyDirectory(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    // Skip node_modules AND .git — no reason to publish git history
     if (entry.name === "node_modules" || entry.name === ".git") continue;
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
@@ -152,8 +155,15 @@ function generateSlug(name) {
 // Port management
 // ---------------------------------------------------------------------------
 
+/**
+ * Finds and *reserves* the next free port in the publish range.
+ * The reservation is held in `reservedPorts` until the caller releases it
+ * via releasePort(). This prevents concurrent calls from racing to the same
+ * port before any process has bound the socket.
+ */
 function getNextFreePort() {
   return new Promise((resolve, reject) => {
+    // Ports currently in active use (process running) OR reserved (starting)
     const unavailable = new Set(reservedPorts);
     for (const [, app] of publishedApps) {
       if (app.port && (app.status === "running" || app.status === "starting")) {
@@ -163,7 +173,7 @@ function getNextFreePort() {
 
     function tryPort(port) {
       if (port > PORT_RANGE_END) {
-        reject(new Error("No free ports available in the publish range (4100-4199)"));
+        reject(new Error("No free ports available in the publish range (4100–4199)"));
         return;
       }
       if (unavailable.has(port)) {
@@ -174,7 +184,7 @@ function getNextFreePort() {
       server.once("error", () => tryPort(port + 1));
       server.once("listening", () => {
         server.close(() => {
-          reservedPorts.add(port);
+          reservedPorts.add(port); // hold reservation until process binds
           resolve(port);
         });
       });
@@ -185,6 +195,7 @@ function getNextFreePort() {
   });
 }
 
+/** Release a port reservation after the process has bound (or failed). */
 function releasePort(port) {
   reservedPorts.delete(port);
 }
@@ -202,6 +213,7 @@ function patchHardcodedPort(dir) {
   for (const filePath of collectJsFiles(dir)) {
     let content;
     try { content = fs.readFileSync(filePath, "utf8"); } catch { continue; }
+    // Skip files that already read from env
     if (/process\.env\.PORT/.test(content)) continue;
 
     let patched = content;
@@ -251,6 +263,7 @@ function validateCommand(cmd) {
 // Environment variable helpers
 // ---------------------------------------------------------------------------
 
+// Keys always sourced from the platform — project env cannot override these.
 const RESERVED_ENV_KEYS = new Set([
   "PORT", "DATABASE_URL", "NEON_AUTH_JWKS_URL", "JWT_SECRET",
   "NODE_ENV", "HOME", "PATH", "TERM",
@@ -261,14 +274,29 @@ function cleanDatabaseUrl(url) {
   return url.replace(/\?.*$/, "") + "?sslmode=require";
 }
 
+/**
+ * Build the full env for a published app process.
+ *
+ * Merge order (last wins):
+ *   1. Platform-controlled keys (PORT, DATABASE_URL, …)
+ *   2. Global default env vars from settings
+ *   3. Project-specific env vars
+ *
+ * process.env is NOT spread wholesale — only specific platform keys are
+ * forwarded so that ForgeOS host secrets do not bleed into published apps
+ * and so that project-level vars genuinely take precedence.
+ */
 function buildProcessEnv(port, mergedCustomEnv) {
+  // Strip any reserved keys that snuck into the merged custom env
   const safeCustom = { ...mergedCustomEnv };
   for (const k of RESERVED_ENV_KEYS) delete safeCustom[k];
 
   return {
+    // Minimal host passthrough needed for Node.js to function
     HOME: process.env.HOME,
     PATH: process.env.PATH,
     TERM: process.env.TERM || "xterm",
+    // Platform-controlled
     NODE_ENV: "production",
     PORT: String(port),
     ...(process.env.NEON_DATABASE_URL
@@ -277,6 +305,8 @@ function buildProcessEnv(port, mergedCustomEnv) {
     ...(process.env.NEON_AUTH_JWKS_URL
       ? { NEON_AUTH_JWKS_URL: process.env.NEON_AUTH_JWKS_URL }
       : {}),
+    // Project/global custom env — lowest precedence for reserved keys,
+    // but this spread comes after so project values win for non-reserved keys
     ...safeCustom,
   };
 }
@@ -302,6 +332,7 @@ async function getMergedEnv(projectId) {
     } catch {}
   }
 
+  // Project vars override global defaults
   return { ...globalDefaults, ...projectEnv };
 }
 
@@ -309,6 +340,10 @@ async function getMergedEnv(projectId) {
 // Process lifecycle
 // ---------------------------------------------------------------------------
 
+/**
+ * Attach stdout/stderr log buffering to a child process.
+ * Caps total log size at LOG_MAX_BYTES, keeping the most recent LOG_TAIL_BYTES.
+ */
 function attachLogs(proc, app) {
   const handler = (d) => {
     app.logs += d.toString();
@@ -320,6 +355,12 @@ function attachLogs(proc, app) {
   proc.stderr.on("data", handler);
 }
 
+/**
+ * Kill a child process gracefully: SIGTERM first, then SIGKILL after
+ * SIGKILL_TIMEOUT_MS, then force-kill the port.
+ * Returns a Promise that resolves when the process has exited (or was already
+ * gone), so callers can await full teardown before touching the filesystem.
+ */
 function killProcess(proc, port) {
   return new Promise((resolve) => {
     if (!proc || proc.killed) {
@@ -340,10 +381,15 @@ function killProcess(proc, port) {
       try { if (!proc.killed) proc.kill("SIGKILL"); } catch {}
     }, SIGKILL_TIMEOUT_MS);
 
+    // Don't let this timer keep the event loop alive
     if (forceTimer.unref) forceTimer.unref();
   });
 }
 
+/**
+ * Stop a running published app and await full process exit.
+ * Safe to call when no process is running.
+ */
 async function stopPublishedApp(projectId) {
   const app = publishedApps.get(projectId);
   if (!app) return;
@@ -357,7 +403,7 @@ async function stopPublishedApp(projectId) {
 }
 
 // ---------------------------------------------------------------------------
-// npm install / build helpers (shared between publish and restore)
+// npm install helper (shared between publish and restore)
 // ---------------------------------------------------------------------------
 
 async function runInstall(installCommand, dir, logTarget) {
@@ -433,7 +479,7 @@ async function _doPublish(projectId) {
       SELECT slug FROM published_apps WHERE project_id = ${projectId}
     `;
     if (existing) {
-      slug = existing.slug;
+      slug = existing.slug; // preserve slug across re-publishes
     } else {
       const [conflict] = await sql`
         SELECT slug FROM published_apps
@@ -469,6 +515,7 @@ async function _doPublish(projectId) {
     if (out?.buildCommand)   buildCommand   = out.buildCommand;
   } catch {}
 
+  // Cross-check package.json for build script
   try {
     const pkgPath = path.join(publishDir, "package.json");
     if (fs.existsSync(pkgPath)) {
@@ -587,6 +634,7 @@ async function _doPublish(projectId) {
       app.logs += "\n--- Pushing to GitHub ---\n";
       const { pushProjectToGitHub } = require("./github");
 
+      // Enforce a hard timeout so a hung GitHub push can't block indefinitely
       const pushResult = await Promise.race([
         pushProjectToGitHub(
           githubSettings.repo,
@@ -621,6 +669,7 @@ async function _doPublish(projectId) {
 // ---------------------------------------------------------------------------
 
 async function unpublishProject(projectId) {
+  // Await full process teardown before touching the filesystem
   await stopPublishedApp(projectId);
   publishedApps.delete(projectId);
 
@@ -660,7 +709,7 @@ async function _restoreOne(row, sql) {
 
   // ---- Rebuild files from DB snapshot if directory is missing ----
   if (!fs.existsSync(publishDir)) {
-    console.log(`[publish] Published files missing for ${row.slug}, rebuilding from snapshot...`);
+    console.log(`[publish] Published files missing for ${row.slug}, rebuilding from snapshot…`);
 
     const projectManager = require("../projects/manager");
     const project = await projectManager.getProject(row.project_id);
@@ -689,6 +738,7 @@ async function _restoreOne(row, sql) {
     }
     console.log(`[publish] Rebuilt ${row.slug} from snapshot (${files.length} files)`);
 
+    // Files were just written — node_modules don't exist. Install now.
     patchHardcodedPort(publishDir);
     const installCommand = row.install_command || "npm install";
     try {
@@ -700,6 +750,7 @@ async function _restoreOne(row, sql) {
       return;
     }
   } else {
+    // Directory exists — still patch in case it's a fresh deploy image
     patchHardcodedPort(publishDir);
   }
 
@@ -832,6 +883,8 @@ async function exportProject(projectId) {
 
   try { fs.unlinkSync(zipPath); } catch {}
 
+  // Use execFileSync (not execSync) to avoid shell interpolation of paths.
+  // Arguments are passed as an array — no shell metacharacter risk.
   const { execFileSync } = require("child_process");
   execFileSync(
     "zip",
