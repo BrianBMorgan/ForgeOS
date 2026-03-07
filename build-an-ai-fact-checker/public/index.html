@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Fact Checker</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">&#10003;</span>
+        <span class="logo-text">FactCheck <span class="logo-ai">AI</span></span>
+      </div>
+      <p class="tagline">Instant AI-powered fact verification</p>
+    </header>
+
+    <main class="main">
+      <section class="input-section">
+        <form id="factForm">
+          <div class="textarea-wrapper">
+            <textarea
+              id="claimInput"
+              placeholder="Enter a claim or question to fact-check..."
+              maxlength="1000"
+              rows="4"
+              aria-label="Claim to fact-check"
+            ></textarea>
+            <span class="char-count"><span id="charCount">0</span>/1000</span>
+          </div>
+          <button type="submit" id="submitBtn" class="submit-btn">
+            <span class="btn-text">Check Fact</span>
+            <span class="btn-spinner" hidden>&#9696;</span>
+          </button>
+        </form>
+
+        <div class="examples">
+          <span class="examples-label">Try an example:</span>
+          <div class="chips">
+            <button class="chip" data-claim="The Great Wall of China is visible from space with the naked eye.">Great Wall from space</button>
+            <button class="chip" data-claim="Humans only use 10% of their brains.">10% brain myth</button>
+            <button class="chip" data-claim="Lightning never strikes the same place twice.">Lightning strikes</button>
+            <button class="chip" data-claim="Eating carrots improves your eyesight.">Carrots and eyesight</button>
+            <button class="chip" data-claim="The Earth is approximately 4.5 billion years old.">Earth's age</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="result-section" id="resultSection" hidden>
+        <div class="result-card" id="resultCard">
+          <div class="result-header">
+            <div class="verdict-badge" id="verdictBadge">
+              <span class="verdict-icon" id="verdictIcon"></span>
+              <span class="verdict-label" id="verdictLabel"></span>
+            </div>
+            <div class="confidence-block">
+              <span class="confidence-label">Confidence</span>
+              <div class="confidence-bar-track">
+                <div class="confidence-bar-fill" id="confidenceFill"></div>
+              </div>
+              <span class="confidence-pct" id="confidencePct"></span>
+            </div>
+          </div>
+
+          <p class="result-summary" id="resultSummary"></p>
+
+          <div class="result-explanation" id="resultExplanation"></div>
+
+          <div class="result-meta">
+            <div class="sources-block" id="sourcesBlock">
+              <h3 class="meta-heading">Sources</h3>
+              <ul class="sources-list" id="sourcesList"></ul>
+            </div>
+            <div class="tags-block" id="tagsBlock">
+              <h3 class="meta-heading">Topics</h3>
+              <div class="tags-list" id="tagsList"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="error-banner" id="errorBanner" hidden>
+        <span class="error-icon">&#9888;</span>
+        <span id="errorMessage"></span>
+      </div>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
