@@ -3,7 +3,7 @@ const { callStructured } = require("./pipeline/model-router");
 const { z } = require("zod");
 const brain = require("./memory/brain");
 
-const BUILDER_MODEL = "claude-opus-4-5-20250918";
+const BUILDER_MODEL = "claude-sonnet-4-6";
 
 const FileSchema = z.object({
   path: z.string(),
