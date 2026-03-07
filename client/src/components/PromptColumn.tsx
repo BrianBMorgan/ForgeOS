@@ -731,17 +731,17 @@ export default function PromptColumn({
             </div>
             <div className="token-breakdown">
               <div className="token-row">
-                <span className="token-label">Prompt</span>
+                <span className="token-label">Input</span>
                 <span className="token-val">{runData.tokenUsage.totals.promptTokens.toLocaleString()}</span>
               </div>
               <div className="token-row">
-                <span className="token-label">Completion</span>
+                <span className="token-label">Output</span>
                 <span className="token-val">{runData.tokenUsage.totals.completionTokens.toLocaleString()}</span>
               </div>
               {runData.tokenUsage.totals.totalTokens > 0 && (
                 <div className="token-row token-cost">
                   <span className="token-label">Est. Cost</span>
-                  <span className="token-val">${((runData.tokenUsage.totals.promptTokens * 2.5 / 1_000_000) + (runData.tokenUsage.totals.completionTokens * 10 / 1_000_000)).toFixed(4)}</span>
+                  <span className="token-val">${((runData.tokenUsage.totals.promptTokens * 15 / 1_000_000) + (runData.tokenUsage.totals.completionTokens * 75 / 1_000_000)).toFixed(4)}</span>
                 </div>
               )}
               <div className="token-stages">
