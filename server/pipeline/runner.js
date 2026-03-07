@@ -864,7 +864,7 @@ async function buildAndRun(run, executorOutput) {
 
     run.workspace.status = "installed";
 
-    const shouldStart = executorOutput.startCommand || workspace.isStaticSite(path.join(__dirname, "..", "..", "workspaces", run.id));
+    const shouldStart = executorOutput.startCommand || workspace.isStaticSite(path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "workspaces", run.id));
     if (shouldStart) {
       run.workspace.status = "starting";
       const startResult = await workspace.startApp(

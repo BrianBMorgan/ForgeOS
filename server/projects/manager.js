@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { neon } = require("@neondatabase/serverless");
 
-const WORKSPACES_DIR = path.join(__dirname, "..", "..", "workspaces");
+const WORKSPACES_DIR = path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "workspaces");
 
 const dbUrl = process.env.NEON_DATABASE_URL;
 if (!dbUrl) {

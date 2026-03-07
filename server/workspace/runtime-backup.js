@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const WORKSPACES_DIR = path.join(__dirname, "..", "..", "workspaces");
+const WORKSPACES_DIR = path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "workspaces");
 const BACKUP_INTERVAL_MS = 5 * 60 * 1000;
 
 const IGNORE_PATTERNS = [

@@ -402,7 +402,7 @@ async function buildAndDeploy(run) {
     run.workspace.status = "installed";
 
     const shouldStart = builderOutput.startCommand || workspace.isStaticSite(
-      path.join(__dirname, "..", "workspaces", run.id)
+      path.join(process.env.DATA_DIR || path.join(__dirname, ".."), "workspaces", run.id)
     );
     if (shouldStart) {
       run.workspace.status = "starting";

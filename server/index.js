@@ -1152,9 +1152,10 @@ try {
 } catch {}
 
 const fs_startup = require("fs");
+const DATA_ROOT = process.env.DATA_DIR || path.join(__dirname, "..");
 const dirs_to_ensure = [
-  path.join(__dirname, "..", "workspaces"),
-  path.join(__dirname, "..", "published"),
+  path.join(DATA_ROOT, "workspaces"),
+  path.join(DATA_ROOT, "published"),
 ];
 for (const d of dirs_to_ensure) {
   if (!fs_startup.existsSync(d)) {
