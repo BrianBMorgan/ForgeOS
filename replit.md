@@ -22,7 +22,9 @@ ForgeOS is an internal agentic AI build platform designed to orchestrate a Plann
 ## User Preferences
 
 ### CRITICAL: DO NOT HARDCODE CLAUDE MODEL NAMES INTO CODE
-Never hardcode specific Claude model names (e.g., `claude-sonnet-4-5`, `claude-opus-4-5`, etc.) into system prompts, agent instructions, or builder code. Model names change and hardcoding them causes workspace apps to break with 404 errors. The valid models are managed by the user through the Settings system — refer to them dynamically (via settings/config), never by writing literal model strings into source code. **Do not tell the ForgeOS agent that models don't exist or force it to use specific models. The user controls which models are available.**
+**Mistake that was made**: Replit Agent hardcoded `claude-sonnet-4-5` into `server/pipeline/agents.js` as the default model for workspace builds, causing every Claude-built app to fail with 404 "model not found" errors. Agent also incorrectly told ForgeOS that valid model strings like `claude-sonnet-4-6` did not exist, forcing downgrades to inferior models.
+
+**Rule**: Never hardcode Claude model strings into prompts or generated code. Model strings belong in one place — `server/builder.js` or equivalent config. The workspace builder prompt must never specify a model name — that's ForgeOS's job, not the prompt's job. Do not tell the ForgeOS agent that models don't exist or force it to use specific models. The user controls which models are available through the Settings system.
 
 ## System Architecture
 **Frontend**: Built with React, Vite, and TypeScript in the `/client` directory. The UI features a three-zone layout: a collapsible sidebar for navigation, a project list, and a main workspace area. The workspace is a tabbed interface including Plan, Review, Diff, Auditor, Render (live preview + file viewer), and Shell (build logs). The styling is dark-mode only, featuring an institutional, calm, and operational aesthetic.
