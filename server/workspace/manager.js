@@ -4,7 +4,7 @@ const { spawn, execSync } = require("child_process");
 
 const net = require("net");
 
-const WORKSPACES_DIR = path.join(__dirname, "..", "..", "workspaces");
+const WORKSPACES_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "workspaces") : path.join(__dirname, "..", "..", "workspaces");
 const PORT_RANGE_START = 4000;
 const PORT_RANGE_END = 4099;
 

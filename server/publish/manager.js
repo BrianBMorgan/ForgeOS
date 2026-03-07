@@ -5,7 +5,7 @@ const path = require("path");
 const { spawn, execSync } = require("child_process");
 const net = require("net");
 
-const PUBLISHED_DIR = path.join(__dirname, "..", "..", "published");
+const PUBLISHED_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "published") : path.join(__dirname, "..", "..", "published");
 const PORT_RANGE_START = 4100;
 const PORT_RANGE_END = 4199;
 const LOG_MAX_BYTES = 50_000;
