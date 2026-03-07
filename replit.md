@@ -26,6 +26,9 @@ ForgeOS is an internal agentic AI build platform designed to orchestrate a Plann
 
 **Rule**: Never hardcode Claude model strings into prompts or generated code. Model strings belong in one place — `server/builder.js` or equivalent config. The workspace builder prompt must never specify a model name — that's ForgeOS's job, not the prompt's job. Do not tell the ForgeOS agent that models don't exist or force it to use specific models. The user controls which models are available through the Settings system.
 
+### DO NOT CHANGE BRAIN EMBEDDING DIMENSIONS
+Brain memory (`server/memory/brain.js`) uses Voyage AI `voyage-code-3` with **1024 dimensions**. This is correct and must not be changed. Do not set it to 1536 or any other value. The user has fixed this — do not undo it.
+
 ## System Architecture
 **Frontend**: Built with React, Vite, and TypeScript in the `/client` directory. The UI features a three-zone layout: a collapsible sidebar for navigation, a project list, and a main workspace area. The workspace is a tabbed interface including Plan, Review, Diff, Auditor, Render (live preview + file viewer), and Shell (build logs). The styling is dark-mode only, featuring an institutional, calm, and operational aesthetic.
 
