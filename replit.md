@@ -20,7 +20,9 @@ After every code change (no matter how small), push the updated platform files t
 ForgeOS is an internal agentic AI build platform designed to orchestrate a Planner → Reviewer → Policy Gate → Human Approval → Executor → Auditor pipeline. It uses Anthropic Claude models exclusively to generate, review, and refine structured build plans, produce runnable code, and launch live applications. The platform supports iterative development, allowing follow-up prompts to evolve existing applications with full context of the current codebase.
 
 ## User Preferences
-None specified.
+
+### CRITICAL: DO NOT HARDCODE CLAUDE MODEL NAMES INTO CODE
+Never hardcode specific Claude model names (e.g., `claude-sonnet-4-5`, `claude-opus-4-5`, etc.) into system prompts, agent instructions, or builder code. Model names change and hardcoding them causes workspace apps to break with 404 errors. The valid models are managed by the user through the Settings system — refer to them dynamically (via settings/config), never by writing literal model strings into source code. **Do not tell the ForgeOS agent that models don't exist or force it to use specific models. The user controls which models are available.**
 
 ## System Architecture
 **Frontend**: Built with React, Vite, and TypeScript in the `/client` directory. The UI features a three-zone layout: a collapsible sidebar for navigation, a project list, and a main workspace area. The workspace is a tabbed interface including Plan, Review, Diff, Auditor, Render (live preview + file viewer), and Shell (build logs). The styling is dark-mode only, featuring an institutional, calm, and operational aesthetic.
