@@ -323,6 +323,8 @@ async function getMergedEnv(projectId) {
         if (v.key) globalDefaults[v.key] = v.value || "";
       }
     }
+    const secrets = await settingsManager.getSecretsAsObject();
+    if (secrets) globalDefaults = { ...globalDefaults, ...secrets };
   } catch {}
 
   if (projectId) {
