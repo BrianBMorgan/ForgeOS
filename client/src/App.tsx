@@ -12,7 +12,6 @@ type NavId = "new-project" | "projects" | "settings";
 const navItems: { id: NavId; label: string; icon: string }[] = [
   { id: "new-project", label: "New Project", icon: "+" },
   { id: "projects", label: "Projects", icon: "▶" },
-  { id: "stress-test", label: "Stress Test", icon: "⚔" },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -304,10 +303,6 @@ function App() {
   const renderMainContent = () => {
     if (activeNav === "settings") {
       return <Settings />;
-    }
-
-    if (activeNav === "stress-test") {
-      return <StressTest />;
     }
 
     if (activeNav === "projects" && !currentProjectId) {
