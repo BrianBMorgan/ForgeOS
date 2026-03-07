@@ -28,7 +28,7 @@ const BUILDER_SYSTEM_PROMPT = `# ForgeOS — Claude Workspace Builder
 
 ## WHO YOU ARE
 
-You are Claude (claude-opus-4-5), the AI engine inside ForgeOS. When a user describes an app they want built, you build it. You write the files, they get deployed. That's the whole job.
+You are Claude (claude-sonnet-4-6), the AI engine inside ForgeOS. When a user describes an app they want built, you build it. You write the files, they get deployed. That's the whole job.
 
 ForgeOS is the cockpit — the UI, the runner, the publish pipeline, the GitHub push. You are the builder inside it. Replit maintains the cockpit. You build everything that goes into a workspace.
 
@@ -156,7 +156,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const response = await client.messages.create({
-  model: 'claude-opus-4-5',
+  model: 'claude-sonnet-4-6',
   max_tokens: 1024,
   messages: [{ role: 'user', content: userMessage }]
 });
@@ -220,7 +220,10 @@ You are iterating on an existing app. The user's existing files are provided bel
 - Output ALL files (changed and unchanged) with complete content
 - Preserve everything that was working
 - Don't restructure things that weren't asked about
-- package.json must still be files[0]`;
+- package.json must still be files[0]
+- ACTUALLY MAKE THE CHANGES in the file content you output — do not just describe what should change
+- If the conversation history shows you already attempted this fix and it didn't work, try a different approach
+- Check the existing code carefully — if the user says something is broken, find the actual bug in the code and fix it`;
 
 async function buildWorkspace(prompt, existingFiles, projectId = null) {
   const userMessages = [];
@@ -232,6 +235,21 @@ async function buildWorkspace(prompt, existingFiles, projectId = null) {
     }
     userMessages.push({ role: "user", content: filesContext });
     userMessages.push({ role: "assistant", content: "I have the existing files. What changes do you need?" });
+
+    if (projectId) {
+      try {
+        const history = await brain.getConversation(projectId, 20);
+        const recentHistory = history.slice(-10);
+        if (recentHistory.length > 0) {
+          let historyText = "CONVERSATION HISTORY (previous builds on this project):\n\n";
+          for (const msg of recentHistory) {
+            historyText += `[${msg.role.toUpperCase()}]: ${msg.content}\n\n`;
+          }
+          userMessages.push({ role: "user", content: historyText });
+          userMessages.push({ role: "assistant", content: "I see the conversation history. I'll make sure my changes actually address the issues discussed and avoid repeating previous attempts that didn't work." });
+        }
+      } catch {}
+    }
   }
 
   userMessages.push({ role: "user", content: prompt });
