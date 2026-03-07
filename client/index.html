@@ -11,7 +11,6 @@
     <script>
       (function() {
         window.__forgeLastAgentMsg = "";
-        window.__forgeAgentParts = "";
         window.__forgeBuildPrompt = "";
         var sendBtn = null;
 
@@ -40,59 +39,46 @@
           return false;
         }
 
-        var OrigWS = window.WebSocket;
-        window.WebSocket = function(url, protocols) {
-          var ws = protocols ? new OrigWS(url, protocols) : new OrigWS(url);
-          if (url && url.indexOf("elevenlabs") !== -1) {
-            ws.addEventListener("message", function(evt) {
-              try {
-                var data = JSON.parse(evt.data);
-                if (data.type === "agent_response" && data.agent_response_event === "agent_response") {
-                  window.__forgeAgentParts += (data.agent_response || "");
-                }
-                if (data.type === "agent_response" && data.agent_response_event === "agent_response_end") {
-                  if (window.__forgeAgentParts.length > 10) {
-                    var msg = window.__forgeAgentParts.trim();
-                    window.__forgeLastAgentMsg = msg;
-                    if (checkForBuildTrigger(msg) && window.__forgeBuildPrompt) {
-                      if (window.__forgeRunBuild) {
-                        window.__forgeRunBuild(window.__forgeBuildPrompt);
-                        window.__forgeBuildPrompt = "";
-                        window.__forgeLastAgentMsg = "";
-                        if (sendBtn) sendBtn.style.display = "none";
-                      }
-                    } else if (!checkForBuildTrigger(msg)) {
-                      window.__forgeBuildPrompt = msg;
-                      showSendButton();
-                    }
-                  }
-                  window.__forgeAgentParts = "";
-                }
-                if (data.type === "chat" && data.role === "agent" && data.message) {
-                  var chatMsg = data.message.trim();
-                  window.__forgeLastAgentMsg = chatMsg;
-                  if (checkForBuildTrigger(chatMsg) && window.__forgeBuildPrompt) {
-                    if (window.__forgeRunBuild) {
-                      window.__forgeRunBuild(window.__forgeBuildPrompt);
-                      window.__forgeBuildPrompt = "";
-                      window.__forgeLastAgentMsg = "";
-                      if (sendBtn) sendBtn.style.display = "none";
-                    }
-                  } else if (!checkForBuildTrigger(chatMsg)) {
-                    window.__forgeBuildPrompt = chatMsg;
-                    showSendButton();
-                  }
-                }
-                if (data.type === "agent_chat_response_part" && data.text) {
-                  window.__forgeAgentParts += data.text;
-                }
-              } catch(e) {}
-            });
-            ws.addEventListener("close", function() {
-              if (window.__forgeAgentParts.length > 10) {
-                window.__forgeLastAgentMsg = window.__forgeAgentParts.trim();
-                window.__forgeAgentParts = "";
+        function handleAgentMessage(text) {
+          if (!text || text.length < 5) return;
+          var msg = text.trim();
+          console.log("[forge-voice] agent:", msg.slice(0, 80));
+          window.__forgeLastAgentMsg = msg;
+
+          if (checkForBuildTrigger(msg) && window.__forgeBuildPrompt) {
+            console.log("[forge-voice] BUILD TRIGGER detected, submitting prompt");
+            if (window.__forgeRunBuild) {
+              window.__forgeRunBuild(window.__forgeBuildPrompt);
+              window.__forgeBuildPrompt = "";
+              window.__forgeLastAgentMsg = "";
+              if (sendBtn) sendBtn.style.display = "none";
+            } else if (window.__forgeSetPrompt) {
+              window.__forgeSetPrompt(window.__forgeBuildPrompt);
+              window.__forgeBuildPrompt = "";
+              window.__forgeLastAgentMsg = "";
+              if (sendBtn) sendBtn.style.display = "none";
+            }
+          } else if (!checkForBuildTrigger(msg)) {
+            window.__forgeBuildPrompt = msg;
+            showSendButton();
+          }
+        }
+
+        document.addEventListener("elevenlabs-convai:call", function(e) {
+          console.log("[forge-voice] call event intercepted");
+          if (e.detail && e.detail.config) {
+            var origOnMessage = e.detail.config.onMessage;
+            e.detail.config.onMessage = function(data) {
+              if (origOnMessage) origOnMessage(data);
+              if (data && data.source === "ai" && data.message) {
+                handleAgentMessage(data.message);
               }
+            };
+
+            var origOnDisconnect = e.detail.config.onDisconnect;
+            e.detail.config.onDisconnect = function() {
+              if (origOnDisconnect) origOnDisconnect();
+              console.log("[forge-voice] call ended");
               if (window.__forgeBuildPrompt && window.__forgeSetPrompt) {
                 setTimeout(function() {
                   window.__forgeSetPrompt(window.__forgeBuildPrompt);
@@ -107,15 +93,9 @@
                   if (sendBtn) sendBtn.style.display = "none";
                 }, 300);
               }
-            });
+            };
           }
-          return ws;
-        };
-        window.WebSocket.prototype = OrigWS.prototype;
-        window.WebSocket.CONNECTING = OrigWS.CONNECTING;
-        window.WebSocket.OPEN = OrigWS.OPEN;
-        window.WebSocket.CLOSING = OrigWS.CLOSING;
-        window.WebSocket.CLOSED = OrigWS.CLOSED;
+        });
 
         function createSendButton() {
           sendBtn = document.createElement("button");
@@ -125,7 +105,12 @@
           sendBtn.addEventListener("mouseenter", function() { sendBtn.style.opacity = "0.85"; });
           sendBtn.addEventListener("mouseleave", function() { sendBtn.style.opacity = "1"; });
           sendBtn.addEventListener("click", function() {
-            if (window.__forgeLastAgentMsg && window.__forgeSetPrompt) {
+            if (window.__forgeBuildPrompt && window.__forgeSetPrompt) {
+              window.__forgeSetPrompt(window.__forgeBuildPrompt);
+              window.__forgeBuildPrompt = "";
+              window.__forgeLastAgentMsg = "";
+              sendBtn.style.display = "none";
+            } else if (window.__forgeLastAgentMsg && window.__forgeSetPrompt) {
               window.__forgeSetPrompt(window.__forgeLastAgentMsg);
               window.__forgeLastAgentMsg = "";
               sendBtn.style.display = "none";
@@ -136,15 +121,17 @@
 
         function showSendButton() {
           if (!sendBtn) createSendButton();
-          if (sendBtn && window.__forgeLastAgentMsg) {
+          if (sendBtn && (window.__forgeBuildPrompt || window.__forgeLastAgentMsg)) {
             sendBtn.style.display = "block";
           }
         }
 
         document.addEventListener("keydown", function(e) {
           if (e.altKey && e.key === "p") {
-            if (window.__forgeLastAgentMsg && window.__forgeSetPrompt) {
-              window.__forgeSetPrompt(window.__forgeLastAgentMsg);
+            var text = window.__forgeBuildPrompt || window.__forgeLastAgentMsg;
+            if (text && window.__forgeSetPrompt) {
+              window.__forgeSetPrompt(text);
+              window.__forgeBuildPrompt = "";
               window.__forgeLastAgentMsg = "";
               if (sendBtn) sendBtn.style.display = "none";
             }
