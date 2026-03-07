@@ -3,11 +3,11 @@ import logo from "./ForgeOS_1772241278038.png";
 import logoStacked from "./ForgeOS_Stacked.png";
 import PromptColumn from "./components/PromptColumn";
 import Workspace from "./components/Workspace";
-import StressTest from "./components/StressTest";
+
 import ProjectsList from "./components/ProjectsList";
 import Settings from "./components/Settings";
 
-type NavId = "new-project" | "projects" | "stress-test" | "settings";
+type NavId = "new-project" | "projects" | "settings";
 
 const navItems: { id: NavId; label: string; icon: string }[] = [
   { id: "new-project", label: "New Project", icon: "+" },
