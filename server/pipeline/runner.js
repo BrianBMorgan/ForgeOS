@@ -1114,4 +1114,5 @@ module.exports = {
   getRun,
   getRunSync,
   getAllRuns,
+  saveRunSnapshot,
 };

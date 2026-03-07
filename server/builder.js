@@ -2,6 +2,7 @@ const path = require("path");
 const { callStructured } = require("./pipeline/model-router");
 const { z } = require("zod");
 const brain = require("./memory/brain");
+const { saveRunSnapshot } = require("./pipeline/runner");
 
 const BUILDER_MODEL = "claude-sonnet-4-6";
 
@@ -306,6 +307,7 @@ async function buildAndDeploy(run) {
         "general",
         run.projectId
       ).catch(() => {});
+      saveRunSnapshot(run).catch(() => {});
       return;
     }
   }
@@ -398,6 +400,17 @@ async function buildAndDeploy(run) {
     run.status = "completed";
     console.error("[builder] Deploy error:", err);
   }
+
+  run.stages.executor = {
+    status: run.stages.builder.status,
+    output: run.stages.builder.output ? {
+      startCommand: run.stages.builder.output.startCommand,
+      installCommand: run.stages.builder.output.installCommand,
+      port: run.workspace?.port || 4000,
+    } : null,
+  };
+
+  saveRunSnapshot(run).catch(err => console.error("[builder] Failed to save run snapshot:", err.message));
 
   if (run.projectId) {
     brain.appendConversation(run.projectId, "assistant", builderOutput.summary || "Build completed").catch(() => {});
