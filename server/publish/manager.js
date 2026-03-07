@@ -466,7 +466,7 @@ async function _doPublish(projectId) {
   const { currentRunId } = project;
   if (!currentRunId) throw new Error("No build to publish — run a build first");
 
-  const workspaceDir = path.join(__dirname, "..", "..", "workspaces", currentRunId);
+  const workspaceDir = path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "workspaces", currentRunId);
   if (!fs.existsSync(workspaceDir)) throw new Error("Workspace files not found");
 
   // ---- Slug resolution ----
@@ -877,7 +877,7 @@ async function exportProject(projectId) {
   const { currentRunId } = project;
   if (!currentRunId) throw new Error("No build to export");
 
-  const workspaceDir = path.join(__dirname, "..", "..", "workspaces", currentRunId);
+  const workspaceDir = path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "workspaces", currentRunId);
   if (!fs.existsSync(workspaceDir)) throw new Error("Workspace files not found");
 
   const slug = generateSlug(project.name);
