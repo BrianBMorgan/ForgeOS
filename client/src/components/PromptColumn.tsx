@@ -25,48 +25,56 @@ interface PromptColumnProps {
   chatLoading: boolean;
 }
 
-const NEW_STAGE_MAP: { id: string; keys: string[]; label: string; short: string }[] = [
-  { id: "builder", keys: ["builder"], label: "Builder", short: "Build" },
+const STAGE_MAP: { id: string; keys: string[]; label: string; short: string; icon: string }[] = [
+  { id: "prompt",  keys: [],          label: "Prompt",  short: "In",    icon: "❯" },
+  { id: "brain",   keys: [],          label: "Brain",   short: "Mem",   icon: "◉" },
+  { id: "builder", keys: ["builder"], label: "Builder", short: "Build", icon: "⚡" },
+  { id: "render",  keys: [],          label: "Render",  short: "Live",  icon: "◧" },
+  { id: "publish", keys: [],          label: "Publish", short: "Ship",  icon: "▲" },
 ];
 
-const LEGACY_STAGE_MAP: { id: string; keys: string[]; label: string; short: string }[] = [
-  { id: "planner", keys: ["planner", "revise_p2", "revise_p3"], label: "Planner", short: "Plan" },
-  { id: "reviewer", keys: ["reviewer_p1", "reviewer_p2", "reviewer_p3"], label: "Reviewer", short: "Rev" },
-  { id: "policy", keys: ["policy_gate"], label: "Policy", short: "Pol" },
-  { id: "human", keys: ["human_approval"], label: "Human", short: "OK" },
-  { id: "executor", keys: ["executor"], label: "Executor", short: "Exec" },
-  { id: "auditor", keys: ["auditor"], label: "Auditor", short: "Aud" },
-];
-
-function isNewBuilderRun(runData: RunData | null): boolean {
-  if (!runData?.stages) return true;
-  return "builder" in runData.stages;
+interface PipelineStage extends Stage {
+  icon: string;
 }
 
-function deriveStages(runData: RunData | null): Stage[] {
-  const stageMap = (!runData || isNewBuilderRun(runData)) ? NEW_STAGE_MAP : LEGACY_STAGE_MAP;
-
+function deriveStages(runData: RunData | null): PipelineStage[] {
   if (!runData) {
-    return stageMap.map((s) => ({ id: s.id, label: s.label, short: s.short, status: "pending" as StageStatus }));
+    return STAGE_MAP.map((s) => ({ id: s.id, label: s.label, short: s.short, icon: s.icon, status: "pending" as StageStatus }));
   }
 
-  return stageMap.map((stageGroup) => {
-    const statuses = stageGroup.keys
-      .map((k) => runData.stages[k]?.status)
-      .filter(Boolean);
+  const builderStage = runData.stages?.builder;
+  const builderStatus = builderStage?.status as string | undefined;
+  const isRunning = runData.status === "running";
+  const isCompleted = runData.status === "completed";
+  const isFailed = runData.status === "failed";
 
+  return STAGE_MAP.map((s) => {
     let status: StageStatus = "pending";
-    if (statuses.includes("running")) {
-      status = "running";
-    } else if (statuses.includes("failed")) {
-      status = "failed";
-    } else if (statuses.includes("blocked")) {
-      status = "blocked";
-    } else if (statuses.some((s) => s === "passed")) {
-      status = "passed";
+
+    switch (s.id) {
+      case "prompt":
+        status = runData ? "passed" : "pending";
+        break;
+      case "brain":
+        if (builderStatus === "running" || builderStatus === "passed") status = "passed";
+        else if (isRunning) status = "running";
+        break;
+      case "builder":
+        if (builderStatus === "passed") status = "passed";
+        else if (builderStatus === "running") status = "running";
+        else if (builderStatus === "failed") status = "failed";
+        break;
+      case "render":
+        if (isCompleted) status = "passed";
+        else if (builderStatus === "passed" && isRunning) status = "running";
+        else if (isFailed && builderStatus === "passed") status = "failed";
+        break;
+      case "publish":
+        status = "pending";
+        break;
     }
 
-    return { id: stageGroup.id, label: stageGroup.label, short: stageGroup.short, status };
+    return { id: s.id, label: s.label, short: s.short, icon: s.icon, status };
   });
 }
 
@@ -665,35 +673,20 @@ export default function PromptColumn({
         </div>
       )}
 
-      {isRunning && (
-        <div className="pipeline">
-          <div className="pipeline-label">PIPELINE</div>
-          <div className="pipeline-stages">
-            {stages.map((stage, i) => (
-              <div key={stage.id} className="pipeline-stage">
-                <div className={`stage-dot ${stage.status}`} />
-                <span className="stage-label"><span className="stage-label-full">{stage.label}</span><span className="stage-label-short">{stage.short}</span></span>
-                {i < stages.length - 1 && <div className="stage-connector" />}
+      <div className="pipeline">
+        <div className="pipeline-label">PIPELINE</div>
+        <div className="pipeline-stages">
+          {stages.map((stage, i) => (
+            <div key={stage.id} className="pipeline-stage">
+              <div className={`stage-node ${stage.status}`}>
+                <span className="stage-icon">{stage.icon}</span>
               </div>
-            ))}
-          </div>
+              <span className="stage-label"><span className="stage-label-full">{stage.label}</span><span className="stage-label-short">{stage.short}</span></span>
+              {i < stages.length - 1 && <div className={`stage-connector ${stage.status === "passed" ? "stage-connector-passed" : ""}`} />}
+            </div>
+          ))}
         </div>
-      )}
-
-      {!isRunning && !isProjectView && (
-        <div className="pipeline">
-          <div className="pipeline-label">PIPELINE</div>
-          <div className="pipeline-stages">
-            {stages.map((stage, i) => (
-              <div key={stage.id} className="pipeline-stage">
-                <div className={`stage-dot ${stage.status}`} />
-                <span className="stage-label"><span className="stage-label-full">{stage.label}</span><span className="stage-label-short">{stage.short}</span></span>
-                {i < stages.length - 1 && <div className="stage-connector" />}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
 
       {isAwaitingApproval && !isViewingHistory && (
         <ApprovalModal
