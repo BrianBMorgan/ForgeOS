@@ -457,6 +457,7 @@ async function startApp(runId, startCommand, port, customEnv = {}) {
         resolved = true;
         if (ws.process && !ws.process.killed) {
           ws.status = "running";
+          ws.error = null;
           ws.lastActivity = Date.now();
           resolve({ success: true, port: ws.port });
         } else {
