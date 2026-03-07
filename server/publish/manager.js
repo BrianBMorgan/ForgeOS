@@ -776,7 +776,7 @@ async function _restoreOne(row, sql) {
     startCommand:   row.start_command   || "npm start",
     installCommand: row.install_command || "npm install",
     buildCommand:   row.build_command   || null,
-    publishedAt: row.published_at,
+    publishedAt: Number(row.published_at),
     logs: "",
   };
   publishedApps.set(row.project_id, app);
