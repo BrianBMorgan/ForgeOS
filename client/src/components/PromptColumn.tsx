@@ -29,7 +29,7 @@ const STAGE_MAP: { id: string; keys: string[]; label: string; short: string; ico
   { id: "prompt",  keys: [],          label: "Prompt",  short: "In",    icon: "❯" },
   { id: "brain",   keys: [],          label: "Brain",   short: "Mem",   icon: "◉" },
   { id: "builder", keys: ["builder"], label: "Builder", short: "Build", icon: "⚡" },
-  { id: "render",  keys: [],          label: "Render",  short: "Live",  icon: "◧" },
+  { id: "render",  keys: [],          label: "Render",  short: "Live",  icon: "◼" },
   { id: "publish", keys: [],          label: "Publish", short: "Ship",  icon: "▲" },
 ];
 
