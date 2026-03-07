@@ -599,7 +599,7 @@ async function rebuildWorkspaceFromSnapshot(runId) {
     const run = await getRun(runId);
     if (!run) return false;
 
-    const files = run.stages?.executor?.output?.files;
+    const files = run.stages?.executor?.output?.files || run.stages?.builder?.output?.files;
     if (!files || !Array.isArray(files) || files.length === 0) return false;
 
     ensureWorkspacesDir();
