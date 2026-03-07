@@ -61,14 +61,9 @@
           /^what are you working on\??$/i,
           /^how can i help/i,
           /^forgeos assistant here/i,
-          /^\[slow\]/i
-        ];
-
-        var TRAILING_FILLER = [
-          /\s*run it\??\s*$/i,
-          /\s*sound good\??\s*$/i,
-          /\s*want me to run it\??\s*$/i,
-          /\s*ready\??\s*$/i
+          /^\[slow\]/i,
+          /^you'?re still there/i,
+          /^understood\.?$/i
         ];
 
         function isFillerMessage(text) {
@@ -81,10 +76,12 @@
 
         function stripTrailingFiller(text) {
           var cleaned = text;
-          for (var i = 0; i < TRAILING_FILLER.length; i++) {
-            cleaned = cleaned.replace(TRAILING_FILLER[i], "");
-          }
-          return cleaned.trim();
+          cleaned = cleaned.replace(/\s*\[(?:slow|fast|pause|thinking)[^\]]*\]\s*/gi, " ");
+          cleaned = cleaned.replace(/\.?\s*(?:run it|sound good|want me to run it|ready to run|shall i|should i run|want me to build|ready)\s*\??\s*$/i, "");
+          cleaned = cleaned.replace(/\.?\s*(?:do you want me to|would you like me to)\s+\w+.*$/i, "");
+          cleaned = cleaned.trim();
+          cleaned = cleaned.replace(/[.!,;:]+$/, "").trim();
+          return cleaned;
         }
 
         function handleAgentMessage(text) {
