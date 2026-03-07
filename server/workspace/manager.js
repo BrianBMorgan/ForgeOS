@@ -90,6 +90,13 @@ function cleanDatabaseUrl(raw) {
   }
 }
 
+function getCleanHostEnv() {
+  const env = { ...process.env };
+  delete env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+  delete env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+  return env;
+}
+
 function getWorkspaceEnv(customEnv = {}) {
   const filtered = { ...customEnv };
   const RESERVED = ["PORT", "DATABASE_URL", "NEON_AUTH_JWKS_URL", "JWT_SECRET", "NODE_ENV", "HOME", "PATH", "TERM"];
@@ -207,7 +214,7 @@ function installDeps(runId, installCommand, customEnv = {}) {
     const parts = validateCommand(installCommand);
     const proc = spawn(parts[0], parts.slice(1), {
       cwd: ws.dir,
-      env: { ...process.env, NODE_ENV: "development", ...getWorkspaceEnv(customEnv) },
+      env: { ...getCleanHostEnv(), NODE_ENV: "development", ...getWorkspaceEnv(customEnv) },
     });
 
     proc.stdout.on("data", (data) => {
@@ -397,7 +404,7 @@ async function startApp(runId, startCommand, port, customEnv = {}) {
     const proc = spawn(parts[0], parts.slice(1), {
       cwd: ws.dir,
       env: {
-        ...process.env,
+        ...getCleanHostEnv(),
         PORT: String(ws.port),
         NODE_ENV: "development",
         ...getWorkspaceEnv(customEnv),
