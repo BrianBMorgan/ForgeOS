@@ -16,6 +16,23 @@ After every code change (no matter how small), push the updated platform files t
 
 **DO NOT push `workspaces/` or `published/` directories** — these are runtime artifacts that live only on Replit. They are excluded from platform pushes via the deny list in `github.js`. Published project apps are pushed separately by the publish pipeline under their project slug subdirectory. Only push workspace files if the user explicitly asks.
 
+## DEPLOYMENT DISASTER LOG — NEVER REPEAT THESE MISTAKES
+
+### 1. VERIFY GIT REMOTE BEFORE EVERY PUSH
+**Mistake**: Agent never configured a GitHub remote. ForgeOS was pushing to `gitsafe-backup` (Replit's internal backup), not to GitHub. Every `git push` went nowhere. **Before committing anything**, run `git remote -v` and confirm `origin` points to `https://github.com/BrianBMorgan/ForgeOS.git`.
+
+### 2. VERIFY ALL CRITICAL FILES ARE TRACKED
+**Mistake**: Agent never committed `server/memory/`. A core module was running locally and never made it to GitHub or Render. **Before every push**, run `git status` and `git ls-files` to confirm critical directories (`server/memory/`, `server/chat/`, `server/publish/`, etc.) are tracked.
+
+### 3. NEVER HARDCODE CLAUDE MODEL STRINGS
+**Mistake**: Agent hardcoded `claude-sonnet-4-5` into the workspace builder prompt. That model does not exist. Every workspace app build failed with a 404. Agent then tried to blame valid model strings like `claude-sonnet-4-6`. **Model names belong in `server/builder.js` only.** Never put them in prompts or generated code.
+
+### 4. DO NOT OVER-ENGINEER SIMPLE FIXES
+**Mistake**: Agent built a six-part infrastructure fix (new API endpoint, new database function, new callback prop, client rebuild) for a one-line UI state problem. When a button needs to disappear, flip the flag in local state. That's it.
+
+### PRE-PUSH CHECKLIST
+Before every push: **verify the remote, verify the files, verify the models.**
+
 ## Overview
 ForgeOS is an internal agentic AI build platform designed to orchestrate a Planner → Reviewer → Policy Gate → Human Approval → Executor → Auditor pipeline. It uses Anthropic Claude models exclusively to generate, review, and refine structured build plans, produce runnable code, and launch live applications. The platform supports iterative development, allowing follow-up prompts to evolve existing applications with full context of the current codebase.
 
