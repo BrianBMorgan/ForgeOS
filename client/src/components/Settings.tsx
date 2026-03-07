@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 
 interface SettingValues {
   model_config: { plannerModel: string; reviewerModel: string; chatModel: string; plannerTemp: number; reviewerTemp: number };
-  auto_approve: { enabled: boolean; maxRiskLevel: string };
+
   default_env_vars: { vars: { key: string; value: string }[] };
   workspace_limits: { portRangeStart: number; portRangeEnd: number; maxConcurrentApps: number; logRetention: number };
   allowed_tech_stack: { allowed: string[]; banned: string[] };
@@ -35,19 +35,18 @@ const ModelSelect = ({ value, onChange, className }: { value: string; onChange: 
 
 const DEFAULT_SETTINGS: SettingValues = {
   model_config: { plannerModel: "claude-sonnet-4-6", reviewerModel: "claude-haiku-4-5-20251001", chatModel: "claude-haiku-4-5-20251001", plannerTemp: 0.7, reviewerTemp: 0.2 },
-  auto_approve: { enabled: false, maxRiskLevel: "low" },
   default_env_vars: { vars: [] },
   workspace_limits: { portRangeStart: 4000, portRangeEnd: 4099, maxConcurrentApps: 5, logRetention: 2000 },
   allowed_tech_stack: { allowed: [], banned: [] },
   github: { repo: "BrianBMorgan/ForgeOS", autoPush: true },
 };
 
-type TabId = "secrets" | "models" | "auto_approve" | "env_vars" | "limits" | "tech_stack" | "github" | "skills";
+type TabId = "secrets" | "models" | "env_vars" | "limits" | "tech_stack" | "github" | "skills";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "secrets", label: "Secrets Vault", icon: "⛓" },
   { id: "models", label: "Model Config", icon: "◆" },
-  { id: "auto_approve", label: "Auto-Approve", icon: "⊘" },
+
   { id: "env_vars", label: "Default Env Vars", icon: "▧" },
   { id: "limits", label: "Workspace Limits", icon: "⊞" },
   { id: "tech_stack", label: "Tech Stack", icon: "⚒" },
@@ -340,41 +339,6 @@ export default function Settings() {
     </div>
   );
 
-  const renderAutoApprovePanel = () => (
-    <div className="stg-panel">
-      <div className="stg-panel-header">
-        <h3>Auto-Approve Policy</h3>
-        <p className="stg-panel-hint">When enabled, the pipeline will skip human approval for builds at or below the selected risk level.</p>
-      </div>
-      <div className="stg-panel-body">
-        <div className="stg-field">
-          <label className="stg-toggle-row">
-            <input type="checkbox" checked={settings.auto_approve.enabled} onChange={(e) => {
-              const updated = { ...settings.auto_approve, enabled: e.target.checked };
-              setSettings({ ...settings, auto_approve: updated });
-              saveSetting("auto_approve", updated);
-            }} />
-            <span>Enable Auto-Approve</span>
-          </label>
-        </div>
-        {settings.auto_approve.enabled && (
-          <div className="stg-field">
-            <label>Max Auto-Approve Risk Level</label>
-            <select value={settings.auto_approve.maxRiskLevel} onChange={(e) => {
-              const updated = { ...settings.auto_approve, maxRiskLevel: e.target.value };
-              setSettings({ ...settings, auto_approve: updated });
-              saveSetting("auto_approve", updated);
-            }} className="stg-select">
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
   const renderEnvVarsPanel = () => (
     <div className="stg-panel">
       <div className="stg-panel-header">
@@ -605,7 +569,7 @@ export default function Settings() {
     switch (activeTab) {
       case "secrets": return renderSecretsPanel();
       case "models": return renderModelsPanel();
-      case "auto_approve": return renderAutoApprovePanel();
+
       case "env_vars": return renderEnvVarsPanel();
       case "limits": return renderLimitsPanel();
       case "tech_stack": return renderTechStackPanel();
