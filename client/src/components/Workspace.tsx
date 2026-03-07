@@ -1163,7 +1163,7 @@ function EnvTab({ projectId }: { projectId: string | null }) {
 }
 
 interface BrainData {
-  totals: { projects: number; preferences: number; patterns: number; mistakes: number; snippets: number };
+  totals: { projects: number; preferences: number; patterns: number; mistakes: number; snippets: number; embedded?: number };
   topMistakes: { content: string; usefulness_score: number }[];
   recentProjects: { name: string; description: string; stack: string[] | null; published_url: string | null }[];
 }
@@ -1240,6 +1240,10 @@ function BrainTab() {
         <div className="brain-stat">
           <span className="brain-stat-value">{totals.snippets}</span>
           <span className="brain-stat-label">Code Snippets</span>
+        </div>
+        <div className="brain-stat">
+          <span className="brain-stat-value">{totals.embedded || 0}</span>
+          <span className="brain-stat-label">Embeddings</span>
         </div>
       </div>
 
