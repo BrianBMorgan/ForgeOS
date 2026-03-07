@@ -1042,6 +1042,65 @@ body {
   letter-spacing: 0.05em;
 }
 
+.plan-section {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+}
+
+.plan-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+}
+
+.plan-summary-text {
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  line-height: 1.55;
+}
+
+.plan-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.plan-file-item {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+  color: #38bdf8;
+  padding: 0.15rem 0;
+}
+
+.plan-command {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+  color: #a5f3fc;
+  background: #1e293b;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.plan-env-item {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  padding: 0.2rem 0;
+}
+
+.plan-env-item code {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
 .plan-field {
   display: flex;
   flex-direction: column;

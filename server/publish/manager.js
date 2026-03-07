@@ -509,7 +509,7 @@ async function _doPublish(projectId) {
   try {
     const { getRun } = require("../pipeline/runner");
     const run = await getRun(currentRunId);
-    const out = run?.stages?.executor?.output;
+    const out = run?.stages?.builder?.output || run?.stages?.executor?.output;
     if (out?.startCommand)   startCommand   = out.startCommand;
     if (out?.installCommand) installCommand = out.installCommand;
     if (out?.buildCommand)   buildCommand   = out.buildCommand;
@@ -721,10 +721,12 @@ async function _restoreOne(row, sql) {
 
     const { getRun } = require("../pipeline/runner");
     const run = await getRun(project.currentRunId);
-    const files = run?.stages?.executor?.output?.files;
+    const builderOut = run?.stages?.builder?.output;
+    const executorOut = run?.stages?.executor?.output;
+    const files = builderOut?.files || executorOut?.files;
 
     if (!Array.isArray(files) || files.length === 0) {
-      console.warn(`[publish] No executor snapshot for ${row.slug} — marking failed`);
+      console.warn(`[publish] No build snapshot for ${row.slug} — marking failed`);
       await sql`UPDATE published_apps SET status = 'failed' WHERE project_id = ${row.project_id}`;
       return;
     }

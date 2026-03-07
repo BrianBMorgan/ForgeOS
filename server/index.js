@@ -1,17 +1,14 @@
 const express = require("express");
 const path = require("path");
-// ARCHIVED: Pipeline (Planner→Reviewer→PolicyGate→Approval→Executor→Auditor)
+// ARCHIVED: Multi-stage pipeline (Planner→Reviewer→PolicyGate→Approval→Executor→Auditor)
 // Original code preserved in server/pipeline_archive/
-// const {
-//   createRun, executePipeline, handleApproval, handleRejection,
-//   getRun, getRunSync, getAllRuns,
-// } = require("./pipeline/runner");
 const {
   getRun,
   getRunSync,
   getAllRuns,
   createRun,
 } = require("./pipeline/runner");
+const { buildAndDeploy } = require("./builder");
 const workspace = require("./workspace/manager");
 const { mountMcp } = require("./mcp/handler");
 
@@ -26,9 +23,19 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// ARCHIVED: standalone run endpoint (pipeline disconnected)
 app.post("/api/runs", (req, res) => {
-  res.status(501).json({ error: "Pipeline archived. Use /api/projects to create builds." });
+  const { prompt } = req.body;
+  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+    return res.status(400).json({ error: "Prompt is required" });
+  }
+
+  const run = createRun(prompt.trim());
+
+  buildAndDeploy(run).catch((err) => {
+    console.error(`[builder] Error for run ${run.id}:`, err);
+  });
+
+  res.status(201).json({ id: run.id, status: run.status });
 });
 
 app.get("/api/runs", (_req, res) => {
@@ -110,8 +117,6 @@ app.post("/api/runs/:id/reject", async (req, res) => {
 
 const projectManager = require("./projects/manager");
 
-// ARCHIVED: pipeline execution removed from project creation
-// New AI agent will be wired here
 app.post("/api/projects", async (req, res) => {
   const { prompt } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -119,8 +124,15 @@ app.post("/api/projects", async (req, res) => {
   }
 
   const project = await projectManager.createProject(prompt.trim());
-  // Pipeline disconnected — project created but no build triggered
-  res.status(201).json({ id: project.id, name: project.name, status: "pending" });
+  const run = createRun(prompt.trim(), { projectId: project.id, iterationNumber: 1 });
+  await projectManager.addIteration(project.id, run.id, prompt.trim(), 1);
+
+  buildAndDeploy(run).catch((err) => {
+    console.error(`[builder] Error for project ${project.id}, run ${run.id}:`, err);
+    projectManager.updateProjectStatus(project.id, "failed");
+  });
+
+  res.status(201).json({ id: project.id, runId: run.id, name: project.name });
 });
 
 app.get("/api/projects", async (_req, res) => {
@@ -184,8 +196,6 @@ app.get("/api/projects/:id", async (req, res) => {
   res.json({ ...project, iterations, currentRun });
 });
 
-// ARCHIVED: pipeline execution removed from iteration
-// New AI agent will be wired here
 app.post("/api/projects/:id/iterate", async (req, res) => {
   const { prompt } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -197,8 +207,23 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
     return res.status(404).json({ error: "Project not found" });
   }
 
-  // Pipeline disconnected — iteration route is a stub
-  res.status(501).json({ error: "Pipeline archived. New AI agent not yet connected." });
+  const lastRunId = project.currentRunId;
+  const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
+  const iterationNumber = project.iterations.length + 1;
+
+  const run = createRun(prompt.trim(), {
+    projectId: project.id,
+    iterationNumber,
+    existingFiles,
+  });
+  await projectManager.addIteration(project.id, run.id, prompt.trim(), iterationNumber);
+
+  buildAndDeploy(run).catch((err) => {
+    console.error(`[builder] Error for project ${project.id}, iteration ${iterationNumber}:`, err);
+    projectManager.updateProjectStatus(project.id, "failed");
+  });
+
+  res.status(201).json({ runId: run.id, iterationNumber });
 });
 
 app.post("/api/projects/:id/stop", async (req, res) => {

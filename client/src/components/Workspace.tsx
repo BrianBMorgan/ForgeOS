@@ -261,25 +261,75 @@ function renderField(label: string, value: unknown) {
 }
 
 function PlanTab({ runData }: { runData: RunData | null }) {
-  const planOutput =
+  const builderOutput = runData?.stages?.builder?.output;
+  const legacyPlanOutput =
     runData?.stages?.revise_p3?.output ||
     runData?.stages?.revise_p2?.output ||
     runData?.stages?.planner?.output;
 
+  const planOutput = builderOutput || legacyPlanOutput;
+
   if (!planOutput || typeof planOutput !== "object") {
     return (
       <div className="panel-placeholder">
-        <div className="panel-title">Plan</div>
+        <div className="panel-title">Build</div>
         <div className="panel-desc">
           {runData?.status === "running"
-            ? "Plan is being generated..."
-            : "Run a build to see the structured plan."}
+            ? "Claude is building your app..."
+            : "Run a build to get started."}
         </div>
       </div>
     );
   }
 
   const plan = planOutput as Record<string, unknown>;
+
+  if (builderOutput) {
+    const files = (plan.files as { path: string }[]) || [];
+    const envVars = (plan.envVars as { name: string; description: string }[]) || [];
+    return (
+      <div className="plan-content">
+        {runData?.prompt && (
+          <div className="plan-user-prompt">
+            <div className="plan-user-prompt-label">Prompt</div>
+            <div className="plan-user-prompt-text">{runData.prompt}</div>
+          </div>
+        )}
+        {plan.summary ? (
+          <div className="plan-section">
+            <div className="plan-section-title">Summary</div>
+            <div className="plan-summary-text">{String(plan.summary)}</div>
+          </div>
+        ) : null}
+        {files.length > 0 ? (
+          <div className="plan-section">
+            <div className="plan-section-title">Files ({files.length})</div>
+            <div className="plan-files-list">
+              {files.map((f, i) => (
+                <div key={i} className="plan-file-item">{f.path}</div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {plan.startCommand ? (
+          <div className="plan-section">
+            <div className="plan-section-title">Start Command</div>
+            <code className="plan-command">{String(plan.startCommand)}</code>
+          </div>
+        ) : null}
+        {envVars.length > 0 && (
+          <div className="plan-section">
+            <div className="plan-section-title">Required Secrets</div>
+            {envVars.map((v, i) => (
+              <div key={i} className="plan-env-item">
+                <code>{v.name}</code> — {v.description}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="plan-content">
@@ -504,7 +554,9 @@ function WorkspaceStatusBadge({ status }: { status: string }) {
 
 function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunData?: RunData | null }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const builderOutput = runData?.stages?.builder?.output;
   const executorOutput = runData?.stages?.executor?.output;
+  const stageOutput = builderOutput || executorOutput;
   const ws = runData?.workspace;
 
   const previewRunData = liveRunData || runData;
@@ -512,14 +564,14 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
 
   const previewStamp = useMemo(() => Date.now(), [previewRunData?.id]);
 
-  if (!executorOutput || typeof executorOutput !== "object") {
+  if (!stageOutput || typeof stageOutput !== "object") {
     const isRunning = runData?.status === "running";
     const isAwaiting = runData?.status === "awaiting-approval";
     const hasPlan = runData?.stages?.planner?.status === "passed";
 
-    let message = "Run a build to generate an implementation spec.";
+    let message = "Run a build to see results.";
     if (isRunning) {
-      message = "Pipeline is running...";
+      message = "Building...";
     } else if (isAwaiting) {
       message = "Approve the plan to generate the implementation spec.";
     } else if (hasPlan && runData?.status !== "completed") {
@@ -534,8 +586,8 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
     );
   }
 
-  const exec = executorOutput as Record<string, unknown>;
-  const summary = exec.implementationSummary as string | undefined;
+  const exec = stageOutput as Record<string, unknown>;
+  const summary = (exec.implementationSummary || exec.summary) as string | undefined;
   const files = (exec.files || exec.fileStructure || []) as FileEntry[];
   const envVars = (exec.environmentVariables || []) as string[];
   const dbSchema = exec.databaseSchema as string | null;
@@ -1249,7 +1301,7 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
   const prevExecutorStatus = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    const currentStatus = runData?.stages?.executor?.status;
+    const currentStatus = runData?.stages?.builder?.status || runData?.stages?.executor?.status;
     if (
       prevExecutorStatus.current !== "passed" &&
       currentStatus === "passed"

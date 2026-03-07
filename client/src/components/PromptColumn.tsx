@@ -25,7 +25,11 @@ interface PromptColumnProps {
   chatLoading: boolean;
 }
 
-const STAGE_MAP: { id: string; keys: string[]; label: string; short: string }[] = [
+const NEW_STAGE_MAP: { id: string; keys: string[]; label: string; short: string }[] = [
+  { id: "builder", keys: ["builder"], label: "Builder", short: "Build" },
+];
+
+const LEGACY_STAGE_MAP: { id: string; keys: string[]; label: string; short: string }[] = [
   { id: "planner", keys: ["planner", "revise_p2", "revise_p3"], label: "Planner", short: "Plan" },
   { id: "reviewer", keys: ["reviewer_p1", "reviewer_p2", "reviewer_p3"], label: "Reviewer", short: "Rev" },
   { id: "policy", keys: ["policy_gate"], label: "Policy", short: "Pol" },
@@ -34,12 +38,19 @@ const STAGE_MAP: { id: string; keys: string[]; label: string; short: string }[] 
   { id: "auditor", keys: ["auditor"], label: "Auditor", short: "Aud" },
 ];
 
+function isNewBuilderRun(runData: RunData | null): boolean {
+  if (!runData?.stages) return true;
+  return "builder" in runData.stages;
+}
+
 function deriveStages(runData: RunData | null): Stage[] {
+  const stageMap = (!runData || isNewBuilderRun(runData)) ? NEW_STAGE_MAP : LEGACY_STAGE_MAP;
+
   if (!runData) {
-    return STAGE_MAP.map((s) => ({ id: s.id, label: s.label, short: s.short, status: "pending" as StageStatus }));
+    return stageMap.map((s) => ({ id: s.id, label: s.label, short: s.short, status: "pending" as StageStatus }));
   }
 
-  return STAGE_MAP.map((stageGroup) => {
+  return stageMap.map((stageGroup) => {
     const statuses = stageGroup.keys
       .map((k) => runData.stages[k]?.status)
       .filter(Boolean);
