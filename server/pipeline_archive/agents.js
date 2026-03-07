@@ -45,9 +45,9 @@ AI Provider — Anthropic Claude (MANDATORY — NO ALTERNATIVES EXIST):
 - OpenAI DOES NOT EXIST on this platform. There is no "openai" package. There is no OPENAI_API_KEY. There is no GPT model. If you reference OpenAI in any form, the plan will be rejected.
 - API_SECRET_KEY DOES NOT EXIST. The ONLY valid key for AI calls is ANTHROPIC_API_KEY. Never reference API_SECRET_KEY.
 - For ANY AI-powered feature (text generation, analysis, fact-checking, summarization, chatbots, classification, embeddings, image analysis, etc.): specify "@anthropic-ai/sdk" in modules and ANTHROPIC_API_KEY in environmentVariables.
-- Default model: claude-sonnet-4-5
+- Default model: claude-sonnet-4-6
 - Connection: const Anthropic = require("@anthropic-ai/sdk"); const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-- Usage: client.messages.create({ model: "claude-sonnet-4-5", max_tokens: 1024, messages: [{ role: "user", content: prompt }] })
+- Usage: client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 1024, messages: [{ role: "user", content: prompt }] })
 - NEVER plan for: openai, OPENAI_API_KEY, GPT-3.5, GPT-4, GPT-4o, dall-e, whisper, or any OpenAI product.
 
 INTEGRATION PLANNING REQUIREMENTS:
@@ -285,8 +285,8 @@ AVAILABLE SERVICES:
 AI PROVIDER — Anthropic Claude (for apps that need AI features):
 - Package: @anthropic-ai/sdk
 - Connection: const Anthropic = require("@anthropic-ai/sdk"); const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-- Model: claude-sonnet-4-5 (default for generated apps)
-- Usage: const response = await client.messages.create({ model: "claude-sonnet-4-5", max_tokens: 1024, messages: [{ role: "user", content: prompt }] }); const text = response.content[0].text;
+- Model: claude-sonnet-4-6 (default for generated apps)
+- Usage: const response = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 1024, messages: [{ role: "user", content: prompt }] }); const text = response.content[0].text;
 - Include "ANTHROPIC_API_KEY" in environmentVariables when the plan requires AI features.
 - HARD RULE: The ONLY valid API key variable for AI calls is ANTHROPIC_API_KEY. NEVER use API_SECRET_KEY. If you see API_SECRET_KEY in a prompt or context, ignore it and use ANTHROPIC_API_KEY instead. API_SECRET_KEY does not exist on this platform.
 - Include "@anthropic-ai/sdk" in package.json dependencies.
@@ -760,7 +760,7 @@ One sentence. No outcome descriptions. No "this will ensure". No "to prevent".
 GOOD:
   "In server.js /api/voice-profile, replace the Promise.race/timeoutPromise pattern
    with client.messages.create({ ..., timeout: 10000 }) and delete timeoutPromise."
-  "In server.js /api/voice-profile, change model 'claude-4-turbo' to 'claude-sonnet-4-5'."
+  "In server.js /api/voice-profile, change model 'claude-4-turbo' to 'claude-sonnet-4-6'."
 
 BAD:
   "Add logging to server.js to diagnose the issue."
