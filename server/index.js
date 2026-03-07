@@ -11,6 +11,7 @@ const {
 const { buildAndDeploy } = require("./builder");
 const workspace = require("./workspace/manager");
 const { mountMcp } = require("./mcp/handler");
+const brain = require("./memory/brain");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -349,6 +350,14 @@ const publishManager = require("./publish/manager");
 app.post("/api/projects/:id/publish", async (req, res) => {
   try {
     const result = await publishManager.publishProject(req.params.id);
+
+    if (result.slug) {
+      const project = await projectManager.getProject(req.params.id).catch(() => null);
+      if (project) {
+        brain.updatePublishedUrl(req.params.id, project.name, `/apps/${result.slug}`).catch(() => {});
+      }
+    }
+
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -372,6 +381,24 @@ app.get("/api/projects/:id/publish", async (req, res) => {
 
 app.get("/api/published", async (_req, res) => {
   res.json(publishManager.listPublishedApps());
+});
+
+app.get("/api/brain", async (_req, res) => {
+  try {
+    const summary = await brain.getBrainSummary();
+    res.json(summary || { totals: { projects: 0, preferences: 0, patterns: 0, mistakes: 0, snippets: 0 }, topMistakes: [], recentProjects: [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/brain/upvote/:id", async (req, res) => {
+  try {
+    await brain.upvoteMemory(parseInt(req.params.id));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.get("/api/projects/:id/export", async (req, res) => {
@@ -1204,6 +1231,12 @@ app.listen(PORT, "0.0.0.0", async () => {
     await publishManager.restorePublishedApps();
   } catch (err) {
     console.error("Published apps restoration error:", err.message);
+  }
+
+  try {
+    await brain.ensureSchema();
+  } catch (err) {
+    console.error("Brain schema initialization error:", err.message);
   }
 
   try {

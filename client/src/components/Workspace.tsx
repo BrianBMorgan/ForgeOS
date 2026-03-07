@@ -211,6 +211,7 @@ const defaultTabs: Tab[] = [
   { id: "db", label: "DB", description: "Database viewer — tables, queries, and schema." },
   { id: "env", label: "Env", description: "Project environment variables." },
   { id: "publish", label: "Publish", description: "Deployment controls, domains, and promotion workflow." },
+  { id: "brain", label: "Brain", description: "Persistent team memory — patterns, preferences, and project history." },
 ];
 
 interface WorkspaceProps {
@@ -1296,6 +1297,141 @@ function EnvTab({ projectId }: { projectId: string | null }) {
   );
 }
 
+interface BrainData {
+  totals: { projects: number; preferences: number; patterns: number; mistakes: number; snippets: number };
+  topMistakes: { content: string; usefulness_score: number }[];
+  recentProjects: { name: string; description: string; stack: string[] | null; published_url: string | null }[];
+}
+
+function BrainTab() {
+  const [data, setData] = useState<BrainData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/brain");
+        if (!res.ok) throw new Error("Failed to load brain data");
+        const json = await res.json();
+        if (!cancelled) setData(json);
+      } catch (err: unknown) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-title">Brain</div>
+        <div className="panel-desc">Loading memory...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-title">Brain</div>
+        <div className="panel-desc">{error}</div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { totals, topMistakes, recentProjects } = data;
+
+  return (
+    <div className="brain-container">
+      <div className="brain-header">
+        <h2 className="brain-title">ForgeOS Brain</h2>
+        <p className="brain-subtitle">Persistent team memory — learns from every build</p>
+      </div>
+
+      <div className="brain-stats-grid">
+        <div className="brain-stat">
+          <span className="brain-stat-value">{totals.projects}</span>
+          <span className="brain-stat-label">Projects Built</span>
+        </div>
+        <div className="brain-stat">
+          <span className="brain-stat-value">{totals.patterns}</span>
+          <span className="brain-stat-label">Patterns Learned</span>
+        </div>
+        <div className="brain-stat">
+          <span className="brain-stat-value">{totals.mistakes}</span>
+          <span className="brain-stat-label">Mistakes Tracked</span>
+        </div>
+        <div className="brain-stat">
+          <span className="brain-stat-value">{totals.preferences}</span>
+          <span className="brain-stat-label">Team Preferences</span>
+        </div>
+        <div className="brain-stat">
+          <span className="brain-stat-value">{totals.snippets}</span>
+          <span className="brain-stat-label">Code Snippets</span>
+        </div>
+      </div>
+
+      {recentProjects.length > 0 && (
+        <div className="brain-section">
+          <h3 className="brain-section-title">Project Index</h3>
+          <div className="brain-projects">
+            {recentProjects.map((p, i) => (
+              <div key={i} className="brain-project-card">
+                <div className="brain-project-name">{p.name}</div>
+                {p.description && <div className="brain-project-desc">{p.description}</div>}
+                <div className="brain-project-meta">
+                  {p.stack && p.stack.length > 0 && (
+                    <div className="brain-project-stack">
+                      {(Array.isArray(p.stack) ? p.stack : []).map((s, j) => (
+                        <span key={j} className="brain-stack-tag">{s}</span>
+                      ))}
+                    </div>
+                  )}
+                  {p.published_url && (
+                    <a href={p.published_url} target="_blank" rel="noopener noreferrer" className="brain-project-link">
+                      Live
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {topMistakes.length > 0 && (
+        <div className="brain-section">
+          <h3 className="brain-section-title">Top Mistakes Learned</h3>
+          <div className="brain-mistakes">
+            {topMistakes.map((m, i) => (
+              <div key={i} className="brain-mistake-item">
+                <span className="brain-mistake-score">{m.usefulness_score}</span>
+                <span className="brain-mistake-text">{m.content}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {totals.projects === 0 && totals.patterns === 0 && totals.mistakes === 0 && (
+        <div className="brain-empty">
+          <div className="brain-empty-title">Brain is empty</div>
+          <div className="brain-empty-desc">
+            Run your first build to start teaching ForgeOS. Every successful build extracts patterns, preferences, and reusable knowledge. Every failure teaches it what to avoid.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Workspace({ runData, projectData, viewingIterationRunId, onRefreshRunData }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
   const prevExecutorStatus = useRef<string | undefined>(undefined);
@@ -1333,6 +1469,8 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
         return <EnvTab projectId={projectData?.id || null} />;
       case "publish":
         return <PublishTab projectId={projectData?.id || null} />;
+      case "brain":
+        return <BrainTab />;
       default:
         return (
           <div className="panel-placeholder">

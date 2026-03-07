@@ -1,6 +1,7 @@
 const path = require("path");
 const { callStructured } = require("./pipeline/model-router");
 const { z } = require("zod");
+const brain = require("./memory/brain");
 
 const BUILDER_MODEL = "claude-opus-4-5-20250918";
 
@@ -220,7 +221,7 @@ You are iterating on an existing app. The user's existing files are provided bel
 - Don't restructure things that weren't asked about
 - package.json must still be files[0]`;
 
-async function buildWorkspace(prompt, existingFiles) {
+async function buildWorkspace(prompt, existingFiles, projectId = null) {
   const userMessages = [];
 
   if (existingFiles && existingFiles.length > 0) {
@@ -234,9 +235,23 @@ async function buildWorkspace(prompt, existingFiles) {
 
   userMessages.push({ role: "user", content: prompt });
 
-  const systemPrompt = existingFiles && existingFiles.length > 0
+  let basePrompt = existingFiles && existingFiles.length > 0
     ? BUILDER_SYSTEM_PROMPT + ITERATION_ADDENDUM
     : BUILDER_SYSTEM_PROMPT;
+
+  let memoryContext = "";
+  try {
+    memoryContext = await Promise.race([
+      brain.buildContext(prompt, projectId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+    ]);
+  } catch (err) {
+    console.error("[builder] Brain context failed (non-fatal):", err.message);
+  }
+
+  const systemPrompt = memoryContext
+    ? memoryContext + "\n\n" + basePrompt
+    : basePrompt;
 
   const result = await callStructured(
     BUILDER_MODEL,
@@ -260,11 +275,15 @@ async function buildAndDeploy(run) {
   run.stages.builder = { status: "running", output: null };
   run.workspace = { status: "calling-claude", port: null, error: null };
 
+  if (run.projectId) {
+    brain.appendConversation(run.projectId, "user", run.prompt).catch(() => {});
+  }
+
   let builderOutput;
   const MAX_RETRIES = 2;
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
-      builderOutput = await buildWorkspace(run.prompt, run.existingFiles);
+      builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId);
       break;
     } catch (err) {
       if (attempt <= MAX_RETRIES) {
@@ -281,6 +300,12 @@ async function buildAndDeploy(run) {
       run.error = `Builder failed: ${err.message}`;
       run.workspace.status = "build-failed";
       run.workspace.error = err.message;
+
+      brain.recordMistake(
+        `Build failed for: ${run.prompt.slice(0, 100)} — ${err.message.slice(0, 200)}`,
+        "general",
+        run.projectId
+      ).catch(() => {});
       return;
     }
   }
@@ -372,6 +397,28 @@ async function buildAndDeploy(run) {
     run.workspace.error = err.message;
     run.status = "completed";
     console.error("[builder] Deploy error:", err);
+  }
+
+  if (run.projectId) {
+    brain.appendConversation(run.projectId, "assistant", builderOutput.summary || "Build completed").catch(() => {});
+
+    if (run.workspace.status === "running") {
+      const projectName = await projectManager.getProject(run.projectId).then(p => p?.name || "unknown").catch(() => "unknown");
+      brain.extractMemory({
+        projectId: run.projectId,
+        projectName,
+        userRequest: run.prompt,
+        buildSummary: builderOutput.summary,
+        files: builderOutput.files,
+        publishedUrl: null,
+      }).catch(err => console.error("[brain] extraction error:", err.message));
+    } else if (run.workspace.status === "start-failed" || run.workspace.status === "install-failed") {
+      brain.recordMistake(
+        `${run.workspace.status}: ${run.workspace.error?.slice(0, 200) || "unknown error"} — prompt: ${run.prompt.slice(0, 100)}`,
+        "deployment",
+        run.projectId
+      ).catch(() => {});
+    }
   }
 }
 
