@@ -230,7 +230,7 @@ async function buildWorkspace(prompt, existingFiles, projectId = null) {
 
   if (existingFiles && existingFiles.length > 0) {
     for (const f of existingFiles) {
-      if (f.path.endsWith('.js') || f.path.endsWith('.ts') || f.path.endsWith('.mjs')) {
+      if (/\.(js|ts|mjs|jsx|tsx|json)$/.test(f.path)) {
         f.content = f.content.replace(/['"]claude-opus-4-5['"]/g, "'claude-sonnet-4-6'");
         f.content = f.content.replace(/['"]claude-opus-4-5-20250918['"]/g, "'claude-sonnet-4-6'");
       }
@@ -376,7 +376,7 @@ async function buildAndDeploy(run) {
 
     workspace.createWorkspace(run.id);
     for (const f of builderOutput.files) {
-      if (f.path.endsWith('.js') || f.path.endsWith('.ts') || f.path.endsWith('.mjs')) {
+      if (/\.(js|ts|mjs|jsx|tsx|json)$/.test(f.path)) {
         f.content = f.content.replace(/['"]claude-opus-4-5['"]/g, "'claude-sonnet-4-6'");
         f.content = f.content.replace(/['"]claude-opus-4-5-20250918['"]/g, "'claude-sonnet-4-6'");
       }

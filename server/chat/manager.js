@@ -125,6 +125,23 @@ async function saveMessage(projectId, msg) {
   }
 }
 
+async function clearBuildSuggestions(projectId) {
+  const history = await getHistory(projectId);
+  for (const msg of history) {
+    if (msg.suggestBuild) {
+      msg.suggestBuild = false;
+    }
+  }
+
+  if (sql) {
+    try {
+      await sql`UPDATE chat_messages SET suggest_build = false WHERE project_id = ${projectId} AND suggest_build = true`;
+    } catch (err) {
+      console.error("Failed to clear build suggestions:", err.message);
+    }
+  }
+}
+
 async function executeToolCall(toolCall) {
   try {
     const name = toolCall.function.name;
@@ -627,5 +644,6 @@ async function getChatHistory(projectId) {
 module.exports = {
   chat,
   getChatHistory,
+  clearBuildSuggestions,
   runDiagnostics,
 };

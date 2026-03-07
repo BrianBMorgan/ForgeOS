@@ -23,6 +23,7 @@ interface PromptColumnProps {
   chatMessages: ChatMessage[];
   onSendChat: (message: string) => void;
   chatLoading: boolean;
+  onClearBuildSuggestions?: () => void;
 }
 
 const STAGE_MAP: { id: string; keys: string[]; label: string; short: string; icon: string }[] = [
@@ -384,6 +385,7 @@ export default function PromptColumn({
   chatMessages,
   onSendChat,
   chatLoading,
+  onClearBuildSuggestions,
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -493,6 +495,7 @@ export default function PromptColumn({
   };
 
   const handleBuildFromSuggestion = (suggestion: string) => {
+    if (onClearBuildSuggestions) onClearBuildSuggestions();
     onRunBuild(suggestion);
   };
 

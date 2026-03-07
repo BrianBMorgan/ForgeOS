@@ -324,6 +324,7 @@ function App() {
           chatMessages={chatMessages}
           onSendChat={sendChat}
           chatLoading={chatLoading}
+          onClearBuildSuggestions={() => setChatMessages(prev => prev.map(m => ({ ...m, suggestBuild: false })))}
         />
         <Workspace
           runData={runData}

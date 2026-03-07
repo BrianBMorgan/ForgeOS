@@ -216,6 +216,9 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
     return res.status(404).json({ error: "Project not found" });
   }
 
+  const chatMgr = require("./chat/manager");
+  chatMgr.clearBuildSuggestions(req.params.id).catch(() => {});
+
   const lastRunId = project.currentRunId;
   const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
   const iterationNumber = project.iterations.length + 1;
