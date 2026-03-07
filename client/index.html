@@ -41,34 +41,50 @@
         }
 
         var FILLER_PATTERNS = [
-          /are you still there/i,
-          /are you there/i,
-          /still with me/i,
-          /you there/i,
-          /hello\??$/i,
-          /hey\??$/i,
-          /can you hear me/i,
-          /did you hear/i,
-          /what do you think/i,
-          /want me to run it/i,
-          /shall i run/i,
-          /should i run/i,
-          /run it\??$/i,
-          /ready to build/i,
-          /want me to build/i,
-          /sound good/i,
-          /does that work/i,
-          /what are you working on/i,
-          /how can i help/i,
-          /forgeos assistant here/i
+          /^are you still there\??$/i,
+          /^are you there\??$/i,
+          /^still with me\??$/i,
+          /^you there\??$/i,
+          /^hello[.!?]*$/i,
+          /^hey[.!? —]*.*$/i,
+          /^can you hear me\??$/i,
+          /^did you hear/i,
+          /^what do you think\??$/i,
+          /^want me to run it\??$/i,
+          /^shall i run/i,
+          /^should i run/i,
+          /^run it\??$/i,
+          /^ready to build\??$/i,
+          /^want me to build/i,
+          /^sound good\??$/i,
+          /^does that work\??$/i,
+          /^what are you working on\??$/i,
+          /^how can i help/i,
+          /^forgeos assistant here/i,
+          /^\[slow\]/i
+        ];
+
+        var TRAILING_FILLER = [
+          /\s*run it\??\s*$/i,
+          /\s*sound good\??\s*$/i,
+          /\s*want me to run it\??\s*$/i,
+          /\s*ready\??\s*$/i
         ];
 
         function isFillerMessage(text) {
+          if (text.length < 25) return true;
           for (var i = 0; i < FILLER_PATTERNS.length; i++) {
             if (FILLER_PATTERNS[i].test(text)) return true;
           }
-          if (text.length < 30) return true;
           return false;
+        }
+
+        function stripTrailingFiller(text) {
+          var cleaned = text;
+          for (var i = 0; i < TRAILING_FILLER.length; i++) {
+            cleaned = cleaned.replace(TRAILING_FILLER[i], "");
+          }
+          return cleaned.trim();
         }
 
         function handleAgentMessage(text) {
@@ -91,9 +107,14 @@
               if (sendBtn) sendBtn.style.display = "none";
             }
           } else if (!checkForBuildTrigger(msg) && !isFillerMessage(msg)) {
-            console.log("[forge-voice] stored as build prompt");
-            window.__forgeBuildPrompt = msg;
-            showSendButton();
+            var cleaned = stripTrailingFiller(msg);
+            if (cleaned.length > 20) {
+              console.log("[forge-voice] stored as build prompt:", cleaned.slice(0, 80));
+              window.__forgeBuildPrompt = cleaned;
+              showSendButton();
+            } else {
+              console.log("[forge-voice] ignored (too short after cleanup)");
+            }
           } else {
             console.log("[forge-voice] ignored (filler or trigger without prompt)");
           }
