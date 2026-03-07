@@ -79,8 +79,8 @@ app.post("/api/runs/:id/exec", async (req, res) => {
   let ws = workspace.getWorkspaceStatus(runId);
   if (!ws || ws.status !== "running") {
     const run = await getRun(runId);
-    if (run && run.status === "completed" && run.stages?.executor?.output?.startCommand) {
-      const eo = run.stages.executor.output;
+    const execOutput = run?.stages?.executor?.output || run?.stages?.builder?.output;
+    if (run && run.status === "completed" && execOutput?.startCommand) {
       let wakeEnv = {};
       try {
         const ds = await settingsManager.getSetting("default_env_vars");
@@ -90,7 +90,7 @@ app.post("/api/runs/:id/exec", async (req, res) => {
       const allProjects = await projectManager.getAllProjects();
       const proj = allProjects.find(p => p.currentRunId === runId);
       if (proj) try { wakeEnv = { ...wakeEnv, ...(await projectManager.getEnvVarsAsObject(proj.id)) }; } catch {}
-      const wakeResult = await workspace.restoreWorkspace(runId, eo.startCommand, eo.port || 4000, wakeEnv);
+      const wakeResult = await workspace.restoreWorkspace(runId, execOutput.startCommand, execOutput.port || 4000, wakeEnv);
       if (wakeResult.success) {
         run.workspace = { status: "running", port: wakeResult.port, error: null };
         if (proj) await projectManager.updateProjectStatus(proj.id, "active");
@@ -162,9 +162,17 @@ app.get("/api/projects/:id", async (req, res) => {
     return res.status(404).json({ error: "Project not found" });
   }
 
-  const currentRun = project.currentRunId ? await getRun(project.currentRunId) : null;
-  if (currentRun) {
-    const liveWs = workspace.getWorkspaceStatus(currentRun.id);
+  let currentRun = project.currentRunId ? await getRun(project.currentRunId) : null;
+  const liveWs = project.currentRunId ? workspace.getWorkspaceStatus(project.currentRunId) : null;
+  if (!currentRun && liveWs) {
+    const { createRun, saveRunSnapshot } = require("./pipeline/runner");
+    currentRun = createRun(project.name || "Restored", { projectId: project.id });
+    currentRun.id = project.currentRunId;
+    currentRun.status = "completed";
+    currentRun.stages.executor = { status: "passed", output: { startCommand: liveWs.lastStartCommand || "npm start", port: liveWs.port || 4000 } };
+    currentRun.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
+    saveRunSnapshot(currentRun).catch(() => {});
+  } else if (currentRun) {
     if (liveWs) {
       currentRun.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
     } else if (currentRun.status === "completed" && currentRun.workspace?.status === "running") {
@@ -267,21 +275,33 @@ app.post("/api/projects/:id/restart", async (req, res) => {
     } catch {}
     const projectEnv = await projectManager.getEnvVarsAsObject(req.params.id);
     const customEnv = { ...globalDefaults, ...globalSecrets, ...projectEnv };
-    const run = await getRun(project.currentRunId);
+    let run = await getRun(project.currentRunId);
     const wsStatus = workspace.getWorkspaceStatus(project.currentRunId);
 
+    const startCmd = run?.stages?.executor?.output?.startCommand
+      || run?.stages?.builder?.output?.startCommand
+      || "npm start";
+    const port = run?.stages?.executor?.output?.port
+      || run?.stages?.builder?.output?.port
+      || 4000;
+
     let result;
-    if (!wsStatus) {
-      const startCmd = run?.stages?.executor?.output?.startCommand || "npm start";
-      const port = run?.stages?.executor?.output?.port || 4000;
+    if (!wsStatus || !wsStatus.lastStartCommand) {
       result = await workspace.restoreWorkspace(project.currentRunId, startCmd, port, customEnv);
     } else {
       result = await workspace.restartApp(project.currentRunId, customEnv);
     }
     if (result.success) {
-      if (run && run.workspace) {
-        run.workspace.status = "running";
-        run.workspace.port = result.port;
+      if (!run) {
+        const { createRun, saveRunSnapshot } = require("./pipeline/runner");
+        run = createRun(project.name || "Restarted", { projectId: project.id });
+        run.id = project.currentRunId;
+        run.status = "completed";
+        run.stages.executor = { status: "passed", output: { startCommand: startCmd, port: result.port } };
+        run.workspace = { status: "running", port: result.port, error: null };
+        saveRunSnapshot(run).catch(() => {});
+      } else {
+        run.workspace = { status: "running", port: result.port, error: null };
       }
       await projectManager.updateProjectStatus(req.params.id, "active");
       res.json({ status: "restarted", port: result.port });
@@ -928,8 +948,8 @@ app.use("/preview/:runId", async (req, res) => {
 
   if (!status || status.status !== "running" || !status.port) {
     const run = await getRun(runId);
-    if (run && run.status === "completed" && run.stages?.executor?.output?.startCommand) {
-      const executorOutput = run.stages.executor.output;
+    const execOutput = run?.stages?.executor?.output || run?.stages?.builder?.output;
+    if (run && run.status === "completed" && execOutput?.startCommand) {
       let wakeEnv = {};
       try {
         const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
@@ -950,7 +970,7 @@ app.use("/preview/:runId", async (req, res) => {
         } catch {}
       }
       const result = await workspace.restoreWorkspace(
-        runId, executorOutput.startCommand, executorOutput.port || 4000, wakeEnv
+        runId, execOutput.startCommand, execOutput.port || 4000, wakeEnv
       );
       if (result.success) {
         run.workspace = { status: "running", port: result.port, error: null };
@@ -1151,8 +1171,10 @@ app.listen(PORT, "0.0.0.0", async () => {
       for (const project of activeProjects) {
         try {
           const run = await getRun(project.currentRunId);
-          const startCmd = run?.stages?.executor?.output?.startCommand || null;
-          const port = run?.stages?.executor?.output?.port || 4000;
+          const startCmd = run?.stages?.executor?.output?.startCommand
+            || run?.stages?.builder?.output?.startCommand || null;
+          const port = run?.stages?.executor?.output?.port
+            || run?.stages?.builder?.output?.port || 4000;
 
           let globalDefaults = {};
           let globalSecrets = {};

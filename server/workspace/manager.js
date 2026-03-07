@@ -561,6 +561,7 @@ function getWorkspaceStatus(runId) {
     status: ws.status,
     port: ws.port,
     error: ws.error,
+    lastStartCommand: ws.lastStartCommand || null,
   };
 }
 
