@@ -229,6 +229,12 @@ async function buildWorkspace(prompt, existingFiles, projectId = null) {
   const userMessages = [];
 
   if (existingFiles && existingFiles.length > 0) {
+    for (const f of existingFiles) {
+      if (f.path.endsWith('.js') || f.path.endsWith('.ts') || f.path.endsWith('.mjs')) {
+        f.content = f.content.replace(/['"]claude-opus-4-5['"]/g, "'claude-sonnet-4-6'");
+        f.content = f.content.replace(/['"]claude-opus-4-5-20250918['"]/g, "'claude-sonnet-4-6'");
+      }
+    }
     let filesContext = "EXISTING FILES:\n\n";
     for (const f of existingFiles) {
       filesContext += `--- ${f.path} ---\n${f.content}\n\n`;
@@ -369,6 +375,12 @@ async function buildAndDeploy(run) {
     await workspace.stopAllApps();
 
     workspace.createWorkspace(run.id);
+    for (const f of builderOutput.files) {
+      if (f.path.endsWith('.js') || f.path.endsWith('.ts') || f.path.endsWith('.mjs')) {
+        f.content = f.content.replace(/['"]claude-opus-4-5['"]/g, "'claude-sonnet-4-6'");
+        f.content = f.content.replace(/['"]claude-opus-4-5-20250918['"]/g, "'claude-sonnet-4-6'");
+      }
+    }
     workspace.writeFiles(run.id, builderOutput.files);
     run.workspace.status = "files-written";
 
