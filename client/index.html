@@ -40,14 +40,45 @@
           return false;
         }
 
+        var FILLER_PATTERNS = [
+          /are you still there/i,
+          /are you there/i,
+          /still with me/i,
+          /you there/i,
+          /hello\??$/i,
+          /hey\??$/i,
+          /can you hear me/i,
+          /did you hear/i,
+          /what do you think/i,
+          /want me to run it/i,
+          /shall i run/i,
+          /should i run/i,
+          /run it\??$/i,
+          /ready to build/i,
+          /want me to build/i,
+          /sound good/i,
+          /does that work/i,
+          /what are you working on/i,
+          /how can i help/i,
+          /forgeos assistant here/i
+        ];
+
+        function isFillerMessage(text) {
+          for (var i = 0; i < FILLER_PATTERNS.length; i++) {
+            if (FILLER_PATTERNS[i].test(text)) return true;
+          }
+          if (text.length < 30) return true;
+          return false;
+        }
+
         function handleAgentMessage(text) {
           if (!text || text.length < 5) return;
           var msg = text.trim();
-          console.log("[forge-voice] agent:", msg.slice(0, 80));
+          console.log("[forge-voice] agent:", msg.slice(0, 120));
           window.__forgeLastAgentMsg = msg;
 
           if (checkForBuildTrigger(msg) && window.__forgeBuildPrompt) {
-            console.log("[forge-voice] BUILD TRIGGER detected, submitting prompt");
+            console.log("[forge-voice] BUILD TRIGGER detected, submitting:", window.__forgeBuildPrompt.slice(0, 80));
             if (window.__forgeRunBuild) {
               window.__forgeRunBuild(window.__forgeBuildPrompt);
               window.__forgeBuildPrompt = "";
@@ -59,9 +90,12 @@
               window.__forgeLastAgentMsg = "";
               if (sendBtn) sendBtn.style.display = "none";
             }
-          } else if (!checkForBuildTrigger(msg)) {
+          } else if (!checkForBuildTrigger(msg) && !isFillerMessage(msg)) {
+            console.log("[forge-voice] stored as build prompt");
             window.__forgeBuildPrompt = msg;
             showSendButton();
+          } else {
+            console.log("[forge-voice] ignored (filler or trigger without prompt)");
           }
         }
 
@@ -102,7 +136,7 @@
           sendBtn = document.createElement("button");
           sendBtn.id = "forge-voice-send";
           sendBtn.textContent = "Send to Prompt";
-          sendBtn.style.cssText = "display:none;position:fixed;bottom:8px;right:80px;z-index:10000;background:#e8630a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:system-ui;box-shadow:0 2px 8px rgba(232,99,10,0.4);transition:opacity 0.2s;white-space:nowrap;";
+          sendBtn.style.cssText = "display:none;position:fixed;bottom:64px;right:16px;z-index:10000;background:#e8630a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:system-ui;box-shadow:0 2px 8px rgba(232,99,10,0.4);transition:opacity 0.2s;white-space:nowrap;";
           sendBtn.addEventListener("mouseenter", function() { sendBtn.style.opacity = "0.85"; });
           sendBtn.addEventListener("mouseleave", function() { sendBtn.style.opacity = "1"; });
           sendBtn.addEventListener("click", function() {
