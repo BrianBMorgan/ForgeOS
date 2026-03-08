@@ -11,13 +11,6 @@ const GITHUB_PUSH_TIMEOUT_MS = 30_000;
 /** @type {Map<string, AppState>} */
 const publishedApps = new Map();
 
-/**
- * Ports that have been claimed by getNextFreePort() but whose process has not
- * yet bound the socket. Prevents concurrent allocations from returning the
- * same port during restore or rapid publish sequences.
- * @type {Set<number>}
- */
-
 let publishLock = false;
 
 // ---------------------------------------------------------------------------
@@ -131,42 +124,6 @@ function generateSlug(name) {
     .replace(/^-|-$/g, "")
     .substring(0, 60);
   return slug || "app";
-}
-
-// ---------------------------------------------------------------------------
-// Port management
-// ---------------------------------------------------------------------------
-
-/**
- * Finds and *reserves* the next free port in the publish range.
- * The reservation is held in `reservedPorts` until the caller releases it
- * via releasePort(). This prevents concurrent calls from racing to the same
- * port before any process has bound the socket.
- */
-function getNextFreePort(unavailable = new Set()) {
-  return new Promise((resolve, reject) => {
-    function tryPort(port) {
-      if (port > PORT_RANGE_END) {
-        reject(new Error("No free ports available in the publish range (4100–4199)"));
-        return;
-      }
-      if (unavailable.has(port)) {
-        tryPort(port + 1);
-        return;
-      }
-      const server = net.createServer();
-      server.once("error", () => tryPort(port + 1));
-      server.once("listening", () => {
-        server.close(() => {
-          reservedPorts.add(port); // hold reservation until process binds
-          resolve(port);
-        });
-      });
-      server.listen(port, "127.0.0.1");
-    }
-
-    tryPort(PORT_RANGE_START);
-  });
 }
 
 // ---------------------------------------------------------------------------
