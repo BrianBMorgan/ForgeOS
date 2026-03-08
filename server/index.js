@@ -1,3 +1,5 @@
+const pubApp = publishManager.getPublishedAppBySlug(slug);
+  console.log(`[subdomain] slug=${slug} renderUrl=${pubApp?.renderUrl}`);
 const express = require("express");
 const path = require("path");
 // ARCHIVED: Multi-stage pipeline (Planner→Reviewer→PolicyGate→Approval→Executor→Auditor)
@@ -13,6 +15,7 @@ const workspace = require("./workspace/manager");
 const { mountMcp } = require("./mcp/handler");
 const brain = require("./memory/brain");
 const publishManager = require("./publish/manager");
+
 const app = express();
 app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3001;
