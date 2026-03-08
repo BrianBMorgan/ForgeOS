@@ -108,4 +108,7 @@ module.exports = {
   getServiceStatus,
   deleteService,
   listServices,
+  pushProjectToGitHub,
+  pushToAppBranch,
+  verifyRepoAccess,
 };
