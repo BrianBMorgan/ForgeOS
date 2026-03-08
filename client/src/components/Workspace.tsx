@@ -98,8 +98,8 @@ function PublishTab({ projectId }: { projectId: string | null }) {
     );
   }
   const isPublished = pubStatus?.published && (pubStatus.status === "running" || pubStatus.status === "deploying");
-  const baseUrl = window.location.origin;
-  const appUrl = pubStatus?.renderUrl || (pubStatus?.slug ? `${baseUrl}/apps/${pubStatus.slug}` : "");
+  const subdomainUrl = pubStatus?.slug ? `https://${pubStatus.slug}.forge-os.ai` : "";
+  const appUrl = subdomainUrl || pubStatus?.renderUrl || "";
 
   return (
     <div className="pub-container">
