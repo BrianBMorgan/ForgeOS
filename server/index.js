@@ -1,5 +1,3 @@
-const pubApp = publishManager.getPublishedAppBySlug(slug);
-  console.log(`[subdomain] slug=${slug} renderUrl=${pubApp?.renderUrl}`);
 const express = require("express");
 const path = require("path");
 // ARCHIVED: Multi-stage pipeline (Planner→Reviewer→PolicyGate→Approval→Executor→Auditor)
