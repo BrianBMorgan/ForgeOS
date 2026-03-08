@@ -643,68 +643,39 @@ async function unpublishProject(projectId) {
 async function restorePublishedApps() {
   const sql = await getDb();
   if (!sql) return;
-
   await ensureSchema();
   const rows = await sql`SELECT * FROM published_apps`;
-
   for (const row of rows) {
-    await _restoreOne(row, sql).catch((err) => {
+    await _restoreOne(row).catch((err) => {
       console.error(`[publish] Failed to restore ${row.slug}: ${err.message}`);
     });
   }
 }
 
-async function _restoreOne(row, sql) {
-  const publishDir = path.join(PUBLISHED_DIR, row.project_id);
-
-  // ---- Rebuild files from DB snapshot if directory is missing ----
-  if (!fs.existsSync(publishDir)) {
-    console.log(`[publish] Published files missing for ${row.slug}, rebuilding from snapshot…`);
-
-    const projectManager = require("../projects/manager");
-    const project = await projectManager.getProject(row.project_id);
-    if (!project?.currentRunId) {
-      console.warn(`[publish] No current run for ${row.slug} — marking failed`);
-      await sql`UPDATE published_apps SET status = 'failed' WHERE project_id = ${row.project_id}`;
-      return;
-    }
-
-    const { getRun } = require("../pipeline/runner");
-    const run = await getRun(project.currentRunId);
-    const builderOut = run?.stages?.builder?.output;
-    const executorOut = run?.stages?.executor?.output;
-    const files = builderOut?.files || executorOut?.files;
-
-    if (!Array.isArray(files) || files.length === 0) {
-      console.warn(`[publish] No build snapshot for ${row.slug} — marking failed`);
-      await sql`UPDATE published_apps SET status = 'failed' WHERE project_id = ${row.project_id}`;
-      return;
-    }
-
-    fs.mkdirSync(publishDir, { recursive: true });
-    for (const file of files) {
-      if (!file.path || file.content == null) continue;
-      const filePath = path.join(publishDir, file.path);
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, file.content);
-    }
-    console.log(`[publish] Rebuilt ${row.slug} from snapshot (${files.length} files)`);
-
-    // Files were just written — node_modules don't exist. Install now.
-    patchHardcodedPort(publishDir);
-    const installCommand = row.install_command || "npm install";
-    try {
-      await runInstall(installCommand, publishDir, null);
-      console.log(`[publish] Installed dependencies for ${row.slug}`);
-    } catch (err) {
-      console.error(`[publish] Dependency install failed for ${row.slug}: ${err.message}`);
-      await sql`UPDATE published_apps SET status = 'failed' WHERE project_id = ${row.project_id}`;
-      return;
-    }
-  } else {
-    // Directory exists — still patch in case it's a fresh deploy image
-    patchHardcodedPort(publishDir);
+async function _restoreOne(row) {
+  // Apps are now deployed as Render services — just restore the in-memory record
+  if (!row.render_service_id) {
+    // Old-style app with no Render service — skip
+    console.log(`[publish] Skipping restore for ${row.slug} — no Render service`);
+    return;
   }
+  const app = {
+    projectId: row.project_id,
+    slug: row.slug,
+    port: null,
+    status: row.status || "deploying",
+    process: null,
+    startCommand:   row.start_command   || "npm start",
+    installCommand: row.install_command || "npm install",
+    buildCommand:   row.build_command   || null,
+    publishedAt: Number(row.published_at),
+    renderServiceId: row.render_service_id,
+    renderUrl: row.render_url,
+    logs: "",
+  };
+  publishedApps.set(row.project_id, app);
+  console.log(`[publish] Restored ${row.slug} → ${row.render_url}`);
+}
 
   // ---- Allocate port ----
   let assignedPort;
@@ -790,6 +761,8 @@ function getPublishedApp(projectId) {
     port: app.port,
     status: app.status,
     publishedAt: app.publishedAt,
+    renderUrl: app.renderUrl || null,
+    renderServiceId: app.renderServiceId || null,
     logs: app.logs?.slice(-5000) || "",
   };
 }

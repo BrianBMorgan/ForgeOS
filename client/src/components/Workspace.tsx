@@ -9,6 +9,7 @@ interface PublishStatus {
   port?: number;
   status?: string;
   publishedAt?: number;
+  renderUrl?: string;
   logs?: string;
   github?: { commitSha?: string; commitUrl?: string; filesCount?: number };
 }
@@ -96,9 +97,9 @@ function PublishTab({ projectId }: { projectId: string | null }) {
       </div>
     );
   }
-
+  const isPublished = pubStatus?.published && (pubStatus.status === "running" || pubStatus.status === "deploying");
   const isPublished = pubStatus?.published && pubStatus.status === "running";
-  const baseUrl = window.location.origin;
+  const appUrl = pubStatus?.renderUrl || (pubStatus?.slug ? `${baseUrl}/apps/${pubStatus.slug}` : "");
   const appUrl = pubStatus?.slug ? `${baseUrl}/apps/${pubStatus.slug}` : "";
 
   return (
