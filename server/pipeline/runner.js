@@ -435,6 +435,23 @@ async function executePipeline(runId) {
       userMessageContent = `FOLLOW-UP REQUEST: ${run.prompt}${iterationHistory}\n\nNote: This is iteration ${run.iterationNumber} but no existing files were captured. Treat this as a fresh build incorporating the original intent plus this new request.`;
     }
   }
+  
+  // ---- Inject assets context ----
+  if (run.projectId) {
+    try {
+      const assetsManager = require("../assets/manager");
+      const assetsContext = await assetsManager.getAssetsContext(run.projectId);
+      if (assetsContext && assetsContext.length > 0) {
+        const assetsList = assetsContext.map(a =>
+          `- ${a.filename} (${a.mimetype}, ${a.sizeBytes} bytes) → GET ${a.accessUrl}`
+        ).join("\n");
+        userMessageContent += `\n\nAVAILABLE PROJECT ASSETS:\nThe following files have been uploaded to this project and can be referenced in your app using their access URLs. For images use them in <img src="...">, for CSVs fetch and parse them, for JSON fetch and use as data.\n${assetsList}`;
+      }
+    } catch (err) {
+      console.error("[runner] Failed to load assets context:", err.message);
+    }
+  }
+  
   const userMessage = { role: "user", content: userMessageContent };
 
   try {
