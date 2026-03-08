@@ -532,6 +532,7 @@ module.exports = {
   ensureSchema,
   publishProject,
   unpublishProject,
+  renameSlug,
   getPublishedApp,
   getPublishedAppBySlug,
   listPublishedApps,
