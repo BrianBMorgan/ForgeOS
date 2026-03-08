@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const GITHUB_PUSH_TIMEOUT_MS = 30_000;
+const PUBLISHED_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "published") : path.join(__dirname, "..", "..", "published");
 
 // ---------------------------------------------------------------------------
 // In-memory state
@@ -76,40 +77,6 @@ async function saveToDb(app) {
       updated_at        = ${now}
   `;
 }
-
-// ---------------------------------------------------------------------------
-// File system helpers
-// ---------------------------------------------------------------------------
-
-  fs.mkdirSync(PUBLISHED_DIR, { recursive: true });
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    // Skip node_modules AND .git — no reason to publish git history
-    if (entry.name === "node_modules" || entry.name === ".git") continue;
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyDirectory(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return files;
-  }
-  for (const entry of entries) {
-    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      collectJsFiles(full, files);
-    } else if (/\.(js|ts|mjs|cjs)$/.test(entry.name)) {
-      files.push(full);
-    }
-  }
-  return files;
 
 // ---------------------------------------------------------------------------
 // Slug generation
