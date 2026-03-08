@@ -3772,6 +3772,40 @@ body {
   color: #e2e8f0;
 }
 
+.pub-slug-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+}
+.pub-slug-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #60a5fa;
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+.pub-slug-input::placeholder {
+  color: rgba(148, 163, 184, 0.4);
+}
+.pub-slug-preview {
+  font-size: 0.7rem;
+  color: rgba(148, 163, 184, 0.5);
+  margin-top: 0.3rem;
+  padding-left: 0.2rem;
+}
+.pub-slug-warning {
+  font-size: 0.7rem;
+  color: #f59e0b;
+  margin-top: 0.3rem;
+  padding-left: 0.2rem;
+}
+
 .pub-actions {
   display: flex;
   gap: 0.75rem;
