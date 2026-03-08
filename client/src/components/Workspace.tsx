@@ -32,8 +32,8 @@ function AssetsTab({ projectId }: { projectId: string | null }) {
   useEffect(() => { fetchAssets(); }, [projectId]);
 
     const handleUpload = async (files: FileList | null) => {
-    console.log("[assets] handleUpload called", files?.length, "projectId:", projectId);
-    if (!files || !projectId) return;
+    console.log("[assets] projectData:", projectData?.id, "runData:", runData?.projectId);
+  return <AssetsTab projectId={projectData?.id || runData?.projectId || null} />;
     setUploading(true);
     setError(null);
     for (const file of Array.from(files)) {
