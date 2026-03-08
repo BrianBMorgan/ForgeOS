@@ -440,6 +440,17 @@ app.delete("/api/projects/:id/publish", async (req, res) => {
   }
 });
 
+app.post("/api/projects/:id/slug", async (req, res) => {
+  try {
+    const { slug } = req.body;
+    if (!slug) return res.status(400).json({ error: "slug is required" });
+    const result = await publishManager.renameSlug(req.params.id, slug);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get("/api/projects/:id/publish", async (req, res) => {
   const app = publishManager.getPublishedApp(req.params.id);
   if (!app) return res.json({ published: false });

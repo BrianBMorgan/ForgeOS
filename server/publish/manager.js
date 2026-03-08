@@ -539,14 +539,3 @@ module.exports = {
   exportProject,
   generateSlug,
 };
-
-app.post("/api/projects/:id/slug", async (req, res) => {
-  try {
-    const { slug } = req.body;
-    if (!slug) return res.status(400).json({ error: "slug is required" });
-    const result = await publishManager.renameSlug(req.params.id, slug);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
