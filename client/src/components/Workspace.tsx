@@ -31,8 +31,8 @@ function AssetsTab({ projectId }: { projectId: string | null }) {
 
   useEffect(() => { fetchAssets(); }, [projectId]);
 
-  const handleUpload = async (files: FileList | null) => {
-    console.log("[assets] handleUpload called", files?.length);
+    const handleUpload = async (files: FileList | null) => {
+    console.log("[assets] handleUpload called", files?.length, "projectId:", projectId);
     if (!files || !projectId) return;
     setUploading(true);
     setError(null);
