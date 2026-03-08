@@ -14,6 +14,7 @@ const { mountMcp } = require("./mcp/handler");
 const brain = require("./memory/brain");
 const publishManager = require("./publish/manager");But
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
@@ -24,7 +25,7 @@ app.use(async (req, res, next) => {
   const host = req.hostname; // e.g. "my-app.forge-os.ai"
   const baseDomain = process.env.BASE_DOMAIN || "forge-os.ai";
   if (!host || !host.endsWith(`.${baseDomain}`)) return next();
-
+  if (host === baseDomain || host === `www.${baseDomain}`) return next();
   const slug = host.slice(0, host.length - baseDomain.length - 1);
   if (!slug) return next();
 
