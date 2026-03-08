@@ -480,10 +480,10 @@ async function _doPublish(projectId) {
 
   if (sql) {
     const [existing] = await sql`
-      SELECT slug FROM published_apps WHERE project_id = ${projectId}
+      SELECT slug, render_service_id, render_url FROM published_apps WHERE project_id = ${projectId}
     `;
     if (existing) {
-      slug = existing.slug; // preserve slug across re-publishes
+      slug = existing.slug;
     } else {
       const [conflict] = await sql`
         SELECT slug FROM published_apps
@@ -493,19 +493,7 @@ async function _doPublish(projectId) {
     }
   }
 
-  // ---- Stop any existing process and await its exit ----
-  await stopPublishedApp(projectId);
-
-  // ---- Copy workspace files ----
-  ensurePublishedDir();
-  const publishDir = path.join(PUBLISHED_DIR, projectId);
-  if (fs.existsSync(publishDir)) {
-    fs.rmSync(publishDir, { recursive: true, force: true });
-  }
-  copyDirectory(workspaceDir, publishDir);
-  patchHardcodedPort(publishDir);
-
-  // ---- Resolve commands from executor output ----
+  // ---- Resolve commands ----
   let startCommand = "npm start";
   let installCommand = "npm install";
   let buildCommand = null;
@@ -519,153 +507,87 @@ async function _doPublish(projectId) {
     if (out?.buildCommand)   buildCommand   = out.buildCommand;
   } catch {}
 
-  // Cross-check package.json for build script
   try {
-    const pkgPath = path.join(publishDir, "package.json");
+    const pkgPath = path.join(workspaceDir, "package.json");
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
       if (!buildCommand && pkg.scripts?.build) buildCommand = "npm run build";
+      if (pkg.scripts?.start) startCommand = "npm start";
     }
   } catch {}
 
-  // ---- Create app state entry ----
+  // ---- Get GitHub settings ----
+  const settingsManager = require("../settings/manager");
+  const githubSettings = await settingsManager.getSetting("github");
+  if (!githubSettings?.repo) throw new Error("GitHub repo not configured in Settings — required for Render deployment");
+
+  // ---- Push app files to dedicated GitHub branch ----
+  const { pushToAppBranch } = require("./github");
+  let branchResult;
+  try {
+    branchResult = await pushToAppBranch(githubSettings.repo, slug, workspaceDir);
+  } catch (err) {
+    throw new Error(`GitHub push failed: ${err.message}`);
+  }
+
+  // ---- Get merged env for the app ----
+  const mergedEnv = await getMergedEnv(projectId);
+
+  // ---- Create or redeploy Render service ----
+  const renderApi = require("./render-api");
+  let renderServiceId = null;
+  let renderUrl = null;
+
+  if (sql) {
+    const [existing] = await sql`SELECT render_service_id, render_url FROM published_apps WHERE project_id = ${projectId}`;
+    if (existing?.render_service_id) {
+      renderServiceId = existing.render_service_id;
+      renderUrl = existing.render_url;
+    }
+  }
+
+  if (renderServiceId) {
+    try {
+      await renderApi.updateServiceEnv(renderServiceId, mergedEnv);
+      await renderApi.redeployService(renderServiceId);
+    } catch (err) {
+      throw new Error(`Render redeploy failed: ${err.message}`);
+    }
+  } else {
+    try {
+      const result = await renderApi.createService({
+        slug,
+        repoPath: githubSettings.repo,
+        branch: `apps/${slug}`,
+        envVars: mergedEnv,
+        startCommand,
+        buildCommand,
+      });
+      renderServiceId = result.serviceId;
+      renderUrl = result.serviceUrl;
+    } catch (err) {
+      throw new Error(`Render service creation failed: ${err.message}`);
+    }
+  }
+
+  // ---- Save to DB ----
   const app = {
     projectId,
     slug,
-    dir: publishDir,
     port: null,
-    status: "installing",
-    process: null,
+    status: "deploying",
     startCommand,
     installCommand,
     buildCommand,
     publishedAt: Date.now(),
-    logs: "",
+    renderServiceId,
+    renderUrl,
   };
   publishedApps.set(projectId, app);
-
-  // ---- Install ----
-  try {
-    await runInstall(installCommand, publishDir, app);
-  } catch (err) {
-    app.status = "failed";
-    app.logs += `\nInstall failed: ${err.message}`;
-    await saveToDb(app).catch(() => {});
-    throw err;
-  }
-
-  // ---- Optional build step ----
-  if (buildCommand) {
-    app.status = "building";
-    app.logs += `\n--- Build: ${buildCommand} ---\n`;
-    try {
-      await runBuild(buildCommand, publishDir, app);
-    } catch (err) {
-      app.status = "failed";
-      app.logs += `\nBuild failed: ${err.message}`;
-      await saveToDb(app).catch(() => {});
-      throw err;
-    }
-  }
-
-  // ---- Allocate port ----
-  let assignedPort;
-  try {
-    assignedPort = await getNextFreePort();
-  } catch (err) {
-    app.status = "failed";
-    app.logs += `\nPort allocation failed: ${err.message}`;
-    await saveToDb(app).catch(() => {});
-    throw err;
-  }
-  app.port = assignedPort;
-  app.status = "starting";
-
-  // ---- Spawn ----
-  const mergedEnv = await getMergedEnv(projectId);
-  const resolvedCmd = resolveStartCommand(publishDir, startCommand);
-  const cmdParts = validateCommand(resolvedCmd);
-  const processEnv = buildProcessEnv(assignedPort, mergedEnv);
-
-  const proc = spawn(cmdParts[0], cmdParts.slice(1), {
-    cwd: publishDir,
-    env: processEnv,
-  });
-
-  app.process = proc;
-  attachLogs(proc, app);
-
-  proc.on("close", (code) => {
-    releasePort(assignedPort);
-    app.process = null;
-    if (app.status !== "stopped") {
-      app.status = "failed";
-      app.logs += `\nProcess exited with code ${code}`;
-      saveToDb(app).catch(() => {});
-    }
-  });
-
-  proc.on("error", (err) => {
-    releasePort(assignedPort);
-    app.process = null;
-    app.status = "failed";
-    app.logs += `\nProcess error: ${err.message}`;
-    saveToDb(app).catch(() => {});
-  });
-
-  // ---- Startup health check ----
-  await new Promise((r) => setTimeout(r, STARTUP_GRACE_MS));
-
-  if (!app.process || app.process.killed) {
-    app.status = "failed";
-    await saveToDb(app).catch(() => {});
-    throw new Error(
-      `App failed to stay running after ${STARTUP_GRACE_MS}ms.\n` +
-      app.logs.slice(-1000)
-    );
-  }
-
-  app.status = "running";
   await saveToDb(app);
 
-  // ---- GitHub push (best-effort, non-blocking on publish success) ----
-  let github = null;
-  let githubError = null;
-  try {
-    const settingsManager = require("../settings/manager");
-    const githubSettings = await settingsManager.getSetting("github");
-    if (githubSettings?.repo && githubSettings?.autoPush !== false) {
-      app.logs += "\n--- Pushing to GitHub ---\n";
-      const { pushProjectToGitHub } = require("./github");
-
-      // Enforce a hard timeout so a hung GitHub push can't block indefinitely
-      const pushResult = await Promise.race([
-        pushProjectToGitHub(
-          githubSettings.repo,
-          slug,
-          publishDir,
-          `[ForgeOS] Publish ${project.name} (${slug})`
-        ),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("GitHub push timed out after 30s")),
-            GITHUB_PUSH_TIMEOUT_MS
-          )
-        ),
-      ]);
-
-      app.logs += `Pushed ${pushResult.filesCount} files to GitHub\nCommit: ${pushResult.commitUrl}\n`;
-      github = pushResult;
-      console.log(`[publish] Pushed ${project.name} to GitHub: ${pushResult.commitUrl}`);
-    }
-  } catch (err) {
-    githubError = err.message;
-    app.logs += `\nGitHub push failed: ${err.message}\n`;
-    console.warn(`[publish] GitHub push failed for ${project.name}: ${err.message}`);
-  }
-
-  console.log(`[publish] Published ${project.name} at /apps/${slug} (port ${assignedPort})`);
-  return { slug, port: assignedPort, status: app.status, github, githubError };
+  console.log(`[publish] Published ${project.name} to Render: ${renderUrl}`);
+  return { slug, port: null, status: "deploying", renderUrl, renderServiceId };
 }
 
 // ---------------------------------------------------------------------------

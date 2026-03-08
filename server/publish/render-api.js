@@ -21,7 +21,7 @@ async function renderFetch(path, options = {}) {
   return res.json();
 }
 
-async function createService({ slug, repoPath, branch, envVars = {} }) {
+async function createService({ slug, repoPath, branch, envVars = {}, startCommand = "node server.js", buildCommand = null }) {
   const envVarList = Object.entries(envVars).map(([key, value]) => ({ key, value }));
   const body = {
     type: "web_service",
@@ -32,8 +32,8 @@ async function createService({ slug, repoPath, branch, envVars = {} }) {
     autoDeploy: "yes",
     serviceDetails: {
       env: "node",
-      buildCommand: "npm install",
-      startCommand: "node server.js",
+      buildCommand: buildCommand || "npm install",
+      startCommand: startCommand || "node server.js",
       plan: "starter",
       region: "oregon",
       envVars: envVarList,
