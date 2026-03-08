@@ -12,11 +12,52 @@ const { buildAndDeploy } = require("./builder");
 const workspace = require("./workspace/manager");
 const { mountMcp } = require("./mcp/handler");
 const brain = require("./memory/brain");
-
+const publishManager = require("./publish/manager");But
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
+// ---------------------------------------------------------------------------
+// Wildcard subdomain proxy — *.forge-os.ai → Render service
+// ---------------------------------------------------------------------------
+app.use(async (req, res, next) => {
+  const host = req.hostname; // e.g. "my-app.forge-os.ai"
+  const baseDomain = process.env.BASE_DOMAIN || "forge-os.ai";
+  if (!host || !host.endsWith(`.${baseDomain}`)) return next();
+
+  const slug = host.slice(0, host.length - baseDomain.length - 1);
+  if (!slug) return next();
+
+  const pubApp = publishManager.getPublishedAppBySlug(slug);
+  if (!pubApp?.renderUrl) {
+    return res.status(503).send(`<html><body style="background:#111;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h1>App Offline</h1><p>${slug} is not published.</p></div></body></html>`);
+  }
+
+  // Proxy to Render service
+  const targetUrl = new URL(req.originalUrl, pubApp.renderUrl);
+  const fetchHeaders = { ...req.headers, host: new URL(pubApp.renderUrl).hostname };
+  delete fetchHeaders["accept-encoding"];
+
+  try {
+    const response = await fetch(targetUrl.toString(), {
+      method: req.method,
+      headers: fetchHeaders,
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
+      duplex: "half",
+    });
+    res.status(response.status);
+    for (const [key, value] of response.headers.entries()) {
+      if (!["transfer-encoding", "connection"].includes(key.toLowerCase())) {
+        res.setHeader(key, value);
+      }
+    }
+    const body = await response.arrayBuffer();
+    res.end(Buffer.from(body));
+  } catch (err) {
+    console.error(`[subdomain proxy] Error proxying ${slug}:`, err.message);
+    res.status(502).send("Bad Gateway");
+  }
+});
 const { mountGate } = require('./auth/gate');
 mountGate(app);
 
@@ -369,8 +410,6 @@ app.delete("/api/projects/:id/env/:key", async (req, res) => {
   }
   res.json({ deleted: true });
 });
-
-const publishManager = require("./publish/manager");
 
 app.post("/api/projects/:id/publish", async (req, res) => {
   try {
