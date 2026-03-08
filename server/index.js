@@ -39,6 +39,7 @@ app.use(async (req, res, next) => {
   const targetUrl = new URL(req.originalUrl, pubApp.renderUrl);
   const fetchHeaders = { ...req.headers, host: new URL(pubApp.renderUrl).hostname };
   delete fetchHeaders["accept-encoding"];
+  fetchHeaders["accept-encoding"] = "identity";
 
   try {
     const response = await fetch(targetUrl.toString(), {
