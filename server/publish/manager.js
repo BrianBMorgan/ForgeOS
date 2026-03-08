@@ -325,6 +325,92 @@ async function unpublishProject(projectId) {
   console.log(`[publish] Unpublished project ${projectId}`);
 }
 
+async function renameSlug(projectId, newSlug) {
+  // Validate slug format
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(newSlug)) {
+    throw new Error("Slug must be lowercase letters, numbers, and hyphens only");
+  }
+
+  const sql = await getDb();
+
+  // Check uniqueness
+  if (sql) {
+    const [conflict] = await sql`
+      SELECT project_id FROM published_apps
+      WHERE slug = ${newSlug} AND project_id != ${projectId}
+    `;
+    if (conflict) throw new Error(`Slug "${newSlug}" is already in use`);
+  }
+
+  const app = publishedApps.get(projectId);
+  const oldSlug = app?.slug;
+  const oldServiceId = app?.renderServiceId;
+
+  // If already published on Render, create new service and delete old
+  if (oldServiceId) {
+    const renderApi = require("./render-api");
+    const settingsManager = require("../settings/manager");
+    const githubSettings = await settingsManager.getSetting("github");
+    const mergedEnv = await getMergedEnv(projectId);
+
+    // Push files to new branch
+    const { pushToAppBranch } = require("./github");
+    const workspaceDir = app?.dir || path.join(
+      process.env.DATA_DIR || path.join(__dirname, "..", ".."),
+      "workspaces",
+      (await require("../projects/manager").getProject(projectId))?.currentRunId
+    );
+
+    await pushToAppBranch(githubSettings.repo, newSlug, workspaceDir);
+
+    // Create new Render service
+    const result = await renderApi.createService({
+      slug: newSlug,
+      repoPath: githubSettings.repo,
+      branch: `apps/${newSlug}`,
+      envVars: mergedEnv,
+    });
+
+    // Delete old Render service
+    try {
+      await renderApi.deleteService(oldServiceId);
+    } catch (err) {
+      console.warn(`[publish] Could not delete old Render service ${oldServiceId}: ${err.message}`);
+    }
+
+    // Update in-memory state
+    if (app) {
+      app.slug = newSlug;
+      app.renderServiceId = result.serviceId;
+      app.renderUrl = result.serviceUrl;
+      app.status = "deploying";
+    }
+
+    // Update DB
+    if (sql) {
+      await sql`
+        UPDATE published_apps SET
+          slug = ${newSlug},
+          render_service_id = ${result.serviceId},
+          render_url = ${result.serviceUrl},
+          status = 'deploying'
+        WHERE project_id = ${projectId}
+      `;
+    }
+
+    console.log(`[publish] Renamed ${oldSlug} → ${newSlug}, new Render service: ${result.serviceUrl}`);
+    return { slug: newSlug, renderUrl: result.serviceUrl, renderServiceId: result.serviceId };
+  }
+
+  // Not yet published — just update slug in DB
+  if (sql) {
+    await sql`UPDATE published_apps SET slug = ${newSlug} WHERE project_id = ${projectId}`;
+  }
+  if (app) app.slug = newSlug;
+
+  return { slug: newSlug };
+}
+
 // ---------------------------------------------------------------------------
 // Restore
 // ---------------------------------------------------------------------------
@@ -453,3 +539,14 @@ module.exports = {
   exportProject,
   generateSlug,
 };
+
+app.post("/api/projects/:id/slug", async (req, res) => {
+  try {
+    const { slug } = req.body;
+    if (!slug) return res.status(400).json({ error: "slug is required" });
+    const result = await publishManager.renameSlug(req.params.id, slug);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
