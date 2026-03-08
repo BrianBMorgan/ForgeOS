@@ -1480,8 +1480,7 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
         return <DbTab />;
       case "env":
         return <EnvTab projectId={projectData?.id || null} />;
-      case "assets":
-        console.log("[assets] projectData:", projectData?.id, "runData:", runData?.projectId);
+      case "assets":);
         return <AssetsTab projectId={projectData?.id || runData?.projectId || null} />;
       case "publish":
         return <PublishTab projectId={projectData?.id || null} />;
