@@ -245,5 +245,6 @@ async function pushToAppBranch(repoFullName, slug, sourceDir) {
 
 module.exports = {
   pushProjectToGitHub,
+  pushToAppBranch,
   verifyRepoAccess,
 };

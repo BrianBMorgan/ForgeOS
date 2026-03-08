@@ -102,12 +102,6 @@ async function listServices() {
 }
 
 module.exports = {
-  createService,
-  updateServiceEnv,
-  redeployService,
-  getServiceStatus,
-  deleteService,
-  listServices,
   pushProjectToGitHub,
   pushToAppBranch,
   verifyRepoAccess,
