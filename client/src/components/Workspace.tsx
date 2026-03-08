@@ -19,6 +19,8 @@ function PublishTab({ projectId }: { projectId: string | null }) {
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  const [slugEdit, setSlugEdit] = useState("");
+  const [renamingSlug, setRenamingSlug] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -29,6 +31,7 @@ function PublishTab({ projectId }: { projectId: string | null }) {
       const res = await fetch(`/api/projects/${projectId}/publish`);
       const data = await res.json();
       setPubStatus(data);
+      setSlugEdit(data.slug || "");
     } catch {
       setPubStatus({ published: false });
     }
@@ -67,6 +70,25 @@ function PublishTab({ projectId }: { projectId: string | null }) {
       await fetchStatus();
     } catch {
       setError("Failed to unpublish");
+    }
+  };
+
+  const handleRenameSlug = async () => {
+    if (!slugEdit || slugEdit === pubStatus?.slug) return;
+    setRenamingSlug(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/slug`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: slugEdit }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await fetchStatus();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setRenamingSlug(false);
     }
   };
 
@@ -136,6 +158,29 @@ function PublishTab({ projectId }: { projectId: string | null }) {
                 {copied ? "Copied!" : "Copy"}
               </button>
             </div>
+          </div>
+
+          <div className="pub-url-section">
+            <label className="pub-url-label">App Slug</label>
+            <div className="pub-slug-row">
+              <input
+                className="pub-slug-input"
+                value={slugEdit}
+                onChange={e => setSlugEdit(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                placeholder="my-app-name"
+              />
+              <button
+                className="pub-copy-btn"
+                onClick={handleRenameSlug}
+                disabled={slugEdit === pubStatus?.slug || renamingSlug}
+              >
+                {renamingSlug ? "Saving..." : "Save"}
+              </button>
+            </div>
+            <div className="pub-slug-preview">{slugEdit}.forge-os.ai</div>
+            {slugEdit !== pubStatus?.slug && (
+              <div className="pub-slug-warning">⚠ Renaming will create a new Render service and delete the old one.</div>
+            )}
           </div>
 
           {githubResult?.commitUrl && (
