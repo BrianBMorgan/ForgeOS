@@ -2,17 +2,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { spawn, execSync } = require("child_process");
-const net = require("net");
-
-const PUBLISHED_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "published") : path.join(__dirname, "..", "..", "published");
-const PORT_RANGE_START = 4100;
-const PORT_RANGE_END = 4199;
-const LOG_MAX_BYTES = 50_000;
-const LOG_TAIL_BYTES = 30_000;
-const STARTUP_GRACE_MS = 3_000;
-const RESTORE_STARTUP_GRACE_MS = 2_000;
-const SIGKILL_TIMEOUT_MS = 5_000;
 const GITHUB_PUSH_TIMEOUT_MS = 30_000;
 
 // ---------------------------------------------------------------------------
@@ -28,7 +17,6 @@ const publishedApps = new Map();
  * same port during restore or rapid publish sequences.
  * @type {Set<number>}
  */
-const reservedPorts = new Set();
 
 let publishLock = false;
 
@@ -100,11 +88,7 @@ async function saveToDb(app) {
 // File system helpers
 // ---------------------------------------------------------------------------
 
-function ensurePublishedDir() {
   fs.mkdirSync(PUBLISHED_DIR, { recursive: true });
-}
-
-function copyDirectory(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     // Skip node_modules AND .git — no reason to publish git history
@@ -117,9 +101,6 @@ function copyDirectory(src, dest) {
       fs.copyFileSync(srcPath, destPath);
     }
   }
-}
-
-function collectJsFiles(dir, files = []) {
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -136,7 +117,6 @@ function collectJsFiles(dir, files = []) {
     }
   }
   return files;
-}
 
 // ---------------------------------------------------------------------------
 // Slug generation
@@ -163,16 +143,8 @@ function generateSlug(name) {
  * via releasePort(). This prevents concurrent calls from racing to the same
  * port before any process has bound the socket.
  */
-function getNextFreePort() {
+function getNextFreePort(unavailable = new Set()) {
   return new Promise((resolve, reject) => {
-    // Ports currently in active use (process running) OR reserved (starting)
-    const unavailable = new Set(reservedPorts);
-    for (const [, app] of publishedApps) {
-      if (app.port && (app.status === "running" || app.status === "starting")) {
-        unavailable.add(app.port);
-      }
-    }
-
     function tryPort(port) {
       if (port > PORT_RANGE_END) {
         reject(new Error("No free ports available in the publish range (4100–4199)"));
@@ -197,84 +169,11 @@ function getNextFreePort() {
   });
 }
 
-/** Release a port reservation after the process has bound (or failed). */
-function releasePort(port) {
-  reservedPorts.delete(port);
-}
-
-function forceKillPort(port) {
-  try { execSync(`fuser -k ${port}/tcp 2>/dev/null || true`); } catch {}
-  try { execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`); } catch {}
-}
-
-// ---------------------------------------------------------------------------
-// Port patching
-// ---------------------------------------------------------------------------
-
-function patchHardcodedPort(dir) {
-  for (const filePath of collectJsFiles(dir)) {
-    let content;
-    try { content = fs.readFileSync(filePath, "utf8"); } catch { continue; }
-    // Skip files that already read from env
-    if (/process\.env\.PORT/.test(content)) continue;
-
-    let patched = content;
-    patched = patched.replace(
-      /(const|let|var)\s+(PORT|port)\s*=\s*(\d{3,5})\s*;/g,
-      "$1 $2 = process.env.PORT || $3;"
-    );
-    patched = patched.replace(
-      /\.listen\(\s*(\d{3,5})\s*,/g,
-      ".listen(process.env.PORT || $1,"
-    );
-    patched = patched.replace(
-      /\.listen\(\s*(\d{3,5})\s*\)/g,
-      ".listen(process.env.PORT || $1)"
-    );
-    if (patched !== content) {
-      try { fs.writeFileSync(filePath, patched, "utf8"); } catch {}
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Command helpers
-// ---------------------------------------------------------------------------
-
-function resolveStartCommand(dir, startCommand) {
-  if (startCommand === "npm start" || startCommand === "npm run start") {
-    try {
-      const pkgPath = path.join(dir, "package.json");
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-        const script = pkg.scripts?.start;
-        if (script && /^node\s+\S+/.test(script)) return script;
-      }
-    } catch {}
-  }
-  return startCommand;
-}
-
-function validateCommand(cmd) {
-  const parts = cmd.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) throw new Error("Empty command");
-  return parts;
-}
-
 // ---------------------------------------------------------------------------
 // Environment variable helpers
 // ---------------------------------------------------------------------------
 
 // Keys always sourced from the platform — project env cannot override these.
-const RESERVED_ENV_KEYS = new Set([
-  "PORT", "DATABASE_URL", "NEON_AUTH_JWKS_URL", "JWT_SECRET",
-  "NODE_ENV", "HOME", "PATH", "TERM",
-]);
-
-function cleanDatabaseUrl(url) {
-  if (!url) return url;
-  return url.replace(/\?.*$/, "") + "?sslmode=require";
-}
 
 /**
  * Build the full env for a published app process.
@@ -288,31 +187,6 @@ function cleanDatabaseUrl(url) {
  * forwarded so that ForgeOS host secrets do not bleed into published apps
  * and so that project-level vars genuinely take precedence.
  */
-function buildProcessEnv(port, mergedCustomEnv) {
-  // Strip any reserved keys that snuck into the merged custom env
-  const safeCustom = { ...mergedCustomEnv };
-  for (const k of RESERVED_ENV_KEYS) delete safeCustom[k];
-
-  return {
-    // Minimal host passthrough needed for Node.js to function
-    HOME: process.env.HOME,
-    PATH: process.env.PATH,
-    TERM: process.env.TERM || "xterm",
-    // Platform-controlled
-    NODE_ENV: "production",
-    PORT: String(port),
-    ...(process.env.NEON_DATABASE_URL
-      ? { DATABASE_URL: cleanDatabaseUrl(process.env.NEON_DATABASE_URL) }
-      : {}),
-    ...(process.env.NEON_AUTH_JWKS_URL
-      ? { NEON_AUTH_JWKS_URL: process.env.NEON_AUTH_JWKS_URL }
-      : {}),
-    // Project/global custom env — lowest precedence for reserved keys,
-    // but this spread comes after so project values win for non-reserved keys
-    ...safeCustom,
-  };
-}
-
 async function getMergedEnv(projectId) {
   let globalDefaults = {};
   let projectEnv = {};
@@ -338,114 +212,6 @@ async function getMergedEnv(projectId) {
 
   // Project vars override global defaults
   return { ...globalDefaults, ...projectEnv };
-}
-
-// ---------------------------------------------------------------------------
-// Process lifecycle
-// ---------------------------------------------------------------------------
-
-/**
- * Attach stdout/stderr log buffering to a child process.
- * Caps total log size at LOG_MAX_BYTES, keeping the most recent LOG_TAIL_BYTES.
- */
-function attachLogs(proc, app) {
-  const handler = (d) => {
-    app.logs += d.toString();
-    if (app.logs.length > LOG_MAX_BYTES) {
-      app.logs = app.logs.slice(-LOG_TAIL_BYTES);
-    }
-  };
-  proc.stdout.on("data", handler);
-  proc.stderr.on("data", handler);
-}
-
-/**
- * Kill a child process gracefully: SIGTERM first, then SIGKILL after
- * SIGKILL_TIMEOUT_MS, then force-kill the port.
- * Returns a Promise that resolves when the process has exited (or was already
- * gone), so callers can await full teardown before touching the filesystem.
- */
-function killProcess(proc, port) {
-  return new Promise((resolve) => {
-    if (!proc || proc.killed) {
-      if (port) forceKillPort(port);
-      return resolve();
-    }
-
-    const cleanup = () => {
-      if (port) forceKillPort(port);
-      resolve();
-    };
-
-    proc.once("close", cleanup);
-
-    try { proc.kill("SIGTERM"); } catch {}
-
-    const forceTimer = setTimeout(() => {
-      try { if (!proc.killed) proc.kill("SIGKILL"); } catch {}
-    }, SIGKILL_TIMEOUT_MS);
-
-    // Don't let this timer keep the event loop alive
-    if (forceTimer.unref) forceTimer.unref();
-  });
-}
-
-/**
- * Stop a running published app and await full process exit.
- * Safe to call when no process is running.
- */
-async function stopPublishedApp(projectId) {
-  const app = publishedApps.get(projectId);
-  if (!app) return;
-
-  app.status = "stopped";
-  const proc = app.process;
-  app.process = null;
-
-  await killProcess(proc, app.port);
-  if (app.port) releasePort(app.port);
-}
-
-// ---------------------------------------------------------------------------
-// npm install helper (shared between publish and restore)
-// ---------------------------------------------------------------------------
-
-async function runInstall(installCommand, dir, logTarget) {
-  const parts = validateCommand(installCommand);
-  await new Promise((resolve, reject) => {
-    const proc = spawn(parts[0], parts.slice(1), {
-      cwd: dir,
-      env: { HOME: process.env.HOME, PATH: process.env.PATH, NODE_ENV: "production" },
-    });
-    let output = "";
-    proc.stdout.on("data", (d) => { output += d.toString(); });
-    proc.stderr.on("data", (d) => { output += d.toString(); });
-    proc.on("close", (code) => {
-      if (logTarget) logTarget.logs += output;
-      if (code === 0) resolve();
-      else reject(new Error(`Install failed with exit code ${code}\n${output.slice(-2000)}`));
-    });
-    proc.on("error", reject);
-  });
-}
-
-async function runBuild(buildCommand, dir, logTarget) {
-  const parts = validateCommand(buildCommand);
-  await new Promise((resolve, reject) => {
-    const proc = spawn(parts[0], parts.slice(1), {
-      cwd: dir,
-      env: { HOME: process.env.HOME, PATH: process.env.PATH, NODE_ENV: "production" },
-    });
-    let output = "";
-    proc.stdout.on("data", (d) => { output += d.toString(); });
-    proc.stderr.on("data", (d) => { output += d.toString(); });
-    proc.on("close", (code) => {
-      if (logTarget) logTarget.logs += output;
-      if (code === 0) resolve();
-      else reject(new Error(`Build failed with exit code ${code}\n${output.slice(-2000)}`));
-    });
-    proc.on("error", reject);
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -620,7 +386,6 @@ try {
 
 async function unpublishProject(projectId) {
   // Await full process teardown before touching the filesystem
-  await stopPublishedApp(projectId);
   publishedApps.delete(projectId);
 
   const publishDir = path.join(PUBLISHED_DIR, projectId);
