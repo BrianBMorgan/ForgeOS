@@ -32,8 +32,10 @@ async function createService({ slug, repoPath, branch, envVars = {}, startComman
     autoDeploy: "yes",
     serviceDetails: {
       env: "node",
-      buildCommand: buildCommand || "npm install",
-      startCommand: startCommand || "node server.js",
+      envSpecificDetails: {
+        buildCommand: buildCommand || "npm install",
+        startCommand: startCommand || "node server.js",
+      },
       plan: "starter",
       region: "oregon",
       envVars: envVarList,
