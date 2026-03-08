@@ -94,6 +94,7 @@ function App() {
   const [viewingIterationRunId, setViewingIterationRunId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [mobileView, setMobileView] = useState<"chat" | "workspace">("chat");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -311,27 +312,45 @@ function App() {
 
     return (
       <>
-        <PromptColumn
-          runData={runData}
-          projectData={projectData}
-          isNewProject={activeNav === "new-project"}
-          onRunBuild={currentProjectId ? iterateProject : startProject}
-          onApprove={approveRun}
-          onReject={rejectRun}
-          onViewIteration={viewIteration}
-          viewingIterationRunId={viewingIterationRunId}
-          onViewLatest={viewLatest}
-          chatMessages={chatMessages}
-          onSendChat={sendChat}
-          chatLoading={chatLoading}
-          onClearBuildSuggestions={() => setChatMessages(prev => prev.map(m => ({ ...m, suggestBuild: false })))}
-        />
-        <Workspace
-          runData={runData}
-          projectData={projectData}
-          viewingIterationRunId={viewingIterationRunId}
-          onRefreshRunData={refreshRunData}
-        />
+        <div className={`mobile-panel mobile-panel-chat ${mobileView === "chat" ? "mobile-active" : ""}`}>
+          <PromptColumn
+            runData={runData}
+            projectData={projectData}
+            isNewProject={activeNav === "new-project"}
+            onRunBuild={currentProjectId ? iterateProject : startProject}
+            onApprove={approveRun}
+            onReject={rejectRun}
+            onViewIteration={viewIteration}
+            viewingIterationRunId={viewingIterationRunId}
+            onViewLatest={viewLatest}
+            chatMessages={chatMessages}
+            onSendChat={sendChat}
+            chatLoading={chatLoading}
+            onClearBuildSuggestions={() => setChatMessages(prev => prev.map(m => ({ ...m, suggestBuild: false })))}
+          />
+        </div>
+        <div className={`mobile-panel mobile-panel-workspace ${mobileView === "workspace" ? "mobile-active" : ""}`}>
+          <Workspace
+            runData={runData}
+            projectData={projectData}
+            viewingIterationRunId={viewingIterationRunId}
+            onRefreshRunData={refreshRunData}
+          />
+        </div>
+        <div className="mobile-view-toggle">
+          <button
+            className={`mobile-toggle-btn ${mobileView === "chat" ? "active" : ""}`}
+            onClick={() => setMobileView("chat")}
+          >
+            Chat
+          </button>
+          <button
+            className={`mobile-toggle-btn ${mobileView === "workspace" ? "active" : ""}`}
+            onClick={() => setMobileView("workspace")}
+          >
+            Workspace
+          </button>
+        </div>
       </>
     );
   };
@@ -376,7 +395,7 @@ function App() {
           </div>
         </header>
 
-        <div className="content-split">
+        <div className={`content-split ${activeNav === "new-project" || (activeNav === "projects" && currentProjectId) ? "has-mobile-toggle" : ""}`}>
           {renderMainContent()}
         </div>
       </div>

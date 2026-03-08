@@ -1989,7 +1989,16 @@ body {
   color: #f87171;
 }
 
-/* ── Responsive ── */
+/* ── Desktop: mobile wrappers are transparent ── */
+.mobile-panel {
+  display: contents;
+}
+
+.mobile-view-toggle {
+  display: none;
+}
+
+/* ── Responsive: tablet ── */
 @media (max-width: 768px) {
   .sidebar {
     width: 72px;
@@ -2024,6 +2033,251 @@ body {
 
   .prompt-column {
     min-width: 200px;
+  }
+}
+
+/* ── Responsive: mobile (679px and below) ── */
+@media (max-width: 679px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100% !important;
+    flex-direction: row;
+    padding: 0 0.5rem;
+    border-right: none;
+    border-bottom: 1px solid #1e293b;
+    align-items: center;
+    height: 48px;
+    min-height: 48px;
+    flex-shrink: 0;
+  }
+
+  .sidebar.collapsed {
+    width: 100% !important;
+    padding: 0 0.5rem;
+  }
+
+  .sidebar .logo {
+    margin-bottom: 0;
+    margin-right: 0.5rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .sidebar .logo-img.logo-wide {
+    display: none !important;
+  }
+
+  .sidebar .logo-img.logo-stacked {
+    display: block !important;
+    width: 28px;
+  }
+
+  .sidebar .nav {
+    flex-direction: row;
+    gap: 0;
+    flex: 1;
+  }
+
+  .sidebar .nav-item {
+    justify-content: center;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    opacity: 0.6;
+  }
+
+  .sidebar .nav-item.active {
+    opacity: 1;
+  }
+
+  .sidebar .nav-label,
+  .sidebar.collapsed .nav-label {
+    display: inline !important;
+    font-size: 0.7rem;
+  }
+
+  .sidebar .nav-icon,
+  .sidebar.collapsed .nav-icon {
+    margin-right: 0.35rem;
+    font-size: 0.9rem;
+  }
+
+  .sidebar.collapsed .nav-item {
+    font-size: 0.75rem;
+    opacity: 0.6;
+    justify-content: center;
+  }
+
+  .topbar {
+    display: none;
+  }
+
+  .main-area {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .content-split {
+    flex-direction: column;
+    position: relative;
+  }
+
+  .content-split.has-mobile-toggle {
+    padding-bottom: 48px;
+  }
+
+  .mobile-panel {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mobile-panel.mobile-active {
+    display: flex;
+  }
+
+  .mobile-panel-chat {
+    width: 100%;
+  }
+
+  .mobile-panel-chat .prompt-column {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    border-right: none;
+    flex: 1;
+  }
+
+  .mobile-panel-workspace {
+    width: 100%;
+  }
+
+  .mobile-panel-workspace .workspace-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .mobile-panel-workspace .tab-bar {
+    position: fixed;
+    bottom: 48px;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    border-bottom: none;
+    border-top: 1px solid #1e293b;
+    background: #0f172a;
+    justify-content: space-around;
+    padding: 0;
+    overflow-x: auto;
+  }
+
+  .mobile-panel-workspace .tab-btn {
+    flex: 1;
+    text-align: center;
+    padding: 0.6rem 0.25rem;
+    font-size: 0.65rem;
+    border-bottom: none;
+    border-top: 2px solid transparent;
+  }
+
+  .mobile-panel-workspace .tab-btn.active {
+    border-bottom: none;
+    border-top-color: #3b82f6;
+  }
+
+  .mobile-panel-workspace .tab-panel {
+    padding-bottom: 52px;
+  }
+
+  .mobile-view-toggle {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 101;
+    background: #0f172a;
+    border-top: 1px solid #1e293b;
+    padding: 0;
+    height: 48px;
+  }
+
+  .mobile-toggle-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-top: 2px solid transparent;
+    color: #64748b;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0.75rem;
+    transition: color 0.15s, background 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .mobile-toggle-btn.active {
+    color: #e2e8f0;
+    background: rgba(59, 130, 246, 0.1);
+    border-top-color: #3b82f6;
+  }
+
+  .prompt-textarea {
+    min-height: 80px;
+  }
+
+  .preview-iframe {
+    height: 300px;
+  }
+
+  .tab-panel {
+    padding: 1rem;
+  }
+
+  .projects-list-container {
+    padding: 1rem;
+  }
+
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .diff-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-modal {
+    width: 95vw;
+    max-height: 90vh;
+  }
+
+  .shell-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .shell-mode-toggle {
+    margin-left: 0;
+  }
+
+  elevenlabs-convai {
+    display: none !important;
+  }
+
+  .log-toolbar {
+    padding: 0.4rem 0.5rem;
+  }
+
+  .log-search {
+    width: 100px;
   }
 }
 
