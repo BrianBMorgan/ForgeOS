@@ -98,9 +98,7 @@ function PublishTab({ projectId }: { projectId: string | null }) {
     );
   }
   const isPublished = pubStatus?.published && (pubStatus.status === "running" || pubStatus.status === "deploying");
-  const isPublished = pubStatus?.published && pubStatus.status === "running";
   const appUrl = pubStatus?.renderUrl || (pubStatus?.slug ? `${baseUrl}/apps/${pubStatus.slug}` : "");
-  const appUrl = pubStatus?.slug ? `${baseUrl}/apps/${pubStatus.slug}` : "";
 
   return (
     <div className="pub-container">
