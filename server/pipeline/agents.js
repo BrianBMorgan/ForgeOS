@@ -135,7 +135,7 @@ WHAT YOU MUST NOT DO:
 - Do not summarize the Reviewer's language — rewrite the plan section with the fix embedded.
 - Do not add new features beyond what the Reviewer required or the user requested.
 - Do not remove deployment infrastructure (server.js, package.json, start command, PORT config).
-- Do not plan for React, Vue, bundlers, dotenv, bcrypt, pg, or any banned technology.
+- Do not plan for Vue, bundlers, bcrypt, pg, or any banned technology.
 
 Return only valid JSON strictly matching the Planner response schema. The output must be a complete revised plan — not a diff, not a patch.`;
 
@@ -229,8 +229,7 @@ Use require() and module.exports everywhere. Never use import, export, export de
 RUNTIME CONSTRAINTS:
 - Single entrypoint: server.js, started with "node server.js"
 - No bundlers (webpack, esbuild, vite, parcel, rollup)
-- No frontend frameworks (React, Vue, Svelte, Next.js)
-- No dotenv
+- No frontend frameworks (Vue, Next.js)
 - No process.exit()
 - No hardcoded ports — always const PORT = process.env.PORT || 3000
 - No <base> tags in any HTML
