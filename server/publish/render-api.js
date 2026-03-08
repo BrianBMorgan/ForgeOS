@@ -18,7 +18,9 @@ async function renderFetch(path, options = {}) {
     const text = await res.text();
     throw new Error(`Render API error ${res.status}: ${text}`);
   }
-  return res.json();
+  const text = await res.text();
+  if (!text || text.trim() === "") return {};
+  return JSON.parse(text);
 }
 
 async function createService({ slug, repoPath, branch, envVars = {}, startCommand = "node server.js", buildCommand = null }) {
