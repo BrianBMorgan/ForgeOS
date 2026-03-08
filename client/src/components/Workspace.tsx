@@ -27,7 +27,7 @@ function AssetsTab({ projectId }: { projectId: string | null }) {
       const data = await res.json();
       setAssets(Array.isArray(data) ? data : []);
     } catch {}
-  };
+  }
 
   useEffect(() => { fetchAssets(); }, [projectId]);
 
@@ -1484,7 +1484,7 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
       case "env":
         return <EnvTab projectId={projectData?.id || null} />;
       case "assets":
-        return <AssetsTab projectId={projectData?.id || null} />;
+        return <AssetsTab projectId={projectData?.id || runData?.projectId || null} />;
       case "publish":
         return <PublishTab projectId={projectData?.id || null} />;
       case "brain":
