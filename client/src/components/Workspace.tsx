@@ -19,7 +19,7 @@ function AssetsTab({ projectId }: { projectId: string | null }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+I mean I just
   const fetchAssets = async () => {
     if (!projectId) return;
     try {
@@ -32,8 +32,6 @@ function AssetsTab({ projectId }: { projectId: string | null }) {
   useEffect(() => { fetchAssets(); }, [projectId]);
 
     const handleUpload = async (files: FileList | null) => {
-    console.log("[assets] projectData:", projectData?.id, "runData:", runData?.projectId);
-  return <AssetsTab projectId={projectData?.id || runData?.projectId || null} />;
     setUploading(true);
     setError(null);
     for (const file of Array.from(files)) {
@@ -1484,6 +1482,7 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
       case "env":
         return <EnvTab projectId={projectData?.id || null} />;
       case "assets":
+        console.log("[assets] projectData:", projectData?.id, "runData:", runData?.projectId);
         return <AssetsTab projectId={projectData?.id || runData?.projectId || null} />;
       case "publish":
         return <PublishTab projectId={projectData?.id || null} />;
