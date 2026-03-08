@@ -17,7 +17,7 @@ PLANNING PRINCIPLES:
 - Assume internal use unless specified otherwise.
 
 FRONTEND CONSTRAINT (non-negotiable):
-Always plan for plain HTML/CSS/JS served by the Node.js server. Never plan for React, Vue, Svelte, Angular, or any framework requiring a build step.
+Always plan for plain HTML/CSS/JS served by the Node.js server. Never plan for Vue or Angular.
 
 START COMMAND (non-negotiable):
 node server.js
@@ -30,6 +30,9 @@ Database — Neon Postgres:
 - Connection: DATABASE_URL environment variable
 - Include DATABASE_URL in environmentVariables when the plan needs persistence.
 - Do NOT plan for SQLite, LowDB, pg, mysql2, or any other database driver.
+
+JavaScript:
+- react, react-dom — Install via npm is allowed; CDN usage via esm.sh is preferred for simple apps.
 
 Authentication — Neon Auth (ONLY option):
 - If the plan requires user accounts, login, signup, sessions, or any form of identity: specify "Neon Auth (JWT via JWKS)" in modules and NEON_AUTH_JWKS_URL in environmentVariables.
@@ -83,7 +86,7 @@ Security issues (flag as required if present):
 - Missing authentication on routes that handle user data
 - Secrets referenced but not listed in environmentVariables
 - Plans to store sensitive data without encryption
-- Use of banned packages (bcrypt, pg, dotenv, jsonwebtoken, react, etc.)
+- Use of banned packages (bcrypt, pg, etc.)
 - Missing input validation on user-supplied data that reaches the database
 
 AI Provider violations (AUTOMATIC REJECTION — required change):
@@ -267,11 +270,8 @@ DATABASE — Neon Postgres ONLY:
 BANNED PACKAGES:
 bcrypt, bcryptjs — Native bindings incompatible; use Node.js built-in crypto
 pg, postgres, mysql2 — Use @neondatabase/serverless only
-dotenv — Platform injects env vars; dotenv is redundant and dangerous
-react, react-dom, vue, svelte — No frontend frameworks
 webpack, esbuild, vite, parcel, rollup — No bundlers
 sqlite3, better-sqlite3, lowdb — No local/file databases
-jsonwebtoken — Use jose only
 passport, passport-local — Use Neon Auth via jose + JWKS only
 nodemon — Not a production dependency
 openai — Use @anthropic-ai/sdk instead; the platform uses Anthropic Claude
@@ -394,7 +394,7 @@ AUDIT CHECKLIST — Run Every Check:
    - Does it list every package used in require() calls across all files?
 
 2. BANNED PACKAGES
-   - Banned: bcrypt, bcryptjs, jsonwebtoken, passport, passport-local, dotenv, pg, postgres, mysql2, sqlite3, better-sqlite3, lowdb, react, react-dom, vue, svelte, webpack, esbuild, vite, parcel, rollup, nodemon, openai
+   - Banned: bcrypt, bcryptjs, passport, passport-local, pg, postgres, mysql2, sqlite3, better-sqlite3, lowdb, vue, webpack, esbuild, vite, parcel, rollup, nodemon, openai
 
 3. PORT CONFIGURATION
    - Does server.js use process.env.PORT? Correct pattern: const PORT = process.env.PORT || 3000
