@@ -576,7 +576,21 @@ try {
       renderServiceId = result.serviceId;
       renderUrl = result.serviceUrl;
     } catch (err) {
-      throw new Error(`Render service creation failed: ${err.message}`);
+      // If service already exists, find it and redeploy instead
+      if (err.message.includes("already in use")) {
+        const services = await renderApi.listServices();
+        const existing = services.find(s => s.slug === slug);
+        if (existing) {
+          renderServiceId = existing.serviceId;
+          renderUrl = existing.url;
+          await renderApi.updateServiceEnv(renderServiceId, mergedEnv);
+          await renderApi.redeployService(renderServiceId);
+        } else {
+          throw new Error(`Render service creation failed: ${err.message}`);
+        }
+      } else {
+        throw new Error(`Render service creation failed: ${err.message}`);
+      }
     }
   }
 
