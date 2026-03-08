@@ -174,6 +174,75 @@ async function verifyRepoAccess(repoFullName) {
   }
 }
 
+async function pushToAppBranch(repoFullName, slug, sourceDir) {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+
+  const branch = `apps/${slug}`;
+
+  // Get default branch SHA to use as base
+  const repoInfo = await apiRequest("GET", `/repos/${owner}/${repo}`);
+  const defaultBranch = repoInfo.default_branch || "main";
+  const refData = await apiRequest("GET", `/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
+  const latestCommitSha = refData.object.sha;
+
+  // Collect files from source dir
+  const files = collectFiles(sourceDir);
+  if (files.length === 0) throw new Error("No files to push");
+
+  // Build tree with files at root of branch (no subdirectory)
+  const treeItems = [];
+  for (const file of files) {
+    let content, encoding;
+    if (isTextFile(file.fullPath)) {
+      try {
+        content = fs.readFileSync(file.fullPath, "utf8");
+        encoding = "utf-8";
+      } catch {
+        content = fs.readFileSync(file.fullPath).toString("base64");
+        encoding = "base64";
+      }
+    } else {
+      content = fs.readFileSync(file.fullPath).toString("base64");
+      encoding = "base64";
+    }
+    const blob = await apiRequest("POST", `/repos/${owner}/${repo}/git/blobs`, { content, encoding });
+    treeItems.push({ path: file.path, mode: "100644", type: "blob", sha: blob.sha });
+  }
+
+  // Create tree with empty base (standalone branch, not inheriting main)
+  const newTree = await apiRequest("POST", `/repos/${owner}/${repo}/git/trees`, {
+    tree: treeItems,
+  });
+
+  const newCommit = await apiRequest("POST", `/repos/${owner}/${repo}/git/commits`, {
+    message: `[ForgeOS] Publish ${slug}`,
+    tree: newTree.sha,
+    parents: [],
+  });
+
+  // Create or force-update the branch
+  try {
+    await apiRequest("POST", `/repos/${owner}/${repo}/git/refs`, {
+      ref: `refs/heads/${branch}`,
+      sha: newCommit.sha,
+    });
+  } catch {
+    // Branch exists — force update
+    await apiRequest("PATCH", `/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+      sha: newCommit.sha,
+      force: true,
+    });
+  }
+
+  return {
+    branch,
+    commitSha: newCommit.sha,
+    commitUrl: `https://github.com/${owner}/${repo}/commit/${newCommit.sha}`,
+    filesCount: files.length,
+  };
+}
+
 module.exports = {
   pushProjectToGitHub,
   verifyRepoAccess,
