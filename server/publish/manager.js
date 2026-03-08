@@ -78,19 +78,21 @@ async function saveToDb(app) {
   await sql`
     INSERT INTO published_apps
       (project_id, slug, port, status, start_command, install_command,
-       build_command, published_at, updated_at)
+       build_command, published_at, updated_at, render_service_id, render_url)
     VALUES
       (${app.projectId}, ${app.slug}, ${app.port}, ${app.status},
        ${app.startCommand}, ${app.installCommand}, ${app.buildCommand ?? null},
-       ${app.publishedAt}, ${now})
+       ${app.publishedAt}, ${now}, ${app.renderServiceId ?? null}, ${app.renderUrl ?? null})
     ON CONFLICT (project_id) DO UPDATE SET
-      slug            = ${app.slug},
-      port            = ${app.port},
-      status          = ${app.status},
-      start_command   = ${app.startCommand},
-      install_command = ${app.installCommand},
-      build_command   = ${app.buildCommand ?? null},
-      updated_at      = ${now}
+      slug              = ${app.slug},
+      port              = ${app.port},
+      status            = ${app.status},
+      start_command     = ${app.startCommand},
+      install_command   = ${app.installCommand},
+      build_command     = ${app.buildCommand ?? null},
+      render_service_id = ${app.renderServiceId ?? null},
+      render_url        = ${app.renderUrl ?? null},
+      updated_at        = ${now}
   `;
 }
 
