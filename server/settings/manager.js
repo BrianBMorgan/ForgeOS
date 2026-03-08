@@ -212,10 +212,14 @@ async function deleteSecret(key) {
 }
 
 async function getSecretsAsObject() {
-  if (!sql) return {};
+  let sqlConn = sql;
+  if (!sqlConn && process.env.NEON_DATABASE_URL) {
+    sqlConn = neon(process.env.NEON_DATABASE_URL);
+  }
+  if (!sqlConn) return {};
   await seedDefaults();
   try {
-    const rows = await sql`SELECT key, value FROM global_secrets`;
+    const rows = await sqlConn`SELECT key, value FROM global_secrets`;
     const obj = {};
     for (const r of rows) obj[r.key] = r.value;
     return obj;

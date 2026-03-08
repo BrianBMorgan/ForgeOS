@@ -530,8 +530,18 @@ async function _doPublish(projectId) {
     throw new Error(`GitHub push failed: ${err.message}`);
   }
 
-  // ---- Get merged env for the app ----
   const mergedEnv = await getMergedEnv(projectId);
+
+// Ensure Global Secrets are included (getMergedEnv may miss them if settings DB init fails)
+try {
+  const settingsManager = require("../settings/manager");
+  const secrets = await settingsManager.getSecretsAsObject();
+  if (secrets && Object.keys(secrets).length > 0) {
+    Object.assign(mergedEnv, secrets);
+  }
+} catch (err) {
+  console.warn("[publish] Could not load Global Secrets for env:", err.message);
+}
 
   // ---- Create or redeploy Render service ----
   const renderApi = require("./render-api");
