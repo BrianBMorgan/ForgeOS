@@ -56,6 +56,12 @@ function AssetsTab({ projectId }: { projectId: string | null }) {
     fetchAssets();
   };
 
+  const handleUpload = async (files: FileList | null) => {
+  console.log("[assets] handleUpload called", files?.length);
+  if (!files || !projectId) return;
+  console.log("[assets] projectId:", projectId, "uploading:", files[0].name);
+  setUploading(true);
+
   const handleDelete = async (filename: string) => {
     if (!projectId) return;
     await fetch(`/api/projects/${projectId}/assets/${encodeURIComponent(filename)}`, { method: "DELETE" });
