@@ -19,7 +19,6 @@ function AssetsTab({ projectId }: { projectId: string | null }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-I mean I just
   const fetchAssets = async () => {
     if (!projectId) return;
     try {
