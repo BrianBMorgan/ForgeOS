@@ -12,7 +12,7 @@ const { buildAndDeploy } = require("./builder");
 const workspace = require("./workspace/manager");
 const { mountMcp } = require("./mcp/handler");
 const brain = require("./memory/brain");
-const publishManager = require("./publish/manager");But
+const publishManager = require("./publish/manager");
 const app = express();
 app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3001;
