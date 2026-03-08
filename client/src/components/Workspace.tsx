@@ -33,7 +33,7 @@ function AssetsTab({ projectId }: { projectId: string | null }) {
     const handleUpload = async (files: FileList | null) => {
     setUploading(true);
     setError(null);
-    for (const file of Array.from(files)) {
+    for (const file of Array.from(files || [])) {
       const formData = new FormData();
       formData.append("file", file);
       try {
