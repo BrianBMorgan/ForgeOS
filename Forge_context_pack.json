@@ -1,35 +1,6 @@
 {
   "project_name": "ForgeOS AI Pipeline & Architecture",
   "project_description": "Complete overhaul of ForgeOS — an AI-powered web app builder with a cockpit UI, workspace runner, and GitHub-to-Render deploy chain — replacing a broken multi-agent pipeline with a single Claude-powered builder, persistent memory brain, and clean agent boundaries.",
-  {
-    "date": "2026-03-08",
-    "session_title": "Dead Code Cleanup, Bug Fixes, and VS Code Workflow Migration",
-    "shipped": [
-      "Removed self-require from server/pipeline/agents.js — line 12 had agents.js requiring itself, causing circular dependency warnings on startup",
-      "Fixed subdomain proxy body forwarding in server/index.js — changed body: req to body: JSON.stringify(req.body) and added content-type header so POST requests through *.forge-os.ai subdomains correctly forward JSON bodies",
-      "Fixed NEON_DATABASE_URL vs DATABASE_URL mismatch — published apps must use process.env.NEON_DATABASE_URL, not process.env.DATABASE_URL",
-      "Fixed Render API createService plan — changed plan: 'starter' to plan: 'standard' in render-api.js so all newly published apps deploy always-on",
-      "Wired assets context injection into builder.js — added assetsManager.getAssetsContext(projectId) call alongside Brain context, injected into systemPrompt before build",
-      "Identified CHAT_AGENT_INSTRUCTIONS missing from agents.js — deleted in prior dead code scrub, Chat Agent was running with undefined system prompt",
-      "Restored all prompt constants to agents.js — FORGE_VOICE, EXECUTOR_INSTRUCTIONS, EXECUTOR_ITERATE_INSTRUCTIONS, EXECUTOR_FIX_INSTRUCTIONS, AUDITOR_INSTRUCTIONS, CHAT_AGENT_INSTRUCTIONS",
-      "Migrated dev workflow from Replit to VS Code + GitHub — changes pushed directly from VS Code, Render auto-deploys from main branch, Replit sunset"
-    ],
-    "decisions": [
-      "Replit is sunset as the dev environment — VS Code is now the sole development environment",
-      "All changes pushed directly from VS Code to GitHub, Render auto-deploys from main",
-      "Claude can push directly to GitHub repo via PAT when provided — eliminates manual file copy workflow",
-      "Assets are project-scoped — generated apps must fetch assets via /api/projects/PROJECT_ID/assets/FILENAME",
-      "PROJECT_ID should be injected as an env var per project so generated apps can reference assets without hardcoded IDs — systemic fix pending",
-      "Subdomain proxy must serialize req.body as JSON string, not pipe req stream directly — express.json() consumes the stream before proxy runs"
-    ],
-    "pending": [
-      "Add PROJECT_ID to per-project env vars injected at runtime so generated apps can reference assets portably",
-      "Update builder prompt to document AVAILABLE PROJECT ASSETS pattern and PROJECT_ID env var usage",
-      "Verify assets context injection end-to-end with a real build using an uploaded CSV",
-      "Revoke and rotate GitHub PAT used in this session"
-    ],
-    "open_questions": []
-  }
   "session_log": [
     {
       "date": "2026-03-07",
@@ -107,8 +78,37 @@
         "What is the right conversation history limit per project before summarization is needed?",
         "Should workspace builder stream responses or return complete JSON on completion?"
       ]
+    },
+    {
+      "date": "2026-03-08",
+      "session_title": "Dead Code Cleanup, Bug Fixes, and VS Code Workflow Migration",
+      "shipped": [
+        "Removed self-require from server/pipeline/agents.js — line 12 had agents.js requiring itself, causing circular dependency warnings on startup",
+        "Fixed subdomain proxy body forwarding in server/index.js — changed body: req to body: JSON.stringify(req.body) and added content-type header so POST requests through *.forge-os.ai subdomains correctly forward JSON bodies",
+        "Fixed NEON_DATABASE_URL vs DATABASE_URL mismatch — published apps must use process.env.NEON_DATABASE_URL, not process.env.DATABASE_URL",
+        "Fixed Render API createService plan — changed plan: 'starter' to plan: 'standard' in render-api.js so all newly published apps deploy always-on",
+        "Wired assets context injection into builder.js — added assetsManager.getAssetsContext(projectId) call alongside Brain context, injected into systemPrompt before build",
+        "Identified CHAT_AGENT_INSTRUCTIONS missing from agents.js — deleted in prior dead code scrub, Chat Agent was running with undefined system prompt",
+        "Restored all prompt constants to agents.js — FORGE_VOICE, EXECUTOR_INSTRUCTIONS, EXECUTOR_ITERATE_INSTRUCTIONS, EXECUTOR_FIX_INSTRUCTIONS, AUDITOR_INSTRUCTIONS, CHAT_AGENT_INSTRUCTIONS",
+        "Migrated dev workflow from Replit to VS Code + GitHub — changes pushed directly from VS Code, Render auto-deploys from main branch, Replit sunset"
+      ],
+      "decisions": [
+        "Replit is sunset as the dev environment — VS Code is now the sole development environment",
+        "All changes pushed directly from VS Code to GitHub, Render auto-deploys from main",
+        "Claude can push directly to GitHub repo via PAT when provided — eliminates manual file copy workflow",
+        "Assets are project-scoped — generated apps must fetch assets via /api/projects/PROJECT_ID/assets/FILENAME",
+        "PROJECT_ID should be injected as an env var per project so generated apps can reference assets without hardcoded IDs — systemic fix pending",
+        "Subdomain proxy must serialize req.body as JSON string, not pipe req stream directly — express.json() consumes the stream before proxy runs"
+      ],
+      "pending": [
+        "Add PROJECT_ID to per-project env vars injected at runtime so generated apps can reference assets portably",
+        "Update builder prompt to document AVAILABLE PROJECT ASSETS pattern and PROJECT_ID env var usage",
+        "Verify assets context injection end-to-end with a real build using an uploaded CSV",
+        "Revoke and rotate GitHub PAT used in this session"
+      ],
+      "open_questions": []
     }
-  ]
+  ],
   "domain_knowledge": [
     "ForgeOS serves workspace previews at /preview/:runId/ and published apps at /apps/:slug/ behind a path-prefix proxy that rewrites HTML href/src/action attributes and patches window.fetch(), XMLHttpRequest.open(), and history.pushState at runtime",
     "All Claude-generated workspace apps must use root-relative URLs with a leading slash (e.g. /api/items, /style.css) — the proxy handles prefix rewriting, apps must never do it themselves",
