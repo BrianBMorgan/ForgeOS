@@ -40,12 +40,13 @@ app.use(async (req, res, next) => {
   const fetchHeaders = { ...req.headers, host: new URL(pubApp.renderUrl).hostname };
   delete fetchHeaders["accept-encoding"];
   fetchHeaders["accept-encoding"] = "identity";
+  fetchHeaders["content-type"] = req.headers["content-type"] || "application/json";
 
   try {
     const response = await fetch(targetUrl.toString(), {
       method: req.method,
       headers: fetchHeaders,
-      body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : req,body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
       duplex: "half",
     });
     res.status(response.status);
