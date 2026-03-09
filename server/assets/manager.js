@@ -69,12 +69,10 @@ async function deleteAsset(filename) {
 async function getAssetsContext() {
   const assets = await listAssets();
   if (!assets.length) return null;
-  return assets.map(a => ({
-    filename: a.filename,
-    mimetype: a.mimetype,
-    sizeBytes: a.size_bytes,
-    accessUrl: `/api/assets/${encodeURIComponent(a.filename)}`,
-  }));
+  const lines = assets.map(a =>
+    `- ${a.filename} (${a.mimetype}, ${a.size_bytes} bytes) → /api/assets/${encodeURIComponent(a.filename)}`
+  );
+  return `AVAILABLE GLOBAL ASSETS:\nThe following files are available via HTTP GET at their listed URLs:\n${lines.join("\n")}`;
 }
 
 module.exports = {
