@@ -1066,6 +1066,12 @@ function rewriteCssForProxy(css, basePath) {
 }
 
 app.use("/preview/:runId", async (req, res) => {
+  // Pass ForgeOS global API routes through — don't forward to workspace app
+  if (req.path.startsWith("/api/assets")) {
+    req.url = req.path;
+    return app._router.handle(req, res, () => res.status(404).json({ error: "Not found" }));
+  }
+
   const runId = req.params.runId;
 
   let status = workspace.getWorkspaceStatus(runId);
