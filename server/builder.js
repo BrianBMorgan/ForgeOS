@@ -274,9 +274,17 @@ async function buildWorkspace(prompt, existingFiles, projectId = null) {
     console.error("[builder] Brain context failed (non-fatal):", err.message);
   }
 
-  const systemPrompt = memoryContext
-    ? memoryContext + "\n\n" + basePrompt
-    : basePrompt;
+let assetsContext = "";
+try {
+  const assetsManager = require("./assets/manager");
+  assetsContext = await assetsManager.getAssetsContext(projectId);
+} catch (err) {
+  console.error("[builder] Assets context failed (non-fatal):", err.message);
+}
+
+const systemPrompt = [memoryContext, assetsContext, basePrompt]
+  .filter(Boolean)
+  .join("\n\n");
 
   const result = await callStructured(
     BUILDER_MODEL,
