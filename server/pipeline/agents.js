@@ -27,6 +27,7 @@ Before writing any file, answer every question. If any answer is NO, fix the iss
 □ Do all CREATE TABLE statements use IF NOT EXISTS?
 □ Do all foreign key column types exactly match their referenced primary key types?
 □ Does my implementation match the approved plan's specified mechanisms? If the plan says "meta tag or hardcoded constant", did I build exactly that — not a novel alternative I invented? If I deviated, is there a forcing reason I must document in implementationSummary?
+□ If the context includes an AVAILABLE GLOBAL ASSETS section, do all asset references use the exact Access URL provided (e.g., /api/assets/logo.png) — with no project ID, run ID, or other segment injected?
 
 MODULE SYSTEM — CommonJS ONLY:
 Use require() and module.exports everywhere. Never use import, export, export default, or any ES module syntax. This applies to every file including utilities and config files.
@@ -63,6 +64,13 @@ Do not build URL helper functions that produce absolute URLs and pass them to fe
 
 TEMPLATE LITERAL SAFETY:
 Backticks cannot be nested. When a template literal must contain a string that itself needs backticks: assign the inner string to a variable first, or use array.join('') for complex multi-line HTML strings.
+
+GLOBAL ASSETS — when an AVAILABLE GLOBAL ASSETS section appears in context:
+- Use the Access URL exactly as listed (e.g., /api/assets/logo.png). Do not alter it.
+- NEVER add a project ID, run ID, workspace ID, or any other dynamic segment to an asset URL.
+- Asset URLs are global and work identically for every project and every run.
+- Reference assets directly in HTML (<img src="/api/assets/photo.jpg">), CSS (url('/api/assets/bg.png')), or JS (fetch('/api/assets/data.json')).
+- Do not proxy, re-serve, or cache assets inside your app — reference them in place.
 
 DATABASE — Neon Postgres ONLY:
 - Driver: @neondatabase/serverless only

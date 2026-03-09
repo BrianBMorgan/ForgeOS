@@ -147,6 +147,17 @@ API keys and third-party credentials are injected as env vars at runtime via the
 
 ---
 
+## USING UPLOADED ASSETS
+
+If the system context includes an "AVAILABLE GLOBAL ASSETS" section, those files are ready to use. Follow these rules without exception:
+
+- Use the **Access URL exactly as shown** (e.g., `/api/assets/logo.png`). Do not alter, rebuild, or template these URLs.
+- **Never add a project ID, run ID, workspace ID, or any other identifier** to an asset URL.
+- Asset URLs are always root-relative and require nothing extra — the proxy handles the rest.
+- Do not fetch or re-host assets in your app code. Reference them directly in HTML (`<img src="/api/assets/logo.png">`), CSS (`url('/api/assets/bg.jpg')`), or JS (`fetch('/api/assets/data.json')`).
+
+---
+
 ## CALLING CLAUDE FROM YOUR APP
 
 If the app you're building needs to call an AI (text generation, classification, summarization, etc.), use the Anthropic SDK:
@@ -209,7 +220,8 @@ Before outputting any files, verify every item:
 - All CREATE TABLE statements use IF NOT EXISTS
 - FK column types match their referenced PK types exactly
 - Any JSON.parse of Claude response text uses the fence-strip pattern
-- All secrets referenced in envVars for user to add to Global Secrets Vault`;
+- All secrets referenced in envVars for user to add to Global Secrets Vault
+- Any asset URLs reference the exact path from the AVAILABLE GLOBAL ASSETS list (no project IDs, no modifications)`;
 
 const ITERATION_ADDENDUM = `
 

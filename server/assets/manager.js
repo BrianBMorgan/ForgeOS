@@ -69,12 +69,23 @@ async function deleteAsset(filename) {
 async function getAssetsContext() {
   const assets = await listAssets();
   if (!assets.length) return null;
-  return assets.map(a => ({
-    filename: a.filename,
-    mimetype: a.mimetype,
-    sizeBytes: a.size_bytes,
-    accessUrl: `/api/assets/${encodeURIComponent(a.filename)}`,
-  }));
+  const rows = assets.map(a => {
+    const url = `/api/assets/${encodeURIComponent(a.filename)}`;
+    return `| ${a.filename} | ${a.mimetype} | ${a.size_bytes} | ${url} |`;
+  }).join("\n");
+  return `## AVAILABLE GLOBAL ASSETS
+
+The following assets have been uploaded by the user and are available for use. These are **global** assets — they do NOT belong to any individual project. Use the accessUrl exactly as shown. NEVER modify these URLs. NEVER add a project ID, run ID, or any other identifier to these paths.
+
+| Filename | Type | Size (bytes) | Access URL |
+|---|---|---|---|
+${rows}
+
+ASSET URL RULES:
+- Always use the Access URL column value verbatim (e.g., \`/api/assets/logo.png\`)
+- Never construct asset URLs manually — only use the URLs listed above
+- Never inject a project ID, workspace ID, or any dynamic segment into asset URLs
+- These URLs are root-relative and work correctly behind the platform proxy`;
 }
 
 module.exports = {
