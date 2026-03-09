@@ -372,6 +372,11 @@ interface SkillOption {
   description: string;
 }
 
+interface AssetOption {
+  filename: string;
+  mimetype: string;
+}
+
 export default function PromptColumn({
   runData,
   projectData,
@@ -394,6 +399,9 @@ export default function PromptColumn({
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
   const [slashPos, setSlashPos] = useState(-1);
+  const [assetOptions, setAssetOptions] = useState<AssetOption[]>([]);
+  const [assetQuery, setAssetQuery] = useState<string | null>(null);
+  const [assetPos, setAssetPos] = useState(-1);
 
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__forgeSetPrompt = (text: string) => {
@@ -438,6 +446,13 @@ export default function PromptColumn({
       }));
       setSkillOptions(skills);
     }).catch(() => {});
+    fetch("/api/assets").then(r => r.json()).then(data => {
+      const assets = (Array.isArray(data) ? data : []).map((a: { filename: string; mimetype: string }) => ({
+        filename: a.filename,
+        mimetype: a.mimetype,
+      }));
+      setAssetOptions(assets);
+    }).catch(() => {});
   }, []);
 
   const filteredSkills = slashQuery !== null
@@ -446,20 +461,38 @@ export default function PromptColumn({
       ).slice(0, 8)
     : [];
 
+  const filteredAssets = assetQuery !== null
+    ? assetOptions.filter(a => a.filename.toLowerCase().includes(assetQuery.toLowerCase())).slice(0, 8)
+    : [];
+
   const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setPrompt(val);
 
     const cursorPos = e.target.selectionStart;
     const textBeforeCursor = val.slice(0, cursorPos);
-    const slashMatch = textBeforeCursor.match(/\/([a-z0-9-]*)$/i);
-    if (slashMatch) {
-      setSlashQuery(slashMatch[1]);
-      setSlashPos(cursorPos - slashMatch[0].length);
+
+    // Asset mode: /assets or /assets/partial
+    const assetMatch = textBeforeCursor.match(/\/assets(?:\/([^\s]*))?$/i);
+    if (assetMatch) {
+      setAssetQuery(assetMatch[1] ?? "");
+      setAssetPos(cursorPos - assetMatch[0].length);
       setSlashIndex(0);
-    } else {
       setSlashQuery(null);
       setSlashPos(-1);
+    } else {
+      setAssetQuery(null);
+      setAssetPos(-1);
+      // Skill mode: /slug
+      const slashMatch = textBeforeCursor.match(/\/([a-z0-9-]*)$/i);
+      if (slashMatch) {
+        setSlashQuery(slashMatch[1]);
+        setSlashPos(cursorPos - slashMatch[0].length);
+        setSlashIndex(0);
+      } else {
+        setSlashQuery(null);
+        setSlashPos(-1);
+      }
     }
   };
 
@@ -482,6 +515,25 @@ export default function PromptColumn({
     }, 0);
   };
 
+  const insertAsset = (asset: AssetOption) => {
+    if (assetPos < 0) return;
+    const cursorPos = textareaRef.current?.selectionStart || prompt.length;
+    const before = prompt.slice(0, assetPos);
+    const after = prompt.slice(cursorPos);
+    const inserted = `/api/assets/${encodeURIComponent(asset.filename)} `;
+    const newPrompt = before + inserted + after;
+    setPrompt(newPrompt);
+    setAssetQuery(null);
+    setAssetPos(-1);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const pos = before.length + inserted.length;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
   const handleSubmit = () => {
     if (!prompt.trim() || isRunning || chatLoading) return;
     if (isProjectView) {
@@ -492,6 +544,8 @@ export default function PromptColumn({
     setPrompt("");
     setSlashQuery(null);
     setSlashPos(-1);
+    setAssetQuery(null);
+    setAssetPos(-1);
   };
 
   const handleBuildFromSuggestion = (suggestion: string) => {
@@ -500,6 +554,29 @@ export default function PromptColumn({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (assetQuery !== null && filteredAssets.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((prev) => Math.min(prev + 1, filteredAssets.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        insertAsset(filteredAssets[slashIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setAssetQuery(null);
+        setAssetPos(-1);
+        return;
+      }
+    }
     if (slashQuery !== null && filteredSkills.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -620,6 +697,21 @@ export default function PromptColumn({
       {!isViewingHistory && (
         <div className="prompt-input-area">
           <div className="prompt-textarea-wrap">
+            {assetQuery !== null && filteredAssets.length > 0 && (
+              <div className="slash-dropdown">
+                {filteredAssets.map((asset, i) => (
+                  <div
+                    key={asset.filename}
+                    className={`slash-option${i === slashIndex ? " active" : ""}`}
+                    onMouseDown={(e) => { e.preventDefault(); insertAsset(asset); }}
+                    onMouseEnter={() => setSlashIndex(i)}
+                  >
+                    <span className="slash-option-name">/assets/{asset.filename}</span>
+                    <span className="slash-option-desc">{asset.mimetype}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {slashQuery !== null && filteredSkills.length > 0 && (
               <div className="slash-dropdown">
                 {filteredSkills.map((skill, i) => (
@@ -640,7 +732,7 @@ export default function PromptColumn({
               className="prompt-textarea"
               placeholder={
                 isProjectView
-                  ? "Ask a question or type / for skills..."
+                  ? "Ask a question or type / for skills, /assets/ for files..."
                   : "Describe what you want to build..."
               }
               value={prompt}
