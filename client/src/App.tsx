@@ -6,12 +6,14 @@ import Workspace from "./components/Workspace";
 
 import ProjectsList from "./components/ProjectsList";
 import Settings from "./components/Settings";
+import Assets from "./components/Assets";
 
-type NavId = "new-project" | "projects" | "settings";
+type NavId = "new-project" | "projects" | "assets" | "settings";
 
 const navItems: { id: NavId; label: string; icon: string }[] = [
   { id: "new-project", label: "New Project", icon: "+" },
   { id: "projects", label: "Projects", icon: "▶" },
+  { id: "assets", label: "Assets", icon: "◈" },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -304,6 +306,10 @@ function App() {
   const renderMainContent = () => {
     if (activeNav === "settings") {
       return <Settings />;
+    }
+
+    if (activeNav === "assets") {
+      return <Assets />;
     }
 
     if (activeNav === "projects" && !currentProjectId) {

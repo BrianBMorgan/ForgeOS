@@ -14,109 +14,6 @@ interface PublishStatus {
   github?: { commitSha?: string; commitUrl?: string; filesCount?: number };
 }
 
-function AssetsTab({ projectId }: { projectId: string | null }) {
-  const [assets, setAssets] = useState<any[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const fetchAssets = async () => {
-    if (!projectId) return;
-    try {
-      const res = await fetch(`/api/projects/${projectId}/assets`);
-      const data = await res.json();
-      setAssets(Array.isArray(data) ? data : []);
-    } catch {}
-  }
-
-  useEffect(() => { fetchAssets(); }, [projectId]);
-
-    const handleUpload = async (files: FileList | null) => {
-    setUploading(true);
-    setError(null);
-    for (const file of Array.from(files || [])) {
-      const formData = new FormData();
-      formData.append("file", file);
-      try {
-        const res = await fetch(`/api/projects/${projectId}/assets`, {
-          method: "POST",
-          body: formData,
-        });
-        if (!res.ok) {
-          const d = await res.json();
-          setError(d.error || "Upload failed");
-        }
-      } catch (err: any) {
-        setError(err.message);
-      }
-    }
-    setUploading(false);
-    fetchAssets();
-  };
-
-    const handleDelete = async (filename: string) => {
-    if (!projectId) return;
-    await fetch(`/api/projects/${projectId}/assets/${encodeURIComponent(filename)}`, { method: "DELETE" });
-    fetchAssets();
-  };
-
-  const handleCopyUrl = (filename: string) => {
-    navigator.clipboard.writeText(`/api/projects/${projectId}/assets/${encodeURIComponent(filename)}`);
-  };
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes}B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-  };
-
-  return (
-    <div className="assets-container">
-      <div className="assets-header">
-        <h2 className="assets-title">Assets</h2>
-        <p className="assets-subtitle">Upload files to use in your app — images, CSVs, documents.</p>
-      </div>
-      {error && <div className="pub-error">{error}</div>}
-      <div
-        className="assets-dropzone"
-        onClick={() => fileInputRef.current?.click()}
-        onDragOver={e => e.preventDefault()}
-        onDrop={e => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          style={{ display: "none" }}
-          value=""
-          onChange={e => handleUpload(e.target.files)}
-        />
-        <div className="assets-dropzone-text">
-          {uploading ? "Uploading..." : "Drop files here or click to upload"}
-        </div>
-        <div className="assets-dropzone-hint">Images, CSVs, JSON, text, PDF — max 10MB each</div>
-      </div>
-      {assets.length > 0 && (
-        <div className="assets-list">
-          {assets.map(a => (
-            <div key={a.id} className="assets-item">
-              <div className="assets-item-info">
-                <span className="assets-item-name">{a.filename}</span>
-                <span className="assets-item-meta">{a.mimetype} · {formatSize(a.size_bytes)}</span>
-              </div>
-              <div className="assets-item-actions">
-                <button className="assets-btn" onClick={() => handleCopyUrl(a.filename)}>Copy URL</button>
-                <button className="assets-btn assets-btn-danger" onClick={() => handleDelete(a.filename)}>Delete</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {assets.length === 0 && !uploading && (
-        <div className="assets-empty">No assets uploaded yet.</div>
-      )}
-    </div>
-  );
-}
 
 function PublishTab({ projectId }: { projectId: string | null }) {
   const [pubStatus, setPubStatus] = useState<PublishStatus | null>(null);
@@ -356,8 +253,7 @@ const defaultTabs: Tab[] = [
   { id: "shell", label: "Shell", description: "Terminal output and log stream." },
   { id: "db", label: "DB", description: "Database viewer — tables, queries, and schema." },
   { id: "env", label: "Env", description: "Project environment variables." },
-  { id: "assets", label: "Assets", description: "Project files — images, CSVs, documents for use in your app." },
-  { id: "publish", label: "Publish", description: "Deployment controls, domains, and promotion workflow." },
+{ id: "publish", label: "Publish", description: "Deployment controls, domains, and promotion workflow." },
   { id: "brain", label: "Brain", description: "Persistent team memory — patterns, preferences, and project history." },
 ];
 
@@ -1480,9 +1376,7 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
         return <DbTab />;
       case "env":
         return <EnvTab projectId={projectData?.id || null} />;
-      case "assets":
-        return <AssetsTab projectId={projectData?.id || runData?.projectId || null} />;
-      case "publish":
+case "publish":
         return <PublishTab projectId={projectData?.id || null} />;
       case "brain":
         return <BrainTab />;
