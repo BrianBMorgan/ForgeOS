@@ -445,10 +445,19 @@ async function startApp(runId, startCommand, port, customEnv = {}) {
       ws.process = null;
       if (!resolved) {
         resolved = true;
-        ws.status = "start-failed";
-        ws.error = err.message;
-        ws.logEntries.push(createLogEntry(`Process error: ${err.message}`, "error", "system"));
-        resolve({ success: false, error: err.message });
+        // EADDRINUSE — port still occupied, force kill and retry once
+        if (err.code === "EADDRINUSE" || (err.message && err.message.includes("EADDRINUSE"))) {
+          ws.logEntries.push(createLogEntry(`Port ${ws.port} in use — force killing and retrying`, "warn", "system"));
+          forceKillPort(ws.port).then(() => {
+            ws.status = "starting";
+            startApp(runId, ws.lastStartCommand, ws.lastPort, customEnv).then(resolve);
+          });
+        } else {
+          ws.status = "start-failed";
+          ws.error = err.message;
+          ws.logEntries.push(createLogEntry(`Process error: ${err.message}`, "error", "system"));
+          resolve({ success: false, error: err.message });
+        }
       }
     });
 

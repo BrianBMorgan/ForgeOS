@@ -268,6 +268,15 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
 
   const lastRunId = project.currentRunId;
   const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
+
+  // Stop existing workspace before starting new build — prevents EADDRINUSE on iteration
+  if (lastRunId) {
+    const wsStatus = workspace.getWorkspaceStatus(lastRunId);
+    if (wsStatus && (wsStatus.status === "running" || wsStatus.status === "starting")) {
+      await workspace.stopApp(lastRunId);
+    }
+  }
+
   const iterationNumber = project.iterations.length + 1;
 
   const run = createRun(prompt.trim(), {
