@@ -4,12 +4,6 @@ const {
   ExecutorSchema,
   AuditorSchema,
 } = require("./schemas");
-const {
-  EXECUTOR_INSTRUCTIONS,
-  EXECUTOR_ITERATE_INSTRUCTIONS,
-  EXECUTOR_FIX_INSTRUCTIONS,
-  AUDITOR_INSTRUCTIONS,
-} = require("./agents");
 
 const { neon } = require("@neondatabase/serverless");
 
