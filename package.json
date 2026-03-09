@@ -1,0 +1,14 @@
+{
+  "name": "csv-grid-viewer",
+  "version": "1.0.0",
+  "description": "CSV grid viewer from ForgeOS assets",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "csv-parse": "^5.5.0",
+    "axios": "^1.6.0"
+  }
+}
