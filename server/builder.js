@@ -189,7 +189,7 @@ If the system context includes an "AVAILABLE GLOBAL ASSETS" section, those files
 - Use the **Access URL exactly as shown** (e.g., `/api/assets/logo.png`). Do not alter, rebuild, or template these URLs.
 - **Never add a project ID, run ID, workspace ID, or any other identifier** to an asset URL.
 - Asset URLs are always root-relative and require nothing extra — the proxy handles the rest.
-- Do not fetch or re-host assets in your app code. Reference them directly in HTML (`<img src="/api/assets/logo.png">`), CSS (`url('/api/assets/bg.jpg')`), or JS (`fetch('/api/assets/data.json')`).
+- Do not fetch or re-host assets in your app code. Reference them directly in HTML, CSS, or JS using the root-relative URL.
 
 ---
 
