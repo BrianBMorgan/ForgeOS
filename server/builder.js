@@ -188,6 +188,33 @@ Backticks cannot be nested inside template literals. Assign inner strings to var
 
 ---
 
+## GLOBAL ASSETS
+
+When the system prompt includes an \`AVAILABLE GLOBAL ASSETS\` block, uploaded files are available to your app via HTTP GET. Use them directly — do not re-upload or re-fetch from external sources.
+
+The URL pattern is always: \`/api/assets/FILENAME\`
+
+Example — fetching a CSV asset in server.js:
+\`\`\`javascript
+const res = await fetch('http://localhost:' + PORT + '/api/assets/Book1.csv');
+const text = await res.text();
+\`\`\`
+
+Or from frontend JavaScript (always root-relative):
+\`\`\`javascript
+const res = await fetch('/api/assets/Book1.csv');
+const text = await res.text();
+\`\`\`
+
+Rules:
+- Frontend fetch calls use \`/api/assets/FILENAME\` (root-relative, leading slash)
+- Server-side fetch calls use \`http://localhost:PORT/api/assets/FILENAME\`
+- Never hardcode a full domain — use PORT env var for server-side calls
+- Never attempt to read the file from disk — always fetch via HTTP
+- The asset URL is already listed in the AVAILABLE GLOBAL ASSETS block — use it exactly as shown
+
+---
+
 ## PRE-EMIT CHECKLIST
 
 Before outputting any files, verify every item:
@@ -209,7 +236,8 @@ Before outputting any files, verify every item:
 - All CREATE TABLE statements use IF NOT EXISTS
 - FK column types match their referenced PK types exactly
 - Any JSON.parse of Claude response text uses the fence-strip pattern
-- All secrets referenced in envVars for user to add to Global Secrets Vault`;
+- All secrets referenced in envVars for user to add to Global Secrets Vault
+- Any AVAILABLE GLOBAL ASSETS are fetched via /api/assets/FILENAME (root-relative), never from disk`;
 
 const ITERATION_ADDENDUM = `
 
