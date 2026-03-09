@@ -421,7 +421,7 @@ app.post("/api/projects/:id/publish", async (req, res) => {
     if (result.slug) {
       const project = await projectManager.getProject(req.params.id).catch(() => null);
       if (project) {
-        brain.updatePublishedUrl(req.params.id, project.name, `/apps/${result.slug}`).catch(() => {});
+        brain.updatePublishedUrl(req.params.id, project.name, `https://${result.slug}.forge-os.ai`)
       }
     }
 
@@ -1173,81 +1173,6 @@ app.use("/preview/:runId", async (req, res) => {
 
   proxyReq.on("error", () => {
     if (!res.headersSent) res.status(502).json({ error: "Preview app not reachable" });
-  });
-
-  if (bodyBuffer) {
-    proxyReq.end(bodyBuffer);
-  } else {
-    req.pipe(proxyReq);
-  }
-});
-
-app.use("/apps/:slug", (req, res) => {
-  const slug = req.params.slug;
-  const pubApp = publishManager.getPublishedAppBySlug(slug);
-  if (!pubApp || pubApp.status !== "running" || !pubApp.port) {
-    return res.status(503).send(`<html><body style="background:#111;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h1>App Offline</h1><p>This app is not currently running.</p></div></body></html>`);
-  }
-
-  const basePath = `/apps/${slug}`;
-  let targetPath = req.originalUrl;
-  if (targetPath.startsWith(basePath)) {
-    targetPath = targetPath.slice(basePath.length) || "/";
-  }
-  if (!targetPath.startsWith("/")) targetPath = "/" + targetPath;
-
-  const bodyBuffer = (req.body !== undefined && req.body !== null)
-    ? Buffer.from(JSON.stringify(req.body))
-    : null;
-
-  const fwdHeaders = { ...req.headers, host: `127.0.0.1:${pubApp.port}` };
-  delete fwdHeaders["accept-encoding"];
-  if (bodyBuffer) {
-    fwdHeaders["content-length"] = String(bodyBuffer.length);
-  }
-
-  const options = {
-    hostname: "127.0.0.1",
-    port: pubApp.port,
-    path: targetPath,
-    method: req.method,
-    headers: fwdHeaders,
-  };
-
-  const proxyReq = http.request(options, (proxyRes) => {
-    const contentType = (proxyRes.headers["content-type"] || "").toLowerCase();
-    const isHtml = contentType.includes("text/html");
-    const isCss = contentType.includes("text/css");
-
-    if (isHtml || isCss) {
-      const chunks = [];
-      proxyRes.on("data", (chunk) => chunks.push(chunk));
-      proxyRes.on("end", () => {
-        let body = Buffer.concat(chunks).toString("utf-8");
-        if (isHtml) {
-          body = rewriteHtmlForProxy(body, basePath);
-        } else {
-          body = rewriteCssForProxy(body, basePath);
-        }
-        const headers = { ...proxyRes.headers };
-        rewriteLocationHeader(headers, basePath);
-        headers["content-length"] = String(Buffer.byteLength(body, "utf-8"));
-        delete headers["content-encoding"];
-        res.writeHead(proxyRes.statusCode, headers);
-        res.end(body);
-      });
-    } else {
-      const headers = { ...proxyRes.headers };
-      rewriteLocationHeader(headers, basePath);
-      res.writeHead(proxyRes.statusCode, headers);
-      proxyRes.pipe(res, { end: true });
-    }
-  });
-
-  proxyReq.on("error", () => {
-    if (!res.headersSent) {
-      res.status(502).send("App unavailable");
-    }
   });
 
   if (bodyBuffer) {
