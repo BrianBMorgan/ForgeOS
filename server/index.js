@@ -502,16 +502,16 @@ app.get("/api/projects/:id/export", async (req, res) => {
 const assetsManager = require("./assets/manager");
 assetsManager.ensureSchema().catch(err => console.error("[assets] Schema error:", err.message));
 
-app.get("/api/projects/:id/assets", async (req, res) => {
+app.get("/api/assets", async (req, res) => {
   try {
-    const assets = await assetsManager.listAssets(req.params.id);
+    const assets = await assetsManager.listAssets();
     res.json(assets);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/projects/:id/assets", async (req, res) => {
+app.post("/api/assets", async (req, res) => {
   try {
     const busboy = require("busboy");
     const bb = busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
@@ -521,12 +521,12 @@ app.post("/api/projects/:id/assets", async (req, res) => {
       const chunks = [];
       for await (const chunk of file) chunks.push(chunk);
       const buffer = Buffer.concat(chunks);
-      const isText = mimeType.startsWith("text/") || 
-                     mimeType.includes("json") || 
+      const isText = mimeType.startsWith("text/") ||
+                     mimeType.includes("json") ||
                      mimeType.includes("csv") ||
                      mimeType.includes("xml");
       const content = isText ? buffer.toString("utf8") : buffer.toString("base64");
-      saved = await assetsManager.saveAsset(req.params.id, filename, mimeType, buffer.length, content);
+      saved = await assetsManager.saveAsset(filename, mimeType, buffer.length, content);
     });
     bb.on("finish", () => res.json(saved));
     bb.on("error", err => res.status(400).json({ error: err.message }));
@@ -536,12 +536,12 @@ app.post("/api/projects/:id/assets", async (req, res) => {
   }
 });
 
-app.get("/api/projects/:id/assets/:filename", async (req, res) => {
+app.get("/api/assets/:filename", async (req, res) => {
   try {
-    const asset = await assetsManager.getAsset(req.params.id, decodeURIComponent(req.params.filename));
+    const asset = await assetsManager.getAsset(decodeURIComponent(req.params.filename));
     if (!asset) return res.status(404).json({ error: "Asset not found" });
-    const isBase64 = !asset.mimetype.startsWith("text/") && 
-                     !asset.mimetype.includes("json") && 
+    const isBase64 = !asset.mimetype.startsWith("text/") &&
+                     !asset.mimetype.includes("json") &&
                      !asset.mimetype.includes("csv");
     const buffer = isBase64 ? Buffer.from(asset.content, "base64") : Buffer.from(asset.content);
     res.setHeader("Content-Type", asset.mimetype);
@@ -552,9 +552,9 @@ app.get("/api/projects/:id/assets/:filename", async (req, res) => {
   }
 });
 
-app.delete("/api/projects/:id/assets/:filename", async (req, res) => {
+app.delete("/api/assets/:filename", async (req, res) => {
   try {
-    await assetsManager.deleteAsset(req.params.id, decodeURIComponent(req.params.filename));
+    await assetsManager.deleteAsset(decodeURIComponent(req.params.filename));
     res.json({ deleted: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

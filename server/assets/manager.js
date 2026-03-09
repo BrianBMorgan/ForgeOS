@@ -1,5 +1,4 @@
 "use strict";
-const path = require("path");
 
 let db = null;
 async function getDb() {
@@ -14,10 +13,9 @@ async function ensureSchema() {
   const sql = await getDb();
   if (!sql) return;
   await sql`
-    CREATE TABLE IF NOT EXISTS project_assets (
+    CREATE TABLE IF NOT EXISTS forge_assets (
       id          SERIAL PRIMARY KEY,
-      project_id  VARCHAR(8) NOT NULL,
-      filename    VARCHAR(255) NOT NULL,
+      filename    VARCHAR(255) NOT NULL UNIQUE,
       mimetype    VARCHAR(100) NOT NULL,
       size_bytes  INT NOT NULL,
       content     TEXT NOT NULL,
@@ -26,70 +24,56 @@ async function ensureSchema() {
   `;
 }
 
-async function saveAsset(projectId, filename, mimetype, sizeBytes, content) {
+async function saveAsset(filename, mimetype, sizeBytes, content) {
   const sql = await getDb();
   if (!sql) throw new Error("No database connection");
   const now = Date.now();
   const [row] = await sql`
-    INSERT INTO project_assets (project_id, filename, mimetype, size_bytes, content, created_at)
-    VALUES (${projectId}, ${filename}, ${mimetype}, ${sizeBytes}, ${content}, ${now})
-    ON CONFLICT DO NOTHING
+    INSERT INTO forge_assets (filename, mimetype, size_bytes, content, created_at)
+    VALUES (${filename}, ${mimetype}, ${sizeBytes}, ${content}, ${now})
+    ON CONFLICT (filename) DO UPDATE SET
+      content    = EXCLUDED.content,
+      size_bytes = EXCLUDED.size_bytes,
+      mimetype   = EXCLUDED.mimetype,
+      created_at = EXCLUDED.created_at
     RETURNING id, filename, mimetype, size_bytes, created_at
   `;
-  // If conflict (same filename), update instead
-  if (!row) {
-    const [updated] = await sql`
-      UPDATE project_assets SET
-        content = ${content},
-        size_bytes = ${sizeBytes},
-        mimetype = ${mimetype},
-        created_at = ${now}
-      WHERE project_id = ${projectId} AND filename = ${filename}
-      RETURNING id, filename, mimetype, size_bytes, created_at
-    `;
-    return updated;
-  }
   return row;
 }
 
-async function getAsset(projectId, filename) {
+async function getAsset(filename) {
   const sql = await getDb();
   if (!sql) return null;
   const [row] = await sql`
-    SELECT * FROM project_assets
-    WHERE project_id = ${projectId} AND filename = ${filename}
+    SELECT * FROM forge_assets WHERE filename = ${filename}
   `;
   return row || null;
 }
 
-async function listAssets(projectId) {
+async function listAssets() {
   const sql = await getDb();
   if (!sql) return [];
   return await sql`
-    SELECT id, project_id, filename, mimetype, size_bytes, created_at
-    FROM project_assets
-    WHERE project_id = ${projectId}
+    SELECT id, filename, mimetype, size_bytes, created_at
+    FROM forge_assets
     ORDER BY created_at DESC
   `;
 }
 
-async function deleteAsset(projectId, filename) {
+async function deleteAsset(filename) {
   const sql = await getDb();
   if (!sql) return;
-  await sql`
-    DELETE FROM project_assets
-    WHERE project_id = ${projectId} AND filename = ${filename}
-  `;
+  await sql`DELETE FROM forge_assets WHERE filename = ${filename}`;
 }
 
-async function getAssetsContext(projectId) {
-  const assets = await listAssets(projectId);
+async function getAssetsContext() {
+  const assets = await listAssets();
   if (!assets.length) return null;
   return assets.map(a => ({
     filename: a.filename,
     mimetype: a.mimetype,
     sizeBytes: a.size_bytes,
-    accessUrl: `/api/projects/${projectId}/assets/${encodeURIComponent(a.filename)}`,
+    accessUrl: `/api/assets/${encodeURIComponent(a.filename)}`,
   }));
 }
 

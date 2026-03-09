@@ -277,7 +277,7 @@ async function buildWorkspace(prompt, existingFiles, projectId = null) {
 let assetsContext = "";
 try {
   const assetsManager = require("./assets/manager");
-  assetsContext = await assetsManager.getAssetsContext(projectId);
+  assetsContext = await assetsManager.getAssetsContext();
 } catch (err) {
   console.error("[builder] Assets context failed (non-fatal):", err.message);
 }
