@@ -44,20 +44,55 @@ A complete, immediately runnable Node.js application. Every file production-read
 
 ## PLATFORM CONSTRAINTS — NON-NEGOTIABLE
 
-### Runtime
-- Start command: \`node server.js\` — always, no exceptions
+### Runtime — two permitted modes
+
+**Mode A: Plain Node (default)**
+- Start command: \`node server.js\` — no exceptions for Mode A
 - No build steps, no bundlers, no transpilers
 - No chained commands (\`npm run build && node server.js\` is banned)
 - Single entrypoint: \`server.js\`
-
-### Module system
 - CommonJS only: \`require()\` and \`module.exports\` everywhere
 - Zero \`import\`, \`export\`, or \`export default\` statements — in any file
+- Frontend: plain HTML, CSS, JavaScript served statically from a \`public/\` directory
+
+**Mode B: Vite + React (opt-in)**
+Use only when the user explicitly asks for React or Vue, or when UI complexity clearly benefits from a component model. Default to Mode A.
+
+- Vite is the only permitted bundler — no webpack, esbuild, parcel, or rollup
+- Start command: \`npm run dev\`
+- \`package.json\` must include: \`"dev": "vite --host"\`
+- \`vite.config.js\` must set \`server.port\` to \`parseInt(process.env.PORT) || 3000\` and \`server.host\` to \`true\`
+- ES modules and \`import\`/\`export\` allowed in React/Vue component files only
+- \`index.html\` at project root (Vite convention)
+- All fetch() calls still use root-relative \`/path\` format — proxy rules unchanged
+- Never add \`<base>\` tags — proxy rules unchanged
+
+\`\`\`javascript
+// vite.config.js — required for Mode B
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: parseInt(process.env.PORT) || 3000,
+    host: true
+  }
+});
+\`\`\`
+
+\`\`\`json
+// package.json for Mode B (React)
+{
+  "scripts": { "dev": "vite --host" },
+  "dependencies": { "react": "^18.2.0", "react-dom": "^18.2.0" },
+  "devDependencies": { "@vitejs/plugin-react": "^4.0.0", "vite": "^5.0.0" }
+}
+\`\`\`
 
 ### Frontend
-- Plain HTML, CSS, and JavaScript only
-- No React, Vue, Svelte, Angular, or any framework requiring a build step
-- All frontend files served statically by Express from a \`public/\` directory
+- Mode A: Plain HTML, CSS, and JavaScript only — no frameworks
+- Mode B: React or Vue via Vite — no Angular, no Svelte, no other frameworks
 
 ### URLs — the proxy rule
 ForgeOS serves your app behind a path-prefix proxy (\`/preview/:runId/\` and \`/apps/:slug/\`). This means every URL reference must use a root-relative path with a leading slash. The proxy handles rewriting — you handle nothing.
@@ -105,8 +140,8 @@ Never. Under any circumstances. For any reason.
 | \`bcrypt\`, \`bcryptjs\` | Node.js built-in \`crypto\` (scrypt/pbkdf2) |
 | \`pg\`, \`postgres\`, \`mysql2\` | \`@neondatabase/serverless\` |
 | \`dotenv\` | Platform injects env vars automatically |
-| \`react\`, \`react-dom\`, \`vue\`, \`svelte\` | Plain HTML/CSS/JS |
-| \`webpack\`, \`esbuild\`, \`vite\`, \`parcel\`, \`rollup\` | No bundlers |
+| \`svelte\`, \`angular\` | React or Vue via Vite (Mode B), or plain HTML/CSS/JS (Mode A) |
+| \`webpack\`, \`esbuild\`, \`parcel\`, \`rollup\` | Vite only (Mode B), or no bundler (Mode A) |
 | \`sqlite3\`, \`better-sqlite3\`, \`lowdb\` | \`@neondatabase/serverless\` |
 | \`jsonwebtoken\` | \`jose\` |
 | \`passport\`, \`passport-local\` | Neon Auth via \`jose\` + JWKS |
@@ -232,18 +267,21 @@ Before outputting any files, verify every item:
 - package.json is files[0]
 - Every require()'d package is in package.json dependencies
 - No banned packages anywhere
-- server.js uses: const PORT = process.env.PORT || 3000
-- server.js has GET / returning a complete HTML page
+- Mode A: server.js uses: const PORT = process.env.PORT || 3000
+- Mode A: server.js has GET / returning a complete HTML page
+- Mode A: CommonJS only — zero import/export statements in any file
+- Mode B: vite.config.js present with correct port and host settings
+- Mode B: package.json scripts has "dev": "vite --host"
+- Mode B: index.html at project root
 - All fetch() calls use /path format (starts with /, no ://)
 - All HTML asset references use /path format
 - All CSS url() references use /path format
-- CommonJS only — zero import/export statements in any file
 - No nested backticks in any template literal
 - No TODO, FIXME, placeholder, or stub comments
 - No dotenv anywhere
 - No process.exit() anywhere
 - No <base> tags in any HTML
-- Start command is exactly: node server.js
+- Start command is exactly: node server.js (Mode A) or npm run dev (Mode B)
 - All CREATE TABLE statements use IF NOT EXISTS
 - FK column types match their referenced PK types exactly
 - Any JSON.parse of Claude response text uses the fence-strip pattern
