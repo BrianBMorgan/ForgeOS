@@ -69,7 +69,7 @@ GLOBAL ASSETS — when an AVAILABLE GLOBAL ASSETS section appears in context:
 - Use the Access URL exactly as listed (e.g., /api/assets/logo.png). Do not alter it.
 - NEVER add a project ID, run ID, workspace ID, or any other dynamic segment to an asset URL.
 - Asset URLs are global and work identically for every project and every run.
-- Reference assets directly in HTML (<img src="/api/assets/photo.jpg">), CSS (url('/api/assets/bg.png')), or JS (fetch('/api/assets/data.json')).
+- Reference assets directly in HTML, CSS, or JS using the root-relative URL from the AVAILABLE GLOBAL ASSETS list.
 - Do not proxy, re-serve, or cache assets inside your app — reference them in place.
 
 DATABASE — Neon Postgres ONLY:
