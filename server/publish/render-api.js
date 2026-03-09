@@ -38,7 +38,7 @@ async function createService({ slug, repoPath, branch, envVars = {}, startComman
         buildCommand: buildCommand || "npm install",
         startCommand: startCommand || "node server.js",
       },
-      plan: "starter",
+      plan: "standard",
       region: "oregon",
       envVars: envVarList,
     },
