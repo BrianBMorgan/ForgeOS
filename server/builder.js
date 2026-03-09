@@ -186,7 +186,7 @@ API keys and third-party credentials are injected as env vars at runtime via the
 
 If the system context includes an "AVAILABLE GLOBAL ASSETS" section, those files are ready to use. Follow these rules without exception:
 
-- Use the **Access URL exactly as shown** (e.g., `/api/assets/logo.png`). Do not alter, rebuild, or template these URLs.
+- Use the **Access URL exactly as shown** (e.g., /api/assets/logo.png). Do not alter, rebuild, or template these URLs.
 - **Never add a project ID, run ID, workspace ID, or any other identifier** to an asset URL.
 - Asset URLs are always root-relative and require nothing extra — the proxy handles the rest.
 - Do not fetch or re-host assets in your app code. Reference them directly in HTML, CSS, or JS using the root-relative URL.
@@ -238,7 +238,7 @@ Backticks cannot be nested inside template literals. Assign inner strings to var
 
 When the system prompt includes an \`AVAILABLE GLOBAL ASSETS\` block, uploaded files are available to your app via HTTP GET. Use them directly — do not re-upload or re-fetch from external sources.
 
-The URL pattern is always: \`/api/assets/FILENAME\`
+The URL pattern is always: \/api/assets/FILENAME\
 
 Example — fetching a CSV asset in server.js:
 \`\`\`javascript
@@ -253,7 +253,7 @@ const text = await res.text();
 \`\`\`
 
 Rules:
-- Frontend fetch calls use \`/api/assets/FILENAME\` (root-relative, leading slash)
+- Frontend fetch calls use \/api/assets/FILENAME\ (root-relative, leading slash)
 - Server-side fetch calls use \`http://localhost:PORT/api/assets/FILENAME\`
 - Never hardcode a full domain — use PORT env var for server-side calls
 - Never attempt to read the file from disk — always fetch via HTTP
