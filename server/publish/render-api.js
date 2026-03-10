@@ -113,15 +113,25 @@ async function listServices() {
 }
 
 async function addCustomDomain(serviceId, domain) {
-  const result = await renderFetch(`/services/${serviceId}/custom-domains`, {
-    method: "POST",
-    body: JSON.stringify({ name: domain }),
-  });
+  let result;
+  try {
+    result = await renderFetch(`/services/${serviceId}/custom-domains`, {
+      method: "POST",
+      body: JSON.stringify({ name: domain }),
+    });
+  } catch (err) {
+    // 409 means domain already registered on this service — fetch the existing record
+    if (err.message && err.message.includes("409")) {
+      const existing = await listCustomDomains(serviceId);
+      const match = existing.find(d => d.name === domain);
+      if (match) return match;
+    }
+    throw err;
+  }
   const d = result.customDomain || result;
   return {
     id: d.id,
     name: d.name,
-    // Apex domains get an A record IP; subdomains get a CNAME target
     cnameTarget: d.redirectUri || d.verificationTarget || null,
     aRecordTarget: d.publicIpAddress || null,
     status: d.verificationStatus || "pending",
