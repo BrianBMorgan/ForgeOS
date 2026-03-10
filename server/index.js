@@ -1128,12 +1128,13 @@ function rewriteHtmlForProxy(html, basePath) {
 
   const fetchPatch = `<script>(function(){var B="${basePath}";function rw(u){return typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B)?B+u:u}var _f=window.fetch;window.fetch=function(u,o){if(typeof u==="string"){u=rw(u)}else if(u instanceof Request){var nu=rw(u.url);if(nu!==u.url)u=new Request(nu,u)}return _f.call(this,u,o)};var _o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==="string")u=rw(u);return _o.apply(this,arguments)};var _h=window.history;if(_h&&_h.pushState){var _ps=_h.pushState.bind(_h);_h.pushState=function(s,t,u){if(typeof u==="string")u=rw(u);return _ps(s,t,u)};var _rs=_h.replaceState.bind(_h);_h.replaceState=function(s,t,u){if(typeof u==="string")u=rw(u);return _rs(s,t,u)}}})();</script>`;
 
+  const inspectorScript = "<script>(function(){\n  var active=false;\n  var overlay=null;\n  var lastEl=null;\n  function sel(el){\n    var parts=[];var e=el;\n    for(var i=0;i<4&&e&&e!==document.body;i++){\n      var s=e.tagName.toLowerCase();\n      if(e.id)s+='#'+e.id;\n      else if(e.className&&typeof e.className==='string')s+='.'+e.className.trim().split(/\\s+/).join('.');\n      parts.unshift(s);e=e.parentElement;\n    }\n    return parts.join(' > ');\n  }\n  function trim(s,n){return s&&s.length>n?s.slice(0,n)+'…':s||'';}\n  function show(el){\n    if(!overlay){overlay=document.createElement('div');overlay.style.cssText='position:fixed;pointer-events:none;outline:2px solid #3b82f6;outline-offset:1px;background:rgba(59,130,246,0.08);z-index:2147483647;transition:all 0.05s';document.body.appendChild(overlay);}\n    var r=el.getBoundingClientRect();\n    overlay.style.top=r.top+'px';overlay.style.left=r.left+'px';\n    overlay.style.width=r.width+'px';overlay.style.height=r.height+'px';\n    overlay.style.display='block';\n  }\n  function hide(){if(overlay)overlay.style.display='none';}\n  function onMove(e){if(!active)return;var el=document.elementFromPoint(e.clientX,e.clientY);if(el&&el!==overlay){lastEl=el;show(el);}}\n  function onClick(e){\n    if(!active)return;\n    e.preventDefault();e.stopPropagation();\n    var el=lastEl||e.target;\n    var oh=el.outerHTML||'';\n    var tc=(el.textContent||'').trim();\n    window.parent.postMessage({type:'forge:inspect:selection',outerHTML:trim(oh,600),textContent:trim(tc,200),selector:sel(el)},'*');\n  }\n  window.addEventListener('message',function(e){\n    if(e.data&&e.data.type==='forge:inspect:activate'){active=true;document.body.style.cursor='crosshair';}\n    if(e.data&&e.data.type==='forge:inspect:deactivate'){active=false;hide();document.body.style.cursor='';}\n  });\n  document.addEventListener('mousemove',onMove,true);\n  document.addEventListener('click',onClick,true);\n})();</script>";
   if (html.includes("<head")) {
-    html = html.replace(/<head([^>]*)>/i, `<head$1>${fetchPatch}`);
+    html = html.replace(/<head([^>]*)>/i, `<head$1>${fetchPatch}${inspectorScript}`);
   } else if (html.includes("<html")) {
-    html = html.replace(/<html([^>]*)>/i, `<html$1>${fetchPatch}`);
+    html = html.replace(/<html([^>]*)>/i, `<html$1>${fetchPatch}${inspectorScript}`);
   } else {
-    html = fetchPatch + html;
+    html = fetchPatch + inspectorScript + html;
   }
 
   return html;

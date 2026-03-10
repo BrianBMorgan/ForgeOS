@@ -838,6 +838,46 @@ function WorkspaceStatusBadge({ status }: { status: string }) {
 
 function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunData?: RunData | null }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [inspectMode, setInspectMode] = useState(false);
+  const [selection, setSelection] = useState<{ outerHTML: string; textContent: string; selector: string } | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Toggle inspect mode — postMessage into the iframe
+  const toggleInspect = () => {
+    setInspectMode(prev => {
+      const next = !prev;
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: next ? "forge:inspect:activate" : "forge:inspect:deactivate" }, "*"
+      );
+      if (!next) setSelection(null);
+      return next;
+    });
+  };
+
+  // Receive selection from iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "forge:inspect:selection") {
+        const s = e.data as { type: string; outerHTML: string; textContent: string; selector: string };
+        setSelection({ outerHTML: s.outerHTML, textContent: s.textContent, selector: s.selector });
+        // Deactivate inspect after selection
+        setInspectMode(false);
+        iframeRef.current?.contentWindow?.postMessage({ type: "forge:inspect:deactivate" }, "*");
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  // Inject selection context into prompt input
+  const useSelection = () => {
+    if (!selection) return;
+    const ctx = `[Selected element: ${selection.selector}\nHTML: ${selection.outerHTML}]\n`;
+    const forgeSetPrompt = (window as unknown as Record<string, unknown>).__forgeSetPrompt as ((s: string) => void) | undefined;
+    if (forgeSetPrompt) forgeSetPrompt(ctx);
+    setSelection(null);
+  };
+
   const builderOutput = runData?.stages?.builder?.output;
   const executorOutput = runData?.stages?.executor?.output;
   const stageOutput = builderOutput || executorOutput;
@@ -916,13 +956,31 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
             <div className="render-section-label">
               Live Preview
               <button
+                className={`preview-open-btn inspect-toggle-btn ${inspectMode ? "active" : ""}`}
+                onClick={toggleInspect}
+                title={inspectMode ? "Cancel inspect" : "Inspect element"}
+              >{inspectMode ? "✕ Cancel" : "⊹ Inspect"}</button>
+              <button
                 className="preview-open-btn"
                 onClick={() => window.open(`/preview/${previewRunData.id}/`, "_blank")}
                 title="Open in new tab"
               >↗</button>
             </div>
-            <div className="preview-container">
+            {selection && (
+              <div className="inspect-selection-badge">
+                <div className="inspect-selection-info">
+                  <span className="inspect-selection-selector">{selection.selector}</span>
+                  {selection.textContent && <span className="inspect-selection-text">"{selection.textContent}"</span>}
+                </div>
+                <div className="inspect-selection-actions">
+                  <button className="inspect-use-btn" onClick={useSelection}>Use in chat ↗</button>
+                  <button className="inspect-clear-btn" onClick={() => setSelection(null)}>✕</button>
+                </div>
+              </div>
+            )}
+            <div className={`preview-container ${inspectMode ? "inspect-active" : ""}`}>
               <iframe
+                ref={iframeRef}
                 key={previewRunData.id}
                 src={`/preview/${previewRunData.id}/?_t=${previewStamp}`}
                 className="preview-iframe"

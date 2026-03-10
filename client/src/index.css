@@ -4462,3 +4462,81 @@ body {
   text-align: center;
 }
 .edit-preview-placeholder.mode-b-note { color: #475569; }
+
+/* ── Inspect Mode ───────────────────────────────────────── */
+.inspect-toggle-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #3b82f6;
+  color: #3b82f6;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.inspect-toggle-btn:hover,
+.inspect-toggle-btn.active {
+  background: #3b82f6;
+  color: #fff;
+}
+.preview-container.inspect-active {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+.inspect-selection-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #1a2540;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.inspect-selection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.inspect-selection-selector {
+  font-family: monospace;
+  color: #93c5fd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inspect-selection-text {
+  color: #94a3b8;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inspect-selection-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.inspect-use-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+.inspect-use-btn:hover { background: #2563eb; }
+.inspect-clear-btn {
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #334155;
+  cursor: pointer;
+}
+.inspect-clear-btn:hover { color: #e2e8f0; border-color: #64748b; }
