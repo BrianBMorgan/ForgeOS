@@ -4192,3 +4192,47 @@ body {
   margin: 0 auto;
   line-height: 1.5;
 }
+
+/* Mode B preview notice */
+.mode-b-preview-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  margin-top: 4px;
+}
+.mode-b-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.mode-b-message {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.mode-b-message strong {
+  color: #e2e8f0;
+  font-size: 13px;
+}
+.mode-b-message span {
+  color: #64748b;
+  font-size: 12px;
+}
+.mode-b-publish-btn {
+  flex-shrink: 0;
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mode-b-publish-btn:hover {
+  background: #2563eb;
+}

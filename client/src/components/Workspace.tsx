@@ -521,26 +521,45 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
         </div>
       )}
 
-      {previewWs?.status === "running" && previewWs.port && previewRunData?.id && (
-        <div className="render-section preview-section">
-          <div className="render-section-label">
-            Live Preview
-            <button
-              className="preview-open-btn"
-              onClick={() => window.open(`/preview/${previewRunData.id}/`, "_blank")}
-              title="Open in new tab"
-            >↗</button>
+      {previewWs?.status === "running" && previewWs.port && previewRunData?.id && (() => {
+        const startCmd = (exec.startCommand as string) || "";
+        const isModeB = startCmd.includes("npm run dev") || startCmd.includes("vite");
+        return isModeB ? (
+          <div className="render-section preview-section">
+            <div className="render-section-label">Live Preview</div>
+            <div className="mode-b-preview-notice">
+              <div className="mode-b-icon">⚡</div>
+              <div className="mode-b-message">
+                <strong>React / Vite app</strong>
+                <span>Preview is not available for Vite apps in the cockpit. Publish to see your app live.</span>
+              </div>
+              <button
+                className="preview-open-btn mode-b-publish-btn"
+                onClick={() => window.dispatchEvent(new CustomEvent('forgeos:switch-tab', { detail: 'publish' }))}
+              >Go to Publish →</button>
+            </div>
           </div>
-          <div className="preview-container">
-            <iframe
-              key={previewRunData.id}
-              src={`/preview/${previewRunData.id}/?_t=${previewStamp}`}
-              className="preview-iframe"
-              title="App Preview"
-            />
+        ) : (
+          <div className="render-section preview-section">
+            <div className="render-section-label">
+              Live Preview
+              <button
+                className="preview-open-btn"
+                onClick={() => window.open(`/preview/${previewRunData.id}/`, "_blank")}
+                title="Open in new tab"
+              >↗</button>
+            </div>
+            <div className="preview-container">
+              <iframe
+                key={previewRunData.id}
+                src={`/preview/${previewRunData.id}/?_t=${previewStamp}`}
+                className="preview-iframe"
+                title="App Preview"
+              />
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {summary && (
         <div className="render-section">
@@ -1349,6 +1368,11 @@ function BrainTab() {
 
 export default function Workspace({ runData, projectData, viewingIterationRunId, onRefreshRunData }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
+  useEffect(() => {
+    const handler = (e: CustomEvent) => setActiveTab(e.detail);
+    window.addEventListener('forgeos:switch-tab', handler as EventListener);
+    return () => window.removeEventListener('forgeos:switch-tab', handler as EventListener);
+  }, []);
   const prevExecutorStatus = useRef<string | undefined>(undefined);
 
   useEffect(() => {
