@@ -170,14 +170,17 @@ async function publishProject(projectId) {
 }
 
 async function _doPublish(projectId) {
+  console.log(`[publish] _doPublish start — projectId=${projectId}`);
   const projectManager = require("../projects/manager");
   const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
 
   const { currentRunId } = project;
+  console.log(`[publish] currentRunId=${currentRunId}`);
   if (!currentRunId) throw new Error("No build to publish — run a build first");
 
   const workspaceDir = path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "workspaces", currentRunId);
+  console.log(`[publish] workspaceDir=${workspaceDir} exists=${fs.existsSync(workspaceDir)}`);
   if (!fs.existsSync(workspaceDir)) throw new Error("Workspace files not found");
 
   // ---- Slug resolution ----
@@ -231,9 +234,12 @@ async function _doPublish(projectId) {
   // ---- Push app files to dedicated GitHub branch ----
   const { pushToAppBranch, tagAndDeleteAppBranch } = require("./github");
   let branchResult;
+  console.log(`[publish] pushing to GitHub branch apps/${slug} from ${workspaceDir}`);
   try {
     branchResult = await pushToAppBranch(githubSettings.repo, slug, workspaceDir);
+    console.log(`[publish] GitHub push success — ${branchResult.filesCount} files, commit ${branchResult.commitSha}`);
   } catch (err) {
+    console.error(`[publish] GitHub push failed:`, err.message);
     throw new Error(`GitHub push failed: ${err.message}`);
   }
 
