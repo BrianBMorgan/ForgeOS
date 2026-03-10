@@ -301,12 +301,14 @@ try {
     }
   }
 
-  // ---- Tag commit for version history, then delete branch (banner gone, history preserved) ----
+  // ---- Tag commit for version history (branch stays alive — Render deploys from it) ----
   try {
-    const versionInfo = await tagAndDeleteAppBranch(githubSettings.repo, slug, branchResult.commitSha);
-    console.log(`[publish] Tagged ${versionInfo.tag} and deleted deployment branch apps/${slug}`);
+    const { tagCommit } = require('./github');
+    const tag = `v${Date.now()}-${slug}`;
+    await tagCommit(githubSettings.repo, tag, branchResult.commitSha);
+    console.log(`[publish] Tagged ${tag} for version history`);
   } catch (err) {
-    console.warn(`[publish] Could not tag/delete branch apps/${slug}:`, err.message);
+    console.warn(`[publish] Could not tag commit for ${slug}:`, err.message);
   }
 
   // ---- Save to DB ----
@@ -395,14 +397,6 @@ async function renameSlug(projectId, newSlug) {
       branch: `apps/${newSlug}`,
       envVars: mergedEnv,
     });
-
-    // Tag commit for version history, then delete branch
-    try {
-      const versionInfo = await tagAndDeleteAppBranch(githubSettings.repo, newSlug, renameBranchResult.commitSha);
-      console.log(`[publish] Tagged ${versionInfo.tag} and deleted deployment branch apps/${newSlug}`);
-    } catch (err) {
-      console.warn(`[publish] Could not tag/delete branch apps/${newSlug}:`, err.message);
-    }
 
     // Delete old Render service
     try {
