@@ -137,6 +137,17 @@ app.get("/api/runs/:id/file", (req, res) => {
   }
 });
 
+app.get("/api/runs/:id/file/search", (req, res) => {
+  const { text } = req.query;
+  if (!text || text.trim().length < 2) return res.json({ results: [] });
+  try {
+    const results = workspace.searchWorkspaceFiles(req.params.id, text);
+    res.json({ results });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
 app.patch("/api/runs/:id/file", async (req, res) => {
   const { path: filePath, content } = req.body;
   if (!filePath || content === undefined) {

@@ -862,6 +862,33 @@ function writeWorkspaceFile(runId, filePath, content) {
   fs.writeFileSync(full, content, "utf8");
 }
 
+
+function searchWorkspaceFiles(runId, searchText) {
+  const ws = workspaces.get(runId);
+  if (!ws) throw new Error("Workspace not found");
+  if (!searchText || searchText.trim().length < 2) return [];
+
+  const needle = searchText.trim().toLowerCase();
+  const results = [];
+  const files = listWorkspaceFiles(runId);
+  const TEXT_EXTS = new Set([".js",".ts",".tsx",".jsx",".html",".css",".json",".md",".txt",".env",".sh",".yaml",".yml"]);
+
+  for (const relPath of files) {
+    const ext = path.extname(relPath).toLowerCase();
+    if (!TEXT_EXTS.has(ext)) continue;
+    let fileContent;
+    try { fileContent = readWorkspaceFile(runId, relPath); } catch { continue; }
+    const lines = fileContent.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].toLowerCase().includes(needle)) {
+        results.push({ file: relPath, line: i + 1, snippet: lines[i].trim().slice(0, 120) });
+        if (results.length >= 10) return results; // cap at 10 matches
+      }
+    }
+  }
+  return results;
+}
+
 module.exports = {
   createWorkspace,
   writeFiles,
@@ -881,4 +908,5 @@ module.exports = {
   listWorkspaceFiles,
   readWorkspaceFile,
   writeWorkspaceFile,
+  searchWorkspaceFiles,
 };

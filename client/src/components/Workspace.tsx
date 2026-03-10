@@ -436,6 +436,7 @@ function EditTab({ runData }: { runData: RunData | null; projectId?: string | nu
   const [loadingFile, setLoadingFile] = useState(false);
   const [previewStamp, setPreviewStamp] = useState(() => Date.now());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [jumpLine, setJumpLine] = useState<number | null>(null);
 
   const runId = runData?.id || null;
   const wsStatus = runData?.workspace?.status;
@@ -465,6 +466,44 @@ function EditTab({ runData }: { runData: RunData | null; projectId?: string | nu
       })
       .catch(() => {});
   }, [runId]);
+
+  // Phase 3: listen for inspect-to-edit jump events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { file, line } = (e as CustomEvent<{ file: string; line: number }>).detail;
+      if (!runId) return;
+      // Switch cockpit to Edit tab first
+      window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "edit" }));
+      // Small delay to ensure tab is active before loading file
+      setTimeout(() => {
+        loadFile(runId, file);
+        setJumpLine(line);
+      }, 80);
+    };
+    window.addEventListener("forgeos:jump-to-file", handler);
+    return () => window.removeEventListener("forgeos:jump-to-file", handler);
+  }, [runId]);
+
+  // Scroll textarea to jumpLine after file loads
+  useEffect(() => {
+    if (jumpLine === null || !textareaRef.current || loadingFile) return;
+    const ta = textareaRef.current;
+    // Count chars up to target line
+    const lines = ta.value.split("\n");
+    let charPos = 0;
+    for (let i = 0; i < Math.min(jumpLine - 1, lines.length); i++) {
+      charPos += lines[i].length + 1;
+    }
+    ta.focus();
+    ta.setSelectionRange(charPos, charPos + (lines[jumpLine - 1]?.length || 0));
+    // Scroll the line into view
+    const lineHeight = parseInt(getComputedStyle(ta).lineHeight) || 18;
+    ta.scrollTop = Math.max(0, (jumpLine - 5) * lineHeight);
+    // Brief flash to signal the jump landed
+    ta.classList.add("jump-flash");
+    setTimeout(() => ta.classList.remove("jump-flash"), 1200);
+    setJumpLine(null);
+  }, [jumpLine, loadingFile]);
 
   const loadFile = (rid: string, filePath: string) => {
     setLoadingFile(true);
@@ -869,12 +908,28 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  // Inject selection context into prompt input
+  // Inject selection context into prompt input, and attempt file jump
   const useSelection = () => {
     if (!selection) return;
     const ctx = `[Selected element: ${selection.selector}\nHTML: ${selection.outerHTML}]\n`;
     const forgeSetPrompt = (window as unknown as Record<string, unknown>).__forgeSetPrompt as ((s: string) => void) | undefined;
     if (forgeSetPrompt) forgeSetPrompt(ctx);
+
+    // Phase 3: background file search — try textContent first, fall back to partial outerHTML
+    const runId = (liveRunData || runData)?.id;
+    const searchText = selection.textContent || selection.outerHTML.replace(/<[^>]+>/g, "").trim();
+    if (runId && searchText.length >= 2) {
+      fetch(`/api/runs/${runId}/file/search?text=${encodeURIComponent(searchText.slice(0, 80))}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.results && d.results.length > 0) {
+            const best = d.results[0];
+            window.dispatchEvent(new CustomEvent("forgeos:jump-to-file", { detail: { file: best.file, line: best.line } }));
+          }
+        })
+        .catch(() => {});
+    }
+
     setSelection(null);
   };
 

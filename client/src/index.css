@@ -4540,3 +4540,12 @@ body {
   cursor: pointer;
 }
 .inspect-clear-btn:hover { color: #e2e8f0; border-color: #64748b; }
+
+/* ── Inspect-to-Edit jump highlight ──────────────────────── */
+@keyframes forge-jump-flash {
+  0%   { background: rgba(59,130,246,0.18); }
+  100% { background: #0f172a; }
+}
+.edit-textarea.jump-flash {
+  animation: forge-jump-flash 1.2s ease-out forwards;
+}
