@@ -481,6 +481,26 @@ app.delete("/api/projects/:id/custom-domain", async (req, res) => {
   }
 });
 
+app.get("/api/projects/:id/versions", async (req, res) => {
+  try {
+    const versions = await publishManager.listVersions(req.params.id);
+    res.json(versions);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post("/api/projects/:id/rollback", async (req, res) => {
+  try {
+    const { tag, commitSha } = req.body;
+    if (!tag || !commitSha) return res.status(400).json({ error: "tag and commitSha are required" });
+    const result = await publishManager.rollbackToVersion(req.params.id, tag, commitSha);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get("/api/projects/:id/publish", async (req, res) => {
   const app = publishManager.getPublishedApp(req.params.id);
   if (!app) return res.json({ published: false });

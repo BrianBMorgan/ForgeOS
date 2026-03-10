@@ -243,22 +243,74 @@ async function pushToAppBranch(repoFullName, slug, sourceDir) {
   };
 }
 
-async function deleteAppBranch(repoFullName, slug) {
+async function tagAndDeleteAppBranch(repoFullName, slug, commitSha) {
   const [owner, repo] = repoFullName.split("/");
   if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
   const branch = `apps/${slug}`;
+  const tag = `apps/${slug}-v${Date.now()}`;
+
+  // Create lightweight tag pointing at the commit before deleting the branch
+  try {
+    await apiRequest("POST", `/repos/${owner}/${repo}/git/refs`, {
+      ref: `refs/tags/${tag}`,
+      sha: commitSha,
+    });
+  } catch (err) {
+    console.warn(`[github] Could not create version tag ${tag}: ${err.message}`);
+  }
+
+  // Delete the branch — Render already has the commit, banner gone
   try {
     await apiRequest("DELETE", `/repos/${owner}/${repo}/git/refs/heads/${branch}`);
-    return { deleted: true, branch };
   } catch (err) {
-    // Branch may not exist — not a fatal error
-    return { deleted: false, branch, reason: err.message };
+    console.warn(`[github] Could not delete branch ${branch}: ${err.message}`);
   }
+
+  return { tag, commitSha };
+}
+
+async function listVersionTags(repoFullName, slug) {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+  const data = await apiRequest("GET", `/repos/${owner}/${repo}/git/refs/tags/apps/${slug}-v`);
+  const tags = Array.isArray(data) ? data : (data.ref ? [data] : []);
+  return tags
+    .map(t => ({
+      tag: t.ref.replace("refs/tags/", ""),
+      sha: t.object.sha,
+      // Extract timestamp from tag name: apps/slug-v1234567890
+      timestamp: parseInt(t.ref.split("-v").pop()) || 0,
+    }))
+    .sort((a, b) => b.timestamp - a.timestamp); // newest first
+}
+
+async function restoreFromTag(repoFullName, slug, tag, commitSha) {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+  const branch = `apps/${slug}`;
+
+  // Push the tagged commit back onto the branch so Render can redeploy
+  try {
+    await apiRequest("POST", `/repos/${owner}/${repo}/git/refs`, {
+      ref: `refs/heads/${branch}`,
+      sha: commitSha,
+    });
+  } catch {
+    // Branch already exists — force update
+    await apiRequest("PATCH", `/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+      sha: commitSha,
+      force: true,
+    });
+  }
+
+  return { branch, commitSha };
 }
 
 module.exports = {
   pushProjectToGitHub,
   pushToAppBranch,
-  deleteAppBranch,
+  tagAndDeleteAppBranch,
+  listVersionTags,
+  restoreFromTag,
   verifyRepoAccess,
 };

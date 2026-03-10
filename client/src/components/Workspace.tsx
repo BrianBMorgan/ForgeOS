@@ -31,6 +31,9 @@ function PublishTab({ projectId }: { projectId: string | null }) {
   const [savingDomain, setSavingDomain] = useState(false);
   const [domainResult, setDomainResult] = useState<{ aRecord?: string | null; cnameTarget?: string | null; status?: string } | null>(null);
   const [copiedDns, setCopiedDns] = useState(false);
+  const [versions, setVersions] = useState<{ tag: string; sha: string; timestamp: number }[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [rollingBack, setRollingBack] = useState<string | null>(null);
 
   const fetchStatus = useCallback(async () => {
     if (!projectId) return;
@@ -137,6 +140,41 @@ function PublishTab({ projectId }: { projectId: string | null }) {
     navigator.clipboard.writeText(val);
     setCopiedDns(true);
     setTimeout(() => setCopiedDns(false), 2000);
+  };
+
+  const fetchVersions = useCallback(async () => {
+    if (!projectId) return;
+    setLoadingVersions(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/versions`);
+      const data = await res.json();
+      setVersions(Array.isArray(data) ? data : []);
+    } catch {
+      setVersions([]);
+    }
+    setLoadingVersions(false);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (pubStatus?.published) fetchVersions();
+  }, [pubStatus?.published, fetchVersions]);
+
+  const handleRollback = async (tag: string, sha: string) => {
+    if (!projectId) return;
+    setRollingBack(tag);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/rollback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag, commitSha: sha }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await fetchStatus();
+    } catch (err: any) {
+      setError(err.message);
+    }
+    setRollingBack(null);
   };
 
   const handleExport = () => {
@@ -314,6 +352,31 @@ function PublishTab({ projectId }: { projectId: string | null }) {
               </button>
             )}
           </div>
+
+          {versions.length > 0 && (
+            <div className="pub-url-section">
+              <label className="pub-url-label">Version History</label>
+              <div className="pub-versions-list">
+                {versions.slice(0, 10).map((v, i) => (
+                  <div key={v.tag} className="pub-version-row">
+                    <span className="pub-version-index">v{versions.length - i}</span>
+                    <span className="pub-version-time">
+                      {new Date(v.timestamp).toLocaleString()}
+                    </span>
+                    <span className="pub-version-sha">{v.sha.slice(0, 7)}</span>
+                    <button
+                      className="pub-version-rollback"
+                      onClick={() => handleRollback(v.tag, v.sha)}
+                      disabled={rollingBack === v.tag}
+                    >
+                      {rollingBack === v.tag ? "Rolling back..." : "Restore"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {loadingVersions && <div className="pub-versions-loading">Loading...</div>}
+            </div>
+          )}
         </div>
       ) : (
         <div className="pub-unpublished-section">
