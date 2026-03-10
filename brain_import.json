@@ -1,0 +1,12 @@
+[
+  {
+    "type": "pattern",
+    "content": "Preview proxy (/preview/:runId) intercepts ALL requests including /api/assets/* and forwards them to the workspace app. The workspace app has no /api/assets route — this causes 404. Fix applied in server/index.js: early return at top of preview proxy middleware that short-circuits /api/assets/* back to the ForgeOS root handler via app._router.handle(). Without this, no generated app can fetch global assets from the frontend.",
+    "tags": ["assets", "proxy", "preview", "infrastructure"]
+  },
+  {
+    "type": "pattern",
+    "content": "Generated apps should fetch global assets client-side using root-relative /api/assets/FILENAME — not server-side via localhost. The preview proxy now passes /api/assets/* through to the ForgeOS asset handler correctly. Server-side asset fetches via localhost are unnecessary and fragile.",
+    "tags": ["assets", "fetch", "client-side", "builder"]
+  }
+]
