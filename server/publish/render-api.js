@@ -62,6 +62,13 @@ async function updateServiceEnv(serviceId, envVars = {}) {
   });
 }
 
+async function updateServiceBranch(serviceId, branch) {
+  return renderFetch(`/services/${serviceId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ branch }),
+  });
+}
+
 async function redeployService(serviceId) {
   return renderFetch(`/services/${serviceId}/deploys`, {
     method: "POST",
@@ -154,6 +161,7 @@ async function removeCustomDomain(serviceId, domainId) {
 module.exports = {
   createService,
   updateServiceEnv,
+  updateServiceBranch,
   redeployService,
   getServiceStatus,
   deleteService,

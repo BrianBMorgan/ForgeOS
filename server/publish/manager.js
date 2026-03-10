@@ -296,6 +296,7 @@ try {
         if (existing) {
           renderServiceId = existing.serviceId;
           renderUrl = existing.url;
+          await renderApi.updateServiceBranch(renderServiceId, `apps/${slug}`);
           await renderApi.updateServiceEnv(renderServiceId, mergedEnv);
           await renderApi.redeployService(renderServiceId);
         } else {
