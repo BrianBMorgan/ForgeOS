@@ -62,8 +62,7 @@ app.use(async (req, res, next) => {
     res.status(502).send("Bad Gateway");
   }
 });
-const { mountGate } = require('./auth/gate');
-mountGate(app);
+// Auth gate removed — no authentication required
 
 mountMcp(app);
 

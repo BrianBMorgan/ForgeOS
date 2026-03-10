@@ -243,16 +243,6 @@ async function pushToAppBranch(repoFullName, slug, sourceDir) {
   };
 }
 
-async function tagCommit(repoFullName, tag, commitSha) {
-  const [owner, repo] = repoFullName.split("/");
-  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
-  await apiRequest("POST", `/repos/${owner}/${repo}/git/refs`, {
-    ref: `refs/tags/${tag}`,
-    sha: commitSha,
-  });
-  return { tag, commitSha };
-}
-
 async function tagAndDeleteAppBranch(repoFullName, slug, commitSha) {
   const [owner, repo] = repoFullName.split("/");
   if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
@@ -319,7 +309,6 @@ async function restoreFromTag(repoFullName, slug, tag, commitSha) {
 module.exports = {
   pushProjectToGitHub,
   pushToAppBranch,
-  tagCommit,
   tagAndDeleteAppBranch,
   listVersionTags,
   restoreFromTag,
