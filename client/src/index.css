@@ -2150,6 +2150,9 @@ body {
     min-width: 0;
     border-right: none;
     flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
   }
 
   .mobile-panel-workspace {
