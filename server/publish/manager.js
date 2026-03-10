@@ -212,7 +212,7 @@ async function _doPublish(projectId) {
   if (!githubSettings?.repo) throw new Error("GitHub repo not configured in Settings — required for Render deployment");
 
   // ---- Push app files to dedicated GitHub branch ----
-  const { pushToAppBranch } = require("./github");
+  const { pushToAppBranch, deleteAppBranch } = require("./github");
   let branchResult;
   try {
     branchResult = await pushToAppBranch(githubSettings.repo, slug, workspaceDir);
@@ -282,6 +282,14 @@ try {
         throw new Error(`Render service creation failed: ${err.message}`);
       }
     }
+  }
+
+  // ---- Clean up deployment branch (Render has it, GitHub doesn't need it) ----
+  try {
+    await deleteAppBranch(githubSettings.repo, slug);
+    console.log(`[publish] Deleted deployment branch apps/${slug}`);
+  } catch (err) {
+    console.warn(`[publish] Could not delete branch apps/${slug}:`, err.message);
   }
 
   // ---- Save to DB ----
@@ -354,7 +362,7 @@ async function renameSlug(projectId, newSlug) {
     const mergedEnv = await getMergedEnv(projectId);
 
     // Push files to new branch
-    const { pushToAppBranch } = require("./github");
+    const { pushToAppBranch, deleteAppBranch } = require("./github");
     const workspaceDir = app?.dir || path.join(
       process.env.DATA_DIR || path.join(__dirname, "..", ".."),
       "workspaces",
@@ -370,6 +378,14 @@ async function renameSlug(projectId, newSlug) {
       branch: `apps/${newSlug}`,
       envVars: mergedEnv,
     });
+
+    // Clean up deployment branch
+    try {
+      await deleteAppBranch(githubSettings.repo, newSlug);
+      console.log(`[publish] Deleted deployment branch apps/${newSlug}`);
+    } catch (err) {
+      console.warn(`[publish] Could not delete branch apps/${newSlug}:`, err.message);
+    }
 
     // Delete old Render service
     try {

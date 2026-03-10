@@ -243,8 +243,22 @@ async function pushToAppBranch(repoFullName, slug, sourceDir) {
   };
 }
 
+async function deleteAppBranch(repoFullName, slug) {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+  const branch = `apps/${slug}`;
+  try {
+    await apiRequest("DELETE", `/repos/${owner}/${repo}/git/refs/heads/${branch}`);
+    return { deleted: true, branch };
+  } catch (err) {
+    // Branch may not exist — not a fatal error
+    return { deleted: false, branch, reason: err.message };
+  }
+}
+
 module.exports = {
   pushProjectToGitHub,
   pushToAppBranch,
+  deleteAppBranch,
   verifyRepoAccess,
 };
