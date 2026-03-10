@@ -162,7 +162,7 @@ Brain provides memory across all projects and team members via Neon Postgres.
 ## Tech Stack
 
 ### Approved Packages
-express, @neondatabase/serverless, uuid, cors, cookie-parser, body-parser, multer, nodemailer, node-cron, ws, socket.io, marked, cheerio, axios, node-fetch, @anthropic-ai/sdk, react, react-dom, @vitejs/plugin-react, vite, vue, jose
+express, @neondatabase/serverless, uuid, cors, cookie-parser, body-parser, multer, nodemailer, node-cron, ws, socket.io, marked, cheerio, axios, node-fetch, @anthropic-ai/sdk, react, react-dom, @vitejs/plugin-react, vite, vue, jose, resend
 
 ### Banned Packages
 angular, nuxt, svelte, bcrypt, bcryptjs, jsonwebtoken, dotenv, typescript, webpack, rollup, parcel, esbuild, tailwindcss, openai, pg, postgres, mysql2, sqlite3, better-sqlite3, passport, passport-local, nodemon

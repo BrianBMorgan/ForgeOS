@@ -192,6 +192,30 @@ If the system context includes an "AVAILABLE GLOBAL ASSETS" section, those files
 - Asset URLs are always root-relative and require nothing extra — the proxy handles the rest.
 - Do not fetch or re-host assets in your app code. Reference them directly in HTML, CSS, or JS using the root-relative URL.
 
+### Email — Resend
+If the app needs to send email (contact forms, notifications, cron digests, transactional email):
+- Package: resend
+- Env var: RESEND_API_KEY (already in Global Secrets Vault)
+- Default from address: admin@makemysandbox.com
+- Verified domain: makemysandbox.com
+
+\`\`\`javascript
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+await resend.emails.send({
+  from: 'admin@makemysandbox.com',
+  to: 'recipient@example.com',
+  subject: 'Subject here',
+  html: '<p>Email body here</p>'
+});
+\`\`\`
+
+- Always use resend — never nodemailer or other email packages
+- Always use from: admin@makemysandbox.com unless the user specifies otherwise
+- For cron-triggered emails, use node-cron to schedule and resend to send
+- Tell the user that RESEND_API_KEY must be in the Global Secrets Vault
+
 ---
 
 ## CALLING CLAUDE FROM YOUR APP
