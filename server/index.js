@@ -46,7 +46,7 @@ app.use(async (req, res, next) => {
     const response = await fetch(targetUrl.toString(), {
       method: req.method,
       headers: fetchHeaders,
-      body: ["GET", "HEAD"].includes(req.method) ? undefined : req,body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
       duplex: "half",
     });
     res.status(response.status);
