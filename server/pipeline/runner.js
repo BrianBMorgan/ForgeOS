@@ -5,12 +5,6 @@ const { neon } = require("@neondatabase/serverless");
 
 const dbUrl = process.env.NEON_DATABASE_URL;
 const sql = dbUrl ? neon(dbUrl) : null;
-
-const STAGES = [
-  "executor",
-  "auditor",
-];
-
 const runs = new Map();
 
 const BANNED_MODULES = ["openai"];
@@ -98,11 +92,6 @@ function createRun(prompt, context) {
     iterationNumber: context?.iterationNumber || 1,
     existingFiles: context?.existingFiles || null,
   };
-
-  for (const stage of STAGES) {
-    run.stages[stage] = { status: "pending", output: null };
-  }
-
   runs.set(id, run);
   return run;
 }
