@@ -16,15 +16,16 @@ Replit is fully sunset. Claude pushes directly to GitHub via PAT.
 
 | Component | Location | Purpose |
 |---|---|---|
-| Cockpit UI | `client/` | Tab-based interface: Plan / Review / Diff / Auditor / Render / Shell / DB / Env / Publish + global Assets sidebar |
-| Server | `server/index.js` | Express API + subdomain proxy middleware |
+| Cockpit UI | `client/` | Tab-based interface: Plan / Review / Diff / Auditor / Render / **Edit** / Shell / DB / Env / Publish + global Assets sidebar |
+| Server | `server/index.js` | Express API + subdomain proxy middleware + inspector script injection |
 | Builder | `server/builder.js` | Single Claude-powered workspace builder (replaces legacy multi-agent pipeline) |
 | Pipeline Runner | `server/pipeline/runner.js` | Orchestrates build calls and injects context |
+| Workspace Manager | `server/workspace/manager.js` | Workspace lifecycle + `listWorkspaceFiles`, `readWorkspaceFile`, `writeWorkspaceFile`, `searchWorkspaceFiles` |
 | Publish Manager | `server/publish/manager.js` | Manages Render service lifecycle for published apps |
 | Assets Manager | `server/assets/manager.js` | Global file uploads stored in Neon DB |
 | Brain | `server/memory/brain.js` | Persistent memory across all projects and team members |
-| Render API Wrapper | `server/publish/render-api.js` | createService, updateServiceEnv, redeployService, getServiceStatus, deleteService, listServices |
-| GitHub Publisher | `server/publish/github.js` | Pushes app files to dedicated `apps/<slug>` branch |
+| Render API Wrapper | `server/publish/render-api.js` | createService, updateServiceEnv, redeployService, getServiceStatus, deleteService, listServices, addCustomDomain, listCustomDomains, removeCustomDomain |
+| GitHub Publisher | `server/publish/github.js` | Pushes app files to branch, tags versions, supports rollback |
 | Auth Gate | `server/auth/gate.js` | HMAC-signed cookie session with ALLOWED_EMAILS whitelist |
 
 ### Database
@@ -44,11 +45,55 @@ Replit is fully sunset. Claude pushes directly to GitHub via PAT.
 5. The app is accessible at `<slug>.forge-os.ai` via the wildcard subdomain proxy
 6. Slug renames create a new Render service and delete the old one — no in-place rename
 
+### Version History & Rollback
+- Before a branch is deleted on republish, a git tag (`v<timestamp>-<slug>`) is created
+- `GET /api/projects/:id/versions` lists all version tags for a project
+- `POST /api/projects/:id/rollback` with `{ tag }` restores files from that tag and redeploys the Render service
+- Version History UI in the Publish tab shows all versions with rollback buttons
+
+### Custom Domain (BYO)
+- `POST /api/projects/:id/custom-domain` with `{ domain }` calls Render API to attach the domain
+- `DELETE /api/projects/:id/custom-domain` removes it
+- Custom Domain section in the Publish tab — user points their DNS CNAME to Render after adding
+
 ### Subdomain Proxy
 - Wildcard `*.forge-os.ai` DNS and TLS configured via Namecheap + Render
 - Proxy middleware in `server/index.js` routes subdomains to the correct Render service
 - Uses `accept-encoding: identity` on proxied fetch calls to prevent content decoding errors
 - `BASE_DOMAIN=forge-os.ai` env var controls the proxy domain
+
+---
+
+## Visual Editor — Three-Phase Inspect System
+
+The cockpit includes a full inspect-to-edit system spanning three integrated phases.
+
+### Phase 1 — Inspect Mode (Render tab)
+- **⊹ Inspect** button in the Live Preview header activates crosshair mode
+- Blue overlay highlights elements on hover inside the preview iframe
+- Click any element → selection badge appears showing CSS selector path + text preview
+- **Use in chat ↗** prepends `[Selected element: selector\nHTML: ...]` into the prompt input
+- Eliminates "which element?" ambiguity without changing the builder pipeline
+
+### Phase 2 — Edit Tab (direct file editing)
+- Split-pane: file tree + textarea editor (left) + live preview iframe (right)
+- Save writes the file to disk, restarts the workspace, refreshes preview after 1.2s
+- Dirty state tracking (● dot), Revert button, inline save confirmation
+- Bypasses the builder entirely — zero pipeline cost for copy edits and styling tweaks
+
+### Phase 3 — Inspect-to-Edit Bridge
+- When **Use in chat ↗** is clicked, a background file search runs against all workspace files using the element's text content
+- On match: cockpit switches to Edit tab, loads the file, scrolls to and selects the matching line, brief blue flash confirms the landing
+- Falls back gracefully to Phase 1 behavior (context in chat only) when no file match is found (dynamic/JS-rendered content)
+
+### Inspector Script Injection
+- `rewriteHtmlForProxy` injects a dormant inspector script into every preview HTML response
+- Activated/deactivated via `postMessage({ type: 'forge:inspect:activate' | 'forge:inspect:deactivate' })`
+- Selection posted back to parent as `{ type: 'forge:inspect:selection', outerHTML, textContent, selector }`
+
+### File Search API
+- `GET /api/runs/:id/file/search?text=...` — searches all text files in the workspace, returns up to 10 `{ file, line, snippet }` matches
+- Implemented in `server/workspace/manager.js` as `searchWorkspaceFiles(runId, searchText)`
 
 ---
 
@@ -180,6 +225,14 @@ All Anthropic API calls route through `model-router.js` — never call the API d
 
 ---
 
+### Pipeline Directory
+`server/pipeline/` contains only `runner.js` — one file, one purpose (run lifecycle management).
+- `agents.js` deleted — `CHAT_AGENT_INSTRUCTIONS` moved inline to `server/chat/manager.js`
+- `schemas.js` deleted — `ExecutorSchema`/`AuditorSchema` were unused since the single-builder migration
+- `STAGES` constant and pending-init loop removed from `runner.js` — stages written directly by the builder
+
+---
+
 ## Open Questions
 
 - Should failed builds auto-record to Brain or require human confirmation?
@@ -188,4 +241,4 @@ All Anthropic API calls route through `model-router.js` — never call the API d
 
 ---
 
-*Last updated: 2026-03-09*
+*Last updated: 2026-03-10*
