@@ -1,9 +1,5 @@
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
-const {
-  ExecutorSchema,
-  AuditorSchema,
-} = require("./schemas");
 
 const { neon } = require("@neondatabase/serverless");
 
