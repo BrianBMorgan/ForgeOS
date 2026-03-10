@@ -4597,3 +4597,220 @@ body {
 .edit-textarea.jump-flash {
   animation: forge-jump-flash 1.2s ease-out forwards;
 }
+
+/* ── Diff Tab ───────────────────────────────────────────────────────────────── */
+.diff-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.diff-controls {
+  flex-shrink: 0;
+  border-bottom: 1px solid #1e293b;
+  padding: 10px 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diff-run-selectors {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.diff-run-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.diff-run-label {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.diff-label-a { background: #7f1d1d; color: #fca5a5; }
+.diff-label-b { background: #14532d; color: #86efac; }
+
+.diff-arrow {
+  color: #475569;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.diff-select {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  color: #e2e8f0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.diff-select:focus { border-color: #3b82f6; }
+
+.diff-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: 10px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.diff-file-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #1e293b;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: monospace;
+}
+.diff-file-btn:hover { border-color: #3b82f6; color: #e2e8f0; }
+.diff-file-btn.active { border-color: #3b82f6; background: #1e3a5f; color: #e2e8f0; }
+.diff-file-btn.added { color: #86efac; border-color: #166534; }
+.diff-file-btn.removed { color: #fca5a5; border-color: #7f1d1d; }
+
+.diff-file-badge {
+  font-size: 10px;
+  font-weight: 700;
+}
+.diff-file-badge.added { color: #4ade80; }
+.diff-file-badge.removed { color: #f87171; }
+
+.diff-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.diff-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #475569;
+  font-size: 13px;
+}
+.diff-no-changes { color: #4ade80; }
+
+.diff-columns {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.diff-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-right: 1px solid #1e293b;
+}
+.diff-col:last-child { border-right: none; }
+
+.diff-col-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.diff-col-filename {
+  font-family: monospace;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-col-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #1e293b;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.diff-lines {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.diff-line {
+  display: flex;
+  align-items: baseline;
+  white-space: pre;
+  min-height: 20px;
+}
+
+.diff-line-num {
+  width: 36px;
+  min-width: 36px;
+  text-align: right;
+  padding-right: 8px;
+  color: #334155;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.diff-line-marker {
+  width: 14px;
+  min-width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.diff-line-content {
+  flex: 1;
+  padding-left: 4px;
+  color: #cbd5e1;
+  overflow: visible;
+}
+
+.diff-line-added {
+  background: rgba(74, 222, 128, 0.08);
+}
+.diff-line-added .diff-line-marker { color: #4ade80; }
+.diff-line-added .diff-line-content { color: #bbf7d0; }
+
+.diff-line-removed {
+  background: rgba(248, 113, 113, 0.08);
+}
+.diff-line-removed .diff-line-marker { color: #f87171; }
+.diff-line-removed .diff-line-content { color: #fecaca; }
+
+.diff-line-unchanged .diff-line-marker { color: #1e293b; }
+
+.diff-line-empty {
+  background: #080e1a;
+  opacity: 0.4;
+}

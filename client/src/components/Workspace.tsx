@@ -416,6 +416,7 @@ const defaultTabs: Tab[] = [
   { id: "plan", label: "Build", description: "Build output — summary, files, and commands." },
   { id: "render", label: "Render", description: "Live preview and implementation output." },
   { id: "edit", label: "Edit", description: "Direct file editor with live preview." },
+  { id: "diff", label: "Diff", description: "Side-by-side code diff between iterations." },
   { id: "shell", label: "Shell", description: "Terminal output and log stream." },
   { id: "db", label: "DB", description: "Database viewer — tables, queries, and schema." },
   { id: "env", label: "Env", description: "Project environment variables." },
@@ -423,6 +424,222 @@ const defaultTabs: Tab[] = [
   { id: "brain", label: "Brain", description: "Persistent team memory — patterns, preferences, and project history." },
 ];
 
+
+// ─── Diff Tab ────────────────────────────────────────────────────────────────
+
+interface DiffLine {
+  type: "added" | "removed" | "unchanged";
+  content: string;
+  lineA: number | null;
+  lineB: number | null;
+}
+
+function computeDiff(a: string, b: string): DiffLine[] {
+  const linesA = a.split("\n");
+  const linesB = b.split("\n");
+  // Myers-lite: LCS-based line diff
+  const m = linesA.length, n = linesB.length;
+  // Build LCS table
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      if (linesA[i] === linesB[j]) {
+        dp[i][j] = dp[i + 1][j + 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+  }
+  const result: DiffLine[] = [];
+  let i = 0, j = 0, lineA = 1, lineB = 1;
+  while (i < m || j < n) {
+    if (i < m && j < n && linesA[i] === linesB[j]) {
+      result.push({ type: "unchanged", content: linesA[i], lineA: lineA++, lineB: lineB++ });
+      i++; j++;
+    } else if (j < n && (i >= m || dp[i + 1][j] >= dp[i][j + 1])) {
+      result.push({ type: "added", content: linesB[j], lineA: null, lineB: lineB++ });
+      j++;
+    } else {
+      result.push({ type: "removed", content: linesA[i], lineA: lineA++, lineB: null });
+      i++;
+    }
+  }
+  return result;
+}
+
+function DiffTab({ runData, projectData }: { runData: RunData | null; projectData: ProjectData | null }) {
+  const iterations = projectData?.iterations || [];
+  const currentRunId = runData?.id || null;
+
+  // Default: compare latest two iterations
+  const sortedIter = [...iterations].sort((a, b) => b.iterationNumber - a.iterationNumber);
+  const [runIdA, setRunIdA] = useState<string>(() => sortedIter[1]?.runId || "");
+  const [runIdB, setRunIdB] = useState<string>(() => sortedIter[0]?.runId || currentRunId || "");
+  const [filesA, setFilesA] = useState<string[]>([]);
+  const [filesB, setFilesB] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [contentA, setContentA] = useState<string>("");
+  const [contentB, setContentB] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+
+  // Update defaults when project loads
+  useEffect(() => {
+    const sorted = [...(projectData?.iterations || [])].sort((a, b) => b.iterationNumber - a.iterationNumber);
+    if (sorted[0] && !runIdB) setRunIdB(sorted[0].runId);
+    if (sorted[1] && !runIdA) setRunIdA(sorted[1].runId);
+  }, [projectData]);
+
+  // Load file lists when run IDs change
+  useEffect(() => {
+    if (!runIdA) { setFilesA([]); return; }
+    fetch(`/api/runs/${runIdA}/files`).then(r => r.json()).then(d => setFilesA(d.files || [])).catch(() => setFilesA([]));
+  }, [runIdA]);
+
+  useEffect(() => {
+    if (!runIdB) { setFilesB([]); return; }
+    fetch(`/api/runs/${runIdB}/files`).then(r => r.json()).then(d => setFilesB(d.files || [])).catch(() => setFilesB([]));
+  }, [runIdB]);
+
+  // Union of files from both runs
+  const allFiles = Array.from(new Set([...filesA, ...filesB])).sort();
+
+  // Load file content when selection or run IDs change
+  useEffect(() => {
+    if (!selectedFile) { setContentA(""); setContentB(""); return; }
+    setLoading(true);
+    const fetchFile = (runId: string, file: string) =>
+      runId
+        ? fetch(`/api/runs/${runId}/file?path=${encodeURIComponent(file)}`).then(r => r.json()).then(d => d.content || "").catch(() => "")
+        : Promise.resolve("");
+    Promise.all([fetchFile(runIdA, selectedFile), fetchFile(runIdB, selectedFile)])
+      .then(([a, b]) => { setContentA(a); setContentB(b); })
+      .finally(() => setLoading(false));
+  }, [selectedFile, runIdA, runIdB]);
+
+  const diffLines = selectedFile ? computeDiff(contentA, contentB) : [];
+  const hasChanges = diffLines.some(l => l.type !== "unchanged");
+
+  const labelFor = (runId: string) => {
+    const iter = iterations.find(i => i.runId === runId);
+    return iter ? `v${iter.iterationNumber} — ${iter.prompt.slice(0, 40)}${iter.prompt.length > 40 ? "…" : ""}` : runId.slice(0, 8);
+  };
+
+  if (iterations.length < 2 && !currentRunId) {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-title">Diff</div>
+        <div className="panel-desc">Build at least two iterations to compare.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="diff-tab">
+      <div className="diff-controls">
+        <div className="diff-run-selectors">
+          <div className="diff-run-selector">
+            <span className="diff-run-label diff-label-a">A</span>
+            <select className="diff-select" value={runIdA} onChange={e => { setRunIdA(e.target.value); setSelectedFile(null); }}>
+              <option value="">— select version —</option>
+              {sortedIter.map(iter => (
+                <option key={iter.runId} value={iter.runId}>{labelFor(iter.runId)}</option>
+              ))}
+            </select>
+          </div>
+          <span className="diff-arrow">→</span>
+          <div className="diff-run-selector">
+            <span className="diff-run-label diff-label-b">B</span>
+            <select className="diff-select" value={runIdB} onChange={e => { setRunIdB(e.target.value); setSelectedFile(null); }}>
+              <option value="">— select version —</option>
+              {sortedIter.map(iter => (
+                <option key={iter.runId} value={iter.runId}>{labelFor(iter.runId)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="diff-file-list">
+          {allFiles.map(f => {
+            const inA = filesA.includes(f);
+            const inB = filesB.includes(f);
+            const status = !inA ? "added" : !inB ? "removed" : "";
+            return (
+              <button
+                key={f}
+                className={`diff-file-btn ${selectedFile === f ? "active" : ""} ${status}`}
+                onClick={() => setSelectedFile(f)}
+              >
+                {!inA && <span className="diff-file-badge added">+</span>}
+                {!inB && <span className="diff-file-badge removed">−</span>}
+                {f}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="diff-view">
+        {!selectedFile ? (
+          <div className="diff-placeholder">Select a file to compare</div>
+        ) : loading ? (
+          <div className="diff-placeholder">Loading…</div>
+        ) : !hasChanges ? (
+          <div className="diff-placeholder diff-no-changes">No changes in {selectedFile}</div>
+        ) : (
+          <div className="diff-columns">
+            <div className="diff-col diff-col-a">
+              <div className="diff-col-header">
+                <span className="diff-col-label diff-label-a">A</span>
+                <span className="diff-col-filename">{selectedFile}</span>
+                {!filesA.includes(selectedFile) && <span className="diff-col-badge">new file</span>}
+              </div>
+              <div className="diff-lines">
+                {diffLines.map((line, i) => (
+                  line.type !== "added" ? (
+                    <div key={i} className={`diff-line ${line.type === "removed" ? "diff-line-removed" : "diff-line-unchanged"}`}>
+                      <span className="diff-line-num">{line.lineA ?? ""}</span>
+                      <span className="diff-line-marker">{line.type === "removed" ? "−" : " "}</span>
+                      <span className="diff-line-content">{line.content}</span>
+                    </div>
+                  ) : (
+                    <div key={i} className="diff-line diff-line-empty">
+                      <span className="diff-line-num"></span>
+                      <span className="diff-line-marker"></span>
+                      <span className="diff-line-content"></span>
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
+            <div className="diff-col diff-col-b">
+              <div className="diff-col-header">
+                <span className="diff-col-label diff-label-b">B</span>
+                <span className="diff-col-filename">{selectedFile}</span>
+                {!filesB.includes(selectedFile) && <span className="diff-col-badge">deleted</span>}
+              </div>
+              <div className="diff-lines">
+                {diffLines.map((line, i) => (
+                  line.type !== "removed" ? (
+                    <div key={i} className={`diff-line ${line.type === "added" ? "diff-line-added" : "diff-line-unchanged"}`}>
+                      <span className="diff-line-num">{line.lineB ?? ""}</span>
+                      <span className="diff-line-marker">{line.type === "added" ? "+" : " "}</span>
+                      <span className="diff-line-content">{line.content}</span>
+                    </div>
+                  ) : (
+                    <div key={i} className="diff-line diff-line-empty">
+                      <span className="diff-line-num"></span>
+                      <span className="diff-line-marker"></span>
+                      <span className="diff-line-content"></span>
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Edit Tab ────────────────────────────────────────────────────────────────
 
@@ -1879,6 +2096,8 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
         return <PlanTab runData={runData} />;
       case "render":
         return <RenderTab runData={runData} />;
+      case "diff":
+        return <DiffTab runData={runData} projectData={projectData ?? null} />;
       case "edit":
         return <EditTab runData={runData} projectId={projectData?.id} />;
       case "shell":
