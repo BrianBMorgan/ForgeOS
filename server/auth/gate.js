@@ -160,7 +160,11 @@ function mountGate(app) {
   });
 
   app.use((req, res, next) => {
+    const baseDomain = process.env.BASE_DOMAIN || "forge-os.ai";
+    const host = req.hostname || "";
+    const isSubdomain = host.endsWith(`.${baseDomain}`) && host !== baseDomain && host !== `www.${baseDomain}`;
     if (
+      isSubdomain ||
       req.path === "/health" ||
       req.path.startsWith("/__auth/") ||
       req.path.startsWith("/apps/")
