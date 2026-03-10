@@ -31,7 +31,7 @@ function PublishTab({ projectId }: { projectId: string | null }) {
   const [copied, setCopied] = useState(false);
   const [domainInput, setDomainInput] = useState("");
   const [savingDomain, setSavingDomain] = useState(false);
-  const [domainResult, setDomainResult] = useState<{ aRecord?: string | null; cnameTarget?: string | null; status?: string } | null>(null);
+  const [, setDomainResult] = useState<null>(null);
   const [copiedDns, setCopiedDns] = useState(false);
   const [versions, setVersions] = useState<{ tag: string; sha: string; timestamp: number }[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
