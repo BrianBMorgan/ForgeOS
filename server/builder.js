@@ -216,6 +216,49 @@ await resend.emails.send({
 - For cron-triggered emails, use node-cron to schedule and resend to send
 - Tell the user that RESEND_API_KEY must be in the Global Secrets Vault
 
+### HubSpot CRM
+If the app needs to create contacts, log form submissions, or manage CRM data:
+- No extra package needed — use node-fetch or the built-in fetch
+- Env vars: HUBSPOT_API_KEY (access token), HUBSPOT_CLIENT_SECRET
+- Available scopes: contacts read/write, companies read/write, deals read/write, leads read/write, marketing events read/write, owners read, users read/write
+
+Create or update a contact (upsert by email):
+\`\`\`javascript
+async function upsertHubSpotContact({ email, firstname, lastname, phone, company }) {
+  const res = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + process.env.HUBSPOT_API_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      properties: { email, firstname, lastname, phone, company }
+    })
+  });
+  if (res.status === 409) {
+    // Contact exists — update instead
+    const existing = await res.json();
+    const id = existing.message.match(/ID: (\\d+)/)?.[1];
+    if (id) {
+      await fetch('https://api.hubapi.com/crm/v3/objects/contacts/' + id, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': 'Bearer ' + process.env.HUBSPOT_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ properties: { firstname, lastname, phone, company } })
+      });
+    }
+  }
+}
+\`\`\`
+
+- Always upsert by email — never create duplicates
+- For contact forms, call upsertHubSpotContact on submission and also send a confirmation email via Resend
+- For deals: POST to /crm/v3/objects/deals with properties: dealname, pipeline, dealstage, amount
+- For companies: POST to /crm/v3/objects/companies with properties: name, domain, phone
+- Tell the user that HUBSPOT_API_KEY must be in the Global Secrets Vault
+
 ---
 
 ## CALLING CLAUDE FROM YOUR APP

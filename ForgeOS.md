@@ -164,6 +164,10 @@ Brain provides memory across all projects and team members via Neon Postgres.
 ### Approved Packages
 express, @neondatabase/serverless, uuid, cors, cookie-parser, body-parser, multer, nodemailer, node-cron, ws, socket.io, marked, cheerio, axios, node-fetch, @anthropic-ai/sdk, react, react-dom, @vitejs/plugin-react, vite, vue, jose, resend
 
+### Platform Integrations
+- **Email:** Resend (`RESEND_API_KEY`) — default from `admin@makemysandbox.com`
+- **CRM:** HubSpot (`HUBSPOT_API_KEY`, `HUBSPOT_CLIENT_SECRET`) — contacts, companies, deals, leads, marketing events
+
 ### Banned Packages
 angular, nuxt, svelte, bcrypt, bcryptjs, jsonwebtoken, dotenv, typescript, webpack, rollup, parcel, esbuild, tailwindcss, openai, pg, postgres, mysql2, sqlite3, better-sqlite3, passport, passport-local, nodemon
 
