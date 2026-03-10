@@ -88,6 +88,7 @@ const API_BASE = "/api";
 
 function App() {
   const [collapsed, setCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
   const [activeNav, setActiveNav] = useState<NavId>("new-project");
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
@@ -318,7 +319,12 @@ function App() {
 
     return (
       <>
-        <div className={`mobile-panel mobile-panel-chat ${mobileView === "chat" ? "mobile-active" : ""}`}>
+        <div className={`mobile-panel mobile-panel-chat ${mobileView === "chat" ? "mobile-active" : ""} ${chatCollapsed ? "chat-collapsed" : ""}`}>
+          <button
+            className="chat-collapse-tab"
+            onClick={() => setChatCollapsed(c => !c)}
+            title={chatCollapsed ? "Expand chat" : "Collapse chat"}
+          >{chatCollapsed ? "›" : "‹"}</button>
           <PromptColumn
             runData={runData}
             projectData={projectData}
