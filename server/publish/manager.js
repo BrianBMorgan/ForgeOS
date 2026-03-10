@@ -51,6 +51,18 @@ async function ensureSchema() {
     ALTER TABLE published_apps
       ADD COLUMN IF NOT EXISTS build_command TEXT
   `.catch(() => {});
+  await sql`
+    ALTER TABLE published_apps
+      ADD COLUMN IF NOT EXISTS custom_domain TEXT
+  `.catch(() => {});
+  await sql`
+    ALTER TABLE published_apps
+      ADD COLUMN IF NOT EXISTS custom_domain_id TEXT
+  `.catch(() => {});
+  await sql`
+    ALTER TABLE published_apps
+      ADD COLUMN IF NOT EXISTS custom_domain_status TEXT
+  `.catch(() => {});
 }
 
 async function saveToDb(app) {
@@ -60,11 +72,13 @@ async function saveToDb(app) {
   await sql`
     INSERT INTO published_apps
       (project_id, slug, port, status, start_command, install_command,
-       build_command, published_at, updated_at, render_service_id, render_url)
+       build_command, published_at, updated_at, render_service_id, render_url,
+       custom_domain, custom_domain_id, custom_domain_status)
     VALUES
       (${app.projectId}, ${app.slug}, ${app.port}, ${app.status},
        ${app.startCommand}, ${app.installCommand}, ${app.buildCommand ?? null},
-       ${app.publishedAt}, ${now}, ${app.renderServiceId ?? null}, ${app.renderUrl ?? null})
+       ${app.publishedAt}, ${now}, ${app.renderServiceId ?? null}, ${app.renderUrl ?? null},
+       ${app.customDomain ?? null}, ${app.customDomainId ?? null}, ${app.customDomainStatus ?? null})
     ON CONFLICT (project_id) DO UPDATE SET
       slug              = ${app.slug},
       port              = ${app.port},
@@ -74,6 +88,9 @@ async function saveToDb(app) {
       build_command     = ${app.buildCommand ?? null},
       render_service_id = ${app.renderServiceId ?? null},
       render_url        = ${app.renderUrl ?? null},
+      custom_domain     = ${app.customDomain ?? null},
+      custom_domain_id  = ${app.customDomainId ?? null},
+      custom_domain_status = ${app.customDomainStatus ?? null},
       updated_at        = ${now}
   `;
 }
@@ -462,6 +479,9 @@ async function _restoreOne(row) {
     publishedAt: Number(row.published_at),
     renderServiceId: row.render_service_id,
     renderUrl: row.render_url,
+    customDomain: row.custom_domain || null,
+    customDomainId: row.custom_domain_id || null,
+    customDomainStatus: row.custom_domain_status || null,
     logs: "",
   };
   publishedApps.set(row.project_id, app);
@@ -483,6 +503,9 @@ function getPublishedApp(projectId) {
     publishedAt: app.publishedAt,
     renderUrl: app.renderUrl || null,
     renderServiceId: app.renderServiceId || null,
+    customDomain: app.customDomain || null,
+    customDomainId: app.customDomainId || null,
+    customDomainStatus: app.customDomainStatus || null,
     logs: app.logs?.slice(-5000) || "",
   };
 }
@@ -544,11 +567,91 @@ async function exportProject(projectId) {
 // Exports
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Custom Domain
+// ---------------------------------------------------------------------------
+
+async function setCustomDomain(projectId, domain) {
+  const app = publishedApps.get(projectId);
+  if (!app) throw new Error("App not published");
+  if (!app.renderServiceId) throw new Error("No Render service found for this app");
+
+  const renderApi = require("./render-api");
+
+  // Remove existing custom domain if present
+  if (app.customDomainId) {
+    try {
+      await renderApi.removeCustomDomain(app.renderServiceId, app.customDomainId);
+    } catch (err) {
+      console.warn(`[publish] Could not remove old custom domain: ${err.message}`);
+    }
+  }
+
+  const result = await renderApi.addCustomDomain(app.renderServiceId, domain);
+
+  app.customDomain = domain;
+  app.customDomainId = result.id;
+  app.customDomainStatus = result.status || "pending";
+
+  const sql = await getDb();
+  if (sql) {
+    await sql`
+      UPDATE published_apps SET
+        custom_domain        = ${domain},
+        custom_domain_id     = ${result.id},
+        custom_domain_status = ${app.customDomainStatus}
+      WHERE project_id = ${projectId}
+    `;
+  }
+
+  return {
+    domain,
+    domainId: result.id,
+    // Apex: use A record IP. Subdomain: use CNAME target.
+    aRecord: result.aRecordTarget || null,
+    cnameTarget: result.cnameTarget || null,
+    status: app.customDomainStatus,
+  };
+}
+
+async function deleteCustomDomain(projectId) {
+  const app = publishedApps.get(projectId);
+  if (!app) throw new Error("App not published");
+
+  if (app.customDomainId && app.renderServiceId) {
+    const renderApi = require("./render-api");
+    try {
+      await renderApi.removeCustomDomain(app.renderServiceId, app.customDomainId);
+    } catch (err) {
+      console.warn(`[publish] Could not remove custom domain from Render: ${err.message}`);
+    }
+  }
+
+  app.customDomain = null;
+  app.customDomainId = null;
+  app.customDomainStatus = null;
+
+  const sql = await getDb();
+  if (sql) {
+    await sql`
+      UPDATE published_apps SET
+        custom_domain        = NULL,
+        custom_domain_id     = NULL,
+        custom_domain_status = NULL
+      WHERE project_id = ${projectId}
+    `;
+  }
+
+  return { removed: true };
+}
+
 module.exports = {
   ensureSchema,
   publishProject,
   unpublishProject,
   renameSlug,
+  setCustomDomain,
+  deleteCustomDomain,
   getPublishedApp,
   getPublishedAppBySlug,
   listPublishedApps,

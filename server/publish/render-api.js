@@ -105,6 +105,52 @@ async function listServices() {
     }));
 }
 
+async function addCustomDomain(serviceId, domain) {
+  const result = await renderFetch(`/services/${serviceId}/custom-domains`, {
+    method: "POST",
+    body: JSON.stringify({ name: domain }),
+  });
+  const d = result.customDomain || result;
+  return {
+    id: d.id,
+    name: d.name,
+    // Apex domains get an A record IP; subdomains get a CNAME target
+    cnameTarget: d.redirectUri || d.verificationTarget || null,
+    aRecordTarget: d.publicIpAddress || null,
+    status: d.verificationStatus || "pending",
+  };
+}
+
+async function listCustomDomains(serviceId) {
+  const result = await renderFetch(`/services/${serviceId}/custom-domains`);
+  const items = Array.isArray(result) ? result : (result.customDomains || []);
+  return items.map(item => {
+    const d = item.customDomain || item;
+    return {
+      id: d.id,
+      name: d.name,
+      cnameTarget: d.redirectUri || d.verificationTarget || null,
+      aRecordTarget: d.publicIpAddress || null,
+      status: d.verificationStatus || "pending",
+    };
+  });
+}
+
+async function removeCustomDomain(serviceId, domainId) {
+  const res = await fetch(`${RENDER_API}/services/${serviceId}/custom-domains/${domainId}`, {
+    method: "DELETE",
+    headers: {
+      "Authorization": `Bearer ${RENDER_API_KEY}`,
+      "Accept": "application/json",
+    },
+  });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text();
+    throw new Error(`Render API error ${res.status}: ${text}`);
+  }
+  return true;
+}
+
 module.exports = {
   createService,
   updateServiceEnv,
@@ -112,4 +158,7 @@ module.exports = {
   getServiceStatus,
   deleteService,
   listServices,
+  addCustomDomain,
+  listCustomDomains,
+  removeCustomDomain,
 };

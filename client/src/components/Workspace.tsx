@@ -12,6 +12,9 @@ interface PublishStatus {
   renderUrl?: string;
   logs?: string;
   github?: { commitSha?: string; commitUrl?: string; filesCount?: number };
+  customDomain?: string | null;
+  customDomainId?: string | null;
+  customDomainStatus?: string | null;
 }
 
 
@@ -24,6 +27,10 @@ function PublishTab({ projectId }: { projectId: string | null }) {
   const [renamingSlug, setRenamingSlug] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [domainInput, setDomainInput] = useState("");
+  const [savingDomain, setSavingDomain] = useState(false);
+  const [domainResult, setDomainResult] = useState<{ aRecord?: string | null; cnameTarget?: string | null; status?: string } | null>(null);
+  const [copiedDns, setCopiedDns] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     if (!projectId) return;
@@ -91,6 +98,45 @@ function PublishTab({ projectId }: { projectId: string | null }) {
     } finally {
       setRenamingSlug(false);
     }
+  };
+
+  const handleSaveDomain = async () => {
+    if (!projectId || !domainInput.trim()) return;
+    setSavingDomain(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/custom-domain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: domainInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setDomainResult(data);
+      await fetchStatus();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingDomain(false);
+    }
+  };
+
+  const handleRemoveDomain = async () => {
+    if (!projectId) return;
+    try {
+      await fetch(`/api/projects/${projectId}/custom-domain`, { method: "DELETE" });
+      setDomainResult(null);
+      setDomainInput("");
+      await fetchStatus();
+    } catch {
+      setError("Failed to remove custom domain");
+    }
+  };
+
+  const handleCopyDns = (val: string) => {
+    navigator.clipboard.writeText(val);
+    setCopiedDns(true);
+    setTimeout(() => setCopiedDns(false), 2000);
   };
 
   const handleExport = () => {
@@ -181,6 +227,62 @@ function PublishTab({ projectId }: { projectId: string | null }) {
             <div className="pub-slug-preview">{slugEdit}.forge-os.ai</div>
             {slugEdit !== pubStatus?.slug && (
               <div className="pub-slug-warning">⚠ Renaming will create a new Render service and delete the old one.</div>
+            )}
+          </div>
+
+          <div className="pub-url-section">
+            <label className="pub-url-label">Custom Domain</label>
+            {pubStatus?.customDomain ? (
+              <div className="pub-domain-active">
+                <div className="pub-domain-row">
+                  <span className="pub-domain-name">{pubStatus.customDomain}</span>
+                  <span className={`pub-domain-badge ${pubStatus.customDomainStatus === "verified" ? "pub-domain-verified" : "pub-domain-pending"}`}>
+                    {pubStatus.customDomainStatus === "verified" ? "✓ Verified" : "⏳ Pending DNS"}
+                  </span>
+                  <button className="pub-domain-remove" onClick={handleRemoveDomain}>Remove</button>
+                </div>
+                {(domainResult?.aRecord || domainResult?.cnameTarget) && (
+                  <div className="pub-dns-instructions">
+                    <div className="pub-dns-label">Add this DNS record at Namecheap:</div>
+                    {domainResult.aRecord ? (
+                      <div className="pub-dns-record">
+                        <span className="pub-dns-type">A Record</span>
+                        <span className="pub-dns-host">@</span>
+                        <span className="pub-dns-value">{domainResult.aRecord}</span>
+                        <button className="pub-copy-btn" onClick={() => handleCopyDns(domainResult.aRecord!)}>
+                          {copiedDns ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="pub-dns-record">
+                        <span className="pub-dns-type">CNAME</span>
+                        <span className="pub-dns-host">www</span>
+                        <span className="pub-dns-value">{domainResult.cnameTarget}</span>
+                        <button className="pub-copy-btn" onClick={() => handleCopyDns(domainResult.cnameTarget!)}>
+                          {copiedDns ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    )}
+                    <div className="pub-dns-note">TLS certificate will provision automatically once DNS propagates (5–30 min).</div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="pub-domain-input-row">
+                <input
+                  className="pub-slug-input"
+                  value={domainInput}
+                  onChange={e => setDomainInput(e.target.value.toLowerCase())}
+                  placeholder="sandbox-xm.com"
+                />
+                <button
+                  className="pub-copy-btn"
+                  onClick={handleSaveDomain}
+                  disabled={savingDomain || !domainInput.trim()}
+                >
+                  {savingDomain ? "Saving..." : "Add"}
+                </button>
+              </div>
             )}
           </div>
 

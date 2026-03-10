@@ -461,6 +461,26 @@ app.post("/api/projects/:id/slug", async (req, res) => {
   }
 });
 
+app.post("/api/projects/:id/custom-domain", async (req, res) => {
+  try {
+    const { domain } = req.body;
+    if (!domain) return res.status(400).json({ error: "domain is required" });
+    const result = await publishManager.setCustomDomain(req.params.id, domain.trim().toLowerCase());
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/projects/:id/custom-domain", async (req, res) => {
+  try {
+    const result = await publishManager.deleteCustomDomain(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get("/api/projects/:id/publish", async (req, res) => {
   const app = publishManager.getPublishedApp(req.params.id);
   if (!app) return res.json({ published: false });
