@@ -550,11 +550,8 @@ app.post("/api/assets", async (req, res) => {
       const chunks = [];
       for await (const chunk of file) chunks.push(chunk);
       const buffer = Buffer.concat(chunks);
-      const isText = mimeType.startsWith("text/") ||
-                     mimeType.includes("json") ||
-                     mimeType.includes("csv") ||
-                     mimeType.includes("xml");
-      const content = isText ? buffer.toString("utf8") : buffer.toString("base64");
+      // Always store as base64 — avoids UTF-8 encoding errors for binary files (docx, xlsx, pdf, etc.)
+      const content = buffer.toString("base64");
       saved = await assetsManager.saveAsset(filename, mimeType, buffer.length, content);
     });
     bb.on("finish", () => res.json(saved));
@@ -569,10 +566,7 @@ app.get("/api/assets/:filename", async (req, res) => {
   try {
     const asset = await assetsManager.getAsset(decodeURIComponent(req.params.filename));
     if (!asset) return res.status(404).json({ error: "Asset not found" });
-    const isBase64 = !asset.mimetype.startsWith("text/") &&
-                     !asset.mimetype.includes("json") &&
-                     !asset.mimetype.includes("csv");
-    const buffer = isBase64 ? Buffer.from(asset.content, "base64") : Buffer.from(asset.content);
+    const buffer = Buffer.from(asset.content, "base64");
     res.setHeader("Content-Type", asset.mimetype);
     res.setHeader("Content-Disposition", `inline; filename="${asset.filename}"`);
     res.end(buffer);
