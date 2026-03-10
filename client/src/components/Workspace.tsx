@@ -415,12 +415,219 @@ interface Tab {
 const defaultTabs: Tab[] = [
   { id: "plan", label: "Build", description: "Build output — summary, files, and commands." },
   { id: "render", label: "Render", description: "Live preview and implementation output." },
+  { id: "edit", label: "Edit", description: "Direct file editor with live preview." },
   { id: "shell", label: "Shell", description: "Terminal output and log stream." },
   { id: "db", label: "DB", description: "Database viewer — tables, queries, and schema." },
   { id: "env", label: "Env", description: "Project environment variables." },
 { id: "publish", label: "Publish", description: "Deployment controls, domains, and promotion workflow." },
   { id: "brain", label: "Brain", description: "Persistent team memory — patterns, preferences, and project history." },
 ];
+
+
+// ─── Edit Tab ────────────────────────────────────────────────────────────────
+
+function EditTab({ runData }: { runData: RunData | null; projectId?: string | null }) {
+  const [files, setFiles] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<string>("");
+  const [savedContent, setSavedContent] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [loadingFile, setLoadingFile] = useState(false);
+  const [previewStamp, setPreviewStamp] = useState(() => Date.now());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const runId = runData?.id || null;
+  const wsStatus = runData?.workspace?.status;
+  const isRunning = wsStatus === "running";
+  const startCmd = (runData?.stages?.builder?.output as Record<string,unknown> | undefined)?.startCommand as string | undefined
+    || (runData?.stages?.executor?.output as Record<string,unknown> | undefined)?.startCommand as string | undefined
+    || "";
+  const isModeB = startCmd.includes("npm run dev") || startCmd.includes("vite");
+
+  // Load file list when run changes
+  useEffect(() => {
+    if (!runId) { setFiles([]); setSelectedFile(null); return; }
+    fetch(`/api/runs/${runId}/files`)
+      .then(r => r.json())
+      .then(d => {
+        const sorted = (d.files || []).sort((a: string, b: string) => {
+          // Directories first, then alphabetical
+          const aSlash = a.includes("/");
+          const bSlash = b.includes("/");
+          if (aSlash !== bSlash) return aSlash ? -1 : 1;
+          return a.localeCompare(b);
+        });
+        setFiles(sorted);
+        // Auto-select server.js or index.html if present
+        const preferred = sorted.find((f: string) => f === "server.js" || f === "index.js" || f === "index.html");
+        if (preferred) loadFile(runId, preferred);
+      })
+      .catch(() => {});
+  }, [runId]);
+
+  const loadFile = (rid: string, filePath: string) => {
+    setLoadingFile(true);
+    setSelectedFile(filePath);
+    fetch(`/api/runs/${rid}/file?path=${encodeURIComponent(filePath)}`)
+      .then(r => r.json())
+      .then(d => {
+        const c = d.content || "";
+        setFileContent(c);
+        setSavedContent(c);
+        setSaveMsg(null);
+      })
+      .catch(() => { setFileContent(""); setSavedContent(""); })
+      .finally(() => setLoadingFile(false));
+  };
+
+  const handleSave = async () => {
+    if (!runId || !selectedFile || saving) return;
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      const res = await fetch(`/api/runs/${runId}/file`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: selectedFile, content: fileContent }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSavedContent(fileContent);
+        setSaveMsg("Saved");
+        // Refresh preview after short delay for restart
+        setTimeout(() => setPreviewStamp(Date.now()), 1200);
+      } else {
+        setSaveMsg("Error: " + (data.error || "unknown"));
+      }
+    } catch {
+      setSaveMsg("Save failed");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(null), 3000);
+    }
+  };
+
+  const handleRevert = () => {
+    setFileContent(savedContent);
+    setSaveMsg(null);
+  };
+
+  const isDirty = fileContent !== savedContent;
+
+  // Group files by directory for the tree
+  const fileTree: Record<string, string[]> = {};
+  for (const f of files) {
+    const parts = f.split("/");
+    if (parts.length === 1) {
+      if (!fileTree[""]) fileTree[""] = [];
+      fileTree[""].push(f);
+    } else {
+      const dir = parts.slice(0, -1).join("/");
+      if (!fileTree[dir]) fileTree[dir] = [];
+      fileTree[dir].push(f);
+    }
+  }
+  const rootFiles = fileTree[""] || [];
+  const dirs = Object.keys(fileTree).filter(d => d !== "").sort();
+
+  if (!runId) {
+    return (
+      <div className="panel-placeholder">
+        <div className="panel-title">Edit</div>
+        <div className="panel-desc">Run a build to edit files directly.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="edit-tab">
+      {/* Left: file tree + editor */}
+      <div className="edit-left">
+        <div className="edit-file-tree">
+          {rootFiles.map(f => (
+            <div
+              key={f}
+              className={`edit-file-row ${selectedFile === f ? "active" : ""}`}
+              onClick={() => loadFile(runId, f)}
+            >{f}</div>
+          ))}
+          {dirs.map(dir => (
+            <div key={dir} className="edit-dir-group">
+              <div className="edit-dir-label">{dir}/</div>
+              {fileTree[dir].map(f => {
+                const full = `${dir}/${f.split("/").pop()}`;
+                return (
+                  <div
+                    key={full}
+                    className={`edit-file-row edit-file-row-nested ${selectedFile === full ? "active" : ""}`}
+                    onClick={() => loadFile(runId, full)}
+                  >{f.split("/").pop()}</div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        <div className="edit-editor-pane">
+          <div className="edit-editor-header">
+            <span className="edit-editor-filename">
+              {selectedFile || "—"}
+              {isDirty && <span className="edit-dirty-dot" title="Unsaved changes">●</span>}
+            </span>
+            <div className="edit-editor-actions">
+              {saveMsg && <span className={`edit-save-msg ${saveMsg.startsWith("Error") ? "err" : ""}`}>{saveMsg}</span>}
+              <button className="edit-btn edit-btn-revert" onClick={handleRevert} disabled={!isDirty || saving}>Revert</button>
+              <button className="edit-btn edit-btn-save" onClick={handleSave} disabled={!selectedFile || saving || !isDirty}>
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+          {loadingFile ? (
+            <div className="edit-loading">Loading…</div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              className="edit-textarea"
+              value={fileContent}
+              onChange={e => setFileContent(e.target.value)}
+              spellCheck={false}
+              disabled={!selectedFile}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Right: live preview */}
+      <div className="edit-right">
+        <div className="edit-preview-header">
+          Live Preview
+          {isRunning && !isModeB && (
+            <button
+              className="preview-open-btn"
+              onClick={() => window.open(`/preview/${runId}/`, "_blank")}
+              title="Open in new tab"
+            >↗</button>
+          )}
+        </div>
+        {!isRunning ? (
+          <div className="edit-preview-placeholder">App not running</div>
+        ) : isModeB ? (
+          <div className="edit-preview-placeholder mode-b-note">
+            ⚡ Vite app — publish to preview. File edits apply on next publish.
+          </div>
+        ) : (
+          <iframe
+            key={previewStamp}
+            src={`/preview/${runId}/?_t=${previewStamp}`}
+            className="edit-preview-iframe"
+            title="Live Preview"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface WorkspaceProps {
   runData: RunData | null;
@@ -1559,6 +1766,8 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
         return <PlanTab runData={runData} />;
       case "render":
         return <RenderTab runData={runData} />;
+      case "edit":
+        return <EditTab runData={runData} projectId={projectData?.id} />;
       case "shell":
         return <ShellTab runData={runData} projectId={projectData?.id} onRefreshRunData={onRefreshRunData} />;
       case "db":

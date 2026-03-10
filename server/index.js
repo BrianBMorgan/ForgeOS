@@ -117,6 +117,44 @@ app.get("/api/runs/:id/logs", (req, res) => {
   res.json({ logs, status });
 });
 
+app.get("/api/runs/:id/files", (req, res) => {
+  try {
+    const files = workspace.listWorkspaceFiles(req.params.id);
+    res.json({ files });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get("/api/runs/:id/file", (req, res) => {
+  const { path: filePath } = req.query;
+  if (!filePath) return res.status(400).json({ error: "path query param required" });
+  try {
+    const content = workspace.readWorkspaceFile(req.params.id, filePath);
+    res.json({ content });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.patch("/api/runs/:id/file", async (req, res) => {
+  const { path: filePath, content } = req.body;
+  if (!filePath || content === undefined) {
+    return res.status(400).json({ error: "path and content required" });
+  }
+  try {
+    workspace.writeWorkspaceFile(req.params.id, filePath, content);
+    // Restart app so changes take effect
+    const wsStatus = workspace.getWorkspaceStatus(req.params.id);
+    if (wsStatus?.status === "running") {
+      workspace.restartApp(req.params.id).catch(() => {});
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.post("/api/runs/:id/exec", async (req, res) => {
   const { command } = req.body;
   if (!command || typeof command !== "string") {

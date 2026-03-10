@@ -4265,3 +4265,200 @@ body {
 .pub-version-rollback:hover:not(:disabled) { border-color: #1d4ed8; color: #60a5fa; }
 .pub-version-rollback:disabled { opacity: 0.5; cursor: default; }
 .pub-versions-loading { font-size: 12px; color: #475569; padding: 4px 0; }
+
+/* ─── Edit Tab ─────────────────────────────────────────────────── */
+.edit-tab {
+  display: flex;
+  height: calc(100vh - 120px);
+  min-height: 500px;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* Left pane: file tree + editor */
+.edit-left {
+  display: flex;
+  flex-direction: column;
+  width: 55%;
+  min-width: 0;
+  border-right: 1px solid #1e293b;
+  overflow: hidden;
+}
+
+.edit-file-tree {
+  width: 100%;
+  background: #0a0f1a;
+  border-bottom: 1px solid #1e293b;
+  overflow-y: auto;
+  max-height: 180px;
+  padding: 6px 0;
+  flex-shrink: 0;
+}
+
+.edit-file-row {
+  padding: 4px 14px;
+  font-size: 12px;
+  font-family: monospace;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.1s, color 0.1s;
+}
+.edit-file-row:hover { background: #0f172a; color: #94a3b8; }
+.edit-file-row.active { background: #1e293b; color: #e2e8f0; }
+.edit-file-row-nested { padding-left: 24px; }
+
+.edit-dir-label {
+  padding: 6px 14px 2px;
+  font-size: 10px;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: monospace;
+  user-select: none;
+}
+
+.edit-editor-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.edit-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #0a0f1a;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.edit-editor-filename {
+  font-size: 12px;
+  font-family: monospace;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-dirty-dot {
+  color: #f59e0b;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.edit-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.edit-save-msg {
+  font-size: 11px;
+  color: #4ade80;
+  white-space: nowrap;
+}
+.edit-save-msg.err { color: #f87171; }
+
+.edit-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #1e293b;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.edit-btn:disabled { opacity: 0.4; cursor: default; }
+
+.edit-btn-revert {
+  background: transparent;
+  color: #64748b;
+}
+.edit-btn-revert:hover:not(:disabled) { border-color: #475569; color: #94a3b8; }
+
+.edit-btn-save {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+.edit-btn-save:hover:not(:disabled) { background: #2563eb; border-color: #2563eb; }
+
+.edit-textarea {
+  flex: 1;
+  width: 100%;
+  background: #060b14;
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 12px 14px;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+.edit-textarea:disabled { opacity: 0.5; }
+
+.edit-loading {
+  padding: 16px 14px;
+  font-size: 12px;
+  color: #475569;
+}
+
+/* Right pane: live preview */
+.edit-right {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.edit-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: #0a0f1a;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+
+.edit-preview-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
+  display: block;
+}
+
+.edit-preview-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #334155;
+  padding: 24px;
+  text-align: center;
+}
+.edit-preview-placeholder.mode-b-note { color: #475569; }

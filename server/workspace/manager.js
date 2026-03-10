@@ -821,6 +821,47 @@ async function stopIdleWorkspaces() {
 
 const _idleInterval = setInterval(stopIdleWorkspaces, 60 * 1000);
 
+
+function listWorkspaceFiles(runId) {
+  const ws = workspaces.get(runId);
+  if (!ws) throw new Error("Workspace not found");
+
+  const results = [];
+  function walk(dir, base) {
+    let entries;
+    try { entries = fs.readdirSync(dir); } catch { return; }
+    for (const entry of entries) {
+      if (entry === "node_modules" || entry === ".git") continue;
+      const full = path.join(dir, entry);
+      const rel = base ? `${base}/${entry}` : entry;
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) {
+        walk(full, rel);
+      } else {
+        results.push(rel);
+      }
+    }
+  }
+  walk(ws.dir, "");
+  return results;
+}
+
+function readWorkspaceFile(runId, filePath) {
+  const ws = workspaces.get(runId);
+  if (!ws) throw new Error("Workspace not found");
+  const full = sanitizePath(ws.dir, filePath);
+  return fs.readFileSync(full, "utf8");
+}
+
+function writeWorkspaceFile(runId, filePath, content) {
+  const ws = workspaces.get(runId);
+  if (!ws) throw new Error("Workspace not found");
+  const full = sanitizePath(ws.dir, filePath);
+  const dir = path.dirname(full);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(full, content, "utf8");
+}
+
 module.exports = {
   createWorkspace,
   writeFiles,
@@ -837,4 +878,7 @@ module.exports = {
   touchActivity,
   stopIdleWorkspaces,
   isStaticSite,
+  listWorkspaceFiles,
+  readWorkspaceFile,
+  writeWorkspaceFile,
 };
