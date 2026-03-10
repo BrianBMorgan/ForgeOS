@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sandbox-XM</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Sandbox-<span style="color: #E94560;">XM</span></a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">&#9776;</button>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#services">Services</a></li>
+        <li><a href="#about">About</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <div class="hero-bg">
+      <img src="/api/assets/IMG_1153.png" alt="Sandbox-XM hero" class="hero-img" />
+      <div class="hero-overlay"></div>
+    </div>
+    <div class="hero-content">
+      <p class="hero-eyebrow">Experience Marketing</p>
+      <h1 class="hero-headline" style="color: #E94560;">With clarity, care, and execution discipline.</h1>
+      <p class="hero-sub">We blend operational rigor with creative judgment to turn corporate events into curated hospitality experiences&#8212;so attendees feel completely taken care of.</p>
+      <a href="#contact" class="btn-primary">Start a conversation</a>
+    </div>
+  </section>
+
+  <!-- SERVICES -->
+  <section class="services" id="services">
+    <div class="container">
+      <h2 class="section-heading">What We Do</h2>
+      <div class="services-grid">
+
+        <div class="service-card">
+          <h3>Experience Strategy</h3>
+          <p>Audience-centered experience design that aligns events with business objectives&#8212;and elevates the moments that matter. We define the what, why, and how before execution begins.</p>
+        </div>
+
+        <div class="service-card">
+          <h3>Operations &amp; Delivery</h3>
+          <p>End-to-end planning and delivery with calm, predictable execution. We manage logistics, schedules, and vendor coordination so the experience feels seamless and guests feel cared for.</p>
+        </div>
+
+        <div class="service-card">
+          <h3> Systems &amp; Optimization</h3>
+          <p> Repeatable operating systems for recurring programs&#8212;staffing, workflows, and playbooks that scale. Reduce fire drills, protect quality, and raise consistency over time.</p>
+        </div>
+
+        <div class="service-card">
+          <h3> Event Technology &amp; Measurement</h3>
+          <p> Technology selection, integration, and measurement that supports the experience&#8212;not distracts from it. We capture meaningful data and translate it into clear next-step improvements.</p>
+        </div>
+
+        <div class="service-card">
+          <h3> Digital &amp; Media</h3>
+          <p> Branded content and digital media that extend the experience beyond the room. From pre-event microsites and on-brand digital touchpoints to post-event recaps and storytelling, we shape how your audience sees and remembers what you built.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section class="about" id="about">
+    <div class="container about-inner">
+      <div class="about-images">
+        <img src="/api/assets/IMG_1152.jpeg" alt="Sandbox-XM team" class="about-img about-img-main" />
+        <img src="/api/assets/IMG_1151.jpeg" alt="Sandbox-XM event" class="about-img about-img-secondary" />
+      </div>
+      <div class="about-text">
+        <h2 class="section-heading">About Sandbox-XM</h2>
+        <p>Sandbox-XM is the experience strategy and delivery arm of Sandbox Group. We combine operational rigor with creative judgment to design and deliver corporate experiences that feel considered, calm, and genuinely hospitable.</p>
+        <p>Our focus is the full attendee journey&#8212;turning complex programs into curated moments where guests feel taken care of, not just informed. We bring clarity, transparency, and execution discipline without the overhead of traditional agencies.</p>
+        <p>We&#8217;re not a large agency with layers of overhead. We&#8217;re a focused team that moves fast, thinks clearly, and executes without excuses.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section class="contact" id="contact">
+    <div class="container contact-inner">
+      <div class="contact-text">
+        <h2 class="section-heading">Let&#8217;s build something worth remembering.</h2>
+        <p> Whether you have a brief ready or just an idea, we&#8217;d love to hear from you. Tell us what you&#8217;re working on and we&#8217;ll take it from there.</p>
+      </div>
+      <form class="contact-form" id="contact-form" novalidate>
+        <div class="form-group">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" placeholder="Your name" required />
+        </div>
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" placeholder="your@email.com" required />
+        </div>
+        <div class="form-group">
+          <label for="message">Message</label>
+          <textarea id="message" name="message" rows="5" placeholder="Tell us about your event or project" required></textarea>
+        </div>
+        <button type="submit" class="btn-primary">Send Message</button>
+        <p class="form-success" id="form-success" hidden>Thanks! We&#8217;ll be in touch soon.</p>
+      </form>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 Sandbox Group LLC dba Sandbox-XM. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
