@@ -381,12 +381,15 @@ async function renameSlug(projectId, newSlug) {
     const mergedEnv = await getMergedEnv(projectId);
 
     // Push files to new branch
-    const { pushToAppBranch, tagAndDeleteAppBranch } = require("./github");
-    const workspaceDir = app?.dir || path.join(
-      process.env.DATA_DIR || path.join(__dirname, "..", ".."),
-      "workspaces",
-      (await require("../projects/manager").getProject(projectId))?.currentRunId
+    const { pushToAppBranch } = require('./github');
+    const projectForDir = await require('../projects/manager').getProject(projectId);
+    if (!projectForDir?.currentRunId) throw new Error('No build to publish — run a build first');
+    const workspaceDir = path.join(
+      process.env.DATA_DIR || path.join(__dirname, '..', '..'),
+      'workspaces',
+      projectForDir.currentRunId
     );
+    if (!fs.existsSync(workspaceDir)) throw new Error('Workspace files not found');
 
     const renameBranchResult = await pushToAppBranch(githubSettings.repo, newSlug, workspaceDir);
 
