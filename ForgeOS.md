@@ -16,7 +16,7 @@ Replit is fully sunset. Claude pushes directly to GitHub via PAT.
 
 | Component | Location | Purpose |
 |---|---|---|
-| Cockpit UI | `client/` | Tab-based interface: Plan / Review / Diff / Auditor / Render / **Edit** / Shell / DB / Env / Publish + global Assets sidebar |
+| Cockpit UI | `client/` | Tab-based interface: Plan / Review / **Diff** / Auditor / Render / **Edit** / Shell / DB / Env / Publish + global Assets sidebar + collapsible chat column |
 | Server | `server/index.js` | Express API + subdomain proxy middleware + inspector script injection |
 | Builder | `server/builder.js` | Single Claude-powered workspace builder (replaces legacy multi-agent pipeline) |
 | Pipeline Runner | `server/pipeline/runner.js` | Orchestrates build calls and injects context |
@@ -230,6 +230,30 @@ All Anthropic API calls route through `model-router.js` — never call the API d
 - `agents.js` deleted — `CHAT_AGENT_INSTRUCTIONS` moved inline to `server/chat/manager.js`
 - `schemas.js` deleted — `ExecutorSchema`/`AuditorSchema` were unused since the single-builder migration
 - `STAGES` constant and pending-init loop removed from `runner.js` — stages written directly by the builder
+
+---
+
+## Cockpit UI — Diff Tab & Chat Panel Controls
+
+### Diff Tab
+- Positioned between Edit and Shell in the default tab strip
+- Two version selectors (A = red, B = green) defaulting to previous vs current iteration
+- File list shows the union of files from both runs — `+` badge for new files, `−` for deleted
+- LCS-based line diff (`computeDiff`) — side-by-side columns with aligned blank rows for readability
+- Red lines (removed) on left, green lines (added) on right, unchanged lines neutral
+- "No changes" message when a file is identical between versions
+- CSS: `.diff-tab`, `.diff-controls`, `.diff-run-selectors`, `.diff-columns`, `.diff-col`, `.diff-lines`, `.diff-line-added`, `.diff-line-removed`, `.diff-line-empty`
+
+### Collapsible Chat Column
+- `chatCollapsed` state in `App.tsx`; `‹`/`›` toggle tab fixed to the right edge of the prompt column
+- Smooth `width` CSS transition (0.2s ease) — chat collapses to zero width, giving the workspace panel full width
+- State is preserved when re-expanded — no DOM removal
+- Hidden on mobile (mobile panel switching already handles layout; collapse would conflict)
+- CSS: `.chat-collapse-tab`, `.mobile-panel-chat.chat-collapsed .prompt-column`
+
+### Mobile Chat Scroll Fix
+- `.mobile-panel-chat .prompt-column` — added `min-height: 0`, `height: 100%`, `overflow: hidden`
+- Allows `.chat-thread` (which has `flex: 1; overflow-y: auto; min-height: 0`) to scroll correctly inside a flex column
 
 ---
 
