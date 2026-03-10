@@ -63,6 +63,14 @@ async function ensureSchema() {
     ALTER TABLE published_apps
       ADD COLUMN IF NOT EXISTS custom_domain_status TEXT
   `.catch(() => {});
+  await sql`
+    ALTER TABLE published_apps
+      ADD COLUMN IF NOT EXISTS custom_domain_arecord TEXT
+  `.catch(() => {});
+  await sql`
+    ALTER TABLE published_apps
+      ADD COLUMN IF NOT EXISTS custom_domain_cname TEXT
+  `.catch(() => {});
 }
 
 async function saveToDb(app) {
@@ -73,12 +81,13 @@ async function saveToDb(app) {
     INSERT INTO published_apps
       (project_id, slug, port, status, start_command, install_command,
        build_command, published_at, updated_at, render_service_id, render_url,
-       custom_domain, custom_domain_id, custom_domain_status)
+       custom_domain, custom_domain_id, custom_domain_status, custom_domain_arecord, custom_domain_cname)
     VALUES
       (${app.projectId}, ${app.slug}, ${app.port}, ${app.status},
        ${app.startCommand}, ${app.installCommand}, ${app.buildCommand ?? null},
        ${app.publishedAt}, ${now}, ${app.renderServiceId ?? null}, ${app.renderUrl ?? null},
-       ${app.customDomain ?? null}, ${app.customDomainId ?? null}, ${app.customDomainStatus ?? null})
+       ${app.customDomain ?? null}, ${app.customDomainId ?? null}, ${app.customDomainStatus ?? null},
+       ${app.customDomainARecord ?? null}, ${app.customDomainCname ?? null})
     ON CONFLICT (project_id) DO UPDATE SET
       slug              = ${app.slug},
       port              = ${app.port},
@@ -91,6 +100,8 @@ async function saveToDb(app) {
       custom_domain     = ${app.customDomain ?? null},
       custom_domain_id  = ${app.customDomainId ?? null},
       custom_domain_status = ${app.customDomainStatus ?? null},
+      custom_domain_arecord = ${app.customDomainARecord ?? null},
+      custom_domain_cname = ${app.customDomainCname ?? null},
       updated_at        = ${now}
   `;
 }
@@ -493,6 +504,8 @@ async function _restoreOne(row) {
     customDomain: row.custom_domain || null,
     customDomainId: row.custom_domain_id || null,
     customDomainStatus: row.custom_domain_status || null,
+    customDomainARecord: row.custom_domain_arecord || null,
+    customDomainCname: row.custom_domain_cname || null,
     logs: "",
   };
   publishedApps.set(row.project_id, app);
@@ -517,6 +530,8 @@ function getPublishedApp(projectId) {
     customDomain: app.customDomain || null,
     customDomainId: app.customDomainId || null,
     customDomainStatus: app.customDomainStatus || null,
+    customDomainARecord: app.customDomainARecord || null,
+    customDomainCname: app.customDomainCname || null,
     logs: app.logs?.slice(-5000) || "",
   };
 }
@@ -603,14 +618,18 @@ async function setCustomDomain(projectId, domain) {
   app.customDomain = domain;
   app.customDomainId = result.id;
   app.customDomainStatus = result.status || "pending";
+  app.customDomainARecord = result.aRecordTarget || null;
+  app.customDomainCname = result.cnameTarget || null;
 
   const sql = await getDb();
   if (sql) {
     await sql`
       UPDATE published_apps SET
-        custom_domain        = ${domain},
-        custom_domain_id     = ${result.id},
-        custom_domain_status = ${app.customDomainStatus}
+        custom_domain         = ${domain},
+        custom_domain_id      = ${result.id},
+        custom_domain_status  = ${app.customDomainStatus},
+        custom_domain_arecord = ${app.customDomainARecord},
+        custom_domain_cname   = ${app.customDomainCname}
       WHERE project_id = ${projectId}
     `;
   }

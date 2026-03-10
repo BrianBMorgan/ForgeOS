@@ -15,6 +15,8 @@ interface PublishStatus {
   customDomain?: string | null;
   customDomainId?: string | null;
   customDomainStatus?: string | null;
+  customDomainARecord?: string | null;
+  customDomainCname?: string | null;
 }
 
 
@@ -279,15 +281,15 @@ function PublishTab({ projectId }: { projectId: string | null }) {
                   </span>
                   <button className="pub-domain-remove" onClick={handleRemoveDomain}>Remove</button>
                 </div>
-                {(domainResult?.aRecord || domainResult?.cnameTarget) && (
+                {(pubStatus?.customDomainARecord || pubStatus?.customDomainCname) && (
                   <div className="pub-dns-instructions">
                     <div className="pub-dns-label">Add this DNS record at Namecheap:</div>
-                    {domainResult.aRecord ? (
+                    {pubStatus.customDomainARecord ? (
                       <div className="pub-dns-record">
                         <span className="pub-dns-type">A Record</span>
                         <span className="pub-dns-host">@</span>
-                        <span className="pub-dns-value">{domainResult.aRecord}</span>
-                        <button className="pub-copy-btn" onClick={() => handleCopyDns(domainResult.aRecord!)}>
+                        <span className="pub-dns-value">{pubStatus.customDomainARecord}</span>
+                        <button className="pub-copy-btn" onClick={() => handleCopyDns(pubStatus.customDomainARecord!)}>
                           {copiedDns ? "Copied!" : "Copy"}
                         </button>
                       </div>
@@ -295,8 +297,8 @@ function PublishTab({ projectId }: { projectId: string | null }) {
                       <div className="pub-dns-record">
                         <span className="pub-dns-type">CNAME</span>
                         <span className="pub-dns-host">www</span>
-                        <span className="pub-dns-value">{domainResult.cnameTarget}</span>
-                        <button className="pub-copy-btn" onClick={() => handleCopyDns(domainResult.cnameTarget!)}>
+                        <span className="pub-dns-value">{pubStatus.customDomainCname}</span>
+                        <button className="pub-copy-btn" onClick={() => handleCopyDns(pubStatus.customDomainCname!)}>
                           {copiedDns ? "Copied!" : "Copy"}
                         </button>
                       </div>
