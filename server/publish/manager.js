@@ -232,7 +232,7 @@ async function _doPublish(projectId) {
   if (!githubSettings?.repo) throw new Error("GitHub repo not configured in Settings — required for Render deployment");
 
   // ---- Push app files to dedicated GitHub branch ----
-  const { pushToAppBranch, tagAndDeleteAppBranch } = require("./github");
+  const { pushToAppBranch } = require("./github");
   let branchResult;
   console.log(`[publish] pushing to GitHub branch apps/${slug} from ${workspaceDir}`);
   try {
@@ -307,12 +307,14 @@ try {
     }
   }
 
-  // ---- Tag commit for version history, then delete branch (banner gone, history preserved) ----
+  // ---- Tag commit for version history (branch stays alive — Render deploys from it) ----
   try {
-    const versionInfo = await tagAndDeleteAppBranch(githubSettings.repo, slug, branchResult.commitSha);
-    console.log(`[publish] Tagged ${versionInfo.tag} and deleted deployment branch apps/${slug}`);
+    const { tagCommit } = require("./github");
+    const tag = `apps/${slug}-v${Date.now()}`;
+    await tagCommit(githubSettings.repo, tag, branchResult.commitSha);
+    console.log(`[publish] Tagged ${tag}`);
   } catch (err) {
-    console.warn(`[publish] Could not tag/delete branch apps/${slug}:`, err.message);
+    console.warn(`[publish] Could not tag branch apps/${slug}:`, err.message);
   }
 
   // ---- Save to DB ----
@@ -385,7 +387,7 @@ async function renameSlug(projectId, newSlug) {
     const mergedEnv = await getMergedEnv(projectId);
 
     // Push files to new branch
-    const { pushToAppBranch, tagAndDeleteAppBranch } = require("./github");
+    const { pushToAppBranch } = require("./github");
     const workspaceDir = app?.dir || path.join(
       process.env.DATA_DIR || path.join(__dirname, "..", ".."),
       "workspaces",
@@ -402,12 +404,14 @@ async function renameSlug(projectId, newSlug) {
       envVars: mergedEnv,
     });
 
-    // Tag commit for version history, then delete branch
+    // Tag commit for version history (branch stays alive — Render deploys from it)
     try {
-      const versionInfo = await tagAndDeleteAppBranch(githubSettings.repo, newSlug, renameBranchResult.commitSha);
-      console.log(`[publish] Tagged ${versionInfo.tag} and deleted deployment branch apps/${newSlug}`);
+      const { tagCommit } = require("./github");
+      const tag = `apps/${newSlug}-v${Date.now()}`;
+      await tagCommit(githubSettings.repo, tag, renameBranchResult.commitSha);
+      console.log(`[publish] Tagged ${tag}`);
     } catch (err) {
-      console.warn(`[publish] Could not tag/delete branch apps/${newSlug}:`, err.message);
+      console.warn(`[publish] Could not tag branch apps/${newSlug}:`, err.message);
     }
 
     // Delete old Render service
@@ -676,7 +680,7 @@ async function rollbackToVersion(projectId, tag, commitSha) {
   const githubSettings = await settingsManager.getSetting("github");
   if (!githubSettings?.repo) throw new Error("GitHub repo not configured");
 
-  const { restoreFromTag, tagAndDeleteAppBranch } = require("./github");
+  const { restoreFromTag } = require("./github");
   const renderApi = require("./render-api");
 
   // Push the tagged commit back to the branch
@@ -685,9 +689,11 @@ async function rollbackToVersion(projectId, tag, commitSha) {
   // Trigger Render redeploy
   await renderApi.redeployService(app.renderServiceId);
 
-  // Tag and delete the branch again immediately
+  // Tag for version history (branch stays alive — Render deploys from it)
   try {
-    await tagAndDeleteAppBranch(githubSettings.repo, app.slug, commitSha);
+    const { tagCommit } = require("./github");
+    const tag = `apps/${app.slug}-v${Date.now()}`;
+    await tagCommit(githubSettings.repo, tag, commitSha);
   } catch (err) {
     console.warn(`[publish] Could not re-tag after rollback: ${err.message}`);
   }
