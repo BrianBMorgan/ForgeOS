@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Image Generator</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-icon">&#10024;</span>
+          <span class="logo-text">Forge<span class="accent">Vision</span></span>
+        </div>
+        <p class="tagline">Powered by Stability AI &mdash; Best-in-class image generation</p>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="sidebar">
+        <div class="mode-tabs">
+          <button class="mode-tab active" data-mode="text">&#128247; Text to Image</button>
+          <button class="mode-tab" data-mode="img2img">&#127912; Image to Image</button>
+          <button class="mode-tab" data-mode="upscale">&#128269; Upscale</button>
+        </div>
+
+        <!-- Text to Image Panel -->
+        <div class="panel" id="panel-text">
+          <div class="field">
+            <label>Prompt <span class="required">*</span></label>
+            <textarea id="txt-prompt" placeholder="A majestic dragon soaring over a neon-lit cyberpunk city at dusk, cinematic lighting, 8K ultra-detailed..." rows="5"></textarea>
+            <div class="char-count"><span id="txt-prompt-count">0</span> / 2000</div>
+          </div>
+          <div class="field">
+            <label>Negative Prompt</label>
+            <textarea id="txt-negative" placeholder="blurry, low quality, watermark..." rows="2"></textarea>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Model</label>
+              <select id="txt-model">
+                <option value="stable-diffusion-xl-1024-v1-0">SDXL 1.0</option>
+                <option value="stable-diffusion-v1-6">SD 1.6</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Style</label>
+              <select id="txt-style">
+                <option value="">None</option>
+                <option value="3d-model">3D Model</option>
+                <option value="analog-film">Analog Film</option>
+                <option value="anime">Anime</option>
+                <option value="cinematic">Cinematic</option>
+                <option value="comic-book">Comic Book</option>
+                <option value="digital-art">Digital Art</option>
+                <option value="enhance">Enhance</option>
+                <option value="fantasy-art">Fantasy Art</option>
+                <option value="isometric">Isometric</option>
+                <option value="line-art">Line Art</option>
+                <option value="low-poly">Low Poly</option>
+                <option value="modeling-compound">Modeling Compound</option>
+                <option value="neon-punk">Neon Punk</option>
+                <option value="origami">Origami</option>
+                <option value="photographic">Photographic</option>
+                <option value="pixel-art">Pixel Art</option>
+                <option value="tile-texture">Tile Texture</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Width</label>
+              <select id="txt-width">
+                <option value="1024" selected>1024</option>
+                <option value="1152">1152</option>
+                <option value="1216">1216</option>
+                <option value="1344">1344</option>
+                <option value="1536">1536</option>
+                <option value="640">640</option>
+                <option value="768">768</option>
+                <option value="832">832</option>
+                <option value="896">896</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Height</label>
+              <select id="txt-height">
+                <option value="1024" selected>1024</option>
+                <option value="1152">1152</option>
+                <option value="1216">1216</option>
+                <option value="1344">1344</option>
+                <option value="1536">1536</option>
+                <option value="640">640</option>
+                <option value="768">768</option>
+                <option value="832">832</option>
+                <option value="896">896</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>CFG Scale <span class="hint" id="cfg-val">7</span></label>
+              <input type="range" id="txt-cfg" min="1" max="35" value="7" />
+            </div>
+            <div class="field">
+              <label>Steps <span class="hint" id="steps-val">30</span></label>
+              <input type="range" id="txt-steps" min="10" max="50" value="30" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Samples</label>
+            <div class="samples-row">
+              <button class="sample-btn active" data-val="1">1</button>
+              <button class="sample-btn" data-val="2">2</button>
+              <button class="sample-btn" data-val="3">3</button>
+              <button class="sample-btn" data-val="4">4</button>
+            </div>
+          </div>
+          <button class="generate-btn" id="txt-generate">&#10024; Generate Image</button>
+        </div>
+
+        <!-- Image to Image Panel -->
+        <div class="panel hidden" id="panel-img2img">
+          <div class="field">
+            <label>Source Image <span class="required">*</span></label>
+            <div class="drop-zone" id="img2img-drop">
+              <input type="file" id="img2img-file" accept="image/*" hidden />
+              <div class="drop-inner">
+                <span class="drop-icon">&#128444;</span>
+                <p>Drop image here or <span class="link">browse</span></p>
+                <p class="hint">JPEG, PNG, WebP &mdash; max 20MB</p>
+              </div>
+              <img id="img2img-preview" class="hidden" alt="Preview" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Prompt <span class="required">*</span></label>
+            <textarea id="i2i-prompt" placeholder="Transform this into a watercolor painting..." rows="4"></textarea>
+          </div>
+          <div class="field">
+            <label>Negative Prompt</label>
+            <textarea id="i2i-negative" placeholder="blurry, low quality..." rows="2"></textarea>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Style</label>
+              <select id="i2i-style">
+                <option value="">None</option>
+                <option value="3d-model">3D Model</option>
+                <option value="analog-film">Analog Film</option>
+                <option value="anime">Anime</option>
+                <option value="cinematic">Cinematic</option>
+                <option value="comic-book">Comic Book</option>
+                <option value="digital-art">Digital Art</option>
+                <option value="enhance">Enhance</option>
+                <option value="fantasy-art">Fantasy Art</option>
+                <option value="neon-punk">Neon Punk</option>
+                <option value="photographic">Photographic</option>
+                <option value="pixel-art">Pixel Art</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Image Strength <span class="hint" id="strength-val">0.35</span></label>
+              <input type="range" id="i2i-strength" min="0" max="1" step="0.05" value="0.35" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>CFG Scale <span class="hint" id="i2i-cfg-val">7</span></label>
+              <input type="range" id="i2i-cfg" min="1" max="35" value="7" />
+            </div>
+            <div class="field">
+              <label>Steps <span class="hint" id="i2i-steps-val">30</span></label>
+              <input type="range" id="i2i-steps" min="10" max="50" value="30" />
+            </div>
+          </div>
+          <button class="generate-btn" id="i2i-generate">&#127912; Transform Image</button>
+        </div>
+
+        <!-- Upscale Panel -->
+        <div class="panel hidden" id="panel-upscale">
+          <div class="field">
+            <label>Image to Upscale <span class="required">*</span></label>
+            <div class="drop-zone" id="upscale-drop">
+              <input type="file" id="upscale-file" accept="image/*" hidden />
+              <div class="drop-inner">
+                <span class="drop-icon">&#128269;</span>
+                <p>Drop image here or <span class="link">browse</span></p>
+                <p class="hint">JPEG, PNG, WebP &mdash; max 20MB</p>
+              </div>
+              <img id="upscale-preview" class="hidden" alt="Preview" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Target Width</label>
+            <select id="upscale-width">
+              <option value="2048">2048px (2x)</option>
+              <option value="4096">4096px (4x)</option>
+            </select>
+          </div>
+          <div class="info-box">
+            <span>&#8505;</span> ESRGAN upscaler &mdash; enhances detail and sharpness without artifacts
+          </div>
+          <button class="generate-btn" id="upscale-generate">&#128269; Upscale Image</button>
+        </div>
+      </div>
+
+      <div class="output-area">
+        <div class="output-header">
+          <h2>Generated Images</h2>
+          <div class="output-actions">
+            <button class="clear-btn" id="clear-gallery" hidden>&#128465; Clear Gallery</button>
+          </div>
+        </div>
+
+        <div id="error-box" class="error-box" hidden></div>
+
+        <div id="loading" class="loading" hidden>
+          <div class="spinner"></div>
+          <p id="loading-text">Generating your image...</p>
+          <p class="hint">This may take 15&ndash;45 seconds</p>
+        </div>
+
+        <div id="gallery" class="gallery">
+          <div class="gallery-empty">
+            <span class="empty-icon">&#127912;</span>
+            <p>Your generated images will appear here</p>
+            <p class="hint">Configure your settings and click Generate</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <div class="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      <button class="lightbox-close">&#10005;</button>
+      <img id="lightbox-img" alt="Full size" />
+      <div class="lightbox-actions">
+        <a id="lightbox-download" class="download-btn" download="forge-vision.png">&#11015; Download PNG</a>
+        <button id="lightbox-upscale" class="upscale-btn">&#128269; Send to Upscaler</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
