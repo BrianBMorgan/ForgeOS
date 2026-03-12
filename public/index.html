@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Fact Checker</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-icon">&#x1F50D;</span>
+          <span class="logo-text">FactCheck <span class="logo-ai">AI</span></span>
+        </div>
+        <p class="tagline">Verify claims with AI-powered analysis and source citations</p>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="input-section">
+        <div class="input-card">
+          <label for="claim-input" class="input-label">Enter a claim or question to fact-check</label>
+          <textarea
+            id="claim-input"
+            class="claim-input"
+            placeholder="e.g. The Great Wall of China is visible from space."
+            maxlength="1000"
+            rows="4"
+          ></textarea>
+          <div class="input-footer">
+            <span class="char-count"><span id="char-count">0</span> / 1000</span>
+            <button id="check-btn" class="check-btn">Check Fact</button>
+          </div>
+        </div>
+
+        <div id="error-box" class="error-box" hidden>
+          <span class="error-icon">&#x26A0;</span>
+          <span id="error-msg"></span>
+        </div>
+      </section>
+
+      <section id="result-section" class="result-section" hidden>
+        <div class="result-card">
+          <div class="result-header">
+            <div id="verdict-badge" class="verdict-badge"></div>
+            <div class="confidence-wrap">
+              <span class="confidence-label">Confidence</span>
+              <div class="confidence-bar-track">
+                <div id="confidence-bar" class="confidence-bar"></div>
+              </div>
+              <span id="confidence-pct" class="confidence-pct"></span>
+            </div>
+          </div>
+
+          <p id="result-summary" class="result-summary"></p>
+
+          <div class="result-block">
+            <h3 class="block-title">&#x1F4CB; Explanation</h3>
+            <p id="result-explanation" class="block-text"></p>
+          </div>
+
+          <div class="result-block" id="sources-block">
+            <h3 class="block-title">&#x1F517; Sources</h3>
+            <ul id="sources-list" class="sources-list"></ul>
+          </div>
+
+          <div class="result-block" id="tags-block">
+            <h3 class="block-title">&#x1F3F7; Topics</h3>
+            <div id="tags-list" class="tags-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <div id="loading" class="loading" hidden>
+        <div class="spinner"></div>
+        <p class="loading-text">Analyzing claim&hellip;</p>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>Powered by Claude AI &mdash; Results are AI-generated and should be independently verified for critical decisions.</p>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
