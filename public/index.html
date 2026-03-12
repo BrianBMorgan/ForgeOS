@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Celestial Chart &mdash; Your Birth Chart Reading</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="stars" id="stars"></div>
+
+  <div class="app-wrapper">
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-icon">&#9728;</span>
+          <span class="logo-text">Celestial Chart</span>
+        </div>
+        <p class="tagline">Discover the cosmic blueprint of your soul</p>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="form-section" id="formSection">
+        <div class="form-card">
+          <h2 class="form-title">Enter Your Birth Details</h2>
+          <p class="form-subtitle">The stars were aligned just for you at the moment of your birth.</p>
+
+          <form id="chartForm">
+            <div class="form-group">
+              <label for="dateOfBirth">Date of Birth <span class="required">*</span></label>
+              <input type="date" id="dateOfBirth" name="dateOfBirth" required />
+            </div>
+
+            <div class="form-group">
+              <label for="timeOfBirth">
+                Time of Birth
+                <span class="optional">(optional &mdash; needed for Rising Sign)</span>
+              </label>
+              <input type="time" id="timeOfBirth" name="timeOfBirth" />
+            </div>
+
+            <div class="form-group">
+              <label for="cityOfBirth">City of Birth <span class="required">*</span></label>
+              <input type="text" id="cityOfBirth" name="cityOfBirth" placeholder="e.g. New York, London, Tokyo" required />
+            </div>
+
+            <div class="error-box" id="errorBox" hidden>
+              <span id="errorMsg"></span>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+              <span class="btn-text">Read My Chart</span>
+              <span class="btn-icon">&#10024;</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <section class="results-section" id="resultsSection" hidden>
+        <div class="results-header">
+          <h2 class="results-title">Your Cosmic Blueprint</h2>
+          <p class="results-subtitle" id="resultsSubtitle"></p>
+          <button class="back-btn" id="backBtn">&#8592; New Reading</button>
+        </div>
+
+        <div class="placements-grid" id="placementsGrid"></div>
+
+        <div class="reading-card" id="readingCard">
+          <div class="reading-header">
+            <span class="reading-icon">&#128218;</span>
+            <h3>Your Personal Reading</h3>
+          </div>
+          <div class="reading-body" id="readingBody"></div>
+        </div>
+
+        <div class="elements-section" id="elementsSection">
+          <h3 class="elements-title">Elemental Profile</h3>
+          <div class="elements-grid" id="elementsGrid"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>&#9733; Celestial Chart &mdash; For entertainment and self-reflection purposes &#9733;</p>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

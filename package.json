@@ -1,0 +1,14 @@
+{
+  "name": "astrology-app",
+  "version": "1.0.0",
+  "description": "Astrology birth chart web app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "@anthropic-ai/sdk": "^0.24.0"
+  }
+}
