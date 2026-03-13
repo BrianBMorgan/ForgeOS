@@ -282,6 +282,16 @@ function getAllRuns() {
   return Array.from(runs.values()).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// Load a past run snapshot from DB into the in-memory runs Map
+// so the UI can poll it after a restore.
+async function loadAndRegisterRun(runId) {
+  if (runs.has(runId)) return runs.get(runId);
+  const snapshot = await loadRunSnapshot(runId);
+  if (!snapshot) return null;
+  runs.set(runId, snapshot);
+  return snapshot;
+}
+
 module.exports = {
   createRun,
   getRun,
@@ -292,4 +302,5 @@ module.exports = {
   updateStage,
   loadSkillsContext,
   sanitizePlannerOutput,
+  loadAndRegisterRun,
 };

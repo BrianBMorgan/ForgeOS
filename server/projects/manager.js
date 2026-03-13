@@ -369,7 +369,7 @@ async function restoreIteration(projectId, runId) {
   const iter = project.iterations.find(i => i.runId === runId);
   if (!iter) return { ok: false, error: 'Iteration not found' };
 
-  // Load snapshot from DB
+  // Load snapshot — fail fast before touching anything if missing
   let snapshot = null;
   if (sql) {
     try {
@@ -379,16 +379,18 @@ async function restoreIteration(projectId, runId) {
       return { ok: false, error: 'Failed to load snapshot: ' + err.message };
     }
   }
-  if (!snapshot) return { ok: false, error: 'No snapshot found for this iteration' };
+  if (!snapshot) return { ok: false, error: 'No snapshot saved for this iteration — cannot restore' };
 
-  const files = snapshot.stages?.builder?.output?.files;
-  if (!files || files.length === 0) return { ok: false, error: 'Snapshot has no files' };
+  const builderStage = snapshot.stages && snapshot.stages.builder && snapshot.stages.builder.output;
+  const files = builderStage && builderStage.files;
+  if (!files || files.length === 0) return { ok: false, error: 'Snapshot contains no files' };
 
-  const installCommand = snapshot.stages?.builder?.output?.installCommand;
-  const startCommand = snapshot.stages?.builder?.output?.startCommand || 'node server.js';
-  const port = snapshot.stages?.builder?.output?.port || 4000;
+  const installCommand = builderStage.installCommand;
+  const startCommand = builderStage.startCommand || 'node server.js';
+  const port = builderStage.port || 4000;
 
   const workspace = require('../workspace/manager');
+  const runner = require('../pipeline/runner');
   const settingsManager = require('../settings/manager');
 
   let globalDefaults = {};
@@ -396,7 +398,7 @@ async function restoreIteration(projectId, runId) {
   let projectEnv = {};
   try {
     const defaultEnvSetting = await settingsManager.getSetting('default_env_vars');
-    if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
+    if (defaultEnvSetting && defaultEnvSetting.vars && Array.isArray(defaultEnvSetting.vars)) {
       for (const v of defaultEnvSetting.vars) {
         if (v.key) globalDefaults[v.key] = v.value || '';
       }
@@ -407,7 +409,10 @@ async function restoreIteration(projectId, runId) {
   const customEnv = { ...globalDefaults, ...globalSecrets, ...projectEnv };
 
   try {
-    await workspace.stopAllApps();
+    // Stop only this project's current app — don't kill other projects' workspaces
+    if (project.currentRunId) {
+      try { await workspace.stopApp(project.currentRunId); } catch {}
+    }
     workspace.createWorkspace(runId);
     workspace.writeFiles(runId, files);
     if (installCommand) {
@@ -416,6 +421,13 @@ async function restoreIteration(projectId, runId) {
     }
     const startResult = await workspace.startApp(runId, startCommand, port, customEnv);
     if (!startResult.success) return { ok: false, error: 'Start failed: ' + startResult.error };
+
+    // Register run in memory so the UI can poll its status
+    const restoredRun = await runner.loadAndRegisterRun(runId);
+    if (restoredRun) {
+      const wsStatus = workspace.getWorkspaceStatus(runId);
+      if (wsStatus) restoredRun.workspace = wsStatus;
+    }
   } catch (err) {
     return { ok: false, error: 'Restore failed: ' + err.message };
   }
