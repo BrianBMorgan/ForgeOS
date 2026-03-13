@@ -1047,14 +1047,34 @@ function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePla
   const planOutput = builderOutput || legacyPlanOutput;
 
   if (!planOutput || typeof planOutput !== "object") {
+    // Show a richer state while a suggestion build is running — surface the parsed target file
+    // so the user can immediately see whether the constraint was parsed correctly.
+    const isSuggestionBuild = runData?.isSuggestion;
+    const suggestionTarget = runData?.suggestionTarget;
+
     return (
       <div className="panel-placeholder">
         <div className="panel-title">Plan</div>
-        <div className="panel-desc">
-          {runData?.status === "running"
-            ? "Claude is building your app..."
-            : "Submit a prompt to get started. Forge will show you the plan before building."}
-        </div>
+        {runData?.status === "running" && isSuggestionBuild ? (
+          <div className="plan-surgical-status">
+            <div className="plan-surgical-label">Surgical edit in progress</div>
+            {suggestionTarget ? (
+              <div className="plan-surgical-target">
+                Targeting: <code className="plan-surgical-file">{suggestionTarget}</code>
+              </div>
+            ) : (
+              <div className="plan-surgical-target plan-surgical-fallback">
+                ⚠ Could not parse target file — all files locked as a precaution.
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="panel-desc">
+            {runData?.status === "running"
+              ? "Claude is building your app..."
+              : "Submit a prompt to get started. Forge will show you the plan before building."}
+          </div>
+        )}
       </div>
     );
   }
@@ -2247,3 +2267,4 @@ case "publish":
     </div>
   );
 }
+
