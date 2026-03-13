@@ -20,6 +20,7 @@ interface PromptColumnProps {
   onViewIteration: (runId: string) => void;
   viewingIterationRunId: string | null;
   onViewLatest: () => void;
+  onRestoreIteration: (runId: string) => void;
   chatMessages: ChatMessage[];
   onSendChat: (message: string) => void;
   chatLoading: boolean;
@@ -387,6 +388,7 @@ export default function PromptColumn({
   onViewIteration,
   viewingIterationRunId,
   onViewLatest,
+  onRestoreIteration,
   chatMessages,
   onSendChat,
   chatLoading,
@@ -661,6 +663,7 @@ export default function PromptColumn({
       {isViewingHistory && (
         <div className="viewing-history-banner">
           Viewing past iteration
+          <button className="viewing-history-btn" onClick={() => onRestoreIteration(viewingIterationRunId!)}>Restore this version</button>
           <button className="viewing-history-btn" onClick={onViewLatest}>Back to latest</button>
         </div>
       )}

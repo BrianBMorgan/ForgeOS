@@ -354,6 +354,16 @@ function App() {
     setViewingIterationRunId(null);
   }, []);
 
+  const restoreIteration = useCallback(async (runId: string) => {
+    if (!currentProjectId) return;
+    const res = await fetch(`/api/projects/${currentProjectId}/restore/${runId}`, { method: "POST" });
+    const data = await res.json();
+    if (data.currentRunId) {
+      setCurrentRunId(data.currentRunId);
+      setViewingIterationRunId(null);
+    }
+  }, [currentProjectId]);
+
   const renderMainContent = () => {
     if (activeNav === "settings") {
       return <Settings />;
@@ -385,6 +395,7 @@ function App() {
             onViewIteration={viewIteration}
             viewingIterationRunId={viewingIterationRunId}
             onViewLatest={viewLatest}
+            onRestoreIteration={restoreIteration}
             chatMessages={chatMessages}
             onSendChat={sendChat}
             chatLoading={chatLoading}

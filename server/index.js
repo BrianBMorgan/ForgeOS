@@ -247,6 +247,12 @@ app.delete("/api/projects/:id/runs/:runId", async (req, res) => {
   res.json(result);
 });
 
+app.post("/api/projects/:id/restore/:runId", async (req, res) => {
+  const result = await projectManager.restoreIteration(req.params.id, req.params.runId);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
 app.patch("/api/projects/:id", async (req, res) => {
   const { name } = req.body;
   if (!name || typeof name !== "string" || !name.trim()) {

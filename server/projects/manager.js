@@ -361,6 +361,78 @@ async function deleteIteration(projectId, runId) {
   return { ok: true, currentRunId: project.currentRunId };
 }
 
+async function restoreIteration(projectId, runId) {
+  await loadFromDb();
+  const project = projects.get(projectId);
+  if (!project) return { ok: false, error: 'Project not found' };
+
+  const iter = project.iterations.find(i => i.runId === runId);
+  if (!iter) return { ok: false, error: 'Iteration not found' };
+
+  // Load snapshot from DB
+  let snapshot = null;
+  if (sql) {
+    try {
+      const rows = await sql`SELECT data FROM run_snapshots WHERE id = ${runId}`;
+      if (rows.length > 0) snapshot = rows[0].data;
+    } catch (err) {
+      return { ok: false, error: 'Failed to load snapshot: ' + err.message };
+    }
+  }
+  if (!snapshot) return { ok: false, error: 'No snapshot found for this iteration' };
+
+  const files = snapshot.stages?.builder?.output?.files;
+  if (!files || files.length === 0) return { ok: false, error: 'Snapshot has no files' };
+
+  const installCommand = snapshot.stages?.builder?.output?.installCommand;
+  const startCommand = snapshot.stages?.builder?.output?.startCommand || 'node server.js';
+  const port = snapshot.stages?.builder?.output?.port || 4000;
+
+  const workspace = require('../workspace/manager');
+  const settingsManager = require('../settings/manager');
+
+  let globalDefaults = {};
+  let globalSecrets = {};
+  let projectEnv = {};
+  try {
+    const defaultEnvSetting = await settingsManager.getSetting('default_env_vars');
+    if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
+      for (const v of defaultEnvSetting.vars) {
+        if (v.key) globalDefaults[v.key] = v.value || '';
+      }
+    }
+    globalSecrets = await settingsManager.getSecretsAsObject();
+  } catch {}
+  try { projectEnv = await getEnvVarsAsObject(projectId); } catch {}
+  const customEnv = { ...globalDefaults, ...globalSecrets, ...projectEnv };
+
+  try {
+    await workspace.stopAllApps();
+    workspace.createWorkspace(runId);
+    workspace.writeFiles(runId, files);
+    if (installCommand) {
+      const installResult = await workspace.installDeps(runId, installCommand, customEnv);
+      if (!installResult.success) return { ok: false, error: 'Install failed: ' + installResult.error };
+    }
+    const startResult = await workspace.startApp(runId, startCommand, port, customEnv);
+    if (!startResult.success) return { ok: false, error: 'Start failed: ' + startResult.error };
+  } catch (err) {
+    return { ok: false, error: 'Restore failed: ' + err.message };
+  }
+
+  // Update project currentRunId
+  project.currentRunId = runId;
+  if (sql) {
+    try {
+      await sql`UPDATE projects SET current_run_id = ${runId} WHERE id = ${projectId}`;
+    } catch (err) {
+      console.error('Failed to persist restored currentRunId:', err.message);
+    }
+  }
+
+  return { ok: true, currentRunId: runId };
+}
+
 module.exports = {
   createProject,
   addIteration,
@@ -369,6 +441,7 @@ module.exports = {
   renameProject,
   deleteProject,
   deleteIteration,
+  restoreIteration,
   getProject,
   getAllProjects,
   getAllProjectsSync,
