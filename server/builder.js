@@ -436,11 +436,20 @@ const systemPrompt = [memoryContext, assetsContext, basePrompt]
   // - isSuggestion: Chat Agent build suggestion → surgical single-file constraint block
   // - neither: raw first build or unconstrained iterate → no constraint block
   const { planToConstraintBlock, suggestionToConstraintBlock } = require("./plan/manager");
-  const finalSystemPrompt = approvedPlan
-    ? planToConstraintBlock(approvedPlan) + "\n\n" + systemPrompt
-    : isSuggestion
-      ? suggestionToConstraintBlock(prompt, existingFiles) + "\n\n" + systemPrompt
-      : systemPrompt;
+  let finalSystemPrompt;
+  if (approvedPlan) {
+    finalSystemPrompt = planToConstraintBlock(approvedPlan) + "\n\n" + systemPrompt;
+  } else if (isSuggestion) {
+    const { constraintBlock, targetFile } = suggestionToConstraintBlock(prompt, existingFiles);
+    finalSystemPrompt = constraintBlock + "\n\n" + systemPrompt;
+    // Return the parsed target alongside the result so buildAndDeploy can store it on the run.
+    return Object.assign(
+      await callStructured(BUILDER_MODEL, finalSystemPrompt, userMessages, BuilderOutputSchema, "workspace_build", 0.2),
+      { _suggestionTarget: targetFile }
+    );
+  } else {
+    finalSystemPrompt = systemPrompt;
+  }
 
   const result = await callStructured(
     BUILDER_MODEL,
@@ -473,6 +482,12 @@ async function buildAndDeploy(run) {
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
       builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null, run.isSuggestion || false);
+      // If this was a suggestion build, store the parsed target file on the run
+      // so the Plan tab can display "Surgical edit targeting: <file>".
+      if (builderOutput._suggestionTarget !== undefined) {
+        run.suggestionTarget = builderOutput._suggestionTarget;
+        delete builderOutput._suggestionTarget;
+      }
       break;
     } catch (err) {
       if (attempt <= MAX_RETRIES) {
