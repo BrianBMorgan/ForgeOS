@@ -92,6 +92,7 @@ function createRun(prompt, context) {
     iterationNumber: context?.iterationNumber || 1,
     existingFiles: context?.existingFiles || null,
     approvedPlan: context?.approvedPlan || null,
+    isSuggestion: context?.isSuggestion || false,
   };
   runs.set(id, run);
   return run;
