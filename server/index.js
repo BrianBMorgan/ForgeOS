@@ -241,6 +241,12 @@ app.delete("/api/projects/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+app.delete("/api/projects/:id/runs/:runId", async (req, res) => {
+  const result = await projectManager.deleteIteration(req.params.id, req.params.runId);
+  if (!result.ok) return res.status(404).json({ error: result.error });
+  res.json(result);
+});
+
 app.patch("/api/projects/:id", async (req, res) => {
   const { name } = req.body;
   if (!name || typeof name !== "string" || !name.trim()) {
@@ -1413,3 +1419,4 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Runtime backup setup error:", err.message);
   }
 });
+
