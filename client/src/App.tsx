@@ -98,6 +98,8 @@ function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [mobileView, setMobileView] = useState<"chat" | "workspace">("chat");
+  const [pendingPlan, setPendingPlan] = useState<{ prompt: string; plan: Record<string, unknown> } | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -118,17 +120,44 @@ function App() {
 
   const iterateProject = useCallback(async (prompt: string) => {
     if (!currentProjectId) return;
+    setPlanLoading(true);
+    setPendingPlan(null);
+    window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
+    try {
+      const res = await fetch(`${API_BASE}/projects/${currentProjectId}/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      if (data.plan) {
+        setPendingPlan({ prompt, plan: data.plan });
+      }
+    } catch (err) {
+      console.error("[plan] Failed to generate plan:", err);
+    } finally {
+      setPlanLoading(false);
+    }
+  }, [currentProjectId]);
+
+  const approvePlan = useCallback(async () => {
+    if (!currentProjectId || !pendingPlan) return;
+    setPendingPlan(null);
     const res = await fetch(`${API_BASE}/projects/${currentProjectId}/iterate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt: pendingPlan.prompt, approvedPlan: pendingPlan.plan }),
     });
     const data = await res.json();
     if (data.runId) {
       setCurrentRunId(data.runId);
       setViewingIterationRunId(null);
     }
-  }, [currentProjectId]);
+  }, [currentProjectId, pendingPlan]);
+
+  const revisePlan = useCallback(() => {
+    setPendingPlan(null);
+  }, []);
 
   const approveRun = useCallback(async () => {
     if (!currentRunId) return;
@@ -347,6 +376,10 @@ function App() {
             projectData={projectData}
             viewingIterationRunId={viewingIterationRunId}
             onRefreshRunData={refreshRunData}
+            pendingPlan={pendingPlan}
+            planLoading={planLoading}
+            onApprovePlan={approvePlan}
+            onRevisePlan={revisePlan}
           />
         </div>
         <div className="mobile-view-toggle">

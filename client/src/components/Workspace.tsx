@@ -892,6 +892,10 @@ interface WorkspaceProps {
   projectData?: ProjectData | null;
   viewingIterationRunId?: string | null;
   onRefreshRunData?: () => void;
+  pendingPlan?: { prompt: string; plan: Record<string, unknown> } | null;
+  planLoading?: boolean;
+  onApprovePlan?: () => void;
+  onRevisePlan?: () => void;
 }
 
 function renderField(label: string, value: unknown) {
@@ -934,7 +938,106 @@ function renderField(label: string, value: unknown) {
   );
 }
 
-function PlanTab({ runData }: { runData: RunData | null }) {
+function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePlan }: {
+  runData: RunData | null;
+  pendingPlan?: { prompt: string; plan: Record<string, unknown> } | null;
+  planLoading?: boolean;
+  onApprovePlan?: () => void;
+  onRevisePlan?: () => void;
+}) {
+  // ── LOADING STATE: plan is being generated ──
+  if (planLoading) {
+    return (
+      <div className="panel-placeholder">
+        <div className="plan-loading-spinner" />
+        <div className="panel-title">Planning...</div>
+        <div className="panel-desc">Forge is reviewing your request and mapping out the changes.</div>
+      </div>
+    );
+  }
+
+  // ── PENDING PLAN: show approval gate ──
+  if (pendingPlan) {
+    const p = pendingPlan.plan as {
+      taskSummary?: string;
+      approach?: string;
+      filesToCreate?: string[];
+      filesToModify?: string[];
+      filesOffLimits?: string[];
+    };
+    return (
+      <div className="plan-content">
+        <div className="plan-gate-header">
+          <div className="plan-gate-label">Review Plan</div>
+          <div className="plan-gate-prompt">"{pendingPlan.prompt}"</div>
+        </div>
+
+        {p.taskSummary && (
+          <div className="plan-section">
+            <div className="plan-section-title">Task</div>
+            <div className="plan-summary-text">{p.taskSummary}</div>
+          </div>
+        )}
+
+        {p.approach && (
+          <div className="plan-section">
+            <div className="plan-section-title">Approach</div>
+            <div className="plan-summary-text">{p.approach}</div>
+          </div>
+        )}
+
+        {(p.filesToCreate?.length ?? 0) > 0 && (
+          <div className="plan-section">
+            <div className="plan-section-title">Files to Create</div>
+            <div className="plan-files-list">
+              {p.filesToCreate!.map((f, i) => (
+                <div key={i} className="plan-file-item plan-file-create">
+                  <span className="plan-file-badge plan-badge-create">+</span>{f}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(p.filesToModify?.length ?? 0) > 0 && (
+          <div className="plan-section">
+            <div className="plan-section-title">Files to Modify</div>
+            <div className="plan-files-list">
+              {p.filesToModify!.map((f, i) => (
+                <div key={i} className="plan-file-item plan-file-modify">
+                  <span className="plan-file-badge plan-badge-modify">~</span>{f}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(p.filesOffLimits?.length ?? 0) > 0 && (
+          <div className="plan-section">
+            <div className="plan-section-title">Off Limits</div>
+            <div className="plan-files-list">
+              {p.filesOffLimits!.map((f, i) => (
+                <div key={i} className="plan-file-item plan-file-offlimits">
+                  <span className="plan-file-badge plan-badge-offlimits">✗</span>{f}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="plan-gate-actions">
+          <button className="plan-approve-btn" onClick={onApprovePlan}>
+            ✓ Approve &amp; Build
+          </button>
+          <button className="plan-revise-btn" onClick={onRevisePlan}>
+            ↩ Revise Prompt
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── POST-BUILD: show what was built ──
   const builderOutput = runData?.stages?.builder?.output;
   const legacyPlanOutput =
     runData?.stages?.revise_p3?.output ||
@@ -946,11 +1049,11 @@ function PlanTab({ runData }: { runData: RunData | null }) {
   if (!planOutput || typeof planOutput !== "object") {
     return (
       <div className="panel-placeholder">
-        <div className="panel-title">Build</div>
+        <div className="panel-title">Plan</div>
         <div className="panel-desc">
           {runData?.status === "running"
             ? "Claude is building your app..."
-            : "Run a build to get started."}
+            : "Submit a prompt to get started. Forge will show you the plan before building."}
         </div>
       </div>
     );
@@ -2070,7 +2173,7 @@ function BrainTab() {
   );
 }
 
-export default function Workspace({ runData, projectData, viewingIterationRunId, onRefreshRunData }: WorkspaceProps) {
+export default function Workspace({ runData, projectData, viewingIterationRunId, onRefreshRunData, pendingPlan, planLoading, onApprovePlan, onRevisePlan }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
   useEffect(() => {
     const handler = (e: CustomEvent) => setActiveTab(e.detail);
@@ -2095,7 +2198,7 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
   const renderTabContent = () => {
     switch (activeTab) {
       case "plan":
-        return <PlanTab runData={runData} />;
+        return <PlanTab runData={runData} pendingPlan={pendingPlan} planLoading={planLoading} onApprovePlan={onApprovePlan} onRevisePlan={onRevisePlan} />;
       case "render":
         return <RenderTab runData={runData} />;
       case "diff":

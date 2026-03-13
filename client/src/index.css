@@ -1141,7 +1141,107 @@ body {
   font-size: 0.8rem;
   color: #38bdf8;
   padding: 0.15rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
+
+/* Plan gate — approval UI */
+.plan-gate-header {
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #1e293b;
+}
+
+.plan-gate-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.plan-gate-prompt {
+  font-size: 0.9rem;
+  color: #e2e8f0;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.plan-file-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 1.1rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.plan-badge-create { color: #4ade80; }
+.plan-file-create  { color: #4ade80; }
+
+.plan-badge-modify { color: #fbbf24; }
+.plan-file-modify  { color: #fbbf24; }
+
+.plan-badge-offlimits { color: #f87171; }
+.plan-file-offlimits  { color: #64748b; }
+
+.plan-gate-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #1e293b;
+}
+
+.plan-approve-btn {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  background: #22c55e;
+  color: #0f172a;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.plan-approve-btn:hover { background: #16a34a; }
+
+.plan-revise-btn {
+  padding: 0.6rem 1rem;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.plan-revise-btn:hover {
+  border-color: #64748b;
+  color: #e2e8f0;
+}
+
+/* Loading spinner */
+.plan-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #1e293b;
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+
 
 .plan-command {
   display: inline-block;

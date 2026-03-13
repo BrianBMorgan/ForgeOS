@@ -370,7 +370,7 @@ You are iterating on an existing app. The user's existing files are provided bel
 - If the conversation history shows you already attempted this fix and it didn't work, try a different approach
 - Check the existing code carefully — if the user says something is broken, find the actual bug in the code and fix it`;
 
-async function buildWorkspace(prompt, existingFiles, projectId = null) {
+async function buildWorkspace(prompt, existingFiles, projectId = null, approvedPlan = null) {
   const userMessages = [];
 
   if (existingFiles && existingFiles.length > 0) {
@@ -431,9 +431,15 @@ const systemPrompt = [memoryContext, assetsContext, basePrompt]
   .filter(Boolean)
   .join("\n\n");
 
+  // If the user approved a pre-build plan, prepend the constraint block
+  const { planToConstraintBlock } = require("./plan/manager");
+  const finalSystemPrompt = approvedPlan
+    ? planToConstraintBlock(approvedPlan) + "\n\n" + systemPrompt
+    : systemPrompt;
+
   const result = await callStructured(
     BUILDER_MODEL,
-    systemPrompt,
+    finalSystemPrompt,
     userMessages,
     BuilderOutputSchema,
     "workspace_build",
@@ -461,7 +467,7 @@ async function buildAndDeploy(run) {
   const MAX_RETRIES = 2;
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
-      builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId);
+      builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null);
       break;
     } catch (err) {
       if (attempt <= MAX_RETRIES) {

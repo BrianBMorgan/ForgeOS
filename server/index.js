@@ -300,8 +300,30 @@ app.get("/api/projects/:id", async (req, res) => {
   res.json({ ...project, iterations, currentRun });
 });
 
-app.post("/api/projects/:id/iterate", async (req, res) => {
+app.post("/api/projects/:id/plan", async (req, res) => {
   const { prompt } = req.body;
+  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+    return res.status(400).json({ error: "Prompt is required" });
+  }
+
+  const project = await projectManager.getProject(req.params.id);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  const { generatePlan } = require("./plan/manager");
+  const lastRunId = project.currentRunId;
+  const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
+
+  try {
+    const plan = await generatePlan(prompt.trim(), existingFiles);
+    res.json({ plan });
+  } catch (err) {
+    console.error("[plan] Error generating plan:", err.message);
+    res.status(500).json({ error: "Failed to generate plan" });
+  }
+});
+
+app.post("/api/projects/:id/iterate", async (req, res) => {
+  const { prompt, approvedPlan } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return res.status(400).json({ error: "Prompt is required" });
   }
@@ -331,6 +353,7 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
     projectId: project.id,
     iterationNumber,
     existingFiles,
+    approvedPlan: approvedPlan || null,
   });
   await projectManager.addIteration(project.id, run.id, prompt.trim(), iterationNumber);
 
