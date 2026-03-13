@@ -324,6 +324,43 @@ function getAllProjectsSync() {
   return Array.from(projects.values()).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+async function deleteIteration(projectId, runId) {
+  await loadFromDb();
+  const project = projects.get(projectId);
+  if (!project) return { ok: false, error: 'Project not found' };
+
+  const iterIndex = project.iterations.findIndex((i) => i.runId === runId);
+  if (iterIndex === -1) return { ok: false, error: 'Iteration not found' };
+
+  if (sql) {
+    try {
+      await sql`DELETE FROM run_snapshots WHERE id = ${runId}`;
+      await sql`DELETE FROM iterations WHERE project_id = ${projectId} AND run_id = ${runId}`;
+    } catch (err) {
+      console.error('Failed to delete iteration from DB:', err.message);
+      return { ok: false, error: err.message };
+    }
+  }
+
+  // Remove from in-memory iterations array
+  project.iterations.splice(iterIndex, 1);
+
+  // If this was the currentRunId, roll back to the previous iteration
+  if (project.currentRunId === runId) {
+    const prev = project.iterations[project.iterations.length - 1];
+    project.currentRunId = prev ? prev.runId : null;
+    if (sql) {
+      try {
+        await sql`UPDATE projects SET current_run_id = ${project.currentRunId} WHERE id = ${projectId}`;
+      } catch (err) {
+        console.error('Failed to update currentRunId after iteration delete:', err.message);
+      }
+    }
+  }
+
+  return { ok: true, currentRunId: project.currentRunId };
+}
+
 module.exports = {
   createProject,
   addIteration,
@@ -331,6 +368,7 @@ module.exports = {
   updateProjectStatus,
   renameProject,
   deleteProject,
+  deleteIteration,
   getProject,
   getAllProjects,
   getAllProjectsSync,
@@ -340,3 +378,4 @@ module.exports = {
   deleteEnvVar,
   getEnvVarsAsObject,
 };
+
