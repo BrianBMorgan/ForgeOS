@@ -143,7 +143,9 @@ function suggestionToConstraintBlock(suggestionPrompt, existingFiles) {
   lines.push("Make only the single change described. Nothing else.");
   lines.push("Violating the off-limits list is a critical error.");
 
-  return lines.join("\n");
+  // Return both the constraint text and the parsed target so the caller
+  // can store it on the run object and surface it in the UI.
+  return { constraintBlock: lines.join("\n"), targetFile };
 }
 
 module.exports = { generatePlan, planToConstraintBlock, suggestionToConstraintBlock };
