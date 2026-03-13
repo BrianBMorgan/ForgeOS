@@ -329,7 +329,7 @@ app.post("/api/projects/:id/plan", async (req, res) => {
 });
 
 app.post("/api/projects/:id/iterate", async (req, res) => {
-  const { prompt, approvedPlan } = req.body;
+  const { prompt, approvedPlan, isSuggestion } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return res.status(400).json({ error: "Prompt is required" });
   }
@@ -360,6 +360,7 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
     iterationNumber,
     existingFiles,
     approvedPlan: approvedPlan || null,
+    isSuggestion: isSuggestion || false,
   });
   await projectManager.addIteration(project.id, run.id, prompt.trim(), iterationNumber);
 
@@ -1419,4 +1420,5 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Runtime backup setup error:", err.message);
   }
 });
+
 
