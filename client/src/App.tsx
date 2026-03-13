@@ -128,7 +128,7 @@ function App() {
       const res = await fetch(`${API_BASE}/projects/${currentProjectId}/iterate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, isSuggestion: true }),
       });
       const data = await res.json();
       if (data.runId) {
