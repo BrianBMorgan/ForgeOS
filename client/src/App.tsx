@@ -118,8 +118,27 @@ function App() {
     }
   }, []);
 
-  const iterateProject = useCallback(async (prompt: string) => {
+  const iterateProject = useCallback(async (prompt: string, options?: { skipPlan?: boolean }) => {
     if (!currentProjectId) return;
+
+    // Build suggestions from the Chat Agent are already surgical single-file instructions —
+    // skip the plan gate and fire the builder directly with the suggestion as the constraint.
+    if (options?.skipPlan) {
+      window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
+      const res = await fetch(`${API_BASE}/projects/${currentProjectId}/iterate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      if (data.runId) {
+        setCurrentRunId(data.runId);
+        setViewingIterationRunId(null);
+      }
+      return;
+    }
+
+    // Normal path — run the planner first and show the approval gate.
     setPlanLoading(true);
     setPendingPlan(null);
     window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
@@ -449,3 +468,4 @@ function App() {
 }
 
 export default App;
+
