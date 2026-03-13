@@ -14,7 +14,7 @@ interface PromptColumnProps {
   runData: RunData | null;
   projectData: ProjectData | null;
   isNewProject: boolean;
-  onRunBuild: (prompt: string) => void;
+  onRunBuild: (prompt: string, options?: { skipPlan?: boolean }) => void;
   onApprove: () => void;
   onReject: (feedback: string) => void;
   onViewIteration: (runId: string) => void;
@@ -550,7 +550,7 @@ export default function PromptColumn({
 
   const handleBuildFromSuggestion = (suggestion: string) => {
     if (onClearBuildSuggestions) onClearBuildSuggestions();
-    onRunBuild(suggestion);
+    onRunBuild(suggestion, { skipPlan: true });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -854,3 +854,4 @@ export default function PromptColumn({
     </div>
   );
 }
+
