@@ -54,6 +54,8 @@ export interface RunData {
   projectId?: string | null;
   iterationNumber?: number;
   tokenUsage?: TokenUsage;
+  isSuggestion?: boolean;
+  suggestionTarget?: string | null;
 }
 
 export interface IterationData {
