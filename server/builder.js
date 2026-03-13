@@ -554,6 +554,14 @@ async function buildAndDeploy(run) {
     await workspace.stopAllApps();
 
     workspace.createWorkspace(run.id);
+
+    // For surgical builds (isSuggestion), seed the workspace with all existing files first,
+    // then overwrite only the files the builder returned. This preserves server.js and any
+    // other files the builder correctly did not touch.
+    if (run.isSuggestion && run.existingFiles && run.existingFiles.length > 0) {
+      workspace.writeFiles(run.id, run.existingFiles);
+    }
+
     for (const f of builderOutput.files) {
       if (/\.(js|ts|mjs|jsx|tsx|json)$/.test(f.path)) {
         f.content = f.content.replace(/['"]claude-opus-4-5['"]/g, "'claude-sonnet-4-6'");
