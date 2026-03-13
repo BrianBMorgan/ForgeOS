@@ -370,7 +370,7 @@ You are iterating on an existing app. The user's existing files are provided bel
 - If the conversation history shows you already attempted this fix and it didn't work, try a different approach
 - Check the existing code carefully — if the user says something is broken, find the actual bug in the code and fix it`;
 
-async function buildWorkspace(prompt, existingFiles, projectId = null, approvedPlan = null) {
+async function buildWorkspace(prompt, existingFiles, projectId = null, approvedPlan = null, isSuggestion = false) {
   const userMessages = [];
 
   if (existingFiles && existingFiles.length > 0) {
@@ -431,11 +431,16 @@ const systemPrompt = [memoryContext, assetsContext, basePrompt]
   .filter(Boolean)
   .join("\n\n");
 
-  // If the user approved a pre-build plan, prepend the constraint block
-  const { planToConstraintBlock } = require("./plan/manager");
+  // Prepend the appropriate constraint block to the system prompt:
+  // - approvedPlan: user reviewed and approved a structured plan → full constraint block
+  // - isSuggestion: Chat Agent build suggestion → surgical single-file constraint block
+  // - neither: raw first build or unconstrained iterate → no constraint block
+  const { planToConstraintBlock, suggestionToConstraintBlock } = require("./plan/manager");
   const finalSystemPrompt = approvedPlan
     ? planToConstraintBlock(approvedPlan) + "\n\n" + systemPrompt
-    : systemPrompt;
+    : isSuggestion
+      ? suggestionToConstraintBlock(prompt, existingFiles) + "\n\n" + systemPrompt
+      : systemPrompt;
 
   const result = await callStructured(
     BUILDER_MODEL,
@@ -467,7 +472,7 @@ async function buildAndDeploy(run) {
   const MAX_RETRIES = 2;
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
-      builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null);
+      builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null, run.isSuggestion || false);
       break;
     } catch (err) {
       if (attempt <= MAX_RETRIES) {
@@ -665,3 +670,4 @@ module.exports = {
   BuilderOutputSchema,
   BUILDER_SYSTEM_PROMPT,
 };
+
