@@ -104,4 +104,47 @@ function planToConstraintBlock(plan) {
   return lines.join("\n");
 }
 
-module.exports = { generatePlan, planToConstraintBlock };
+// Builds a tight constraint block for Chat Agent build suggestions.
+// These prompts already name the target file explicitly (e.g. "in public/index.html, the hero-sub reads...").
+// We parse the file out of the suggestion text and lock the builder to that one file only.
+// Every other file in the workspace is placed off limits.
+function suggestionToConstraintBlock(suggestionPrompt, existingFiles) {
+  // Extract file path from suggestion — Chat Agent always writes "in <filepath>,"
+  const match = suggestionPrompt.match(/\bin\s+([\w./-]+\.\w+)/i);
+  const targetFile = match ? match[1] : null;
+
+  const allFiles = (existingFiles || []).map(f => f.path || f).filter(Boolean);
+  const offLimits = targetFile
+    ? allFiles.filter(f => f !== targetFile)
+    : allFiles; // if we can't parse the file, lock everything as a safety fallback
+
+  const lines = [
+    "╔══════════════════════════════════════════════════════════════╗",
+    "  SURGICAL EDIT — CHAT AGENT INSTRUCTION",
+    "╚══════════════════════════════════════════════════════════════╝",
+    "",
+    "This is a targeted fix from the Chat Agent. You must make ONLY the change described.",
+    "Do not reorganize, rewrite, restyle, or touch anything not explicitly mentioned.",
+    "",
+  ];
+
+  if (targetFile) {
+    lines.push("FILE YOU MAY MODIFY:");
+    lines.push(`  ~ ${targetFile}`);
+    lines.push("");
+  }
+
+  if (offLimits.length) {
+    lines.push("FILES THAT ARE STRICTLY OFF LIMITS — DO NOT TOUCH THESE:");
+    offLimits.forEach(f => lines.push(`  ✗ ${f}`));
+    lines.push("");
+  }
+
+  lines.push("Make only the single change described. Nothing else.");
+  lines.push("Violating the off-limits list is a critical error.");
+
+  return lines.join("\n");
+}
+
+module.exports = { generatePlan, planToConstraintBlock, suggestionToConstraintBlock };
+
