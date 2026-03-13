@@ -1241,6 +1241,37 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* Surgical edit status — shown in Plan tab while a suggestion build is running */
+.plan-surgical-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.plan-surgical-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #38bdf8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.plan-surgical-target {
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+.plan-surgical-file {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+  color: #4ade80;
+  background: #0f2318;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+.plan-surgical-fallback {
+  color: #fbbf24;
+}
+
 
 
 .plan-command {
@@ -4914,3 +4945,4 @@ body {
   background: #080e1a;
   opacity: 0.4;
 }
+
