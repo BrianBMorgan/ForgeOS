@@ -396,6 +396,20 @@ async function startApp(runId, startCommand, port, customEnv = {}) {
   patchHardcodedPort(ws.dir);
 
   const resolvedCommand = resolveStartCommand(ws.dir, startCommand);
+
+  // Guard: if the command is "node <file>" and that file doesn't exist, fail fast
+  // rather than crashing in a restart loop (happens after a no-op surgical build).
+  const nodeFileMatch = resolvedCommand.match(/^node\s+(\S+)/);
+  if (nodeFileMatch) {
+    const entryFile = path.resolve(ws.dir, nodeFileMatch[1]);
+    if (!fs.existsSync(entryFile)) {
+      ws.status = "start-failed";
+      const msg = `Entry file not found: ${nodeFileMatch[1]} — build may have produced no output`;
+      ws.logEntries.push(createLogEntry(msg, "error", "system"));
+      return { success: false, error: msg };
+    }
+  }
+
   ws.logEntries.push(createLogEntry(`Starting application: ${resolvedCommand} (port ${ws.port})`, "info", "system"));
 
   return new Promise((resolve) => {
