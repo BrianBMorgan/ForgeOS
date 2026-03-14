@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brand Logo Maker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <div class="nav-logo">&#9670; LogoForge</div>
+    </div>
+  </nav>
+
+  <main class="main">
+    <section class="hero">
+      <h1 class="hero-title">AI-Powered<br /><span class="accent">Brand Logo Maker</span></h1>
+      <p class="hero-sub">Describe your brand, upload references, and let AI craft your perfect logo.</p>
+    </section>
+
+    <div class="layout">
+      <div class="panel panel-form">
+        <h2 class="panel-title">Brand Details</h2>
+        <form id="logoForm">
+          <div class="field">
+            <label for="brandName">Brand Name <span class="required">*</span></label>
+            <input type="text" id="brandName" name="brandName" placeholder="e.g. Apex Studio" required />
+          </div>
+
+          <div class="field">
+            <label for="industry">Industry</label>
+            <input type="text" id="industry" name="industry" placeholder="e.g. Technology, Fashion, Food" />
+          </div>
+
+          <div class="field">
+            <label for="style">Logo Style</label>
+            <select id="style" name="style">
+              <option value="">Select a style...</option>
+              <option value="minimal">Minimal &amp; Clean</option>
+              <option value="geometric">Geometric</option>
+              <option value="illustrative">Illustrative</option>
+              <option value="wordmark">Wordmark / Typography</option>
+              <option value="emblem">Emblem / Badge</option>
+              <option value="abstract">Abstract</option>
+              <option value="vintage">Vintage / Retro</option>
+              <option value="modern">Modern &amp; Bold</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="colors">Color Preferences</label>
+            <input type="text" id="colors" name="colors" placeholder="e.g. Deep blue and gold, earthy tones" />
+          </div>
+
+          <div class="field">
+            <label>Brand Mood</label>
+            <div class="mood-tags" id="moodTags">
+              <button type="button" class="mood-tag" data-mood="professional">Professional</button>
+              <button type="button" class="mood-tag" data-mood="playful">Playful</button>
+              <button type="button" class="mood-tag" data-mood="luxurious">Luxurious</button>
+              <button type="button" class="mood-tag" data-mood="energetic">Energetic</button>
+              <button type="button" class="mood-tag" data-mood="trustworthy">Trustworthy</button>
+              <button type="button" class="mood-tag" data-mood="innovative">Innovative</button>
+              <button type="button" class="mood-tag" data-mood="friendly">Friendly</button>
+              <button type="button" class="mood-tag" data-mood="bold">Bold</button>
+              <button type="button" class="mood-tag" data-mood="elegant">Elegant</button>
+              <button type="button" class="mood-tag" data-mood="minimalist">Minimalist</button>
+            </div>
+            <input type="hidden" id="moodInput" name="mood" value="" />
+          </div>
+
+          <div class="field">
+            <label for="additionalPrompt">Additional Instructions</label>
+            <textarea id="additionalPrompt" name="additionalPrompt" rows="3" placeholder="Any specific elements, symbols, or requirements..."></textarea>
+          </div>
+
+          <div class="field">
+            <label>Reference Images <span class="hint">(optional, up to 4)</span></label>
+            <div class="drop-zone" id="dropZone">
+              <div class="drop-zone-inner">
+                <div class="drop-icon">&#8682;</div>
+                <p>Drag &amp; drop images here or <span class="drop-link">browse</span></p>
+                <p class="drop-hint">JPEG, PNG, GIF, WebP &mdash; max 20MB each</p>
+              </div>
+              <input type="file" id="fileInput" accept="image/*" multiple style="display:none" />
+            </div>
+            <div class="file-chips" id="fileChips"></div>
+          </div>
+
+          <button type="submit" class="btn-generate" id="generateBtn">
+            <span id="generateBtnText">Generate Logo</span>
+          </button>
+        </form>
+      </div>
+
+      <div class="panel panel-result">
+        <h2 class="panel-title">Your Logo</h2>
+
+        <div class="result-placeholder" id="resultPlaceholder">
+          <div class="placeholder-icon">&#9670;</div>
+          <p>Your generated logo will appear here</p>
+        </div>
+
+        <div class="result-content" id="resultContent" style="display:none">
+          <div class="logo-display">
+            <img id="logoImage" src="" alt="Generated logo" />
+          </div>
+          <div class="logo-meta">
+            <p class="logo-brand-name" id="logoBrandName"></p>
+            <p class="logo-prompt-label">AI Prompt Used:</p>
+            <p class="logo-prompt" id="logoPrompt"></p>
+          </div>
+          <div class="logo-actions">
+            <button class="btn-download" id="downloadBtn">&#8681; Download PNG</button>
+            <button class="btn-refine" id="refineToggleBtn">&#9998; Refine Logo</button>
+          </div>
+
+          <div class="refine-panel" id="refinePanel" style="display:none">
+            <h3>Refine Your Logo</h3>
+            <textarea id="refinementPrompt" rows="3" placeholder="Describe what to change: make it more minimal, change colors to navy, add a leaf symbol..."></textarea>
+            <button class="btn-generate" id="refineBtn">Apply Refinement</button>
+          </div>
+        </div>
+
+        <div class="error-box" id="errorBox" style="display:none">
+          <p id="errorMsg"></p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
