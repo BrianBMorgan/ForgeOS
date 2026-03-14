@@ -8,6 +8,33 @@
   },
   "session_log": [
     {
+      "date": "2026-03-14",
+      "session_title": "ForgeOS Self-Repair \u2014 Infrastructure Visibility + Autonomous Fix Pipeline",
+      "shipped": [
+        "Fixed preview proxy bug: multipart/form-data bodies corrupted because express.urlencoded() sets req.body={} for unhandled content types; proxy serialized that to \"{}\" and sent it as the body \u2014 fixed by checking Content-Type before deciding bodyBuffer vs pipe",
+        "Added secrets check to diagnose_system: now lists all Global Secrets Vault keys so agent can detect missing API keys (e.g. STABILITYAI_API_KEY)",
+        "Added proxy-layer error fingerprints to Chat Agent instructions: busboy \"Unexpected end of form\" + correct app code = ForgeOS proxy bug, not app bug",
+        "server/forge-repair/manager.js (new): getAllForgeFilePaths, readForgeFile, getForgeFiles, generateForgePlan, applyForgeFix",
+        "applyForgeFix: runs builder with ForgeOS server files as existingFiles, writes output to ForgeOS disk, git commits and pushes \u2014 Render auto-redeploys",
+        "POST /api/forge-repair/plan: generates plan using ForgeOS server file list as context",
+        "POST /api/forge-repair/apply: applies approved forge plan end-to-end",
+        "read_forge_source tool in Chat Agent: reads any server/ file by relative path with path traversal guard",
+        "ForgeOS Infrastructure Map in PLATFORM CONTEXT: tells agent which file owns what (proxy, runner, workspace manager, builder, etc.)",
+        "FORGE: signal: third output type alongside BUILD: and PLAN: \u2014 routes infrastructure bugs through forge-repair pipeline",
+        "Orange \"Apply ForgeOS Fix\" button in chat UI (.chat-forge-btn)",
+        "Forge plan gate in Plan tab: orange accent, ForgeOS file lists, \"Approve & Apply Fix\" action",
+        "DB schema: suggest_forge BOOLEAN + forge_suggestion TEXT columns on chat_messages"
+      ],
+      "decisions": [
+        "Root cause of LogoForge loop: proxy bug (not code bug, not missing secret) \u2014 express.urlencoded sets req.body={} for multipart, proxy serialized it to JSON and forwarded",
+        "Chat Agent is app-scoped by design \u2014 cross-layer bugs are structurally invisible without read_forge_source + infrastructure map",
+        "FORGE: signal is peer to PLAN: and BUILD: \u2014 never use more than one per response",
+        "applyForgeFix passes off-limits files as read-only context to the builder (first 10) so it understands scope",
+        "Git commit uses GITHUB_TOKEN from env or secrets vault \u2014 same token used for publish flow",
+        "Forge plan gate reused for forge repairs \u2014 same approval UX, different accent color and endpoint"
+      ]
+    },
+    {
       "date": "2026-03-13",
       "session_title": "Chat Agent Diagnostics Blind Spot \u2014 Secrets Vault Check",
       "shipped": [
@@ -562,13 +589,12 @@
     "Using PLAN: for single-line fixes \u2014 escalation to avoid writing a precise BUILD: line; always use BUILD: when the fix is one file, one code change",
     "Forcing surgical BUILD: path for API migrations \u2014 when an external API changes endpoint or payload format, multiple routes must be rewritten together; surgical single-file path leaves the app in a broken partial state"
   ],
-  "current_state": "Chat Agent diagnostics now include Global Secrets Vault visibility. LogoForge (apps/logoforge) code is correct and ready \u2014 STABILITYAI_API_KEY needs to be added to Global Secrets Vault via Settings for the app to work.",
+  "current_state": "ForgeOS self-repair pipeline complete. Agent can read its own infrastructure, diagnose cross-layer bugs, and autonomously fix + redeploy ForgeOS without intervention. LogoForge multipart proxy bug fixed. Secrets vault diagnostic added.",
   "next_steps": [
-    "Add STABILITYAI_API_KEY to ForgeOS Global Secrets Vault \u2014 LogoForge will work once this key is present",
-    "Test Chat Agent on LogoForge \u2014 should now diagnose missing secret instead of looping on code fixes",
+    "Test FORGE: signal end-to-end on a real infrastructure bug",
     "Build sandbox-xm contact form with HubSpot lead creation using /hubspot skill",
     "Test Restore Iteration feature end-to-end in live environment",
-    "Point sandbox-xm.com DNS \u2014 A record @ \u2192 Render IP at Namecheap + www URL redirect"
+    "Point sandbox-xm.com DNS \u2014 A record @ to Render IP at Namecheap + www URL redirect"
   ],
   "open_questions": [
     "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?",
