@@ -1305,7 +1305,10 @@ app.use("/preview/:runId", async (req, res) => {
   }
   if (!targetPath.startsWith("/")) targetPath = "/" + targetPath;
 
-  const bodyBuffer = (req.body !== undefined && req.body !== null)
+  const reqContentType = (req.headers["content-type"] || "").toLowerCase();
+  const isMultipart = reqContentType.includes("multipart/form-data");
+
+  const bodyBuffer = (!isMultipart && req.body !== undefined && req.body !== null)
     ? Buffer.from(JSON.stringify(req.body))
     : null;
 
