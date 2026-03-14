@@ -12,7 +12,10 @@ Step 1 — READ THE DIAGNOSTICS. A SYSTEM DIAGNOSTICS block is automatically inj
          pipeline errors, workspace errors, and model config. If diagnostics reveal the cause
          (e.g. missing ANTHROPIC_API_KEY, or a specific pipeline stage failure), report it
          immediately — do not read logs or source code first.
-         You can also call the diagnose_system tool for a deeper check including API connectivity.
+         You can also call the diagnose_system tool for a deeper check including API connectivity
+         and Global Secrets Vault contents. If the app uses any third-party API (Stability AI,
+         OpenAI, Stripe, etc.), call diagnose_system with checks: ["secrets"] to verify the
+         required API key is in the vault — this is the most common cause of third-party API failures.
 
 Step 2 — READ THE ITERATION HISTORY. The ITERATION HISTORY block shows every prior build
          attempt with its status, pipeline errors, and stage failures. This tells you exactly
@@ -153,6 +156,10 @@ ${"═".repeat(63)}
 
   - Global Secrets Vault (Settings): secrets are auto-injected as env vars at runtime.
     Tell users to add API keys there — not in code, not in .env files.
+    CRITICAL: When an app calls a third-party API (Stability AI, OpenAI, Stripe, ElevenLabs, etc.)
+    and the call fails or returns an error, check the secrets vault FIRST by calling
+    diagnose_system with checks: ["secrets"]. A missing API key is the most common root cause
+    and will not appear in the code — only in the vault check.
   - Skills Library (Settings): curated instructions injected into build agents.
   - Default Env Vars (Settings): global env vars injected into all runtimes.
   - Web search and fetch_url are available for external APIs, libraries, and documentation.
@@ -276,15 +283,15 @@ const SEARCH_TOOLS = [
     type: "function",
     function: {
       name: "diagnose_system",
-      description: "Run a system health check to diagnose why builds are failing. Call this FIRST when a user reports build failures, crashes, or errors. Checks: environment variables, API connectivity, model availability, pipeline run errors, workspace status, and database connectivity.",
+      description: "Run a system health check to diagnose why builds are failing. Call this FIRST when a user reports build failures, crashes, or errors. Checks: environment variables, API connectivity, model availability, pipeline run errors, workspace status, database connectivity, and Global Secrets Vault contents (which API keys are configured). ALWAYS include 'secrets' in checks when an app uses a third-party API (Stability AI, OpenAI, Stripe, etc.) — a missing secret is the most common cause of API errors.",
       parameters: {
         type: "object",
         properties: {
           project_id: { type: "string", description: "Optional project ID to include project-specific diagnostics (pipeline run errors, workspace logs)." },
           checks: {
             type: "array",
-            items: { type: "string", enum: ["env", "api", "models", "pipeline", "workspace", "db", "all"] },
-            description: "Which checks to run. Use 'all' for a full system diagnostic. Defaults to 'all'.",
+            items: { type: "string", enum: ["env", "api", "models", "pipeline", "workspace", "db", "secrets", "all"] },
+            description: "Which checks to run. Use 'all' for a full system diagnostic including secrets vault. Defaults to 'all'.",
           },
         },
         required: [],
@@ -454,7 +461,7 @@ async function executeToolCall(toolCall) {
   }
 }
 
-const VALID_CHECKS = new Set(["env", "api", "models", "pipeline", "workspace", "db", "all"]);
+const VALID_CHECKS = new Set(["env", "api", "models", "pipeline", "workspace", "db", "secrets", "all"]);
 
 async function runDiagnostics(projectId, checks) {
   const filtered = (checks && checks.length ? checks : ["all"]).filter(c => VALID_CHECKS.has(c));
@@ -589,6 +596,22 @@ async function runDiagnostics(projectId, checks) {
     }
   } else if ((all || wantedChecks.has("workspace")) && !projectId) {
     report.checks.workspace = { status: "N/A", reason: "No project_id provided — pass project_id for workspace diagnostics" };
+  }
+
+  if (all || wantedChecks.has("secrets")) {
+    try {
+      const secretKeys = await settingsManager.getAllSecretKeys();
+      report.checks.secrets = {
+        status: "OK",
+        configuredKeys: secretKeys,
+        count: secretKeys.length,
+        note: secretKeys.length === 0
+          ? "No secrets configured in Global Secrets Vault. If this project needs API keys (e.g. STABILITYAI_API_KEY, OPENAI_API_KEY), add them in Settings → Global Secrets Vault."
+          : `These keys are available as env vars in all project workspaces: ${secretKeys.join(", ")}`,
+      };
+    } catch (err) {
+      report.checks.secrets = { status: "FAIL", error: err.message?.substring(0, 200) };
+    }
   }
 
   const failures = Object.entries(report.checks).filter(([, v]) => v.status === "FAIL");
