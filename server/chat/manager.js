@@ -134,8 +134,20 @@ PLAN: output format (one paragraph describing full migration scope):
   must be rewritten to call the v2beta endpoint using multipart/form-data, and package.json
   must update the form-data dependency usage to match.
 
+FORGE: is for bugs in ForgeOS infrastructure code (proxy, runner, workspace manager, builder).
+  Use when: the error traces to a ForgeOS server file (server/index.js, server/workspace/manager.js,
+  etc.) rather than to app code. Read the infrastructure file first with read_forge_source, then
+  output FORGE: with the full diagnosis and what needs to change in which ForgeOS file.
+
+FORGE: output format (full diagnosis + what ForgeOS file changes):
+  FORGE: server/index.js preview proxy corrupts multipart bodies — the bodyBuffer path at line
+  1308 serializes req.body as JSON for all requests including multipart/form-data; add a
+  Content-Type check so multipart requests always pipe the raw stream instead.
+
 Rules:
-  - Output PLAN: OR BUILD:, never both.
+  - Output FORGE:, PLAN:, or BUILD: — never more than one.
+  - FORGE: is only for ForgeOS infrastructure bugs, not app bugs.
+  - Always use read_forge_source to confirm the bug before outputting FORGE:.
   - The PLAN: line is not subject to the two-sentence limit — describe the full scope.
   - The PLAN: line IS subject to all banned words (no "robust", "ensure", "comprehensive", etc.).
   - Never use PLAN: for single-line fixes. Do not escalate to avoid writing a precise BUILD: line.
@@ -166,6 +178,19 @@ ${"═".repeat(63)}
     Do not search when the answer is in the source code you already have.
   - Health check results show whether the app responds to HTTP after startup.
   - diagnose_system tool is available — see DIAGNOSTIC PROCESS section above for when/how to use it.
+  - read_forge_source tool is available — reads ForgeOS infrastructure files. Use when an error
+    cannot be traced to app code. See FORGEOS INFRASTRUCTURE MAP below for which file owns what.
+
+FORGEOS INFRASTRUCTURE MAP (for tracing proxy/runner/pipeline errors):
+  server/index.js              — Express app, preview proxy (~line 1249), all API routes
+  server/builder.js            — AI builder, generates file outputs from prompts
+  server/pipeline/runner.js    — Build pipeline orchestrator, workspace lifecycle
+  server/workspace/manager.js  — Workspace process manager, port assignment, runtime logs
+  server/chat/manager.js       — Chat Agent (this file)
+  server/plan/manager.js       — Planner agent, constraint block generation
+  server/projects/manager.js   — Project CRUD, iteration tracking, captureCurrentFiles
+  server/publish/manager.js    — Publish to GitHub branches and Render services
+  server/settings/manager.js   — Global settings, secrets vault, skills library
 
 PROXY-LAYER ERRORS — these error patterns are caused by the ForgeOS preview proxy,
 not by the app code. Do NOT suggest fixing the app's multipart or body-parsing code.
@@ -254,7 +279,10 @@ When a surgical single-file fix is warranted, append on a new line:
   BUILD: [your build suggestion — one sentence, file + route + what changes to what]
 
 When a multi-step coordinated fix is warranted (API migrations, cross-file changes, dependency updates), append on a new line:
-  PLAN: [one paragraph describing the full scope — files, what changes in each, APIs/endpoints changing]`;
+  PLAN: [one paragraph describing the full scope — files, what changes in each, APIs/endpoints changing]
+
+When the bug is in ForgeOS infrastructure (proxy, runner, workspace manager, builder), append on a new line:
+  FORGE: [one paragraph: which ForgeOS file, what the bug is, what the fix is]`;
 const { neon } = require("@neondatabase/serverless");
 const projectManager = require("../projects/manager");
 const settingsManager = require("../settings/manager");
@@ -331,6 +359,23 @@ const SEARCH_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "read_forge_source",
+      description: "Read a ForgeOS infrastructure source file by relative path (e.g. 'server/index.js', 'server/workspace/manager.js'). Use this when an app error cannot be explained by the app code alone and may be caused by the ForgeOS proxy, workspace runner, or pipeline. Always check the FORGEOS INFRASTRUCTURE MAP in your context to know which file to read. Returns file contents. Read-only — do not suggest changes to ForgeOS files via BUILD:, only via FORGE:.",
+      parameters: {
+        type: "object",
+        properties: {
+          filepath: {
+            type: "string",
+            description: "Relative path from ForgeOS root, e.g. 'server/index.js' or 'server/workspace/manager.js'",
+          },
+        },
+        required: ["filepath"],
+      },
+    },
+  },
 ];
 
 const dbUrl = process.env.NEON_DATABASE_URL;
@@ -354,6 +399,8 @@ async function ensureSchema() {
     )`;
     await sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS suggest_plan BOOLEAN DEFAULT false`;
     await sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS plan_suggestion TEXT`;
+    await sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS suggest_forge BOOLEAN DEFAULT false`;
+    await sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS forge_suggestion TEXT`;
   } catch (err) {
     console.error("Failed to create chat_messages table:", err.message);
   }
@@ -374,7 +421,7 @@ async function getHistory(projectId) {
   const messages = [];
   if (sql) {
     try {
-      const rows = await sql`SELECT role, content, suggest_build, build_suggestion, suggest_plan, plan_suggestion, created_at FROM chat_messages WHERE project_id = ${projectId} ORDER BY created_at ASC`;
+      const rows = await sql`SELECT role, content, suggest_build, build_suggestion, suggest_plan, plan_suggestion, suggest_forge, forge_suggestion, created_at FROM chat_messages WHERE project_id = ${projectId} ORDER BY created_at ASC`;
       for (const row of rows) {
         messages.push({
           role: row.role,
@@ -383,6 +430,8 @@ async function getHistory(projectId) {
           buildSuggestion: row.build_suggestion || null,
           suggestPlan: row.suggest_plan || false,
           planSuggestion: row.plan_suggestion || null,
+          suggestForge: row.suggest_forge || false,
+          forgeSuggestion: row.forge_suggestion || null,
           createdAt: Number(row.created_at),
         });
       }
@@ -401,8 +450,8 @@ async function saveMessage(projectId, msg) {
 
   if (sql) {
     try {
-      await sql`INSERT INTO chat_messages (project_id, role, content, suggest_build, build_suggestion, suggest_plan, plan_suggestion, created_at)
-        VALUES (${projectId}, ${msg.role}, ${msg.content}, ${msg.suggestBuild || false}, ${msg.buildSuggestion || null}, ${msg.suggestPlan || false}, ${msg.planSuggestion || null}, ${msg.createdAt})`;
+      await sql`INSERT INTO chat_messages (project_id, role, content, suggest_build, build_suggestion, suggest_plan, plan_suggestion, suggest_forge, forge_suggestion, created_at)
+        VALUES (${projectId}, ${msg.role}, ${msg.content}, ${msg.suggestBuild || false}, ${msg.buildSuggestion || null}, ${msg.suggestPlan || false}, ${msg.planSuggestion || null}, ${msg.suggestForge || false}, ${msg.forgeSuggestion || null}, ${msg.createdAt})`;
     } catch (err) {
       console.error("Failed to save chat message:", err.message);
     }
@@ -419,7 +468,7 @@ async function clearBuildSuggestions(projectId) {
 
   if (sql) {
     try {
-      await sql`UPDATE chat_messages SET suggest_build = false, suggest_plan = false WHERE project_id = ${projectId} AND (suggest_build = true OR suggest_plan = true)`;
+      await sql`UPDATE chat_messages SET suggest_build = false, suggest_plan = false, suggest_forge = false, forge_suggestion = null WHERE project_id = ${projectId} AND (suggest_build = true OR suggest_plan = true OR suggest_forge = true)`;
     } catch (err) {
       console.error("Failed to clear build suggestions:", err.message);
     }
@@ -465,6 +514,16 @@ async function executeToolCall(toolCall) {
         return JSON.stringify(result);
       }
       return JSON.stringify({ error: "Unknown hubspot operation" });
+    } else if (name === "read_forge_source") {
+      const forgeRepair = require("../forge-repair/manager");
+      const filepath = args.filepath || "";
+      console.log(`  [chat] read_forge_source: ${filepath}`);
+      try {
+        const content = forgeRepair.readForgeFile(filepath);
+        return JSON.stringify({ filepath, content });
+      } catch (err) {
+        return JSON.stringify({ error: `Cannot read ${filepath}: ${err.message}` });
+      }
     }
     return JSON.stringify({ error: "Unknown tool" });
   } catch (err) {
@@ -639,11 +698,18 @@ function parseResponse(content) {
   let buildSuggestion = null;
   let suggestPlan = false;
   let planSuggestion = null;
+  let suggestForge = false;
+  let forgeSuggestion = null;
 
+  const forgeMatch = content.match(/^FORGE:\s*([\s\S]+)$/m);
   const planMatch = content.match(/^PLAN:\s*(.+)$/m);
   const buildMatch = content.match(/^BUILD:\s*(.+)$/m);
 
-  if (planMatch) {
+  if (forgeMatch) {
+    forgeSuggestion = forgeMatch[1].trim();
+    suggestForge = true;
+    message = content.substring(0, forgeMatch.index).trim();
+  } else if (planMatch) {
     planSuggestion = planMatch[1].trim();
     suggestPlan = true;
     message = content.substring(0, planMatch.index).trim();
@@ -653,7 +719,7 @@ function parseResponse(content) {
     message = content.substring(0, buildMatch.index).trim();
   }
 
-  if (!suggestBuild && !suggestPlan) {
+  if (!suggestBuild && !suggestPlan && !suggestForge) {
     try {
       const parsed = JSON.parse(content);
       if (parsed && typeof parsed.message === "string") {
@@ -663,12 +729,14 @@ function parseResponse(content) {
           buildSuggestion: parsed.buildSuggestion || null,
           suggestPlan: false,
           planSuggestion: null,
+          suggestForge: false,
+          forgeSuggestion: null,
         };
       }
     } catch { /* not JSON — use plain text path */ }
   }
 
-  return { message, suggestBuild, buildSuggestion, suggestPlan, planSuggestion };
+  return { message, suggestBuild, buildSuggestion, suggestPlan, planSuggestion, suggestForge, forgeSuggestion };
 }
 
 const BANNED_PATTERNS = [
@@ -930,8 +998,8 @@ async function chat(projectId, userMessage) {
     }
 
     // Only validate banned patterns on message + buildSuggestion — planSuggestion
-    // intentionally allows multi-step language that describes migration scope.
-    const violations = detectBannedPatterns(parsed.message, parsed.buildSuggestion);
+    // and forgeSuggestion intentionally allow multi-step language that describes scope.
+    const violations = detectBannedPatterns(parsed.message, parsed.suggestForge ? null : parsed.buildSuggestion);
     if (violations.length > 0 && toolRound < MAX_TOOL_ROUNDS - 1) {
       messages.push({ role: "assistant", content });
       messages.push({
@@ -950,6 +1018,8 @@ async function chat(projectId, userMessage) {
       buildSuggestion: parsed.buildSuggestion,
       suggestPlan: parsed.suggestPlan,
       planSuggestion: parsed.planSuggestion,
+      suggestForge: parsed.suggestForge || false,
+      forgeSuggestion: parsed.forgeSuggestion || null,
       createdAt: Date.now(),
     };
     await saveMessage(projectId, assistantMsg);

@@ -312,6 +312,38 @@ app.get("/api/projects/:id", async (req, res) => {
   res.json({ ...project, iterations, currentRun });
 });
 
+// ── ForgeOS Self-Repair ──────────────────────────────────────────────────
+
+app.post("/api/forge-repair/plan", async (req, res) => {
+  const { forgeSuggestion } = req.body;
+  if (!forgeSuggestion || typeof forgeSuggestion !== "string" || !forgeSuggestion.trim()) {
+    return res.status(400).json({ error: "forgeSuggestion is required" });
+  }
+  try {
+    const forgeRepair = require("./forge-repair/manager");
+    const plan = await forgeRepair.generateForgePlan(forgeSuggestion.trim());
+    res.json({ plan });
+  } catch (err) {
+    console.error("[forge-repair] Plan generation failed:", err.message);
+    res.status(500).json({ error: "Failed to generate forge repair plan: " + err.message });
+  }
+});
+
+app.post("/api/forge-repair/apply", async (req, res) => {
+  const { forgeSuggestion, approvedPlan } = req.body;
+  if (!forgeSuggestion || !approvedPlan) {
+    return res.status(400).json({ error: "forgeSuggestion and approvedPlan are required" });
+  }
+  try {
+    const forgeRepair = require("./forge-repair/manager");
+    const result = await forgeRepair.applyForgeFix(forgeSuggestion.trim(), approvedPlan);
+    res.json(result);
+  } catch (err) {
+    console.error("[forge-repair] Apply failed:", err.message);
+    res.status(500).json({ error: "Forge repair failed: " + err.message });
+  }
+});
+
 app.post("/api/projects/:id/plan", async (req, res) => {
   const { prompt } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { RunData, ProjectData, ChatMessage } from "../App";
 
 type StageStatus = "pending" | "running" | "passed" | "blocked" | "failed";
@@ -25,6 +25,7 @@ interface PromptColumnProps {
   onSendChat: (message: string) => void;
   chatLoading: boolean;
   onClearBuildSuggestions?: () => void;
+  onGenerateForgePlan?: (forgeSuggestion: string) => void;
 }
 
 const STAGE_MAP: { id: string; keys: string[]; label: string; short: string; icon: string }[] = [
@@ -393,6 +394,7 @@ export default function PromptColumn({
   onSendChat,
   chatLoading,
   onClearBuildSuggestions,
+  onGenerateForgePlan,
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -560,6 +562,10 @@ export default function PromptColumn({
     onRunBuild(planSuggestion); // no skipPlan → routes through the full plan gate
   };
 
+  const handleForgeRepair = useCallback((forgeSuggestion: string) => {
+    if (onGenerateForgePlan) onGenerateForgePlan(forgeSuggestion);
+  }, [onGenerateForgePlan]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (assetQuery !== null && filteredAssets.length > 0) {
       if (e.key === "ArrowDown") {
@@ -695,6 +701,15 @@ export default function PromptColumn({
                   disabled={isRunning || chatLoading || !canIterate}
                 >
                   Generate Plan
+                </button>
+              )}
+              {msg.suggestForge && msg.forgeSuggestion && (
+                <button
+                  className="chat-forge-btn"
+                  onClick={() => handleForgeRepair(msg.forgeSuggestion!)}
+                  disabled={isRunning || chatLoading}
+                >
+                  Apply ForgeOS Fix
                 </button>
               )}
             </div>

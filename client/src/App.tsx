@@ -74,6 +74,8 @@ export interface ChatMessage {
   buildSuggestion: string | null;
   suggestPlan?: boolean;
   planSuggestion?: string | null;
+  suggestForge?: boolean;
+  forgeSuggestion?: string | null;
   createdAt: number;
 }
 
@@ -104,6 +106,8 @@ function App() {
   const [mobileView, setMobileView] = useState<"chat" | "workspace">("chat");
   const [pendingPlan, setPendingPlan] = useState<{ prompt: string; plan: Record<string, unknown> } | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const [pendingForgePlan, setPendingForgePlan] = useState<{ forgeSuggestion: string; plan: Record<string, unknown> } | null>(null);
+  const [forgePlanLoading, setForgePlanLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -180,6 +184,50 @@ function App() {
 
   const revisePlan = useCallback(() => {
     setPendingPlan(null);
+  }, []);
+
+  const generateForgePlan = useCallback(async (forgeSuggestion: string) => {
+    setForgePlanLoading(true);
+    setPendingForgePlan(null);
+    window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
+    try {
+      const res = await fetch(`${API_BASE}/forge-repair/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forgeSuggestion }),
+      });
+      const data = await res.json();
+      if (data.plan) {
+        setPendingForgePlan({ forgeSuggestion, plan: data.plan });
+      }
+    } catch (err) {
+      console.error("[forge-repair] Failed to generate plan:", err);
+    } finally {
+      setForgePlanLoading(false);
+    }
+  }, []);
+
+  const approveForgePlan = useCallback(async () => {
+    if (!pendingForgePlan) return;
+    const { forgeSuggestion, plan } = pendingForgePlan;
+    setPendingForgePlan(null);
+    try {
+      const res = await fetch(`${API_BASE}/forge-repair/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forgeSuggestion, approvedPlan: plan }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        console.log("[forge-repair]", data.message);
+      }
+    } catch (err) {
+      console.error("[forge-repair] Apply failed:", err);
+    }
+  }, [pendingForgePlan]);
+
+  const rejectForgePlan = useCallback(() => {
+    setPendingForgePlan(null);
   }, []);
 
   const approveRun = useCallback(async () => {
@@ -402,6 +450,7 @@ function App() {
             onSendChat={sendChat}
             chatLoading={chatLoading}
             onClearBuildSuggestions={() => setChatMessages(prev => prev.map(m => ({ ...m, suggestBuild: false })))}
+            onGenerateForgePlan={generateForgePlan}
           />
         </div>
         <div className={`mobile-panel mobile-panel-workspace ${mobileView === "workspace" ? "mobile-active" : ""}`}>
@@ -414,6 +463,10 @@ function App() {
             planLoading={planLoading}
             onApprovePlan={approvePlan}
             onRevisePlan={revisePlan}
+            pendingForgePlan={pendingForgePlan}
+            forgePlanLoading={forgePlanLoading}
+            onApproveForgePlan={approveForgePlan}
+            onRejectForgePlan={rejectForgePlan}
           />
         </div>
         <div className="mobile-view-toggle">
