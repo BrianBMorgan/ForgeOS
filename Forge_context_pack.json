@@ -1,24 +1,42 @@
 {
   "project_name": "ForgeOS AI Pipeline & Architecture",
-  "project_description": "Complete overhaul of ForgeOS — an AI-powered web app builder with a cockpit UI, workspace runner, and GitHub-to-Render deploy chain — replacing a broken multi-agent pipeline with a single Claude-powered builder, persistent memory brain, and clean agent boundaries.",
+  "project_description": "Complete overhaul of ForgeOS \u2014 an AI-powered web app builder with a cockpit UI, workspace runner, and GitHub-to-Render deploy chain \u2014 replacing a broken multi-agent pipeline with a single Claude-powered builder, persistent memory brain, and clean agent boundaries.",
   "credentials": {
-    "github_pat": "stored locally only — never committed",
+    "github_pat": "stored locally only \u2014 never committed",
     "github_repo": "BrianBMorgan/ForgeOS",
     "github_branch": "main"
   },
   "session_log": [
     {
+      "date": "2026-03-13",
+      "session_title": "Chat Agent Diagnostics Blind Spot \u2014 Secrets Vault Check",
+      "shipped": [
+        "Added secrets check to runDiagnostics() in server/chat/manager.js \u2014 lists all keys configured in the Global Secrets Vault",
+        "Updated VALID_CHECKS set to include secrets option",
+        "Updated diagnose_system tool description to prompt the Chat Agent to always check secrets for third-party API failures",
+        "Updated PLATFORM CONTEXT instructions: Chat Agent must call diagnose_system with checks: [secrets] when any third-party API fails",
+        "Updated Step 1 of DIAGNOSTIC PROCESS to mention secrets vault check as first move for third-party API errors",
+        "Root cause of LogoForge loop diagnosed: STABILITYAI_API_KEY likely missing from vault \u2014 Chat Agent saw correct code and all-clear diagnostics, fell into re-suggestion loop"
+      ],
+      "decisions": [
+        "The Chat Agent had a blind spot: diagnose_system only checked ForgeOS server-level env vars, not project secrets in the Neon DB vault",
+        "Secrets check is now always included when using all \u2014 Chat Agent can see exactly which keys are configured",
+        "LogoForge branch (apps/logoforge) code was already correct \u2014 all three previously diagnosed issues were resolved in a prior session",
+        "The real failure mode was: missing STABILITYAI_API_KEY in vault \u2192 app returns error \u2192 Chat Agent sees correct code \u2192 loops on code-level diagnoses"
+      ]
+    },
+    {
       "date": "2026-03-07",
       "session_title": "Publish Pipeline Debug & Render Migration",
       "shipped": [
-        "Fixed 'Invalid Date' bug — published_at BIGINT from Neon returned as string, fixed with Number(row.published_at)",
-        "Fixed 'Workspace files not found' on restore — rebuildWorkspaceFromSnapshot now checks both executor.output.files and builder.output.files",
-        "Fixed Global Secrets not passing to published app child processes — getMergedEnv now calls getSecretsAsObject()",
-        "Migrated ForgeOS to Render persistent disk at /data — all workspace and published app paths now use DATA_DIR env var",
+        "Fixed 'Invalid Date' bug \u2014 published_at BIGINT from Neon returned as string, fixed with Number(row.published_at)",
+        "Fixed 'Workspace files not found' on restore \u2014 rebuildWorkspaceFromSnapshot now checks both executor.output.files and builder.output.files",
+        "Fixed Global Secrets not passing to published app child processes \u2014 getMergedEnv now calls getSecretsAsObject()",
+        "Migrated ForgeOS to Render persistent disk at /data \u2014 all workspace and published app paths now use DATA_DIR env var",
         "Fixed all hardcoded __dirname-relative data paths across workspace/manager.js, publish/manager.js, projects/manager.js, runtime-backup.js, pipeline/runner.js, builder.js, index.js",
-        "Built email auth gate — server/auth/gate.js with HMAC-signed cookie session and ALLOWED_EMAILS whitelist",
-        "Built Render API wrapper — server/publish/render-api.js with createService, updateServiceEnv, redeployService, getServiceStatus, deleteService, listServices",
-        "Built pushToAppBranch in server/publish/github.js — pushes app files to dedicated apps/<slug> branch with standalone empty parent commit",
+        "Built email auth gate \u2014 server/auth/gate.js with HMAC-signed cookie session and ALLOWED_EMAILS whitelist",
+        "Built Render API wrapper \u2014 server/publish/render-api.js with createService, updateServiceEnv, redeployService, getServiceStatus, deleteService, listServices",
+        "Built pushToAppBranch in server/publish/github.js \u2014 pushes app files to dedicated apps/<slug> branch with standalone empty parent commit",
         "Added render_service_id and render_url columns to published_apps table"
       ],
       "decisions": [
@@ -36,35 +54,35 @@
       "date": "2026-03-08",
       "session_title": "Render Publish Pipeline, Wildcard Subdomains, Assets",
       "shipped": [
-        "Rewrote _doPublish to use Render API — pushes to GitHub branch, creates/redeploys Render service, passes env vars",
-        "Fixed render-api.js exports — pushProjectToGitHub was incorrectly included",
+        "Rewrote _doPublish to use Render API \u2014 pushes to GitHub branch, creates/redeploys Render service, passes env vars",
+        "Fixed render-api.js exports \u2014 pushProjectToGitHub was incorrectly included",
         "Fixed envSpecificDetails requirement in Render API createService call",
-        "Fixed getSecretsAsObject lazy DB init — secrets now pass automatically to every published Render service",
-        "Fixed handle existing Render service on republish — graceful fallback when service name already in use",
+        "Fixed getSecretsAsObject lazy DB init \u2014 secrets now pass automatically to every published Render service",
+        "Fixed handle existing Render service on republish \u2014 graceful fallback when service name already in use",
         "Replaced child-process restore with Render service restore in _restoreOne",
         "Added renderUrl to getPublishedApp response and Publish tab UI",
         "Major dead code scrub of publish/manager.js",
-        "Wildcard *.forge-os.ai DNS and TLS via Namecheap + Render — all three CNAME records added",
+        "Wildcard *.forge-os.ai DNS and TLS via Namecheap + Render \u2014 all three CNAME records added",
         "Built wildcard subdomain proxy middleware in index.js",
-        "Fixed content encoding bug in subdomain proxy — accept-encoding: identity prevents ERR_CONTENT_DECODING_FAILED",
+        "Fixed content encoding bug in subdomain proxy \u2014 accept-encoding: identity prevents ERR_CONTENT_DECODING_FAILED",
         "Updated Publish tab UI to show subdomain URL as primary public URL",
         "Added slug editor to Publish tab",
         "Built renameSlug in publish/manager.js",
-        "Stage 1 tech stack unbans — react CDN, dotenv, jsonwebtoken, svelte CDN removed from banned list",
+        "Stage 1 tech stack unbans \u2014 react CDN, dotenv, jsonwebtoken, svelte CDN removed from banned list",
         "Built forge_assets table in Neon (global scope, no project_id)",
-        "Built server/assets/manager.js — saveAsset, getAsset, listAssets, deleteAsset, getAssetsContext",
-        "Built assets API routes in index.js — GET/POST/DELETE with busboy multipart handling",
+        "Built server/assets/manager.js \u2014 saveAsset, getAsset, listAssets, deleteAsset, getAssetsContext",
+        "Built assets API routes in index.js \u2014 GET/POST/DELETE with busboy multipart handling",
         "Built global Assets tab in cockpit sidebar with drag-and-drop upload, file list, Copy URL, Delete",
         "Injected AVAILABLE GLOBAL ASSETS block into builder prompt via builder.js"
       ],
       "decisions": [
         "Assets stored in Neon DB as base64 (binary) or UTF-8 text (CSV/JSON/text)",
-        "Assets are global scope — no project_id, accessible by all projects",
+        "Assets are global scope \u2014 no project_id, accessible by all projects",
         "Asset access URL pattern: /api/assets/:filename",
         "Wildcard subdomain proxy uses fetch with accept-encoding: identity to avoid compression issues",
-        "Slug rename creates new Render service and deletes old — no in-place rename",
+        "Slug rename creates new Render service and deletes old \u2014 no in-place rename",
         "BASE_DOMAIN=forge-os.ai env var controls subdomain proxy domain",
-        "Session log protocol established — appended to Forge_additional_context_pack.json at end of each session"
+        "Session log protocol established \u2014 appended to Forge_additional_context_pack.json at end of each session"
       ],
       "pending": [],
       "open_questions": []
@@ -73,18 +91,18 @@
       "date": "2026-03-08",
       "session_title": "Dead Code Cleanup, Bug Fixes, and VS Code Workflow Migration",
       "shipped": [
-        "Removed self-require from server/pipeline/agents.js — line 12 had agents.js requiring itself, causing circular dependency warnings on startup",
-        "Fixed subdomain proxy body forwarding in server/index.js — changed body: req to body: JSON.stringify(req.body) and added content-type header",
-        "Fixed NEON_DATABASE_URL vs DATABASE_URL mismatch — published apps must use process.env.NEON_DATABASE_URL",
-        "Fixed Render API createService plan — changed plan: 'starter' to plan: 'standard' in render-api.js",
-        "Wired assets context injection into builder.js — getAssetsContext() call injected into systemPrompt before build",
-        "Restored all prompt constants to agents.js — FORGE_VOICE, EXECUTOR_INSTRUCTIONS, EXECUTOR_ITERATE_INSTRUCTIONS, EXECUTOR_FIX_INSTRUCTIONS, AUDITOR_INSTRUCTIONS, CHAT_AGENT_INSTRUCTIONS",
+        "Removed self-require from server/pipeline/agents.js \u2014 line 12 had agents.js requiring itself, causing circular dependency warnings on startup",
+        "Fixed subdomain proxy body forwarding in server/index.js \u2014 changed body: req to body: JSON.stringify(req.body) and added content-type header",
+        "Fixed NEON_DATABASE_URL vs DATABASE_URL mismatch \u2014 published apps must use process.env.NEON_DATABASE_URL",
+        "Fixed Render API createService plan \u2014 changed plan: 'starter' to plan: 'standard' in render-api.js",
+        "Wired assets context injection into builder.js \u2014 getAssetsContext() call injected into systemPrompt before build",
+        "Restored all prompt constants to agents.js \u2014 FORGE_VOICE, EXECUTOR_INSTRUCTIONS, EXECUTOR_ITERATE_INSTRUCTIONS, EXECUTOR_FIX_INSTRUCTIONS, AUDITOR_INSTRUCTIONS, CHAT_AGENT_INSTRUCTIONS",
         "Migrated dev workflow from Replit to VS Code + GitHub"
       ],
       "decisions": [
-        "Replit is sunset as the dev environment — VS Code is now the sole development environment",
+        "Replit is sunset as the dev environment \u2014 VS Code is now the sole development environment",
         "All changes pushed directly from VS Code to GitHub, Render auto-deploys from main",
-        "Claude can push directly to GitHub repo via PAT when provided — eliminates manual file copy workflow",
+        "Claude can push directly to GitHub repo via PAT when provided \u2014 eliminates manual file copy workflow",
         "Subdomain proxy must serialize req.body as JSON string, not pipe req stream directly"
       ],
       "pending": [],
@@ -94,25 +112,25 @@
       "date": "2026-03-09",
       "session_title": "Assets End-to-End Fix, Stage 2 Tech Stack Unbans, Template Literal Cleanup",
       "shipped": [
-        "Fixed getAssetsContext() return type — was returning array of objects (rendered as [object Object]), now returns formatted string",
-        "Added GLOBAL ASSETS usage section to BUILDER_SYSTEM_PROMPT — builder now knows URL pattern, fetch pattern, and when to use client-side vs server-side fetch",
-        "Added /api/assets/* passthrough to preview proxy — /preview/:runId middleware now short-circuits asset requests to ForgeOS root handler instead of forwarding to workspace app",
-        "Fixed CSV Grid Viewer end-to-end — asset pipeline fully working, 20-row Intel attendee dataset rendered correctly",
-        "Stage 2 tech stack unbans — react, react-dom, vue, vite, @vitejs/plugin-react removed from banned list",
-        "Added Mode A / Mode B runtime structure to BUILDER_SYSTEM_PROMPT — Mode A is plain Node (default), Mode B is Vite+React (opt-in)",
+        "Fixed getAssetsContext() return type \u2014 was returning array of objects (rendered as [object Object]), now returns formatted string",
+        "Added GLOBAL ASSETS usage section to BUILDER_SYSTEM_PROMPT \u2014 builder now knows URL pattern, fetch pattern, and when to use client-side vs server-side fetch",
+        "Added /api/assets/* passthrough to preview proxy \u2014 /preview/:runId middleware now short-circuits asset requests to ForgeOS root handler instead of forwarding to workspace app",
+        "Fixed CSV Grid Viewer end-to-end \u2014 asset pipeline fully working, 20-row Intel attendee dataset rendered correctly",
+        "Stage 2 tech stack unbans \u2014 react, react-dom, vue, vite, @vitejs/plugin-react removed from banned list",
+        "Added Mode A / Mode B runtime structure to BUILDER_SYSTEM_PROMPT \u2014 Mode A is plain Node (default), Mode B is Vite+React (opt-in)",
         "Added vite.config.js pattern, correct PORT binding, and Mode B checklist items to builder prompt",
-        "Fixed three syntax errors in builder.js and agents.js caused by PR #33 (Claude Code branch) — inline backtick-wrapped paths inside template literals broke Node parser on Render",
-        "Closed all three claude/ branches — access-json-context-pack, fix-asset-url-instructions, review-forgeos-github-push — all absorbed or harmless",
-        "Re-enabled Render auto-deploy — had been disabled, re-enabled via Render dashboard",
+        "Fixed three syntax errors in builder.js and agents.js caused by PR #33 (Claude Code branch) \u2014 inline backtick-wrapped paths inside template literals broke Node parser on Render",
+        "Closed all three claude/ branches \u2014 access-json-context-pack, fix-asset-url-instructions, review-forgeos-github-push \u2014 all absorbed or harmless",
+        "Re-enabled Render auto-deploy \u2014 had been disabled, re-enabled via Render dashboard",
         "Added brain memory entries for assets proxy passthrough pattern"
       ],
       "decisions": [
-        "Preview proxy must pass /api/assets/* requests through to ForgeOS root handler — workspace apps cannot serve these routes",
-        "Generated apps must fetch global assets client-side using root-relative /api/assets/FILENAME — not server-side via localhost",
+        "Preview proxy must pass /api/assets/* requests through to ForgeOS root handler \u2014 workspace apps cannot serve these routes",
+        "Generated apps must fetch global assets client-side using root-relative /api/assets/FILENAME \u2014 not server-side via localhost",
         "Stage 2 unbans: react, react-dom, vue, vite, @vitejs/plugin-react approved. angular, nuxt, svelte, webpack, esbuild, parcel, rollup remain banned",
-        "Mode B (Vite+React) is opt-in only — builder defaults to Mode A (plain Node) unless React/Vue explicitly requested",
-        "Never write inline backtick-wrapped content inside JS template literal strings — use plain text or escaped backticks instead",
-        "Claude Code PRs must not be merged without review — PR #33 introduced syntax errors in two files"
+        "Mode B (Vite+React) is opt-in only \u2014 builder defaults to Mode A (plain Node) unless React/Vue explicitly requested",
+        "Never write inline backtick-wrapped content inside JS template literal strings \u2014 use plain text or escaped backticks instead",
+        "Claude Code PRs must not be merged without review \u2014 PR #33 introduced syntax errors in two files"
       ],
       "pending": [],
       "open_questions": []
@@ -121,46 +139,46 @@
       "date": "2026-03-10",
       "session_title": "Visual Editor (Phases 1-3), Dead Code Cleanup, Version History, Custom Domains",
       "shipped": [
-        "Mode B preview notice — Vite apps show 'Go to Publish' notice instead of broken iframe in cockpit",
-        "BYO custom domain support — render-api.js: addCustomDomain, listCustomDomains, removeCustomDomain; publish/manager.js: setCustomDomain, deleteCustomDomain; Publish tab UI for custom domain management",
-        "Fixed asset upload crash — binary files now always stored and served as base64, never raw UTF-8",
-        "Version history with git tags and rollback — tagAndDeleteAppBranch, listVersionTags, restoreFromTag in github.js; listVersions, rollbackToVersion in publish/manager.js; Version History section in Publish tab",
-        "Dead code cleanup — removed dead agent prompt imports from runner.js",
-        "Deleted server/pipeline/agents.js — CHAT_AGENT_INSTRUCTIONS moved inline to server/chat/manager.js",
-        "Deleted server/pipeline/schemas.js — ExecutorSchema/AuditorSchema unused since single-builder migration",
-        "Removed STAGES constant and pending-init loop from runner.js — stages written directly by builder",
-        "Phase 2: Edit tab — split-pane file editor (file tree + textarea) with live preview iframe; save writes to disk, restarts workspace, refreshes preview; dirty state tracking, Revert button",
-        "Phase 1: Inspect Mode — dormant inspector script injected into every preview HTML response via rewriteHtmlForProxy; Inspect toggle button in Live Preview header; blue overlay on hover; click captures selector + outerHTML + textContent; selection badge with Use in chat / dismiss",
-        "Phase 3: Inspect-to-Edit bridge — useSelection fires background file search (GET /api/runs/:id/file/search); on match dispatches forgeos:jump-to-file event; EditTab listens, switches cockpit to Edit tab, loads file, scrolls to line, selects matched text, brief blue flash confirms landing",
-        "searchWorkspaceFiles(runId, searchText) added to server/workspace/manager.js — searches text files, returns up to 10 {file, line, snippet} matches",
+        "Mode B preview notice \u2014 Vite apps show 'Go to Publish' notice instead of broken iframe in cockpit",
+        "BYO custom domain support \u2014 render-api.js: addCustomDomain, listCustomDomains, removeCustomDomain; publish/manager.js: setCustomDomain, deleteCustomDomain; Publish tab UI for custom domain management",
+        "Fixed asset upload crash \u2014 binary files now always stored and served as base64, never raw UTF-8",
+        "Version history with git tags and rollback \u2014 tagAndDeleteAppBranch, listVersionTags, restoreFromTag in github.js; listVersions, rollbackToVersion in publish/manager.js; Version History section in Publish tab",
+        "Dead code cleanup \u2014 removed dead agent prompt imports from runner.js",
+        "Deleted server/pipeline/agents.js \u2014 CHAT_AGENT_INSTRUCTIONS moved inline to server/chat/manager.js",
+        "Deleted server/pipeline/schemas.js \u2014 ExecutorSchema/AuditorSchema unused since single-builder migration",
+        "Removed STAGES constant and pending-init loop from runner.js \u2014 stages written directly by builder",
+        "Phase 2: Edit tab \u2014 split-pane file editor (file tree + textarea) with live preview iframe; save writes to disk, restarts workspace, refreshes preview; dirty state tracking, Revert button",
+        "Phase 1: Inspect Mode \u2014 dormant inspector script injected into every preview HTML response via rewriteHtmlForProxy; Inspect toggle button in Live Preview header; blue overlay on hover; click captures selector + outerHTML + textContent; selection badge with Use in chat / dismiss",
+        "Phase 3: Inspect-to-Edit bridge \u2014 useSelection fires background file search (GET /api/runs/:id/file/search); on match dispatches forgeos:jump-to-file event; EditTab listens, switches cockpit to Edit tab, loads file, scrolls to line, selects matched text, brief blue flash confirms landing",
+        "searchWorkspaceFiles(runId, searchText) added to server/workspace/manager.js \u2014 searches text files, returns up to 10 {file, line, snippet} matches",
         "GET /api/runs/:id/file/search?text=... API route added to server/index.js",
         "Upgraded all Render services to Standard tier",
-        "GitHub PAT rotated — new PAT stored in context pack, not chat",
-        "Updated ForgeOS.md — Visual Editor phases, version history, custom domains, pipeline cleanup documented"
+        "GitHub PAT rotated \u2014 new PAT stored in context pack, not chat",
+        "Updated ForgeOS.md \u2014 Visual Editor phases, version history, custom domains, pipeline cleanup documented"
       ],
       "decisions": [
-        "Visual editor ships in three phases: Phase 2 (Edit tab) → Phase 1 (Inspect Mode) → Phase 3 (Inspect-to-Edit bridge)",
-        "Inspector script injected dormant into every preview HTML response — activated/deactivated via postMessage",
+        "Visual editor ships in three phases: Phase 2 (Edit tab) \u2192 Phase 1 (Inspect Mode) \u2192 Phase 3 (Inspect-to-Edit bridge)",
+        "Inspector script injected dormant into every preview HTML response \u2014 activated/deactivated via postMessage",
         "Phase 3 falls back gracefully to Phase 1 behavior when no file match found (dynamic/JS-rendered content)",
-        "All Render services upgraded to Standard tier — Starter tier fully retired",
-        "GitHub PAT stored in context pack only — never in chat history",
-        "server/pipeline/ now contains only runner.js — agents.js and schemas.js deleted"
+        "All Render services upgraded to Standard tier \u2014 Starter tier fully retired",
+        "GitHub PAT stored in context pack only \u2014 never in chat history",
+        "server/pipeline/ now contains only runner.js \u2014 agents.js and schemas.js deleted"
       ],
       "pending": [],
       "open_questions": []
     },
     {
       "date": "2026-03-10",
-      "session_title": "Cockpit UI Polish — Diff Tab, Collapsible Chat, Mobile Scroll Fix",
+      "session_title": "Cockpit UI Polish \u2014 Diff Tab, Collapsible Chat, Mobile Scroll Fix",
       "shipped": [
-        "Diff tab — side-by-side code diff between any two iterations; two version selectors (A=red, B=green) defaulting to previous vs current; LCS-based line diff with aligned blank rows; +/− badges for new/deleted files; 'No changes' message when identical",
-        "Collapsible chat column — chatCollapsed state in App.tsx; ‹/› toggle tab on right edge of prompt column; smooth width transition (0.2s); gives workspace full width when collapsed; hidden on mobile",
-        "Mobile chat scroll fix — .mobile-panel-chat .prompt-column gets min-height: 0, height: 100%, overflow: hidden so .chat-thread can scroll properly"
+        "Diff tab \u2014 side-by-side code diff between any two iterations; two version selectors (A=red, B=green) defaulting to previous vs current; LCS-based line diff with aligned blank rows; +/\u2212 badges for new/deleted files; 'No changes' message when identical",
+        "Collapsible chat column \u2014 chatCollapsed state in App.tsx; \u2039/\u203a toggle tab on right edge of prompt column; smooth width transition (0.2s); gives workspace full width when collapsed; hidden on mobile",
+        "Mobile chat scroll fix \u2014 .mobile-panel-chat .prompt-column gets min-height: 0, height: 100%, overflow: hidden so .chat-thread can scroll properly"
       ],
       "decisions": [
-        "Diff tab uses LCS algorithm for line-level diffing — side-by-side columns with aligned blank rows for readability",
-        "Chat collapse hidden on mobile — mobile already uses panel switching, collapse would conflict",
-        "Collapsible chat uses CSS width transition rather than DOM removal — preserves state when re-expanded"
+        "Diff tab uses LCS algorithm for line-level diffing \u2014 side-by-side columns with aligned blank rows for readability",
+        "Chat collapse hidden on mobile \u2014 mobile already uses panel switching, collapse would conflict",
+        "Collapsible chat uses CSS width transition rather than DOM removal \u2014 preserves state when re-expanded"
       ],
       "pending": [],
       "open_questions": []
@@ -169,32 +187,32 @@
       "date": "2026-03-12",
       "session_title": "Iteration Rollbacks, deleteIteration Endpoint, Plan Gate & Surgical Build System",
       "shipped": [
-        "Manual branch rollbacks for sandbox-xm — force-pushed apps/sandbox-xm branch to 6152e5ef5e5a (18:51 UTC March 10, last clean build before Resend damage) via GitHub API",
-        "DELETE /api/projects/:id/runs/:runId endpoint — added deleteIteration() to server/projects/manager.js; removes iteration from iterations table, deletes run snapshot, rolls currentRunId back to previous iteration automatically; route added to server/index.js",
-        "Pre-build plan approval gate — server/plan/manager.js: generatePlan() (haiku model) produces structured JSON {taskSummary, approach, filesToCreate, filesToModify, filesOffLimits}; planToConstraintBlock() serializes approved plan into hard constraint block prepended to builder system prompt",
+        "Manual branch rollbacks for sandbox-xm \u2014 force-pushed apps/sandbox-xm branch to 6152e5ef5e5a (18:51 UTC March 10, last clean build before Resend damage) via GitHub API",
+        "DELETE /api/projects/:id/runs/:runId endpoint \u2014 added deleteIteration() to server/projects/manager.js; removes iteration from iterations table, deletes run snapshot, rolls currentRunId back to previous iteration automatically; route added to server/index.js",
+        "Pre-build plan approval gate \u2014 server/plan/manager.js: generatePlan() (haiku model) produces structured JSON {taskSummary, approach, filesToCreate, filesToModify, filesOffLimits}; planToConstraintBlock() serializes approved plan into hard constraint block prepended to builder system prompt",
         "POST /api/projects/:id/plan route in server/index.js",
-        "/iterate now accepts optional approvedPlan in request body — threaded through createRun → buildAndDeploy → buildWorkspace",
-        "PlanTab rewritten in Workspace.tsx — three states: loading spinner, pending approval gate (Approve & Build / Revise Prompt), post-build summary; file badges color-coded green(+)/yellow(~)/red(✗)",
-        "Plan gate CSS added to index.css — .plan-gate-*, .plan-approve-btn, .plan-revise-btn, .plan-loading-spinner, .plan-badge-*, .plan-file-*",
-        "iterateProject() updated in App.tsx — accepts optional { skipPlan } flag; skipPlan: true bypasses plan gate and fires /iterate directly (used for Chat Agent build suggestions)",
-        "onRunBuild prop type updated in PromptColumn.tsx — accepts optional { skipPlan?: boolean }",
-        "handleBuildFromSuggestion updated — calls onRunBuild(suggestion, { skipPlan: true }) so Chat Agent suggestions bypass the plan gate",
-        "isSuggestion flag threaded end-to-end — client sends isSuggestion: true in /iterate body for suggestion builds; server/index.js passes to createRun; runner.js stores on run object",
-        "suggestionToConstraintBlock() added to server/plan/manager.js — parses target file from Chat Agent suggestion text using regex /\\bin\\s+([\\w./-]+\\.\\w+)/i; builds surgical single-file constraint block; returns { constraintBlock, targetFile }; safe fallback locks ALL files when regex fails",
-        "buildWorkspace() updated — accepts isSuggestion param; when true calls suggestionToConstraintBlock, stores _suggestionTarget on output, caller stores as run.suggestionTarget",
-        "Plan tab surgical build visibility — when isSuggestion build is running, Plan tab shows 'Surgical edit in progress' with target file in green monospace; shows yellow warning if regex fallback triggered; CSS added: .plan-surgical-status, .plan-surgical-label, .plan-surgical-target, .plan-surgical-file, .plan-surgical-fallback"
+        "/iterate now accepts optional approvedPlan in request body \u2014 threaded through createRun \u2192 buildAndDeploy \u2192 buildWorkspace",
+        "PlanTab rewritten in Workspace.tsx \u2014 three states: loading spinner, pending approval gate (Approve & Build / Revise Prompt), post-build summary; file badges color-coded green(+)/yellow(~)/red(\u2717)",
+        "Plan gate CSS added to index.css \u2014 .plan-gate-*, .plan-approve-btn, .plan-revise-btn, .plan-loading-spinner, .plan-badge-*, .plan-file-*",
+        "iterateProject() updated in App.tsx \u2014 accepts optional { skipPlan } flag; skipPlan: true bypasses plan gate and fires /iterate directly (used for Chat Agent build suggestions)",
+        "onRunBuild prop type updated in PromptColumn.tsx \u2014 accepts optional { skipPlan?: boolean }",
+        "handleBuildFromSuggestion updated \u2014 calls onRunBuild(suggestion, { skipPlan: true }) so Chat Agent suggestions bypass the plan gate",
+        "isSuggestion flag threaded end-to-end \u2014 client sends isSuggestion: true in /iterate body for suggestion builds; server/index.js passes to createRun; runner.js stores on run object",
+        "suggestionToConstraintBlock() added to server/plan/manager.js \u2014 parses target file from Chat Agent suggestion text using regex /\\bin\\s+([\\w./-]+\\.\\w+)/i; builds surgical single-file constraint block; returns { constraintBlock, targetFile }; safe fallback locks ALL files when regex fails",
+        "buildWorkspace() updated \u2014 accepts isSuggestion param; when true calls suggestionToConstraintBlock, stores _suggestionTarget on output, caller stores as run.suggestionTarget",
+        "Plan tab surgical build visibility \u2014 when isSuggestion build is running, Plan tab shows 'Surgical edit in progress' with target file in green monospace; shows yellow warning if regex fallback triggered; CSS added: .plan-surgical-status, .plan-surgical-label, .plan-surgical-target, .plan-surgical-file, .plan-surgical-fallback"
       ],
       "decisions": [
-        "Safe failure over destructive success — if suggestionToConstraintBlock cannot parse the target file, all files go off-limits rather than allowing an unconstrained build",
+        "Safe failure over destructive success \u2014 if suggestionToConstraintBlock cannot parse the target file, all files go off-limits rather than allowing an unconstrained build",
         "Plan gate fires for all raw chat prompts; Chat Agent build suggestions bypass the gate via skipPlan: true + isSuggestion: true",
-        "Inspect mode 'Use in chat' workflow preserved — Chat Agent still diagnoses and writes buildSuggestion; only the downstream build is now surgical",
-        "deleteIteration rolls currentRunId back automatically to previous iteration — no manual DB update needed after deleting a bad iteration",
-        "Iteration rollback via GitHub API force-push to apps/<slug> branch — does not create a new commit, just moves branch pointer to existing tag commit; Render may not auto-trigger on force-push, manual redeploy may be needed",
-        "suggestionToConstraintBlock returns object { constraintBlock, targetFile } not a plain string — caller must destructure; _suggestionTarget deleted from builderOutput after being stored on run"
+        "Inspect mode 'Use in chat' workflow preserved \u2014 Chat Agent still diagnoses and writes buildSuggestion; only the downstream build is now surgical",
+        "deleteIteration rolls currentRunId back automatically to previous iteration \u2014 no manual DB update needed after deleting a bad iteration",
+        "Iteration rollback via GitHub API force-push to apps/<slug> branch \u2014 does not create a new commit, just moves branch pointer to existing tag commit; Render may not auto-trigger on force-push, manual redeploy may be needed",
+        "suggestionToConstraintBlock returns object { constraintBlock, targetFile } not a plain string \u2014 caller must destructure; _suggestionTarget deleted from builderOutput after being stored on run"
       ],
       "pending": [
-        "Point sandbox-xm.com DNS fully — A record @ → Render IP at Namecheap + www URL redirect",
-        "Build Restore Iteration UI button in iterations dropdown — server-side rollbackToVersion exists for published apps; need workspace equivalent"
+        "Point sandbox-xm.com DNS fully \u2014 A record @ \u2192 Render IP at Namecheap + www URL redirect",
+        "Build Restore Iteration UI button in iterations dropdown \u2014 server-side rollbackToVersion exists for published apps; need workspace equivalent"
       ],
       "open_questions": [
         "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?",
@@ -203,24 +221,24 @@
     },
     {
       "date": "2026-03-13",
-      "session_title": "Surgical Build Fixes — Workspace Seeding, Missing Entry File Guard, RunData Types",
+      "session_title": "Surgical Build Fixes \u2014 Workspace Seeding, Missing Entry File Guard, RunData Types",
       "shipped": [
-        "Fixed TypeScript build failure — added isSuggestion?: boolean and suggestionTarget?: string | null to RunData interface in client/src/App.tsx; Render build was failing with TS2339 errors",
-        "Fixed surgical build deleting server.js — createWorkspace() wipes the entire workspace directory on every run; surgical builds only return the target file so all other files were deleted; fix: when isSuggestion is true, write existingFiles into the fresh workspace before writing builder output, so only the target file changes",
-        "Fixed no-op surgical build restart loop — when fallback locks all files, builder writes nothing, server.js missing, startApp crashed in restart loop; fix: added entry file existence check in startApp() before spawning process; sets status to start-failed with clear error message instead of looping",
-        "Deleted sandbox-xm v25 (runId 7f9b4cfe) via DELETE /api/projects/f9bc3895/runs/7f9b4cfe — project rolled back to v24 (f39bf14c) automatically",
-        "Identified and rejected Forge's incorrect self-diagnosis — Forge suggested regenerating server.js on every HTML edit; correct fix was workspace seeding, not a workaround"
+        "Fixed TypeScript build failure \u2014 added isSuggestion?: boolean and suggestionTarget?: string | null to RunData interface in client/src/App.tsx; Render build was failing with TS2339 errors",
+        "Fixed surgical build deleting server.js \u2014 createWorkspace() wipes the entire workspace directory on every run; surgical builds only return the target file so all other files were deleted; fix: when isSuggestion is true, write existingFiles into the fresh workspace before writing builder output, so only the target file changes",
+        "Fixed no-op surgical build restart loop \u2014 when fallback locks all files, builder writes nothing, server.js missing, startApp crashed in restart loop; fix: added entry file existence check in startApp() before spawning process; sets status to start-failed with clear error message instead of looping",
+        "Deleted sandbox-xm v25 (runId 7f9b4cfe) via DELETE /api/projects/f9bc3895/runs/7f9b4cfe \u2014 project rolled back to v24 (f39bf14c) automatically",
+        "Identified and rejected Forge's incorrect self-diagnosis \u2014 Forge suggested regenerating server.js on every HTML edit; correct fix was workspace seeding, not a workaround"
       ],
       "decisions": [
-        "Surgical builds seed workspace from existingFiles before writing builder output — preserves all untouched files, only target file changes",
-        "startApp entry file guard: node <file> commands check existsSync before spawn — fast fail with clear error, no restart loop",
-        "deleteIteration can be called directly via Neon DB query + HMAC cookie generation from local .env — no need to log into ForgeOS UI to delete bad iterations",
-        "Forge's self-diagnosis on surgical build failures should not be trusted — it misidentified the root cause as 'executor not creating server.js' when the real issue was workspace wipe on createWorkspace"
+        "Surgical builds seed workspace from existingFiles before writing builder output \u2014 preserves all untouched files, only target file changes",
+        "startApp entry file guard: node <file> commands check existsSync before spawn \u2014 fast fail with clear error, no restart loop",
+        "deleteIteration can be called directly via Neon DB query + HMAC cookie generation from local .env \u2014 no need to log into ForgeOS UI to delete bad iterations",
+        "Forge's self-diagnosis on surgical build failures should not be trusted \u2014 it misidentified the root cause as 'executor not creating server.js' when the real issue was workspace wipe on createWorkspace"
       ],
       "pending": [
-        "Point sandbox-xm.com DNS fully — A record @ → Render IP at Namecheap + www URL redirect",
+        "Point sandbox-xm.com DNS fully \u2014 A record @ \u2192 Render IP at Namecheap + www URL redirect",
         "Build Restore Iteration UI button in iterations dropdown",
-        "Test Stage 2 React/Vite build end-to-end — verify Mode B scaffolds vite.config.js correctly on first pass"
+        "Test Stage 2 React/Vite build end-to-end \u2014 verify Mode B scaffolds vite.config.js correctly on first pass"
       ],
       "open_questions": [
         "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?",
@@ -229,29 +247,29 @@
     },
     {
       "date": "2026-03-13",
-      "session_title": "Restore Iteration Feature — Implementation, Three Bug Fixes, sandbox-xm v33/v34 Cleanup",
+      "session_title": "Restore Iteration Feature \u2014 Implementation, Three Bug Fixes, sandbox-xm v33/v34 Cleanup",
       "shipped": [
-        "Implemented restoreIteration(projectId, runId) in server/projects/manager.js — loads snapshot from Neon run_snapshots, stops current project app (NOT all apps), seeds fresh workspace from snapshot files, installs deps, starts app, updates project.currentRunId in memory and DB",
+        "Implemented restoreIteration(projectId, runId) in server/projects/manager.js \u2014 loads snapshot from Neon run_snapshots, stops current project app (NOT all apps), seeds fresh workspace from snapshot files, installs deps, starts app, updates project.currentRunId in memory and DB",
         "POST /api/projects/:id/restore/:runId endpoint added to server/index.js",
-        "Added loadAndRegisterRun(runId) to server/pipeline/runner.js — checks if run already in Map, loads snapshot from DB, registers in runs Map so UI can poll post-restore; exported from runner.js",
-        "restoreIteration callback wired in client/src/App.tsx — POST /api/projects/${currentProjectId}/restore/${runId}, sets currentRunId and clears viewingIterationRunId on success; passed as onRestoreIteration prop to PromptColumn",
-        "'Restore this version' button added to viewing-history-banner in client/src/components/PromptColumn.tsx — calls onRestoreIteration(viewingIterationRunId) on click",
-        "Fixed bug 1: stopAllApps() killing all projects' workspaces during restore — changed to workspace.stopApp(project.currentRunId), only stops current project",
-        "Fixed bug 2: no guard for missing snapshots — restoreIteration now fails fast with clear error before any filesystem changes if snapshot not found in DB",
-        "Fixed bug 3: restored run not in runner's runs Map — loadAndRegisterRun() called after workspace recreation to put past snapshot back in Map so polling works",
-        "Deleted sandbox-xm v33 (run had no snapshot, was built on broken state) and v34 (also no snapshot) via deleteIteration — project rolled back to v32 (0fb0c8d1)",
-        "Confirmed v32 (0fb0c8d1) has valid snapshot with 3 files at stages.builder.output.files — verified via direct Neon query"
+        "Added loadAndRegisterRun(runId) to server/pipeline/runner.js \u2014 checks if run already in Map, loads snapshot from DB, registers in runs Map so UI can poll post-restore; exported from runner.js",
+        "restoreIteration callback wired in client/src/App.tsx \u2014 POST /api/projects/${currentProjectId}/restore/${runId}, sets currentRunId and clears viewingIterationRunId on success; passed as onRestoreIteration prop to PromptColumn",
+        "'Restore this version' button added to viewing-history-banner in client/src/components/PromptColumn.tsx \u2014 calls onRestoreIteration(viewingIterationRunId) on click",
+        "Fixed bug 1: stopAllApps() killing all projects' workspaces during restore \u2014 changed to workspace.stopApp(project.currentRunId), only stops current project",
+        "Fixed bug 2: no guard for missing snapshots \u2014 restoreIteration now fails fast with clear error before any filesystem changes if snapshot not found in DB",
+        "Fixed bug 3: restored run not in runner's runs Map \u2014 loadAndRegisterRun() called after workspace recreation to put past snapshot back in Map so polling works",
+        "Deleted sandbox-xm v33 (run had no snapshot, was built on broken state) and v34 (also no snapshot) via deleteIteration \u2014 project rolled back to v32 (0fb0c8d1)",
+        "Confirmed v32 (0fb0c8d1) has valid snapshot with 3 files at stages.builder.output.files \u2014 verified via direct Neon query"
       ],
       "decisions": [
-        "restoreIteration must call stopApp(currentRunId) not stopAllApps() — stopAllApps destroys every project's workspace across the board, catastrophic in multi-project environments",
-        "Snapshot guard must fail before any filesystem changes — if no snapshot exists, function returns error immediately; workspace is never touched",
-        "loadAndRegisterRun required after restore — runner's in-memory Map is the source of truth for UI polling; a workspace with no Map entry leaves the UI unable to display the run",
-        "Runs with no snapshot (v33, v34) cannot be restored — they were built on broken state and snapshot was never saved; delete these with deleteIteration"
+        "restoreIteration must call stopApp(currentRunId) not stopAllApps() \u2014 stopAllApps destroys every project's workspace across the board, catastrophic in multi-project environments",
+        "Snapshot guard must fail before any filesystem changes \u2014 if no snapshot exists, function returns error immediately; workspace is never touched",
+        "loadAndRegisterRun required after restore \u2014 runner's in-memory Map is the source of truth for UI polling; a workspace with no Map entry leaves the UI unable to display the run",
+        "Runs with no snapshot (v33, v34) cannot be restored \u2014 they were built on broken state and snapshot was never saved; delete these with deleteIteration"
       ],
       "pending": [
         "Test Restore Iteration feature end-to-end now that three bugs are fixed",
-        "Point sandbox-xm.com DNS fully — A record @ → Render IP at Namecheap + www URL redirect",
-        "Test Stage 2 React/Vite build end-to-end — verify Mode B scaffolds vite.config.js correctly on first pass",
+        "Point sandbox-xm.com DNS fully \u2014 A record @ \u2192 Render IP at Namecheap + www URL redirect",
+        "Test Stage 2 React/Vite build end-to-end \u2014 verify Mode B scaffolds vite.config.js correctly on first pass",
         "Consider pgvector semantic search upgrade for Brain"
       ],
       "open_questions": [
@@ -261,51 +279,51 @@
     },
     {
       "date": "2026-03-13",
-      "session_title": "HubSpot CRM Integration — Server Module, API Routes, Chat Agent Tool, Skill Seeding",
+      "session_title": "HubSpot CRM Integration \u2014 Server Module, API Routes, Chat Agent Tool, Skill Seeding",
       "shipped": [
-        "Created server/integrations/hubspot.js — HubSpot REST API wrapper using HUBSPOT_ACCESS_TOKEN from Global Secrets Vault; methods: searchContacts, getContact, createContact, updateContact, searchDeals, createDeal, getStatus; all calls use native fetch with Bearer auth header",
-        "Added HubSpot API routes to server/index.js — GET/POST /api/hubspot/contacts, GET/POST /api/hubspot/deals, GET /api/hubspot/status",
-        "Added hubspot_query tool to Chat Agent SEARCH_TOOLS in server/chat/manager.js — supports status, search_contacts, search_deals operations; Chat Agent can look up CRM data mid-conversation",
-        "HubSpot skill auto-seeded on startup in server/index.js — when HUBSPOT_ACCESS_TOKEN is present in Global Secrets Vault, creates 'HubSpot CRM' skill in Skills Library with full API patterns, contact form to HubSpot lead pattern, lead status values, deal stage values, and error handling guidance",
-        "Activate skill with /hubspot in chat — injects full HubSpot build context into the builder for generated apps",
-        "Forge_context_pack.json added to GitHub repo (sensitive github_pat field redacted to 'stored locally only — never committed')"
+        "Created server/integrations/hubspot.js \u2014 HubSpot REST API wrapper using HUBSPOT_ACCESS_TOKEN from Global Secrets Vault; methods: searchContacts, getContact, createContact, updateContact, searchDeals, createDeal, getStatus; all calls use native fetch with Bearer auth header",
+        "Added HubSpot API routes to server/index.js \u2014 GET/POST /api/hubspot/contacts, GET/POST /api/hubspot/deals, GET /api/hubspot/status",
+        "Added hubspot_query tool to Chat Agent SEARCH_TOOLS in server/chat/manager.js \u2014 supports status, search_contacts, search_deals operations; Chat Agent can look up CRM data mid-conversation",
+        "HubSpot skill auto-seeded on startup in server/index.js \u2014 when HUBSPOT_ACCESS_TOKEN is present in Global Secrets Vault, creates 'HubSpot CRM' skill in Skills Library with full API patterns, contact form to HubSpot lead pattern, lead status values, deal stage values, and error handling guidance",
+        "Activate skill with /hubspot in chat \u2014 injects full HubSpot build context into the builder for generated apps",
+        "Forge_context_pack.json added to GitHub repo (sensitive github_pat field redacted to 'stored locally only \u2014 never committed')"
       ],
       "decisions": [
-        "HubSpot token stored in Global Secrets Vault as HUBSPOT_ACCESS_TOKEN — auto-injected into generated app environments at runtime",
-        "All HubSpot API calls from generated apps must be server-side only — token never exposed to frontend",
+        "HubSpot token stored in Global Secrets Vault as HUBSPOT_ACCESS_TOKEN \u2014 auto-injected into generated app environments at runtime",
+        "All HubSpot API calls from generated apps must be server-side only \u2014 token never exposed to frontend",
         "Contact form to HubSpot lead pattern: POST /crm/v3/objects/contacts with hs_lead_status: NEW; on 409 Conflict search and PATCH existing contact",
-        "HubSpot skill is opt-in per project via /hubspot in chat — not auto-injected into all builds"
+        "HubSpot skill is opt-in per project via /hubspot in chat \u2014 not auto-injected into all builds"
       ],
       "pending": [
         "Test Restore Iteration feature end-to-end",
-        "Point sandbox-xm.com DNS fully — A record @ → Render IP at Namecheap + www URL redirect",
+        "Point sandbox-xm.com DNS fully \u2014 A record @ \u2192 Render IP at Namecheap + www URL redirect",
         "Build sandbox-xm contact form with HubSpot lead creation using /hubspot skill"
       ],
       "open_questions": []
     },
     {
       "date": "2026-03-13",
-      "session_title": "PLAN: Signal Path — Chat Agent Autonomy Upgrade for Multi-Step Fixes",
+      "session_title": "PLAN: Signal Path \u2014 Chat Agent Autonomy Upgrade for Multi-Step Fixes",
       "shipped": [
-        "Added PLAN: output signal to Chat Agent (server/chat/manager.js) — alongside BUILD: for surgical single-file fixes, Chat Agent can now output PLAN: for coordinated multi-step fixes (deprecated APIs, multi-route rewrites, dependency changes)",
-        "parseResponse() updated to detect PLAN: prefix — returns suggestPlan: true and planSuggestion fields; PLAN: takes priority over BUILD: in parsing",
+        "Added PLAN: output signal to Chat Agent (server/chat/manager.js) \u2014 alongside BUILD: for surgical single-file fixes, Chat Agent can now output PLAN: for coordinated multi-step fixes (deprecated APIs, multi-route rewrites, dependency changes)",
+        "parseResponse() updated to detect PLAN: prefix \u2014 returns suggestPlan: true and planSuggestion fields; PLAN: takes priority over BUILD: in parsing",
         "ensureSchema() adds suggest_plan BOOLEAN and plan_suggestion TEXT columns to chat_messages table via ALTER TABLE IF NOT EXISTS; getHistory and saveMessage updated to load/store new fields",
         "clearBuildSuggestions() updated to also clear suggest_plan on all messages for project",
-        "Chat Agent instructions updated — new BUILD vs PLAN section teaches: BUILD: for single root cause one file one code change; PLAN: for external API format changes, multi-route rewrites, package.json + code changes, deprecated SDK replacement; explicit rule: never use PLAN: for single-line fixes",
-        "banned-pattern check intentionally excludes planSuggestion — multi-step scope language (file lists, API names, format descriptions) is allowed in PLAN: text",
+        "Chat Agent instructions updated \u2014 new BUILD vs PLAN section teaches: BUILD: for single root cause one file one code change; PLAN: for external API format changes, multi-route rewrites, package.json + code changes, deprecated SDK replacement; explicit rule: never use PLAN: for single-line fixes",
+        "banned-pattern check intentionally excludes planSuggestion \u2014 multi-step scope language (file lists, API names, format descriptions) is allowed in PLAN: text",
         "auto-detect 'I'll reforge' pattern now guarded to only fire when neither suggestBuild nor suggestPlan is already set",
-        "Planner prompt updated (server/plan/manager.js) — PLAN_SYSTEM_PROMPT now handles two input types: user feature requests and Chat Agent diagnoses; for diagnosis inputs, planner trusts the diagnosis and does not add extra scope",
-        "ChatMessage interface updated (client/src/App.tsx) — added suggestPlan?: boolean and planSuggestion?: string | null fields",
-        "handlePlanFromSuggestion added to PromptColumn.tsx — calls onRunBuild(planSuggestion) without skipPlan, routing through full plan gate",
-        "Purple 'Generate Plan' button added to chat UI — appears when suggestPlan: true, distinct from green 'Build this change' button; .chat-plan-btn CSS added to index.css",
-        "LogoForge (apps/logoforge branch) diagnosed as externally broken — Stability AI v1 API deprecated, old @anthropic-ai/sdk version, missing return in refine route; identified as canonical PLAN: use case"
+        "Planner prompt updated (server/plan/manager.js) \u2014 PLAN_SYSTEM_PROMPT now handles two input types: user feature requests and Chat Agent diagnoses; for diagnosis inputs, planner trusts the diagnosis and does not add extra scope",
+        "ChatMessage interface updated (client/src/App.tsx) \u2014 added suggestPlan?: boolean and planSuggestion?: string | null fields",
+        "handlePlanFromSuggestion added to PromptColumn.tsx \u2014 calls onRunBuild(planSuggestion) without skipPlan, routing through full plan gate",
+        "Purple 'Generate Plan' button added to chat UI \u2014 appears when suggestPlan: true, distinct from green 'Build this change' button; .chat-plan-btn CSS added to index.css",
+        "LogoForge (apps/logoforge branch) diagnosed as externally broken \u2014 Stability AI v1 API deprecated, old @anthropic-ai/sdk version, missing return in refine route; identified as canonical PLAN: use case"
       ],
       "decisions": [
-        "BUILD: vs PLAN: split is the core autonomy architectural piece — surgical precision for simple fixes, structured delegation for migrations",
-        "PLAN: signal routes through full plan gate: Chat Agent diagnosis → planner maps scope → user approves → builder gets explicit permission list for all files",
-        "Inspect-mode (Visual Editor) always produces BUILD: — element-level changes are definitionally single-file surgical; PLAN: criteria never apply to visual edits",
-        "planSuggestion is exempt from banned-pattern validation — multi-step scope descriptions require language that would be banned in bug reports (file lists, 'and', format descriptions)",
-        "Forge's autonomy failure mode on API migrations is a system design issue, not a Chat Agent quality issue — the one-fix surgical model was the wrong tool for the job; PLAN: closes that gap"
+        "BUILD: vs PLAN: split is the core autonomy architectural piece \u2014 surgical precision for simple fixes, structured delegation for migrations",
+        "PLAN: signal routes through full plan gate: Chat Agent diagnosis \u2192 planner maps scope \u2192 user approves \u2192 builder gets explicit permission list for all files",
+        "Inspect-mode (Visual Editor) always produces BUILD: \u2014 element-level changes are definitionally single-file surgical; PLAN: criteria never apply to visual edits",
+        "planSuggestion is exempt from banned-pattern validation \u2014 multi-step scope descriptions require language that would be banned in bug reports (file lists, 'and', format descriptions)",
+        "Forge's autonomy failure mode on API migrations is a system design issue, not a Chat Agent quality issue \u2014 the one-fix surgical model was the wrong tool for the job; PLAN: closes that gap"
       ],
       "pending": [
         "Test PLAN: signal end-to-end on a real multi-step fix",
@@ -321,52 +339,52 @@
   ],
   "domain_knowledge": [
     "ForgeOS serves workspace previews at /preview/:runId/ and published apps via *.forge-os.ai subdomains behind a path-prefix proxy",
-    "All Claude-generated workspace apps must use root-relative URLs with a leading slash (e.g. /api/items, /style.css) — the proxy handles prefix rewriting, apps must never do it themselves",
-    "Never add <base> tags to any app — they break proxy rewriting",
-    "Preview proxy (/preview/:runId) intercepts ALL requests including /api/assets/* — fix applied in server/index.js short-circuits asset requests to ForgeOS root handler",
-    "Generated apps must fetch global assets client-side using /api/assets/FILENAME — never server-side via localhost self-call",
+    "All Claude-generated workspace apps must use root-relative URLs with a leading slash (e.g. /api/items, /style.css) \u2014 the proxy handles prefix rewriting, apps must never do it themselves",
+    "Never add <base> tags to any app \u2014 they break proxy rewriting",
+    "Preview proxy (/preview/:runId) intercepts ALL requests including /api/assets/* \u2014 fix applied in server/index.js short-circuits asset requests to ForgeOS root handler",
+    "Generated apps must fetch global assets client-side using /api/assets/FILENAME \u2014 never server-side via localhost self-call",
     "ForgeOS apps run in two modes: Mode A (node server.js, plain Node, default) or Mode B (npm run dev, Vite+React, opt-in)",
     "Mode A: CommonJS only, no bundlers, no build steps, plain HTML/CSS/JS frontend",
-    "Mode B: Vite + React or Vue only — vite.config.js required, server.port must bind to process.env.PORT, server.host: true",
-    "The platform injects environment variables at runtime — no dotenv, no .env files",
-    "PORT must always be process.env.PORT || 3000 — never hardcoded",
-    "Every Mode A app requires GET / returning a complete HTML page — not a redirect, not JSON",
+    "Mode B: Vite + React or Vue only \u2014 vite.config.js required, server.port must bind to process.env.PORT, server.host: true",
+    "The platform injects environment variables at runtime \u2014 no dotenv, no .env files",
+    "PORT must always be process.env.PORT || 3000 \u2014 never hardcoded",
+    "Every Mode A app requires GET / returning a complete HTML page \u2014 not a redirect, not JSON",
     "Database: @neondatabase/serverless only, all CREATE TABLE statements use IF NOT EXISTS, FK column types must exactly match referenced PK types",
-    "Authentication: Neon Auth via jose + JWKS only — no bcrypt, no custom JWT signing, no passport",
-    "Claude frequently wraps JSON responses in markdown fences — always strip before JSON.parse",
+    "Authentication: Neon Auth via jose + JWKS only \u2014 no bcrypt, no custom JWT signing, no passport",
+    "Claude frequently wraps JSON responses in markdown fences \u2014 always strip before JSON.parse",
     "ForgeOS Brain (server/memory/brain.js) provides persistent memory across all projects and team members via Neon Postgres",
-    "Brain memory is non-blocking — extractMemory is called after successful builds but never blocks the build response",
-    "The Chat Agent degradation pattern: after failed iterations it loses confidence and reaches for logging/try-catch — this is a named failure mode, not acceptable behavior",
+    "Brain memory is non-blocking \u2014 extractMemory is called after successful builds but never blocks the build response",
+    "The Chat Agent degradation pattern: after failed iterations it loses confidence and reaches for logging/try-catch \u2014 this is a named failure mode, not acceptable behavior",
     "Logging is never a fix. try-catch is never a fix. Find the actual broken code.",
     "buildSuggestion must contain: file + route/function + current broken code + replacement. One sentence. No outcome descriptions.",
-    "Never write inline backtick-wrapped content (e.g. code examples) inside JS template literal strings — Node parser treats backtick as closing the template literal",
-    "Claude Code PRs (claude/* branches) must be reviewed before merge — they can introduce syntax errors and conflicting prompt changes",
+    "Never write inline backtick-wrapped content (e.g. code examples) inside JS template literal strings \u2014 Node parser treats backtick as closing the template literal",
+    "Claude Code PRs (claude/* branches) must be reviewed before merge \u2014 they can introduce syntax errors and conflicting prompt changes",
     "The Visual Editor has three phases: Phase 1 (Inspect Mode in Render tab), Phase 2 (Edit tab with split-pane file editor), Phase 3 (Inspect-to-Edit bridge via background file search)",
-    "Inspector script is injected dormant into every preview HTML page via rewriteHtmlForProxy — activated via postMessage forge:inspect:activate, deactivated via forge:inspect:deactivate",
-    "Phase 3 file search uses GET /api/runs/:id/file/search?text=... — searches text files, returns up to 10 {file, line, snippet} matches",
-    "forgeos:jump-to-file custom event carries {file, line} — EditTab listens and jumps to file+line with blue flash confirmation",
-    "server/pipeline/ contains only runner.js — agents.js and schemas.js were deleted in the March 10 cleanup",
-    "Plan gate: raw chat prompts go through generatePlan() (haiku) → user approves → /iterate with approvedPlan → planToConstraintBlock prepended to builder system prompt",
-    "Surgical builds: Chat Agent buildSuggestion clicks bypass plan gate via isSuggestion: true → suggestionToConstraintBlock parses target file from suggestion text → single-file constraint block prepended to builder prompt",
-    "suggestionToConstraintBlock safe fallback: if regex /\\bin\\s+([\\w./-]+\\.\\w+)/i cannot parse a file path, ALL existing files go off-limits — builder cannot touch anything, safe failure mode",
-    "run.suggestionTarget stores the parsed target file name — surfaced in Plan tab as 'Surgical edit in progress / Targeting: <file>'",
-    "deleteIteration(projectId, runId) in server/projects/manager.js — deletes from iterations table + run_snapshots, removes from in-memory array, auto-rolls currentRunId back to previous iteration",
-    "Iteration rollback pattern: force-push apps/<slug> branch to target tag's commit SHA via GitHub API PATCH /repos/:owner/:repo/git/refs/heads/apps/:slug — does not create new commit, Render may need manual redeploy trigger",
-    "Surgical build workspace seeding: createWorkspace() deletes entire workspace dir on every run; for isSuggestion builds, write existingFiles first then overwrite with builder output — only the target file changes, all other files survive",
-    "startApp entry file guard: before spawning node <file>, check fs.existsSync — if missing, set status=start-failed and return immediately instead of crashing in restart loop",
+    "Inspector script is injected dormant into every preview HTML page via rewriteHtmlForProxy \u2014 activated via postMessage forge:inspect:activate, deactivated via forge:inspect:deactivate",
+    "Phase 3 file search uses GET /api/runs/:id/file/search?text=... \u2014 searches text files, returns up to 10 {file, line, snippet} matches",
+    "forgeos:jump-to-file custom event carries {file, line} \u2014 EditTab listens and jumps to file+line with blue flash confirmation",
+    "server/pipeline/ contains only runner.js \u2014 agents.js and schemas.js were deleted in the March 10 cleanup",
+    "Plan gate: raw chat prompts go through generatePlan() (haiku) \u2192 user approves \u2192 /iterate with approvedPlan \u2192 planToConstraintBlock prepended to builder system prompt",
+    "Surgical builds: Chat Agent buildSuggestion clicks bypass plan gate via isSuggestion: true \u2192 suggestionToConstraintBlock parses target file from suggestion text \u2192 single-file constraint block prepended to builder prompt",
+    "suggestionToConstraintBlock safe fallback: if regex /\\bin\\s+([\\w./-]+\\.\\w+)/i cannot parse a file path, ALL existing files go off-limits \u2014 builder cannot touch anything, safe failure mode",
+    "run.suggestionTarget stores the parsed target file name \u2014 surfaced in Plan tab as 'Surgical edit in progress / Targeting: <file>'",
+    "deleteIteration(projectId, runId) in server/projects/manager.js \u2014 deletes from iterations table + run_snapshots, removes from in-memory array, auto-rolls currentRunId back to previous iteration",
+    "Iteration rollback pattern: force-push apps/<slug> branch to target tag's commit SHA via GitHub API PATCH /repos/:owner/:repo/git/refs/heads/apps/:slug \u2014 does not create new commit, Render may need manual redeploy trigger",
+    "Surgical build workspace seeding: createWorkspace() deletes entire workspace dir on every run; for isSuggestion builds, write existingFiles first then overwrite with builder output \u2014 only the target file changes, all other files survive",
+    "startApp entry file guard: before spawning node <file>, check fs.existsSync \u2014 if missing, set status=start-failed and return immediately instead of crashing in restart loop",
     "deleteIteration via local env: query Neon with NEON_DATABASE_URL to get runId, generate HMAC cookie from SESSION_SECRET using gate.js signToken logic, call DELETE /api/projects/:id/runs/:runId with Cookie: fos_session=<token>",
-    "run_snapshots Neon table stores run data as JSONB; files are at stages.builder.output.files (array of {path, content} objects) — not at top-level or builder.files",
-    "restoreIteration requires loadAndRegisterRun after workspace recreation — runner.js runs Map is the source of truth for UI polling; skipping this leaves the UI unable to see the restored run",
-    "stopApp(currentRunId) vs stopAllApps() — always use the scoped form in project-specific operations; stopAllApps kills every project's workspace process and is only appropriate for shutdown",
-    "Runs with no snapshot in run_snapshots cannot be restored — if snapshot is missing, restoreIteration fails fast before touching filesystem; delete these iterations via deleteIteration instead",
+    "run_snapshots Neon table stores run data as JSONB; files are at stages.builder.output.files (array of {path, content} objects) \u2014 not at top-level or builder.files",
+    "restoreIteration requires loadAndRegisterRun after workspace recreation \u2014 runner.js runs Map is the source of truth for UI polling; skipping this leaves the UI unable to see the restored run",
+    "stopApp(currentRunId) vs stopAllApps() \u2014 always use the scoped form in project-specific operations; stopAllApps kills every project's workspace process and is only appropriate for shutdown",
+    "Runs with no snapshot in run_snapshots cannot be restored \u2014 if snapshot is missing, restoreIteration fails fast before touching filesystem; delete these iterations via deleteIteration instead",
     "HubSpot integration: server/integrations/hubspot.js wraps HubSpot REST API using HUBSPOT_ACCESS_TOKEN from Global Secrets Vault; contacts at /crm/v3/objects/contacts, deals at /crm/v3/objects/deals, all calls require Authorization: Bearer header",
     "HubSpot contact form pattern: POST /crm/v3/objects/contacts with hs_lead_status: NEW; handle 409 Conflict by searching for existing contact then PATCHing; always server-side, never expose token to frontend",
-    "HubSpot skill activated with /hubspot in chat — injects full API patterns, contact/deal endpoints, lead status values, and error handling into the builder system prompt",
-    "PLAN: signal in Chat Agent output — for multi-step coordinated fixes (deprecated API migrations, multi-route rewrites, package.json + code changes); routes through full plan gate instead of surgical build path",
+    "HubSpot skill activated with /hubspot in chat \u2014 injects full API patterns, contact/deal endpoints, lead status values, and error handling into the builder system prompt",
+    "PLAN: signal in Chat Agent output \u2014 for multi-step coordinated fixes (deprecated API migrations, multi-route rewrites, package.json + code changes); routes through full plan gate instead of surgical build path",
     "BUILD: vs PLAN: in Chat Agent: BUILD: = one root cause, one file, one code change; PLAN: = coordinated multi-step fix requiring planner to map scope; output one or the other, never both",
-    "planSuggestion is exempt from banned-pattern validation — multi-step scope language is intentionally allowed in PLAN: text; banned-pattern check only runs on message and buildSuggestion",
-    "Inspect-mode (Visual Editor) always produces BUILD: — element-level single-file changes never qualify as PLAN: scope",
-    "Chat Agent autonomy failure on API migrations was a system design gap — one-fix surgical model was the wrong tool; PLAN: signal closes the gap by routing complex fixes through the planner"
+    "planSuggestion is exempt from banned-pattern validation \u2014 multi-step scope language is intentionally allowed in PLAN: text; banned-pattern check only runs on message and buildSuggestion",
+    "Inspect-mode (Visual Editor) always produces BUILD: \u2014 element-level single-file changes never qualify as PLAN: scope",
+    "Chat Agent autonomy failure on API migrations was a system design gap \u2014 one-fix surgical model was the wrong tool; PLAN: signal closes the gap by routing complex fixes through the planner"
   ],
   "decisions_made": [
     {
@@ -374,7 +392,7 @@
       "rationale": "Pipeline had too many inter-agent communication failure points. Single model with full context reasons through the whole build in one pass."
     },
     {
-      "decision": "Assets are global scope — no project_id",
+      "decision": "Assets are global scope \u2014 no project_id",
       "rationale": "Project-scoped assets fell out on reforge. Global assets persist across all projects and rebuilds."
     },
     {
@@ -383,7 +401,7 @@
     },
     {
       "decision": "Mode A / Mode B runtime structure in builder prompt",
-      "rationale": "Without explicit modes the builder would guess when to use Vite. Mode A is default, Mode B is opt-in — clear decision tree prevents unnecessary framework use."
+      "rationale": "Without explicit modes the builder would guess when to use Vite. Mode A is default, Mode B is opt-in \u2014 clear decision tree prevents unnecessary framework use."
     },
     {
       "decision": "All Anthropic API calls use claude-opus-4-5",
@@ -391,26 +409,26 @@
     },
     {
       "decision": "Memory extraction uses claude-haiku-4-5-20251001 not opus",
-      "rationale": "Memory extraction is a lightweight classification task — haiku is fast and cheap."
+      "rationale": "Memory extraction is a lightweight classification task \u2014 haiku is fast and cheap."
     },
     {
       "decision": "ForgeOS Brain stores memories in Neon Postgres, not a separate vector DB",
-      "rationale": "Neon supports pgvector natively — no additional infrastructure needed."
+      "rationale": "Neon supports pgvector natively \u2014 no additional infrastructure needed."
     },
     {
-      "decision": "Replit sunset — VS Code is sole dev environment",
+      "decision": "Replit sunset \u2014 VS Code is sole dev environment",
       "rationale": "Replit caused workflow friction. VS Code + GitHub + Render is cleaner and more reliable."
     },
     {
-      "decision": "Visual editor ships Phase 2 → Phase 1 → Phase 3",
-      "rationale": "Phase 2 (direct file edit) delivers immediate value with zero pipeline risk. Phase 1 (inspect) adds element targeting. Phase 3 (bridge) closes the loop — each phase is useful standalone."
+      "decision": "Visual editor ships Phase 2 \u2192 Phase 1 \u2192 Phase 3",
+      "rationale": "Phase 2 (direct file edit) delivers immediate value with zero pipeline risk. Phase 1 (inspect) adds element targeting. Phase 3 (bridge) closes the loop \u2014 each phase is useful standalone."
     },
     {
       "decision": "Inspector script injected dormant into all preview HTML, activated via postMessage",
       "rationale": "No server round-trip needed to toggle inspect mode. Keeps the iframe self-contained and the activation instantaneous."
     },
     {
-      "decision": "All Render services upgraded to Standard tier — Starter retired",
+      "decision": "All Render services upgraded to Standard tier \u2014 Starter retired",
       "rationale": "Always-on requirement. Starter tier spins down after inactivity."
     },
     {
@@ -431,7 +449,7 @@
     },
     {
       "decision": "restoreIteration uses stopApp(currentRunId) not stopAllApps()",
-      "rationale": "stopAllApps() is a global shutdown tool — calling it during a single-project restore destroys every other running workspace. Scoped stopApp() is the correct primitive for project-level operations."
+      "rationale": "stopAllApps() is a global shutdown tool \u2014 calling it during a single-project restore destroys every other running workspace. Scoped stopApp() is the correct primitive for project-level operations."
     },
     {
       "decision": "restoreIteration fails fast on missing snapshot before any filesystem changes",
@@ -439,41 +457,41 @@
     },
     {
       "decision": "loadAndRegisterRun() added to runner.js to put past snapshots back in the runs Map",
-      "rationale": "The UI polls the runs Map directly for status and file data. A workspace that's running but not in the Map is invisible to the user — they see a spinner forever."
+      "rationale": "The UI polls the runs Map directly for status and file data. A workspace that's running but not in the Map is invisible to the user \u2014 they see a spinner forever."
     },
     {
       "decision": "HubSpot integration uses Global Secrets Vault token, not hardcoded credentials",
-      "rationale": "Vault token is auto-injected as HUBSPOT_ACCESS_TOKEN at runtime into all generated apps — no code change needed when token rotates."
+      "rationale": "Vault token is auto-injected as HUBSPOT_ACCESS_TOKEN at runtime into all generated apps \u2014 no code change needed when token rotates."
     },
     {
-      "decision": "PLAN: signal added to Chat Agent — routes multi-step fixes through plan gate instead of surgical build",
+      "decision": "PLAN: signal added to Chat Agent \u2014 routes multi-step fixes through plan gate instead of surgical build",
       "rationale": "The one-fix surgical model was the wrong tool for API migrations and deprecated endpoint rewrites. PLAN: gives the Chat Agent a second output path that matches the complexity of the fix to the right build mechanism."
     },
     {
       "decision": "planSuggestion exempt from banned-pattern validation",
-      "rationale": "PLAN: text must describe full migration scope — it inherently uses language like 'both routes', 'and package.json', file lists. Applying the bug-report two-sentence rule to planning text would make the plan description useless."
+      "rationale": "PLAN: text must describe full migration scope \u2014 it inherently uses language like 'both routes', 'and package.json', file lists. Applying the bug-report two-sentence rule to planning text would make the plan description useless."
     }
   ],
   "preferences": [
     {
       "key": "voice_directive",
-      "value": "Never use 'refactor' — the correct term is 'reforge'"
+      "value": "Never use 'refactor' \u2014 the correct term is 'reforge'"
     },
     {
       "key": "code_style",
-      "value": "CommonJS (require/module.exports) for server — ES modules allowed in Vite/React frontend (Mode B only)"
+      "value": "CommonJS (require/module.exports) for server \u2014 ES modules allowed in Vite/React frontend (Mode B only)"
     },
     {
       "key": "database",
-      "value": "@neondatabase/serverless exclusively — no other drivers"
+      "value": "@neondatabase/serverless exclusively \u2014 no other drivers"
     },
     {
       "key": "frontend_default",
-      "value": "Plain HTML/CSS/JS (Mode A) — Vite+React (Mode B) only when explicitly requested"
+      "value": "Plain HTML/CSS/JS (Mode A) \u2014 Vite+React (Mode B) only when explicitly requested"
     },
     {
       "key": "deploy_chain",
-      "value": "Claude → GitHub (BrianBMorgan/ForgeOS) → Render → production (forge-os.ai)"
+      "value": "Claude \u2192 GitHub (BrianBMorgan/ForgeOS) \u2192 Render \u2192 production (forge-os.ai)"
     },
     {
       "key": "model_preference",
@@ -481,7 +499,7 @@
     },
     {
       "key": "iteration_style",
-      "value": "Conversational — expect iteration, build on what works, don't rebuild from scratch"
+      "value": "Conversational \u2014 expect iteration, build on what works, don't rebuild from scratch"
     },
     {
       "key": "response_style",
@@ -497,61 +515,60 @@
     },
     {
       "key": "failure_mode_preference",
-      "value": "Safe failure always preferred over destructive success — a build that does nothing is better than one that damages files"
+      "value": "Safe failure always preferred over destructive success \u2014 a build that does nothing is better than one that damages files"
     }
   ],
   "patterns_that_worked": [
-    "Single Claude call with full platform constraints replaces multi-agent pipeline — simpler, fewer failure points",
-    "Memory extraction as a non-blocking post-build call — never blocks user-facing response",
-    "buildContext() prepended to system prompt as a separate block — clean separation of memory from instructions",
-    "Per-project conversation history stored in DB and passed as messages array — gives Claude full build journey awareness",
-    "Pre-emit self-checklist in builder prompt — model gates itself before output",
-    "Fence-strip + first-brace-scan pattern for all Claude JSON responses — handles all three Claude output styles",
-    "Preview proxy /api/assets/* passthrough — short-circuit to ForgeOS root handler, never forward to workspace app",
-    "Mode A / Mode B explicit runtime modes — prevents builder from guessing when to use Vite",
+    "Single Claude call with full platform constraints replaces multi-agent pipeline \u2014 simpler, fewer failure points",
+    "Memory extraction as a non-blocking post-build call \u2014 never blocks user-facing response",
+    "buildContext() prepended to system prompt as a separate block \u2014 clean separation of memory from instructions",
+    "Per-project conversation history stored in DB and passed as messages array \u2014 gives Claude full build journey awareness",
+    "Pre-emit self-checklist in builder prompt \u2014 model gates itself before output",
+    "Fence-strip + first-brace-scan pattern for all Claude JSON responses \u2014 handles all three Claude output styles",
+    "Preview proxy /api/assets/* passthrough \u2014 short-circuit to ForgeOS root handler, never forward to workspace app",
+    "Mode A / Mode B explicit runtime modes \u2014 prevents builder from guessing when to use Vite",
     "Full syntax check (node --check) across all server JS files before every push",
-    "Three-phase visual editor — each phase useful standalone, phases compose into a full inspect-to-edit workflow",
-    "Dormant inspector script injected into all preview HTML — zero latency activation via postMessage",
-    "forgeos:jump-to-file custom event decouples RenderTab from EditTab — no prop threading needed",
-    "Plan gate constraint block prepended to builder system prompt — gives builder explicit permission and denial lists before it touches any file",
-    "suggestionToConstraintBlock safe fallback — locks all files when target cannot be parsed, never allows unconstrained build",
-    "isSuggestion flag threaded end-to-end (client → request body → createRun → run object → buildWorkspace) — clean signal for surgical build path with no ambiguity",
-    "Iteration rollback via GitHub API force-push — fast, no new commits, clean branch history",
-    "HubSpot skill seeded automatically on startup when token is present — zero manual setup for builders using /hubspot",
-    "PLAN: signal as Chat Agent escalation path — matches fix complexity to the right build mechanism without forcing the user to re-prompt",
-    "Planner prompt handling two input types — feature requests and Chat Agent diagnoses treated differently; diagnoses trusted as precise specifications with no extra scope added"
+    "Three-phase visual editor \u2014 each phase useful standalone, phases compose into a full inspect-to-edit workflow",
+    "Dormant inspector script injected into all preview HTML \u2014 zero latency activation via postMessage",
+    "forgeos:jump-to-file custom event decouples RenderTab from EditTab \u2014 no prop threading needed",
+    "Plan gate constraint block prepended to builder system prompt \u2014 gives builder explicit permission and denial lists before it touches any file",
+    "suggestionToConstraintBlock safe fallback \u2014 locks all files when target cannot be parsed, never allows unconstrained build",
+    "isSuggestion flag threaded end-to-end (client \u2192 request body \u2192 createRun \u2192 run object \u2192 buildWorkspace) \u2014 clean signal for surgical build path with no ambiguity",
+    "Iteration rollback via GitHub API force-push \u2014 fast, no new commits, clean branch history",
+    "HubSpot skill seeded automatically on startup when token is present \u2014 zero manual setup for builders using /hubspot",
+    "PLAN: signal as Chat Agent escalation path \u2014 matches fix complexity to the right build mechanism without forcing the user to re-prompt",
+    "Planner prompt handling two input types \u2014 feature requests and Chat Agent diagnoses treated differently; diagnoses trusted as precise specifications with no extra scope added"
   ],
   "mistakes_to_avoid": [
-    "Inline backtick-wrapped content inside JS template literal strings — Node parser treats backtick as closing delimiter",
-    "Merging Claude Code PRs (claude/* branches) without review — PR #33 introduced syntax errors in builder.js and agents.js",
-    "Chat Agent suggesting logging or try-catch after failed iterations — named as degradation pattern, explicitly banned",
-    "Generated apps fetching assets server-side via localhost — always fetch client-side using root-relative /api/assets/FILENAME",
-    "getAssetsContext() returning array — must return formatted string for filter(Boolean).join() to work in builder.js",
-    "Fetch URL audit rule inverted — correct rule is: fetch argument must start with / and must not contain ://",
-    "Spreading process.env wholesale into child processes — host secrets bleed into published apps",
-    "URL helper functions (apiUrl(), buildUrl()) that construct absolute URLs — fix fetch() calls directly with /path strings",
-    "Multiple code changes in a single buildSuggestion — one root cause, one code change",
-    "Format rules at top of long prompts — model drops them under context pressure",
-    "Using execSync with shell string interpolation for paths — use execFileSync with args array",
-    "Running the plan gate on Chat Agent build suggestions — planner treats the suggestion as a feature request and generates a broad multi-file plan, which then gives the builder permission to touch files it should never touch",
-    "Force-push rollback without triggering Render redeploy — Render webhook may not fire on force-push since no new commit SHA is created; always verify the live site reflects the rollback",
-    "Trusting Forge's self-diagnosis on surgical build failures — Forge misidentified the root cause as 'executor not creating server.js' and proposed regenerating server.js on every HTML edit; real issue was createWorkspace() wiping the workspace; always trace the actual code path",
-    "Surgical builds writing only builder output without seeding existingFiles — createWorkspace wipes the dir, builder returns only the target file, all other files deleted",
-    "Using stopAllApps() in restoreIteration — kills every running workspace across all projects; always use stopApp(currentRunId) for project-scoped operations",
-    "Skipping loadAndRegisterRun after restoreIteration — workspace runs but UI cannot see it; runner Map must be updated after any workspace recreation",
-    "Attempting to restore a run with no snapshot — restoreIteration will fail; verify snapshot exists at stages.builder.output.files in run_snapshots before expecting restore to work; delete no-snapshot runs with deleteIteration instead",
-    "Exposing HUBSPOT_ACCESS_TOKEN to the frontend — all HubSpot calls must be server-side only; token must never appear in client-side code or API responses",
-    "Using PLAN: for single-line fixes — escalation to avoid writing a precise BUILD: line; always use BUILD: when the fix is one file, one code change",
-    "Forcing surgical BUILD: path for API migrations — when an external API changes endpoint or payload format, multiple routes must be rewritten together; surgical single-file path leaves the app in a broken partial state"
+    "Inline backtick-wrapped content inside JS template literal strings \u2014 Node parser treats backtick as closing delimiter",
+    "Merging Claude Code PRs (claude/* branches) without review \u2014 PR #33 introduced syntax errors in builder.js and agents.js",
+    "Chat Agent suggesting logging or try-catch after failed iterations \u2014 named as degradation pattern, explicitly banned",
+    "Generated apps fetching assets server-side via localhost \u2014 always fetch client-side using root-relative /api/assets/FILENAME",
+    "getAssetsContext() returning array \u2014 must return formatted string for filter(Boolean).join() to work in builder.js",
+    "Fetch URL audit rule inverted \u2014 correct rule is: fetch argument must start with / and must not contain ://",
+    "Spreading process.env wholesale into child processes \u2014 host secrets bleed into published apps",
+    "URL helper functions (apiUrl(), buildUrl()) that construct absolute URLs \u2014 fix fetch() calls directly with /path strings",
+    "Multiple code changes in a single buildSuggestion \u2014 one root cause, one code change",
+    "Format rules at top of long prompts \u2014 model drops them under context pressure",
+    "Using execSync with shell string interpolation for paths \u2014 use execFileSync with args array",
+    "Running the plan gate on Chat Agent build suggestions \u2014 planner treats the suggestion as a feature request and generates a broad multi-file plan, which then gives the builder permission to touch files it should never touch",
+    "Force-push rollback without triggering Render redeploy \u2014 Render webhook may not fire on force-push since no new commit SHA is created; always verify the live site reflects the rollback",
+    "Trusting Forge's self-diagnosis on surgical build failures \u2014 Forge misidentified the root cause as 'executor not creating server.js' and proposed regenerating server.js on every HTML edit; real issue was createWorkspace() wiping the workspace; always trace the actual code path",
+    "Surgical builds writing only builder output without seeding existingFiles \u2014 createWorkspace wipes the dir, builder returns only the target file, all other files deleted",
+    "Using stopAllApps() in restoreIteration \u2014 kills every running workspace across all projects; always use stopApp(currentRunId) for project-scoped operations",
+    "Skipping loadAndRegisterRun after restoreIteration \u2014 workspace runs but UI cannot see it; runner Map must be updated after any workspace recreation",
+    "Attempting to restore a run with no snapshot \u2014 restoreIteration will fail; verify snapshot exists at stages.builder.output.files in run_snapshots before expecting restore to work; delete no-snapshot runs with deleteIteration instead",
+    "Exposing HUBSPOT_ACCESS_TOKEN to the frontend \u2014 all HubSpot calls must be server-side only; token must never appear in client-side code or API responses",
+    "Using PLAN: for single-line fixes \u2014 escalation to avoid writing a precise BUILD: line; always use BUILD: when the fix is one file, one code change",
+    "Forcing surgical BUILD: path for API migrations \u2014 when an external API changes endpoint or payload format, multiple routes must be rewritten together; surgical single-file path leaves the app in a broken partial state"
   ],
-  "current_state": "ForgeOS is fully operational on Render. The single-prompt builder pipeline is live with Brain memory injection, global assets injection, and Mode A/Mode B runtime support. The Visual Editor is complete across all three phases. The cockpit includes a Diff tab, collapsible chat column, and mobile scroll fix. Version history with git tags and rollback is live. BYO custom domain support is live. The pre-build plan approval gate is live. Surgical build system is live and confirmed working. Restore Iteration feature is live with three bugs fixed. HubSpot CRM integration is live — server/integrations/hubspot.js, API routes, Chat Agent hubspot_query tool, and HubSpot CRM skill auto-seeding. PLAN: signal path is live — Chat Agent can now escalate multi-step fixes (API migrations, deprecated endpoints, dependency changes) through the full plan gate instead of forcing them into the surgical build path. sandbox-xm project_id is f9bc3895, currently on v32 (0fb0c8d1). Forge_context_pack.json is now committed to the GitHub repo (PAT redacted).",
+  "current_state": "Chat Agent diagnostics now include Global Secrets Vault visibility. LogoForge (apps/logoforge) code is correct and ready \u2014 STABILITYAI_API_KEY needs to be added to Global Secrets Vault via Settings for the app to work.",
   "next_steps": [
-    "Test PLAN: signal end-to-end — use LogoForge (apps/logoforge) as the first real validation case",
-    "Fix LogoForge: Stability AI v1 → v2beta migration + old SDK upgrade using PLAN: flow",
+    "Add STABILITYAI_API_KEY to ForgeOS Global Secrets Vault \u2014 LogoForge will work once this key is present",
+    "Test Chat Agent on LogoForge \u2014 should now diagnose missing secret instead of looping on code fixes",
     "Build sandbox-xm contact form with HubSpot lead creation using /hubspot skill",
     "Test Restore Iteration feature end-to-end in live environment",
-    "Point sandbox-xm.com DNS fully — A record @ → Render IP at Namecheap + www URL redirect",
-    "Consider pgvector semantic search upgrade once Brain has sufficient memory entries"
+    "Point sandbox-xm.com DNS \u2014 A record @ \u2192 Render IP at Namecheap + www URL redirect"
   ],
   "open_questions": [
     "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?",
@@ -563,7 +580,7 @@
   "key_terminology": [
     {
       "term": "reforge",
-      "value": "The correct term for what other systems call 'refactor' — we reforge code, never refactor it"
+      "value": "The correct term for what other systems call 'refactor' \u2014 we reforge code, never refactor it"
     },
     {
       "term": "ForgeOS",
@@ -579,15 +596,15 @@
     },
     {
       "term": "cockpit",
-      "value": "The ForgeOS UI — tab strip (Plan/Review/Diff/Auditor/Render/Edit/Shell/DB/Env/Publish) plus global Assets sidebar and collapsible chat column"
+      "value": "The ForgeOS UI \u2014 tab strip (Plan/Review/Diff/Auditor/Render/Edit/Shell/DB/Env/Publish) plus global Assets sidebar and collapsible chat column"
     },
     {
       "term": "Mode A",
-      "value": "Plain Node runtime — node server.js, CommonJS, no bundlers, plain HTML/CSS/JS frontend. Default mode."
+      "value": "Plain Node runtime \u2014 node server.js, CommonJS, no bundlers, plain HTML/CSS/JS frontend. Default mode."
     },
     {
       "term": "Mode B",
-      "value": "Vite+React runtime — npm run dev, Vite bundler, React or Vue frontend. Opt-in only."
+      "value": "Vite+React runtime \u2014 npm run dev, Vite bundler, React or Vue frontend. Opt-in only."
     },
     {
       "term": "Global Assets",
@@ -615,7 +632,7 @@
     },
     {
       "term": "forgeos:jump-to-file",
-      "value": "Custom window event carrying {file, line} — dispatched by RenderTab after a successful file search, consumed by EditTab to jump to the matched location"
+      "value": "Custom window event carrying {file, line} \u2014 dispatched by RenderTab after a successful file search, consumed by EditTab to jump to the matched location"
     },
     {
       "term": "plan gate",
@@ -643,7 +660,7 @@
     },
     {
       "term": "HubSpot integration",
-      "value": "server/integrations/hubspot.js — HubSpot REST API wrapper. Methods: searchContacts, createContact, updateContact, searchDeals, createDeal, getStatus. Uses HUBSPOT_ACCESS_TOKEN from Global Secrets Vault. API routes at /api/hubspot/*. Chat Agent has hubspot_query tool. HubSpot CRM skill auto-seeded on startup when token is present. Activated in builds with /hubspot in chat."
+      "value": "server/integrations/hubspot.js \u2014 HubSpot REST API wrapper. Methods: searchContacts, createContact, updateContact, searchDeals, createDeal, getStatus. Uses HUBSPOT_ACCESS_TOKEN from Global Secrets Vault. API routes at /api/hubspot/*. Chat Agent has hubspot_query tool. HubSpot CRM skill auto-seeded on startup when token is present. Activated in builds with /hubspot in chat."
     },
     {
       "term": "PLAN: signal",
