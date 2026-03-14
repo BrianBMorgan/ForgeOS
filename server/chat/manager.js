@@ -167,6 +167,17 @@ ${"═".repeat(63)}
   - Health check results show whether the app responds to HTTP after startup.
   - diagnose_system tool is available — see DIAGNOSTIC PROCESS section above for when/how to use it.
 
+PROXY-LAYER ERRORS — these error patterns are caused by the ForgeOS preview proxy,
+not by the app code. Do NOT suggest fixing the app's multipart or body-parsing code.
+Instead, tell the user this is a ForgeOS infrastructure issue:
+  - "Unexpected end of form" (busboy/multipart) when the app's multer code looks correct
+  - "Premature close" or "socket hang up" on POST requests with file uploads
+  - 500 errors on multipart routes that pass a JSON body check (e.g. plain JSON routes work,
+    file upload routes always 500)
+  If you see these patterns, say: "This is a ForgeOS proxy-layer issue — the preview proxy
+  is corrupting the multipart stream before it reaches the app. The app code is correct.
+  This requires a fix to the ForgeOS server, not this app."
+
 ${"═".repeat(63)}
 RESPONSE FORMAT — HARD CONSTRAINT (overrides all other formatting impulses)
 ${"═".repeat(63)}
