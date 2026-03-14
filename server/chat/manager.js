@@ -253,6 +253,28 @@ const SEARCH_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "hubspot_query",
+      description: "Query HubSpot CRM data. Use to look up contacts, deals, or check HubSpot connection status. Only available when HUBSPOT_ACCESS_TOKEN is set in the Global Secrets Vault.",
+      parameters: {
+        type: "object",
+        properties: {
+          operation: {
+            type: "string",
+            enum: ["status", "search_contacts", "search_deals"],
+            description: "Operation to perform: status (check connection), search_contacts (find contacts by name/email), search_deals (find deals by name).",
+          },
+          query: {
+            type: "string",
+            description: "Search query for search_contacts or search_deals operations.",
+          },
+        },
+        required: ["operation"],
+      },
+    },
+  },
 ];
 
 const dbUrl = process.env.NEON_DATABASE_URL;
@@ -366,6 +388,21 @@ async function executeToolCall(toolCall) {
       console.log(`  [chat] diagnose_system`);
       const result = await runDiagnostics(args.project_id, args.checks);
       return JSON.stringify(result);
+    } else if (name === "hubspot_query") {
+      const hubspot = require("../integrations/hubspot");
+      const operation = args.operation || "status";
+      console.log(`  [chat] hubspot_query: ${operation}`);
+      if (operation === "status") {
+        const result = await hubspot.getStatus();
+        return JSON.stringify(result);
+      } else if (operation === "search_contacts") {
+        const result = await hubspot.searchContacts(args.query || "");
+        return JSON.stringify(result);
+      } else if (operation === "search_deals") {
+        const result = await hubspot.searchDeals(args.query || "");
+        return JSON.stringify(result);
+      }
+      return JSON.stringify({ error: "Unknown hubspot operation" });
     }
     return JSON.stringify({ error: "Unknown tool" });
   } catch (err) {

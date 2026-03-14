@@ -1030,6 +1030,59 @@ app.delete("/api/skills/:id", async (req, res) => {
   res.json({ deleted: true });
 });
 
+// ── HubSpot Integration ──────────────────────────────────────────────────────
+const hubspot = require("./integrations/hubspot");
+
+app.get("/api/hubspot/status", async (_req, res) => {
+  try {
+    const status = await hubspot.getStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/hubspot/contacts", async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ error: "q parameter required" });
+    const data = await hubspot.searchContacts(q);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/hubspot/contacts", async (req, res) => {
+  try {
+    const contact = await hubspot.createContact(req.body);
+    res.json(contact);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/hubspot/deals", async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ error: "q parameter required" });
+    const data = await hubspot.searchDeals(q);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/hubspot/deals", async (req, res) => {
+  try {
+    const { properties, associatedContactId } = req.body;
+    const deal = await hubspot.createDeal(properties, associatedContactId);
+    res.json(deal);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const chatManager = require("./chat/manager");
 
 app.post("/api/projects/:id/chat", async (req, res) => {
@@ -1407,6 +1460,62 @@ app.listen(PORT, "0.0.0.0", async () => {
     await brain.ensureSchema();
   } catch (err) {
     console.error("Brain schema initialization error:", err.message);
+  }
+
+  try {
+    const token = await settingsManager.getSecret("HUBSPOT_ACCESS_TOKEN");
+    if (token) {
+      const skills = await settingsManager.getAllSkills();
+      if (!skills.find(s => s.name === "HubSpot CRM")) {
+        await settingsManager.createSkill({
+          name: "HubSpot CRM",
+          description: "Build HubSpot CRM-integrated apps. Covers contact creation, deal management, and lead capture patterns.",
+          instructions: [
+            "You are building a HubSpot CRM-integrated app.",
+            "The HubSpot private app access token is available as process.env.HUBSPOT_ACCESS_TOKEN — auto-injected from the Global Secrets Vault. Never hardcode the token.",
+            "",
+            "HUBSPOT API BASE: https://api.hubapi.com",
+            "AUTH HEADER on every request: Authorization: Bearer <process.env.HUBSPOT_ACCESS_TOKEN>",
+            "Content-Type: application/json",
+            "All HubSpot API calls must be server-side only — never expose the token to the frontend.",
+            "",
+            "CONTACTS",
+            "Create: POST /crm/v3/objects/contacts",
+            "  Body: { \"properties\": { \"email\": \"...\", \"firstname\": \"...\", \"lastname\": \"...\", \"phone\": \"...\", \"company\": \"...\", \"hs_lead_status\": \"NEW\" } }",
+            "  409 Conflict = contact already exists — use PATCH /crm/v3/objects/contacts/:id to update instead.",
+            "Search: POST /crm/v3/objects/contacts/search",
+            "  Body: { \"query\": \"john@example.com\", \"limit\": 10, \"properties\": [\"email\",\"firstname\",\"lastname\",\"phone\",\"company\"] }",
+            "Get: GET /crm/v3/objects/contacts/:id?properties=email,firstname,lastname,phone,company",
+            "Update: PATCH /crm/v3/objects/contacts/:id  Body: { \"properties\": { ... } }",
+            "",
+            "DEALS",
+            "Create: POST /crm/v3/objects/deals",
+            "  Body: { \"properties\": { \"dealname\": \"...\", \"amount\": \"...\", \"pipeline\": \"default\", \"dealstage\": \"appointmentscheduled\" } }",
+            "Search: POST /crm/v3/objects/deals/search",
+            "  Body: { \"query\": \"...\", \"limit\": 10, \"properties\": [\"dealname\",\"amount\",\"dealstage\",\"pipeline\"] }",
+            "Associate deal with contact: PUT /crm/v4/objects/deals/:dealId/associations/contacts/:contactId/deal_to_contact",
+            "  Body: [{ \"associationCategory\": \"HUBSPOT_DEFINED\", \"associationTypeId\": 3 }]",
+            "",
+            "LEAD STATUS VALUES: NEW, OPEN, IN_PROGRESS, OPEN_DEAL, UNQUALIFIED, ATTEMPTED_TO_CONTACT, CONNECTED, BAD_TIMING",
+            "DEAL STAGE VALUES: appointmentscheduled, qualifiedtobuy, presentationscheduled, decisionmakerboughtin, contractsent, closedwon, closedlost",
+            "",
+            "CONTACT FORM TO HUBSPOT LEAD PATTERN (standard for contact us / inquiry forms):",
+            "1. POST form data to a server route (e.g. POST /api/contact)",
+            "2. Server calls HubSpot POST /crm/v3/objects/contacts with hs_lead_status: NEW",
+            "3. On 409 Conflict, call GET /crm/v3/objects/contacts/search to find existing contact ID, then PATCH to update",
+            "4. Return success to client regardless of whether contact was created or updated",
+            "5. Optionally create an associated deal to track the inquiry as pipeline",
+            "",
+            "ERROR HANDLING: Parse HubSpot error body { status, message, category } for specific errors.",
+            "Log HubSpot errors server-side. Return a clean generic message to the client — never expose token or raw API errors.",
+          ].join("\n"),
+          tags: "hubspot,crm,contacts,deals,leads",
+        });
+        console.log("[startup] HubSpot CRM skill seeded");
+      }
+    }
+  } catch (err) {
+    console.error("HubSpot skill seed error:", err.message);
   }
 
   try {
