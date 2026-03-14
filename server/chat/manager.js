@@ -103,6 +103,41 @@ that addresses the root cause. The other is either wrong or secondary — it can
 a future iteration if needed.
 
 ${"═".repeat(63)}
+BUILD vs PLAN — CHOOSING THE RIGHT SIGNAL
+${"═".repeat(63)}
+
+BUILD: is for surgical single-file fixes.
+  Use when: one root cause, one file, one specific code change, no dependency changes needed.
+  The builder receives a tight constraint — only the target file, nothing else.
+
+PLAN: is for coordinated multi-step fixes that cannot be reduced to one code change.
+  Use when:
+    - An external API has changed endpoint, auth, or payload format
+    - Multiple routes must be rewritten together to work correctly
+    - package.json dependencies must change alongside code changes
+    - The fix genuinely requires touching more than one area of the same file in coordinated ways
+    - A deprecated SDK, library, or integration must be replaced
+
+  The PLAN: signal routes the fix through the full plan gate: the planner maps the
+  complete scope, the user approves, the builder receives explicit permission for all
+  files that need to change. This is the right tool for migrations.
+
+BUILD: output format (one sentence, existing code → replacement code):
+  BUILD: In server.js /api/refine-logo, add return before the anthropicClient.messages.create call on line 170.
+
+PLAN: output format (one paragraph describing full migration scope):
+  PLAN: server.js requires a full Stability AI v1-to-v2beta migration — the /api/generate-logo
+  and /api/refine-logo routes use the deprecated v1 endpoint and JSON payload format; both routes
+  must be rewritten to call the v2beta endpoint using multipart/form-data, and package.json
+  must update the form-data dependency usage to match.
+
+Rules:
+  - Output PLAN: OR BUILD:, never both.
+  - The PLAN: line is not subject to the two-sentence limit — describe the full scope.
+  - The PLAN: line IS subject to all banned words (no "robust", "ensure", "comprehensive", etc.).
+  - Never use PLAN: for single-line fixes. Do not escalate to avoid writing a precise BUILD: line.
+
+${"═".repeat(63)}
 BEHAVIORAL RULES
 ${"═".repeat(63)}
 
@@ -197,8 +232,11 @@ Plain text. Two sentences for bug reports (see RESPONSE FORMAT above).
 For non-bug questions (setup, configuration, platform questions): answer directly
 in plain prose. No JSON wrapper. No markdown formatting.
 
-When a build is warranted, append on a new line:
-  BUILD: [your build suggestion — one sentence, file + route + what changes to what]`;
+When a surgical single-file fix is warranted, append on a new line:
+  BUILD: [your build suggestion — one sentence, file + route + what changes to what]
+
+When a multi-step coordinated fix is warranted (API migrations, cross-file changes, dependency updates), append on a new line:
+  PLAN: [one paragraph describing the full scope — files, what changes in each, APIs/endpoints changing]`;
 const { neon } = require("@neondatabase/serverless");
 const projectManager = require("../projects/manager");
 const settingsManager = require("../settings/manager");
@@ -292,8 +330,12 @@ async function ensureSchema() {
       content TEXT NOT NULL,
       suggest_build BOOLEAN DEFAULT false,
       build_suggestion TEXT,
+      suggest_plan BOOLEAN DEFAULT false,
+      plan_suggestion TEXT,
       created_at BIGINT NOT NULL
     )`;
+    await sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS suggest_plan BOOLEAN DEFAULT false`;
+    await sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS plan_suggestion TEXT`;
   } catch (err) {
     console.error("Failed to create chat_messages table:", err.message);
   }
@@ -314,13 +356,15 @@ async function getHistory(projectId) {
   const messages = [];
   if (sql) {
     try {
-      const rows = await sql`SELECT role, content, suggest_build, build_suggestion, created_at FROM chat_messages WHERE project_id = ${projectId} ORDER BY created_at ASC`;
+      const rows = await sql`SELECT role, content, suggest_build, build_suggestion, suggest_plan, plan_suggestion, created_at FROM chat_messages WHERE project_id = ${projectId} ORDER BY created_at ASC`;
       for (const row of rows) {
         messages.push({
           role: row.role,
           content: row.content,
           suggestBuild: row.suggest_build || false,
           buildSuggestion: row.build_suggestion || null,
+          suggestPlan: row.suggest_plan || false,
+          planSuggestion: row.plan_suggestion || null,
           createdAt: Number(row.created_at),
         });
       }
@@ -339,8 +383,8 @@ async function saveMessage(projectId, msg) {
 
   if (sql) {
     try {
-      await sql`INSERT INTO chat_messages (project_id, role, content, suggest_build, build_suggestion, created_at)
-        VALUES (${projectId}, ${msg.role}, ${msg.content}, ${msg.suggestBuild || false}, ${msg.buildSuggestion || null}, ${msg.createdAt})`;
+      await sql`INSERT INTO chat_messages (project_id, role, content, suggest_build, build_suggestion, suggest_plan, plan_suggestion, created_at)
+        VALUES (${projectId}, ${msg.role}, ${msg.content}, ${msg.suggestBuild || false}, ${msg.buildSuggestion || null}, ${msg.suggestPlan || false}, ${msg.planSuggestion || null}, ${msg.createdAt})`;
     } catch (err) {
       console.error("Failed to save chat message:", err.message);
     }
@@ -357,7 +401,7 @@ async function clearBuildSuggestions(projectId) {
 
   if (sql) {
     try {
-      await sql`UPDATE chat_messages SET suggest_build = false WHERE project_id = ${projectId} AND suggest_build = true`;
+      await sql`UPDATE chat_messages SET suggest_build = false, suggest_plan = false WHERE project_id = ${projectId} AND (suggest_build = true OR suggest_plan = true)`;
     } catch (err) {
       console.error("Failed to clear build suggestions:", err.message);
     }
@@ -556,18 +600,26 @@ async function runDiagnostics(projectId, checks) {
 }
 
 function parseResponse(content) {
-  const buildMatch = content.match(/^BUILD:\s*(.+)$/m);
   let message = content;
   let suggestBuild = false;
   let buildSuggestion = null;
+  let suggestPlan = false;
+  let planSuggestion = null;
 
-  if (buildMatch) {
+  const planMatch = content.match(/^PLAN:\s*(.+)$/m);
+  const buildMatch = content.match(/^BUILD:\s*(.+)$/m);
+
+  if (planMatch) {
+    planSuggestion = planMatch[1].trim();
+    suggestPlan = true;
+    message = content.substring(0, planMatch.index).trim();
+  } else if (buildMatch) {
     buildSuggestion = buildMatch[1].trim();
     suggestBuild = true;
     message = content.substring(0, buildMatch.index).trim();
   }
 
-  if (!suggestBuild) {
+  if (!suggestBuild && !suggestPlan) {
     try {
       const parsed = JSON.parse(content);
       if (parsed && typeof parsed.message === "string") {
@@ -575,12 +627,14 @@ function parseResponse(content) {
           message: parsed.message,
           suggestBuild: !!parsed.suggestBuild,
           buildSuggestion: parsed.buildSuggestion || null,
+          suggestPlan: false,
+          planSuggestion: null,
         };
       }
     } catch { /* not JSON — use plain text path */ }
   }
 
-  return { message, suggestBuild, buildSuggestion };
+  return { message, suggestBuild, buildSuggestion, suggestPlan, planSuggestion };
 }
 
 const BANNED_PATTERNS = [
@@ -832,14 +886,17 @@ async function chat(projectId, userMessage) {
     let parsed = parseResponse(content);
 
     const msg = parsed.message || "";
+    // Auto-detect "I'll reforge" pattern as a BUILD suggestion (not a PLAN)
     const reforgeMatch = msg.match(/I'll reforge\s+(.+?)(?:\.|$)/i);
-    if (reforgeMatch && !parsed.suggestBuild) {
+    if (reforgeMatch && !parsed.suggestBuild && !parsed.suggestPlan) {
       parsed.suggestBuild = true;
       if (!parsed.buildSuggestion) {
         parsed.buildSuggestion = msg;
       }
     }
 
+    // Only validate banned patterns on message + buildSuggestion — planSuggestion
+    // intentionally allows multi-step language that describes migration scope.
     const violations = detectBannedPatterns(parsed.message, parsed.buildSuggestion);
     if (violations.length > 0 && toolRound < MAX_TOOL_ROUNDS - 1) {
       messages.push({ role: "assistant", content });
@@ -857,6 +914,8 @@ async function chat(projectId, userMessage) {
       content: prefix + parsed.message,
       suggestBuild: parsed.suggestBuild,
       buildSuggestion: parsed.buildSuggestion,
+      suggestPlan: parsed.suggestPlan,
+      planSuggestion: parsed.planSuggestion,
       createdAt: Date.now(),
     };
     await saveMessage(projectId, assistantMsg);

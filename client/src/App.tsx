@@ -72,6 +72,8 @@ export interface ChatMessage {
   content: string;
   suggestBuild: boolean;
   buildSuggestion: string | null;
+  suggestPlan?: boolean;
+  planSuggestion?: string | null;
   createdAt: number;
 }
 

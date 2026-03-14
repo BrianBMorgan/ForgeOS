@@ -555,6 +555,11 @@ export default function PromptColumn({
     onRunBuild(suggestion, { skipPlan: true });
   };
 
+  const handlePlanFromSuggestion = (planSuggestion: string) => {
+    if (onClearBuildSuggestions) onClearBuildSuggestions();
+    onRunBuild(planSuggestion); // no skipPlan → routes through the full plan gate
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (assetQuery !== null && filteredAssets.length > 0) {
       if (e.key === "ArrowDown") {
@@ -681,6 +686,15 @@ export default function PromptColumn({
                   disabled={isRunning || chatLoading || !canIterate}
                 >
                   Build this change
+                </button>
+              )}
+              {msg.suggestPlan && msg.planSuggestion && (
+                <button
+                  className="chat-plan-btn"
+                  onClick={() => handlePlanFromSuggestion(msg.planSuggestion!)}
+                  disabled={isRunning || chatLoading || !canIterate}
+                >
+                  Generate Plan
                 </button>
               )}
             </div>
