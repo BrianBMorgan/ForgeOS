@@ -258,6 +258,65 @@
         "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?",
         "Should the Plan tab show the full off-limits file list during a surgical build, or just the target file?"
       ]
+    },
+    {
+      "date": "2026-03-13",
+      "session_title": "HubSpot CRM Integration — Server Module, API Routes, Chat Agent Tool, Skill Seeding",
+      "shipped": [
+        "Created server/integrations/hubspot.js — HubSpot REST API wrapper using HUBSPOT_ACCESS_TOKEN from Global Secrets Vault; methods: searchContacts, getContact, createContact, updateContact, searchDeals, createDeal, getStatus; all calls use native fetch with Bearer auth header",
+        "Added HubSpot API routes to server/index.js — GET/POST /api/hubspot/contacts, GET/POST /api/hubspot/deals, GET /api/hubspot/status",
+        "Added hubspot_query tool to Chat Agent SEARCH_TOOLS in server/chat/manager.js — supports status, search_contacts, search_deals operations; Chat Agent can look up CRM data mid-conversation",
+        "HubSpot skill auto-seeded on startup in server/index.js — when HUBSPOT_ACCESS_TOKEN is present in Global Secrets Vault, creates 'HubSpot CRM' skill in Skills Library with full API patterns, contact form to HubSpot lead pattern, lead status values, deal stage values, and error handling guidance",
+        "Activate skill with /hubspot in chat — injects full HubSpot build context into the builder for generated apps",
+        "Forge_context_pack.json added to GitHub repo (sensitive github_pat field redacted to 'stored locally only — never committed')"
+      ],
+      "decisions": [
+        "HubSpot token stored in Global Secrets Vault as HUBSPOT_ACCESS_TOKEN — auto-injected into generated app environments at runtime",
+        "All HubSpot API calls from generated apps must be server-side only — token never exposed to frontend",
+        "Contact form to HubSpot lead pattern: POST /crm/v3/objects/contacts with hs_lead_status: NEW; on 409 Conflict search and PATCH existing contact",
+        "HubSpot skill is opt-in per project via /hubspot in chat — not auto-injected into all builds"
+      ],
+      "pending": [
+        "Test Restore Iteration feature end-to-end",
+        "Point sandbox-xm.com DNS fully — A record @ → Render IP at Namecheap + www URL redirect",
+        "Build sandbox-xm contact form with HubSpot lead creation using /hubspot skill"
+      ],
+      "open_questions": []
+    },
+    {
+      "date": "2026-03-13",
+      "session_title": "PLAN: Signal Path — Chat Agent Autonomy Upgrade for Multi-Step Fixes",
+      "shipped": [
+        "Added PLAN: output signal to Chat Agent (server/chat/manager.js) — alongside BUILD: for surgical single-file fixes, Chat Agent can now output PLAN: for coordinated multi-step fixes (deprecated APIs, multi-route rewrites, dependency changes)",
+        "parseResponse() updated to detect PLAN: prefix — returns suggestPlan: true and planSuggestion fields; PLAN: takes priority over BUILD: in parsing",
+        "ensureSchema() adds suggest_plan BOOLEAN and plan_suggestion TEXT columns to chat_messages table via ALTER TABLE IF NOT EXISTS; getHistory and saveMessage updated to load/store new fields",
+        "clearBuildSuggestions() updated to also clear suggest_plan on all messages for project",
+        "Chat Agent instructions updated — new BUILD vs PLAN section teaches: BUILD: for single root cause one file one code change; PLAN: for external API format changes, multi-route rewrites, package.json + code changes, deprecated SDK replacement; explicit rule: never use PLAN: for single-line fixes",
+        "banned-pattern check intentionally excludes planSuggestion — multi-step scope language (file lists, API names, format descriptions) is allowed in PLAN: text",
+        "auto-detect 'I'll reforge' pattern now guarded to only fire when neither suggestBuild nor suggestPlan is already set",
+        "Planner prompt updated (server/plan/manager.js) — PLAN_SYSTEM_PROMPT now handles two input types: user feature requests and Chat Agent diagnoses; for diagnosis inputs, planner trusts the diagnosis and does not add extra scope",
+        "ChatMessage interface updated (client/src/App.tsx) — added suggestPlan?: boolean and planSuggestion?: string | null fields",
+        "handlePlanFromSuggestion added to PromptColumn.tsx — calls onRunBuild(planSuggestion) without skipPlan, routing through full plan gate",
+        "Purple 'Generate Plan' button added to chat UI — appears when suggestPlan: true, distinct from green 'Build this change' button; .chat-plan-btn CSS added to index.css",
+        "LogoForge (apps/logoforge branch) diagnosed as externally broken — Stability AI v1 API deprecated, old @anthropic-ai/sdk version, missing return in refine route; identified as canonical PLAN: use case"
+      ],
+      "decisions": [
+        "BUILD: vs PLAN: split is the core autonomy architectural piece — surgical precision for simple fixes, structured delegation for migrations",
+        "PLAN: signal routes through full plan gate: Chat Agent diagnosis → planner maps scope → user approves → builder gets explicit permission list for all files",
+        "Inspect-mode (Visual Editor) always produces BUILD: — element-level changes are definitionally single-file surgical; PLAN: criteria never apply to visual edits",
+        "planSuggestion is exempt from banned-pattern validation — multi-step scope descriptions require language that would be banned in bug reports (file lists, 'and', format descriptions)",
+        "Forge's autonomy failure mode on API migrations is a system design issue, not a Chat Agent quality issue — the one-fix surgical model was the wrong tool for the job; PLAN: closes that gap"
+      ],
+      "pending": [
+        "Test PLAN: signal end-to-end on a real multi-step fix",
+        "Fix LogoForge app (apps/logoforge branch) using the new PLAN: flow as validation",
+        "Test Restore Iteration feature end-to-end",
+        "Point sandbox-xm.com DNS fully"
+      ],
+      "open_questions": [
+        "Should approved plans auto-execute when auto_approve is enabled, or always require user confirmation for PLAN:-sourced builds?",
+        "Should the Plan tab surface whether a plan was sourced from a Chat Agent PLAN: signal vs a raw user prompt?"
+      ]
     }
   ],
   "domain_knowledge": [
@@ -299,7 +358,15 @@
     "run_snapshots Neon table stores run data as JSONB; files are at stages.builder.output.files (array of {path, content} objects) — not at top-level or builder.files",
     "restoreIteration requires loadAndRegisterRun after workspace recreation — runner.js runs Map is the source of truth for UI polling; skipping this leaves the UI unable to see the restored run",
     "stopApp(currentRunId) vs stopAllApps() — always use the scoped form in project-specific operations; stopAllApps kills every project's workspace process and is only appropriate for shutdown",
-    "Runs with no snapshot in run_snapshots cannot be restored — if snapshot is missing, restoreIteration fails fast before touching filesystem; delete these iterations via deleteIteration instead"
+    "Runs with no snapshot in run_snapshots cannot be restored — if snapshot is missing, restoreIteration fails fast before touching filesystem; delete these iterations via deleteIteration instead",
+    "HubSpot integration: server/integrations/hubspot.js wraps HubSpot REST API using HUBSPOT_ACCESS_TOKEN from Global Secrets Vault; contacts at /crm/v3/objects/contacts, deals at /crm/v3/objects/deals, all calls require Authorization: Bearer header",
+    "HubSpot contact form pattern: POST /crm/v3/objects/contacts with hs_lead_status: NEW; handle 409 Conflict by searching for existing contact then PATCHing; always server-side, never expose token to frontend",
+    "HubSpot skill activated with /hubspot in chat — injects full API patterns, contact/deal endpoints, lead status values, and error handling into the builder system prompt",
+    "PLAN: signal in Chat Agent output — for multi-step coordinated fixes (deprecated API migrations, multi-route rewrites, package.json + code changes); routes through full plan gate instead of surgical build path",
+    "BUILD: vs PLAN: in Chat Agent: BUILD: = one root cause, one file, one code change; PLAN: = coordinated multi-step fix requiring planner to map scope; output one or the other, never both",
+    "planSuggestion is exempt from banned-pattern validation — multi-step scope language is intentionally allowed in PLAN: text; banned-pattern check only runs on message and buildSuggestion",
+    "Inspect-mode (Visual Editor) always produces BUILD: — element-level single-file changes never qualify as PLAN: scope",
+    "Chat Agent autonomy failure on API migrations was a system design gap — one-fix surgical model was the wrong tool; PLAN: signal closes the gap by routing complex fixes through the planner"
   ],
   "decisions_made": [
     {
@@ -373,6 +440,18 @@
     {
       "decision": "loadAndRegisterRun() added to runner.js to put past snapshots back in the runs Map",
       "rationale": "The UI polls the runs Map directly for status and file data. A workspace that's running but not in the Map is invisible to the user — they see a spinner forever."
+    },
+    {
+      "decision": "HubSpot integration uses Global Secrets Vault token, not hardcoded credentials",
+      "rationale": "Vault token is auto-injected as HUBSPOT_ACCESS_TOKEN at runtime into all generated apps — no code change needed when token rotates."
+    },
+    {
+      "decision": "PLAN: signal added to Chat Agent — routes multi-step fixes through plan gate instead of surgical build",
+      "rationale": "The one-fix surgical model was the wrong tool for API migrations and deprecated endpoint rewrites. PLAN: gives the Chat Agent a second output path that matches the complexity of the fix to the right build mechanism."
+    },
+    {
+      "decision": "planSuggestion exempt from banned-pattern validation",
+      "rationale": "PLAN: text must describe full migration scope — it inherently uses language like 'both routes', 'and package.json', file lists. Applying the bug-report two-sentence rule to planning text would make the plan description useless."
     }
   ],
   "preferences": [
@@ -437,7 +516,10 @@
     "Plan gate constraint block prepended to builder system prompt — gives builder explicit permission and denial lists before it touches any file",
     "suggestionToConstraintBlock safe fallback — locks all files when target cannot be parsed, never allows unconstrained build",
     "isSuggestion flag threaded end-to-end (client → request body → createRun → run object → buildWorkspace) — clean signal for surgical build path with no ambiguity",
-    "Iteration rollback via GitHub API force-push — fast, no new commits, clean branch history"
+    "Iteration rollback via GitHub API force-push — fast, no new commits, clean branch history",
+    "HubSpot skill seeded automatically on startup when token is present — zero manual setup for builders using /hubspot",
+    "PLAN: signal as Chat Agent escalation path — matches fix complexity to the right build mechanism without forcing the user to re-prompt",
+    "Planner prompt handling two input types — feature requests and Chat Agent diagnoses treated differently; diagnoses trusted as precise specifications with no extra scope added"
   ],
   "mistakes_to_avoid": [
     "Inline backtick-wrapped content inside JS template literal strings — Node parser treats backtick as closing delimiter",
@@ -457,13 +539,18 @@
     "Surgical builds writing only builder output without seeding existingFiles — createWorkspace wipes the dir, builder returns only the target file, all other files deleted",
     "Using stopAllApps() in restoreIteration — kills every running workspace across all projects; always use stopApp(currentRunId) for project-scoped operations",
     "Skipping loadAndRegisterRun after restoreIteration — workspace runs but UI cannot see it; runner Map must be updated after any workspace recreation",
-    "Attempting to restore a run with no snapshot — restoreIteration will fail; verify snapshot exists at stages.builder.output.files in run_snapshots before expecting restore to work; delete no-snapshot runs with deleteIteration instead"
+    "Attempting to restore a run with no snapshot — restoreIteration will fail; verify snapshot exists at stages.builder.output.files in run_snapshots before expecting restore to work; delete no-snapshot runs with deleteIteration instead",
+    "Exposing HUBSPOT_ACCESS_TOKEN to the frontend — all HubSpot calls must be server-side only; token must never appear in client-side code or API responses",
+    "Using PLAN: for single-line fixes — escalation to avoid writing a precise BUILD: line; always use BUILD: when the fix is one file, one code change",
+    "Forcing surgical BUILD: path for API migrations — when an external API changes endpoint or payload format, multiple routes must be rewritten together; surgical single-file path leaves the app in a broken partial state"
   ],
-  "current_state": "ForgeOS is fully operational on Render. The single-prompt builder pipeline is live with Brain memory injection, global assets injection, and Mode A/Mode B runtime support. The Visual Editor is complete across all three phases. The cockpit includes a Diff tab, collapsible chat column, and mobile scroll fix. Version history with git tags and rollback is live. BYO custom domain support is live. The pre-build plan approval gate is live. Surgical build system is live and confirmed working — surgical builds seed existingFiles before writing builder output, startApp has an entry file guard against restart loops. Restore Iteration feature is live (POST /api/projects/:id/restore/:runId) with three bugs fixed: stopAllApps replaced with scoped stopApp, snapshot guard before filesystem changes, and loadAndRegisterRun registration after restore. deleteIteration is live and operational. sandbox-xm project_id is f9bc3895, currently on v32 (0fb0c8d1) after v25/v33/v34 were deleted. Run v32 has confirmed valid snapshot with 3 files at stages.builder.output.files.",
+  "current_state": "ForgeOS is fully operational on Render. The single-prompt builder pipeline is live with Brain memory injection, global assets injection, and Mode A/Mode B runtime support. The Visual Editor is complete across all three phases. The cockpit includes a Diff tab, collapsible chat column, and mobile scroll fix. Version history with git tags and rollback is live. BYO custom domain support is live. The pre-build plan approval gate is live. Surgical build system is live and confirmed working. Restore Iteration feature is live with three bugs fixed. HubSpot CRM integration is live — server/integrations/hubspot.js, API routes, Chat Agent hubspot_query tool, and HubSpot CRM skill auto-seeding. PLAN: signal path is live — Chat Agent can now escalate multi-step fixes (API migrations, deprecated endpoints, dependency changes) through the full plan gate instead of forcing them into the surgical build path. sandbox-xm project_id is f9bc3895, currently on v32 (0fb0c8d1). Forge_context_pack.json is now committed to the GitHub repo (PAT redacted).",
   "next_steps": [
-    "Test Restore Iteration feature end-to-end — bugs fixed, needs validation in live environment",
+    "Test PLAN: signal end-to-end — use LogoForge (apps/logoforge) as the first real validation case",
+    "Fix LogoForge: Stability AI v1 → v2beta migration + old SDK upgrade using PLAN: flow",
+    "Build sandbox-xm contact form with HubSpot lead creation using /hubspot skill",
+    "Test Restore Iteration feature end-to-end in live environment",
     "Point sandbox-xm.com DNS fully — A record @ → Render IP at Namecheap + www URL redirect",
-    "Test Stage 2 React/Vite build end-to-end — verify Mode B scaffolds vite.config.js correctly on first pass",
     "Consider pgvector semantic search upgrade once Brain has sufficient memory entries"
   ],
   "open_questions": [
@@ -553,6 +640,18 @@
     {
       "term": "loadAndRegisterRun",
       "value": "Function in server/pipeline/runner.js. Loads a past run snapshot from Neon and registers it in the in-memory runs Map. Required after restoreIteration so the UI can poll the restored run's status and files."
+    },
+    {
+      "term": "HubSpot integration",
+      "value": "server/integrations/hubspot.js — HubSpot REST API wrapper. Methods: searchContacts, createContact, updateContact, searchDeals, createDeal, getStatus. Uses HUBSPOT_ACCESS_TOKEN from Global Secrets Vault. API routes at /api/hubspot/*. Chat Agent has hubspot_query tool. HubSpot CRM skill auto-seeded on startup when token is present. Activated in builds with /hubspot in chat."
+    },
+    {
+      "term": "PLAN: signal",
+      "value": "Chat Agent output prefix for multi-step coordinated fixes. Triggers the full plan gate instead of surgical build. Used for: deprecated API migrations, multi-route rewrites, package.json + code changes, SDK replacements. Counterpart to BUILD: (surgical single-file). planSuggestion is exempt from banned-pattern validation. Purple 'Generate Plan' button appears in chat UI."
+    },
+    {
+      "term": "BUILD: vs PLAN: decision",
+      "value": "Chat Agent chooses based on fix scope: BUILD: = one root cause, one file, one code change (surgical); PLAN: = multiple coordinated changes required. Inspect-mode always produces BUILD:. Never use PLAN: for single-line fixes. Never use BUILD: for API migrations that require touching multiple routes."
     }
   ]
 }
