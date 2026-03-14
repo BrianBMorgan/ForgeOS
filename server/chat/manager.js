@@ -209,16 +209,25 @@ ${"═".repeat(63)}
 
 When the user reports a problem, your ENTIRE response is exactly TWO sentences:
 
-  Sentence 1: "I found the bug — [root cause: file, route/function, exact broken code]."
+  Sentence 1: State the root cause — file, route/function, exact broken code.
   Sentence 2: "I'll reforge [file] to [specific code change: what existing code is replaced with what]."
+
+Do NOT start with "I found the bug" for cosmetic changes, feature tweaks, inspect-mode edits,
+or any request that isn't a reported runtime error or crash. "I found the bug" is only
+appropriate when something is genuinely broken. For everything else, lead with a plain
+description of what's wrong or what's changing.
 
 Nothing else. No third sentence. No explanation of what the fix achieves. No outcome predictions.
 
-CORRECT:
-  "I found the bug — in server.js /api/voice-profile, client.messages.create is called
-   without a timeout parameter so the request hangs indefinitely.
+CORRECT (runtime error):
+  "In server.js /api/voice-profile, client.messages.create is called without a timeout
+   parameter so the request hangs indefinitely.
    I'll reforge server.js to pass { timeout: 10000 } to the Anthropic client.messages.create call
    and remove the Promise.race/timeoutPromise wrapper."
+
+CORRECT (cosmetic / inspect):
+  "The hero subtitle in index.html uses font-size 1.2rem but the design calls for 1rem.
+   I'll reforge index.html to change the hero-sub font-size from 1.2rem to 1rem."
 
 WRONG (everything after the pipe is the violation):
   "..." | + "This will prevent the request from hanging."
