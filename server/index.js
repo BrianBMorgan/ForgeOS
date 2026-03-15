@@ -662,6 +662,90 @@ app.get("/api/projects/:id/export", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Analytics
+// ---------------------------------------------------------------------------
+const analyticsManager = require("./analytics/manager");
+analyticsManager.ensureSchema().catch(err => console.error("[analytics] Schema error:", err.message));
+
+// Ingest events from published app tracker beacons
+app.post("/api/analytics/events", async (req, res) => {
+  try {
+    const { projectId, events } = req.body;
+    if (!projectId || !Array.isArray(events)) return res.status(400).json({ error: "Invalid payload" });
+    await analyticsManager.ingestEvents(projectId, events);
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/analytics/:projectId/overview", async (req, res) => {
+  try {
+    const data = await analyticsManager.getOverview(req.params.projectId, req.query.range);
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/analytics/:projectId/pages", async (req, res) => {
+  try {
+    const data = await analyticsManager.getTopPages(req.params.projectId, req.query.range);
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/analytics/:projectId/events", async (req, res) => {
+  try {
+    const [top, stream] = await Promise.all([
+      analyticsManager.getTopEvents(req.params.projectId, req.query.range),
+      analyticsManager.getEventStream(req.params.projectId, req.query.range),
+    ]);
+    res.json({ top, stream });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/analytics/:projectId/vitals", async (req, res) => {
+  try {
+    const data = await analyticsManager.getWebVitals(req.params.projectId, req.query.range);
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/analytics/:projectId/errors", async (req, res) => {
+  try {
+    const data = await analyticsManager.getErrors(req.params.projectId, req.query.range);
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/analytics/:projectId/devices", async (req, res) => {
+  try {
+    const data = await analyticsManager.getDeviceBreakdown(req.params.projectId, req.query.range);
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/analytics/:projectId/timeseries", async (req, res) => {
+  try {
+    const data = await analyticsManager.getPageviewTimeseries(req.params.projectId, req.query.range);
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/analytics/:projectId/referrers", async (req, res) => {
+  try {
+    const data = await analyticsManager.getReferrers(req.params.projectId, req.query.range);
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/analytics/:projectId/scroll", async (req, res) => {
+  try {
+    const data = await analyticsManager.getScrollDepth(req.params.projectId, req.query.range);
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
 // Assets
 // ---------------------------------------------------------------------------
 const assetsManager = require("./assets/manager");
@@ -1570,5 +1654,6 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Runtime backup setup error:", err.message);
   }
 });
+
 
 
