@@ -23,7 +23,8 @@ async function ensureSchema() {
       status VARCHAR(20) NOT NULL DEFAULT 'building',
       created_at BIGINT NOT NULL,
       updated_at BIGINT NOT NULL,
-      current_run_id VARCHAR(255)
+      current_run_id VARCHAR(255),
+      project_history TEXT
     )`;
     await sql`CREATE TABLE IF NOT EXISTS iterations (
       id SERIAL PRIMARY KEY,
@@ -46,6 +47,8 @@ async function ensureSchema() {
       created_at BIGINT NOT NULL,
       UNIQUE(project_id, key)
     )`;
+    // Add project_history column to existing deployments that predate this schema change
+    await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_history TEXT`;
   } catch (err) {
     console.error("Failed to ensure schema:", err.message);
   }
@@ -463,4 +466,5 @@ module.exports = {
   deleteEnvVar,
   getEnvVarsAsObject,
 };
+
 
