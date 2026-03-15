@@ -454,7 +454,13 @@
     "window.forge_track('event_name', { ...data }) \u2014 public analytics API injected into every published app; no setup required for custom event tracking",
     "Analytics tab in cockpit \u2014 six views (Overview, Pages, Events, Performance, Errors, Devices) with 1h/24h/7d/30d range selector; data fetched from /api/analytics/:projectId/* endpoints",
     "Web Vitals rated good/needs-improvement/poor per Google thresholds \u2014 LCP, FID, CLS, FCP, TTFB, INP; p50/p75/p95 stored per metric; AnalyticsTab shows color-coded cards",
-    "Slug rename rebakes tracker \u2014 republish on new slug calls pushToAppBranch which injects tracker with new slug as projectId; old slug data preserved in Neon under old ID"
+    "Slug rename rebakes tracker \u2014 republish on new slug calls pushToAppBranch which injects tracker with new slug as projectId; old slug data preserved in Neon under old ID",
+    "GDPR/ePrivacy consent requirement: storing a persistent visitor ID in localStorage for analytics on a public-facing site with EU visitors requires user consent. The trigger is specifically the persistent identifier (_fvid) \u2014 sessionStorage IDs, vitals, errors, and page_load events do not require consent as they don't persist across sessions or identify individuals.",
+    "Analytics consent gate pattern: on public-facing sites, gate all localStorage writes (specifically _fvid) behind a consent check (localStorage.getItem('_fa_consent') === '1'). Session events, vitals, errors, and page_load can fire freely. On consent: set localStorage.setItem('_fa_consent', '1') and allow _fvid to be written.",
+    "Consent banner implementation pattern: fixed bottom-of-page banner (not a modal, not a blocker), single OK button, brief copy linking to a /privacy page. On load: if _fa_consent already set, skip banner entirely. Do not show banner on the /privacy page itself.",
+    "Privacy policy page (/privacy route) required for any public-facing ForgeOS app using analytics. Must disclose: what is collected (pageviews, clicks, scroll depth, performance metrics, JS errors), that data is stored in a first-party database and never shared with third parties, how to opt out (clear localStorage), and a contact method.",
+    "First-party analytics without third-party data sharing (no Google, no ad networks) is a significantly more favorable legal position under GDPR and CCPA. CCPA does not require a consent banner \u2014 only a privacy policy disclosing collection. EU ePrivacy requires consent specifically for persistent identifiers in localStorage.",
+    "Forge has full context to build GDPR-compliant consent banners and privacy pages for public-facing apps \u2014 include the above requirements in the build prompt. Key check: verify _fvid localStorage write is gated behind consent, banner is suppressed on the /privacy page, and privacy policy explicitly covers opt-out via localStorage clear."
   ],
   "decisions_made": [
     {
@@ -631,7 +637,8 @@
     "Project history summarization via COALESCE concat \u2014 appends new summaries to existing history without overwriting; single column, no separate table needed",
     "Tracker injection in pushToAppBranch file loop \u2014 intercepts all .html files at the moment of GitHub push, zero additional pipeline steps",
     "sendBeacon + Blob fallback pattern for analytics \u2014 fires on page unload reliably across browsers without blocking navigation",
-    "buildTrackerScript(projectId, forgeOrigin) returning a complete script tag string \u2014 clean separation between tracker logic and injection point"
+    "buildTrackerScript(projectId, forgeOrigin) returning a complete script tag string \u2014 clean separation between tracker logic and injection point",
+    "Minimal consent banner + /privacy page pattern for public analytics \u2014 non-intrusive bottom banner, single OK button, honest privacy policy; legally sound for EU/CCPA without scary cookie walls"
   ],
   "mistakes_to_avoid": [
     "Inline backtick-wrapped content inside JS template literal strings \u2014 Node parser treats backtick as closing delimiter",
@@ -656,7 +663,8 @@
     "Using PLAN: for single-line fixes \u2014 escalation to avoid writing a precise BUILD: line; always use BUILD: when the fix is one file, one code change",
     "Forcing surgical BUILD: path for API migrations \u2014 when an external API changes endpoint or payload format, multiple routes must be rewritten together; surgical single-file path leaves the app in a broken partial state",
     "Injecting analytics tracker into preview HTML \u2014 preview sessions are dev noise; published-only keeps analytics signal clean",
-    "Using recordMistake() directly for build failures \u2014 extractFailureMemory() produces structured lessons with categories; always use the structured path"
+    "Using recordMistake() directly for build failures \u2014 extractFailureMemory() produces structured lessons with categories; always use the structured path",
+    "Writing _fvid to localStorage before consent on public-facing sites \u2014 this is the specific ePrivacy trigger; always gate that write behind _fa_consent check on any site that may have EU visitors"
   ],
   "current_state": "ForgeOS fully operational with site analytics live. Every published app automatically receives the tracker (injected at publish time via pushToAppBranch). Analytics tab in cockpit shows six views: Overview, Pages, Events, Performance (Web Vitals), Errors, Devices. Conversation history capped at 10 turns with project history summarization. Failed builds auto-record structured lessons to Brain. Settings optimized for mobile. Self-repair pipeline, PLAN:/BUILD: signals, HubSpot integration, Restore Iteration, and Visual Editor all operational.",
   "next_steps": [
@@ -783,6 +791,10 @@
     {
       "term": "AnalyticsTab",
       "value": "Cockpit tab component with six views (Overview, Pages, Events, Performance, Errors, Devices) and a 1h/24h/7d/30d range selector. Fetches from /api/analytics/:projectId/* endpoints. Web Vitals rated good/needs-improvement/poor per Google thresholds."
+    },
+    {
+      "term": "analytics consent gate",
+      "value": "Pattern for GDPR-compliant analytics on public-facing sites. _fvid localStorage write gated behind localStorage.getItem('_fa_consent') === '1'. Session/vitals/errors fire freely. Consent set via bottom-of-page banner with OK button linking to /privacy page. Banner suppressed on /privacy route and when consent already set."
     }
   ]
 }
