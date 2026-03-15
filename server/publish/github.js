@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { buildTrackerScript } = require("../analytics/tracker");
 
 const API = "https://api.github.com";
 
@@ -190,6 +191,12 @@ async function pushToAppBranch(repoFullName, slug, sourceDir) {
   const files = collectFiles(sourceDir);
   if (files.length === 0) throw new Error("No files to push");
 
+  // Build the tracker script once — baked with projectId and ForgeOS origin
+  const forgeOrigin = process.env.BASE_DOMAIN
+    ? `https://${process.env.BASE_DOMAIN}`
+    : "https://forge-os.ai";
+  const trackerScript = buildTrackerScript(slug, forgeOrigin);
+
   // Build tree with files at root of branch (no subdirectory)
   const treeItems = [];
   for (const file of files) {
@@ -198,6 +205,10 @@ async function pushToAppBranch(repoFullName, slug, sourceDir) {
       try {
         content = fs.readFileSync(file.fullPath, "utf8");
         encoding = "utf-8";
+        // Inject analytics tracker before </body> in HTML files
+        if (file.path.endsWith(".html") && content.includes("</body>")) {
+          content = content.replace("</body>", trackerScript + "\n</body>");
+        }
       } catch {
         content = fs.readFileSync(file.fullPath).toString("base64");
         encoding = "base64";
@@ -314,3 +325,4 @@ module.exports = {
   restoreFromTag,
   verifyRepoAccess,
 };
+
