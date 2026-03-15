@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sandbox-XM &mdash; Experience Marketing</title>
+  <link rel="icon" type="image/png" href="/api/assets/Icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="/" class="nav-logo">Sandbox-<span style="color: #E94560;">XM</span></a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#services">Services</a></li>
+        <li><a href="#about">About</a></li>
+        <li><a href="#contact">Contact</a></li>
+        <li><a href="/sandbox.html">The Sandbox</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero" id="hero">
+    <div class="hero-bg">
+      <img src="/api/assets/IMG_1153.png" alt="" aria-hidden="true" />
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <p class="hero-eyebrow">Experience Marketing</p>
+      <h1 class="hero-headline" style="color: #f0f0f0;">With clarity, care, and execution discipline.</h1>
+      <p class="hero-sub">We blend operational rigor with creative judgment to turn corporate events into curated hospitality experiences&#8212;so attendees feel completely taken care of.</p>
+      <a href="#contact" class="hero-cta">Start a conversation</a>
+    </div>
+  </section>
+
+  <!-- Services -->
+  <section class="services" id="services">
+    <div class="services-inner">
+      <h2 class="section-heading">What We Do</h2>
+      <div class="services-grid">
+
+        <div class="service-card">
+          <h3>Experience Strategy</h3>
+          <p>Audience-centered experience design that aligns events with business objectives&#8212;and elevates the moments that matter. We define the what, why, and how before execution begins.</p>
+        </div>
+
+        <div class="service-card">
+          <h3>Operations &amp; Delivery</h3>
+          <p>End-to-end planning and delivery with calm, predictable execution. We manage logistics, schedules, and vendor coordination so the experience feels seamless and guests feel cared for.</p>
+        </div>
+
+        <div class="service-card">
+          <h3>Systems &amp; Optimization</h3>
+          <p>Repeatable operating systems for recurring programs&#8212;staffing, workflows, and playbooks that scale. Reduce fire drills, protect quality, and raise consistency over time.</p>
+        </div>
+
+        <div class="service-card">
+          <h3>Event Technology &amp; Measurement</h3>
+          <p>Technology selection, integration, and measurement that supports the experience&#8212;not distracts from it. We capture meaningful data and translate it into clear next-step improvements.</p>
+        </div>
+
+        <div class="service-card">
+          <h3>Digital &amp; Media</h3>
+          <p>Branded content and digital media that extend the experience beyond the room. From pre-event microsites and on-brand digital touchpoints to post-event recaps and storytelling.</p>
+        </div>
+
+        <div class="service-card">
+          <h3>Event-led Growth</h3>
+          <p>Every event generates signals. We capture the intent, engagement, and momentum from a single program and convert it into pipeline &#8212; before, during, and after the room.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section class="about" id="about">
+    <div class="about-inner">
+      <div class="about-image">
+        <img src="/api/assets/IMG_1152.jpeg" alt="Sandbox-XM team at work" />
+      </div>
+      <div class="about-text">
+        <h2 class="section-heading">About Sandbox-XM</h2>
+        <p>Sandbox-XM is the experience strategy and delivery arm of Sandbox Group. We combine operational rigor with creative judgment to design and deliver corporate experiences that feel considered, calm, and genuinely hospitable.</p>
+        <p>Our focus is the full attendee journey&#8212;turning complex programs into curated moments where guests feel taken care of, not just informed. We bring clarity, transparency, and execution discipline without the overhead of traditional agencies.</p>
+        <p>We&#8217;re not a large agency with layers of overhead. We&#8217;re a focused team that moves fast, thinks clearly, and executes without excuses.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact -->
+  <section class="contact" id="contact">
+    <div class="contact-inner">
+      <div class="contact-text">
+        <h2 class="section-heading">Let&#8217;s build something worth remembering.</h2>
+        <p class="contact-sub">Whether you have a brief ready or just an idea, we&#8217;d love to hear from you. Tell us what you&#8217;re working on and we&#8217;ll take it from there.</p>
+      </div>
+      <div class="contact-form-wrapper">
+        <form class="contact-form" id="contactForm">
+          <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" placeholder="Your name" required />
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="your@email.com" required />
+          </div>
+          <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" rows="5" placeholder="Tell us about your project..." required></textarea>
+          </div>
+          <button type="submit" class="form-submit">Send Message</button>
+          <p class="form-status" id="formStatus"></p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p>&copy; 2026 Sandbox-XM. Part of <a href="#">Sandbox Group</a>. All rights reserved.</p>
+  </footer>
+
+  <!-- Cookie/Analytics Consent Banner -->
+  <div class="consent-banner" id="consentBanner">
+    <p>We use analytics to improve your experience. <a href="/privacy">Privacy Policy</a></p>
+    <button class="consent-ok" id="consentOk">OK</button>
+  </div>
+
+  <script>
+    // Navbar scroll behaviour
+    var navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 40) {
+        navbar.classList.add('scrolled');
+      } else {
+        navbar.classList.remove('scrolled');
+      }
+    });
+
+    // Mobile nav toggle
+    var navToggle = document.getElementById('navToggle');
+    var navLinks = document.getElementById('navLinks');
+    navToggle.addEventListener('click', function() {
+      navLinks.classList.toggle('open');
+      navToggle.classList.toggle('open');
+    });
+
+    // Consent banner
+    var consentBanner = document.getElementById('consentBanner');
+    var consentOk = document.getElementById('consentOk');
+    if (localStorage.getItem('_fa_consent') === '1') {
+      consentBanner.style.display = 'none';
+    }
+    consentOk.addEventListener('click', function() {
+      localStorage.setItem('_fa_consent', '1');
+      consentBanner.style.display = 'none';
+    });
+
+    // Contact form submission
+    var contactForm = document.getElementById('contactForm');
+    var formStatus = document.getElementById('formStatus');
+
+    contactForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var name = document.getElementById('name').value.trim();
+      var email = document.getElementById('email').value.trim();
+      var message = document.getElementById('message').value.trim();
+
+      formStatus.textContent = 'Sending...';
+      formStatus.style.color = '#cccccc';
+
+      fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, email: email, message: message })
+      }).then(function(res) {
+        return res.json();
+      }).then(function(data) {
+        if (data.ok) {
+          formStatus.textContent = 'Message sent. We\'ll be in touch soon.';
+          formStatus.style.color = '#4caf50';
+          contactForm.reset();
+        } else {
+          formStatus.textContent = data.error || 'Something went wrong. Please try again.';
+          formStatus.style.color = '#E94560';
+        }
+      }).catch(function() {
+        formStatus.textContent = 'Something went wrong. Please try again.';
+        formStatus.style.color = '#E94560';
+      });
+    });
+
+    // Scroll reveal for service cards
+    var revealEls = document.querySelectorAll('.service-card');
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    revealEls.forEach(function(el) { observer.observe(el); });
+  </script>
+
+<script>
+(function() {
+  var PROJECT_ID = "sandbox-xm";
+  var FORGE_ORIGIN = "https://forge-os.ai";
+  var ENDPOINT = FORGE_ORIGIN + '/api/analytics/events';
+  var BATCH_INTERVAL = 4000;
+  var MAX_BATCH = 30;
+
+  // ── Identity ──────────────────────────────────────────────────────────────
+  function uid() {
+    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+  var visitorId = (function() {
+    try {
+      var k = '_fvid';
+      var v = localStorage.getItem(k);
+      if (!v) { v = uid(); localStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+  var sessionId = (function() {
+    try {
+      var k = '_fsid';
+      var v = sessionStorage.getItem(k);
+      if (!v) { v = uid(); sessionStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+
+  // ── UA parsing ───────────────────────────────────────────────────────────
+  function parseUA(ua) {
+    var browser = 'Other', os = 'Other';
+    if (/Edg//.test(ua)) browser = 'Edge';
+    else if (/OPR/|Opera/.test(ua)) browser = 'Opera';
+    else if (/Chrome//.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+    else if (/Firefox//.test(ua)) browser = 'Firefox';
+    else if (/Safari//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+    else if (/Chromium//.test(ua)) browser = 'Chromium';
+    else if (/MSIE|Trident/.test(ua)) browser = 'IE';
+
+    if (/Windows/.test(ua)) os = 'Windows';
+    else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+    else if (/Mac OS X/.test(ua)) os = 'macOS';
+    else if (/Android/.test(ua)) os = 'Android';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    else if (/CrOS/.test(ua)) os = 'ChromeOS';
+
+    var deviceType = /Mobi|Android|iPhone|iPad|iPod|Touch/.test(ua) ? 'mobile' : 'desktop';
+    if (/iPad|Tablet/.test(ua)) deviceType = 'tablet';
+
+    return { browser: browser, os: os, deviceType: deviceType };
+  }
+
+  // ── Queue & flush ─────────────────────────────────────────────────────────
+  var queue = [];
+  function push(type, props) {
+    queue.push({
+      type: type,
+      sessionId: sessionId,
+      visitorId: visitorId,
+      url: location.href,
+      referrer: document.referrer || '',
+      properties: props || {},
+      ts: Date.now()
+    });
+    if (queue.length >= MAX_BATCH) flush();
+  }
+
+  function flush() {
+    if (queue.length === 0) return;
+    var batch = queue.splice(0);
+    var payload = JSON.stringify({ projectId: PROJECT_ID, events: batch });
+    try {
+      if (navigator.sendBeacon) {
+        var blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(ENDPOINT, blob);
+      } else {
+        fetch(ENDPOINT, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+      }
+    } catch(e) {}
+  }
+
+  setInterval(flush, BATCH_INTERVAL);
+  window.addEventListener('pagehide', flush);
+  window.addEventListener('beforeunload', flush);
+
+  // ── Public API ────────────────────────────────────────────────────────────
+  window.forge_track = function(name, props) { push(name, props || {}); };
+
+  // ── Session start ─────────────────────────────────────────────────────────
+  var uaInfo = parseUA(navigator.userAgent);
+  push('session_start', {
+    browser: uaInfo.browser,
+    os: uaInfo.os,
+    deviceType: uaInfo.deviceType,
+    viewport: window.innerWidth + 'x' + window.innerHeight,
+    screen: screen.width + 'x' + screen.height,
+    dpr: window.devicePixelRatio || 1,
+    language: navigator.language || '',
+    timezone: (function() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) { return ''; } })(),
+    connection: (function() { try { return (navigator.connection || navigator.mozConnection || navigator.webkitConnection || {}).effectiveType || ''; } catch(e) { return ''; } })(),
+    touch: (('ontouchstart' in window) || navigator.maxTouchPoints > 0)
+  });
+
+  // ── Pageview ──────────────────────────────────────────────────────────────
+  var pageEnterTs = Date.now();
+  push('pageview', { title: document.title });
+
+  // SPA route change detection
+  (function() {
+    var lastUrl = location.href;
+    function onNav() {
+      if (location.href !== lastUrl) {
+        if (pageEnterTs) push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+        lastUrl = location.href;
+        pageEnterTs = Date.now();
+        push('pageview', { title: document.title });
+      }
+    }
+    var origPush = history.pushState.bind(history);
+    var origReplace = history.replaceState.bind(history);
+    history.pushState = function() { origPush.apply(this, arguments); onNav(); };
+    history.replaceState = function() { origReplace.apply(this, arguments); onNav(); };
+    window.addEventListener('popstate', onNav);
+  })();
+
+  // Page exit — time on page
+  window.addEventListener('pagehide', function() {
+    push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+  });
+
+  // ── Scroll depth ─────────────────────────────────────────────────────────
+  (function() {
+    var marks = { 25: false, 50: false, 75: false, 100: false };
+    function onScroll() {
+      var el = document.documentElement;
+      var scrolled = el.scrollTop + el.clientHeight;
+      var total = el.scrollHeight;
+      if (total <= el.clientHeight) return;
+      var pct = Math.round((scrolled / total) * 100);
+      [25, 50, 75, 100].forEach(function(mark) {
+        if (!marks[mark] && pct >= mark) {
+          marks[mark] = true;
+          push('scroll_depth', { depth: String(mark) });
+        }
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+
+  // ── Tab visibility ────────────────────────────────────────────────────────
+  document.addEventListener('visibilitychange', function() {
+    push('visibility', { state: document.visibilityState });
+  });
+
+  // ── Clicks ───────────────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    // Walk up to find first meaningful element
+    var depth = 0;
+    while (el && depth < 5) {
+      if (el.tagName && /^(A|BUTTON|INPUT|SELECT|TEXTAREA|LABEL|LI)$/.test(el.tagName)) break;
+      el = el.parentElement;
+      depth++;
+    }
+    if (!el || !el.tagName) return;
+    push('click', {
+      tag: el.tagName.toLowerCase(),
+      id: el.id || null,
+      text: (el.textContent || '').trim().slice(0, 100),
+      href: el.href || null,
+      classes: (el.className && typeof el.className === 'string') ? el.className.slice(0, 100) : null
+    });
+  }, true);
+
+  // ── Form tracking ─────────────────────────────────────────────────────────
+  document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM') return;
+    var fields = Array.from(form.elements)
+      .filter(function(f) { return f.name && f.type !== 'password' && f.type !== 'hidden'; })
+      .map(function(f) { return f.name; });
+    push('form_submit', { formId: form.id || null, action: form.action || null, fields: fields });
+  }, true);
+
+  // ── Copy events ───────────────────────────────────────────────────────────
+  document.addEventListener('copy', function() {
+    var sel = window.getSelection ? window.getSelection().toString().slice(0, 200) : '';
+    push('copy', { text: sel });
+  });
+
+  // ── JS errors ────────────────────────────────────────────────────────────
+  window.addEventListener('error', function(e) {
+    push('js_error', {
+      message: (e.message || '').slice(0, 500),
+      source: (e.filename || '').slice(0, 300),
+      line: e.lineno,
+      col: e.colno,
+      stack: (e.error && e.error.stack ? e.error.stack.slice(0, 1000) : null)
+    });
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    var msg = '';
+    try { msg = String(e.reason && e.reason.message ? e.reason.message : e.reason); } catch(_) {}
+    push('unhandled_rejection', { message: msg.slice(0, 500) });
+  });
+
+  // ── Fetch / XHR intercept ─────────────────────────────────────────────────
+  (function() {
+    var origFetch = window.fetch;
+    window.fetch = function(resource, init) {
+      var url = typeof resource === 'string' ? resource : (resource.url || '');
+      if (url.indexOf(FORGE_ORIGIN) !== -1) return origFetch.apply(this, arguments);
+      var t0 = Date.now();
+      var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+      return origFetch.apply(this, arguments).then(function(resp) {
+        push('fetch', { url: url.slice(0, 300), method: method, status: resp.status, duration: Date.now() - t0 });
+        return resp;
+      }, function(err) {
+        push('fetch_error', { url: url.slice(0, 300), method: method, error: String(err).slice(0, 200), duration: Date.now() - t0 });
+        throw err;
+      });
+    };
+
+    var origOpen = XMLHttpRequest.prototype.open;
+    var origSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._fa_method = method;
+      this._fa_url = url;
+      this._fa_t0 = null;
+      return origOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function() {
+      var xhr = this;
+      xhr._fa_t0 = Date.now();
+      xhr.addEventListener('loadend', function() {
+        var url = String(xhr._fa_url || '');
+        if (url.indexOf(FORGE_ORIGIN) === -1) {
+          push('xhr', { url: url.slice(0, 300), method: xhr._fa_method || 'GET', status: xhr.status, duration: Date.now() - xhr._fa_t0 });
+        }
+      });
+      return origSend.apply(this, arguments);
+    };
+  })();
+
+  // ── Web Vitals via PerformanceObserver ────────────────────────────────────
+  (function() {
+    var vitals = {};
+    function reportVitals() {
+      if (Object.keys(vitals).length > 0) {
+        push('web_vitals', vitals);
+        vitals = {};
+      }
+    }
+    function observe(type, cb) {
+      try {
+        var po = new PerformanceObserver(function(list) {
+          list.getEntries().forEach(cb);
+        });
+        po.observe({ type: type, buffered: true });
+      } catch(e) {}
+    }
+
+    // LCP
+    observe('largest-contentful-paint', function(e) {
+      vitals.LCP = Math.round(e.startTime);
+    });
+    // FID
+    observe('first-input', function(e) {
+      vitals.FID = Math.round(e.processingStart - e.startTime);
+    });
+    // CLS
+    var clsVal = 0;
+    observe('layout-shift', function(e) {
+      if (!e.hadRecentInput) clsVal += e.value;
+      vitals.CLS = Math.round(clsVal * 1000) / 1000;
+    });
+    // FCP
+    observe('paint', function(e) {
+      if (e.name === 'first-contentful-paint') vitals.FCP = Math.round(e.startTime);
+    });
+    // INP
+    observe('event', function(e) {
+      if (e.duration > (vitals.INP || 0)) vitals.INP = Math.round(e.duration);
+    });
+
+    // TTFB via Navigation Timing
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        try {
+          var nav = performance.getEntriesByType('navigation')[0];
+          if (nav) vitals.TTFB = Math.round(nav.responseStart - nav.requestStart);
+        } catch(e) {}
+        reportVitals();
+      }, 0);
+    });
+  })();
+
+  // ── Performance: page load timing ─────────────────────────────────────────
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      try {
+        var nav = performance.getEntriesByType('navigation')[0];
+        if (!nav) return;
+        push('page_load', {
+          loadTime: Math.round(nav.loadEventEnd - nav.startTime),
+          domContentLoaded: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+          ttfb: Math.round(nav.responseStart - nav.requestStart),
+          transferSize: nav.transferSize || 0
+        });
+      } catch(e) {}
+    }, 100);
+  });
+
+})();
+</script>
+</body>
+</html>

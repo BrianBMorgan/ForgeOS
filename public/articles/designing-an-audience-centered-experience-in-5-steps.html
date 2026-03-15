@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Designing an Audience-Centered Experience in 5 Steps &mdash; The Sandbox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .article-hero {
+      background: linear-gradient(135deg, #0F3460 0%, #16213E 100%);
+      padding: 10rem 2rem 5rem;
+      text-align: center;
+    }
+
+    .article-hero-eyebrow {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #E94560;
+      margin-bottom: 1rem;
+      display: inline-block;
+      background: rgba(233,69,96,0.1);
+      border: 1px solid rgba(233,69,96,0.25);
+      border-radius: 3px;
+      padding: 0.25rem 0.6rem;
+    }
+
+    .article-hero h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      color: #f0f0f0;
+      max-width: 760px;
+      margin: 1rem auto 1.5rem;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    .article-meta {
+      font-size: 0.88rem;
+      color: #888888;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .article-hero-image {
+      max-width: 900px;
+      margin: 3rem auto 0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    }
+
+    .article-hero-image img {
+      width: 100%;
+      height: 420px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .article-body-section {
+      background: #16213E;
+      padding: 5rem 2rem 6rem;
+    }
+
+    .article-body {
+      max-width: 720px;
+      margin: 0 auto;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.05rem;
+      color: #cccccc;
+      line-height: 1.85;
+    }
+
+    .article-body p {
+      margin-bottom: 1.6rem;
+    }
+
+    .article-body h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+      line-height: 1.25;
+    }
+
+    .article-body h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 2.25rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.3;
+    }
+
+    .article-body ul,
+    .article-body ol {
+      padding-left: 1.5rem;
+      margin-bottom: 1.6rem;
+    }
+
+    .article-body li {
+      margin-bottom: 0.6rem;
+      color: #cccccc;
+    }
+
+    .article-body blockquote {
+      border-left: 3px solid #E94560;
+      padding: 0.75rem 1.5rem;
+      margin: 2rem 0;
+      background: rgba(233,69,96,0.05);
+      border-radius: 0 4px 4px 0;
+    }
+
+    .article-body blockquote p {
+      color: #e0e0e0;
+      font-style: italic;
+      margin-bottom: 0;
+    }
+
+    .article-body strong {
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .article-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #E94560;
+      text-decoration: none;
+      margin-bottom: 3rem;
+      transition: color 0.2s;
+    }
+
+    .article-back:hover {
+      color: #ffffff;
+      text-decoration: none;
+    }
+
+    .article-back::before {
+      content: '\2190';
+    }
+
+    @media (max-width: 768px) {
+      .article-hero {
+        padding: 8rem 1.5rem 4rem;
+      }
+
+      .article-hero-image img {
+        height: 240px;
+      }
+
+      .article-body-section {
+        padding: 3rem 1.5rem 4rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="/" class="nav-logo">Sandbox-<span style="color: #E94560;">XM</span></a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="/#services">Services</a></li>
+        <li><a href="/#about">About</a></li>
+        <li><a href="/#contact">Contact</a></li>
+        <li><a href="/sandbox.html">The Sandbox</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Article Hero -->
+  <section class="article-hero">
+    <span class="article-hero-eyebrow">Experience Strategy</span>
+    <h1>Designing an Audience-Centered Experience in 5 Steps</h1>
+    <p class="article-meta">By Sandbox-XM &mdash; June 2025</p>
+    <div class="article-hero-image">
+      <img src="/api/assets/audience-centered-experiences.png" alt="Audience-centered experience design" />
+    </div>
+  </section>
+
+  <!-- Article Body -->
+  <section class="article-body-section">
+    <div class="article-body">
+      <a href="/sandbox.html" class="article-back">Back to The Sandbox</a>
+
+      <p>Every event generates human signal. The question is whether you capture it or let it dissolve into forgotten handshakes and unread badge scans. Designing an audience-centered experience requires more than good intentions&#8212;it requires a deliberate framework that puts your attendees at the center of every decision, from the first invitation to the final follow-up.</p>
+
+      <p>Most corporate events are designed from the inside out: the agenda is built around what the organiser wants to say, the venue is chosen for its capacity, and the schedule is packed to justify the budget. The result is an event that feels like a broadcast rather than an experience.</p>
+
+      <p>Audience-centered design flips this. It starts with the people in the room&#8212;who they are, what they need, what they already know, and what would make them feel genuinely valued. Here are five steps to get there.</p>
+
+      <h2>Step 1: Define Your Audience Before You Define Your Agenda</h2>
+
+      <p>Before you book a venue or build a run sheet, spend time understanding who will actually be in the room. Not just their job titles&#8212;their context. What are they dealing with right now? What do they already know about your organisation? What would make them feel like this event was worth their time?</p>
+
+      <p>This means going beyond demographic segmentation. Talk to a sample of attendees before the event. Review past event feedback with fresh eyes. Ask your sales and account teams what questions they&#8217;re hearing in the field. The goal is to arrive at a clear picture of your audience&#8217;s current state&#8212;their knowledge, their concerns, and their expectations.</p>
+
+      <blockquote>
+        <p>The best events feel like they were designed specifically for the people in the room. That feeling is not accidental&#8212;it is the result of deliberate audience research done before a single agenda item is confirmed.</p>
+      </blockquote>
+
+      <h2>Step 2: Map the Full Attendee Journey</h2>
+
+      <p>An event is not a single moment&#8212;it is a sequence of experiences that begins the moment someone receives an invitation and ends long after they leave the venue. Audience-centered design maps this entire journey and identifies the moments that matter most.</p>
+
+      <p>Start with the pre-event phase: How does the invitation feel? Is the registration process frictionless? Does the pre-event communication build anticipation or create anxiety? Then move through arrival, the event itself, and the post-event follow-up. At each stage, ask: what does the attendee need to feel right now, and are we delivering it?</p>
+
+      <h3>Key journey touchpoints to audit:</h3>
+      <ul>
+        <li>Invitation design and tone</li>
+        <li>Registration and confirmation experience</li>
+        <li>Pre-event communication cadence</li>
+        <li>Arrival and welcome experience</li>
+        <li>Wayfinding and physical environment</li>
+        <li>Content pacing and format variety</li>
+        <li>Networking facilitation</li>
+        <li>Departure and post-event follow-up</li>
+      </ul>
+
+      <h2>Step 3: Design for Energy, Not Just Information</h2>
+
+      <p>Most corporate event agendas are information delivery systems. Panels, keynotes, presentations&#8212;all designed to transfer knowledge from the stage to the audience. But information transfer is not the same as experience design.</p>
+
+      <p>Audience-centered events are designed with energy in mind. They consider the natural rhythm of attention and fatigue, the need for social interaction and quiet reflection, and the difference between passive listening and active participation. A well-designed agenda creates peaks and valleys&#8212;moments of high engagement followed by space to process and connect.</p>
+
+      <p>This means being willing to cut content. It means building in more transition time than feels comfortable. It means trusting that a shorter, better-paced event will leave attendees feeling more energised than a packed schedule that runs fifteen minutes late at every break.</p>
+
+      <h2>Step 4: Build in Signals and Capture Them</h2>
+
+      <p>Every event generates data about your audience&#8212;who engaged with which sessions, who asked questions, who lingered at the networking reception, who left early. Most organisations collect almost none of it in a structured way.</p>
+
+      <p>Audience-centered design builds signal capture into the event architecture from the start. This does not require expensive technology. It requires intentional design: structured Q&amp;A formats that surface real questions, facilitated networking that creates natural conversation data, and post-event surveys that ask the right questions at the right moment.</p>
+
+      <p>The goal is not surveillance&#8212;it is understanding. The signals your audience generates during an event are the most honest feedback you will ever receive about what they care about and what they need from you next.</p>
+
+      <h2>Step 5: Close the Loop After the Room Empties</h2>
+
+      <p>The event ends when the last attendee leaves the venue. The experience does not. What happens in the 48 hours after an event is often more important than anything that happened during it.</p>
+
+      <p>Audience-centered follow-up is personalised, timely, and useful. It references specific moments from the event. It provides resources that attendees actually asked for. It opens a door to continued conversation rather than closing the loop with a generic thank-you email.</p>
+
+      <p>The organisations that do this well treat the post-event period as the beginning of the next conversation&#8212;not the end of the current one. They use the signals captured during the event to segment their follow-up, prioritise their outreach, and move the right people into the right next step.</p>
+
+      <h2>The Underlying Principle</h2>
+
+      <p>All five steps share a common thread: they require you to think about your audience before you think about your agenda. This sounds obvious. In practice, it is surprisingly rare.</p>
+
+      <p>The pressure to fill an agenda, justify a budget, and satisfy internal stakeholders pushes most event teams toward inside-out design. Audience-centered design requires a deliberate counterforce&#8212;a commitment to starting with the people in the room and working backwards to the programme.</p>
+
+      <p>When you get it right, the result is an event that feels effortless to attend. Guests feel seen, informed, and energised. They leave with something useful and a reason to stay connected. That feeling is not magic. It is the product of deliberate, audience-centered design&#8212;applied consistently, from the first touchpoint to the last.</p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p>&copy; 2025 Sandbox-XM. Part of <a href="#">Sandbox Group</a>. All rights reserved.</p>
+  </footer>
+
+  <script>
+    var navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 40) {
+        navbar.classList.add('scrolled');
+      } else {
+        navbar.classList.remove('scrolled');
+      }
+    });
+
+    var navToggle = document.getElementById('navToggle');
+    var navLinks = document.getElementById('navLinks');
+    navToggle.addEventListener('click', function() {
+      navLinks.classList.toggle('open');
+      navToggle.classList.toggle('open');
+    });
+  </script>
+
+<script>
+(function() {
+  var PROJECT_ID = "sandbox-xm";
+  var FORGE_ORIGIN = "https://forge-os.ai";
+  var ENDPOINT = FORGE_ORIGIN + '/api/analytics/events';
+  var BATCH_INTERVAL = 4000;
+  var MAX_BATCH = 30;
+
+  // ── Identity ──────────────────────────────────────────────────────────────
+  function uid() {
+    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+  var visitorId = (function() {
+    try {
+      var k = '_fvid';
+      var v = localStorage.getItem(k);
+      if (!v) { v = uid(); localStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+  var sessionId = (function() {
+    try {
+      var k = '_fsid';
+      var v = sessionStorage.getItem(k);
+      if (!v) { v = uid(); sessionStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+
+  // ── UA parsing ───────────────────────────────────────────────────────────
+  function parseUA(ua) {
+    var browser = 'Other', os = 'Other';
+    if (/Edg//.test(ua)) browser = 'Edge';
+    else if (/OPR/|Opera/.test(ua)) browser = 'Opera';
+    else if (/Chrome//.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+    else if (/Firefox//.test(ua)) browser = 'Firefox';
+    else if (/Safari//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+    else if (/Chromium//.test(ua)) browser = 'Chromium';
+    else if (/MSIE|Trident/.test(ua)) browser = 'IE';
+
+    if (/Windows/.test(ua)) os = 'Windows';
+    else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+    else if (/Mac OS X/.test(ua)) os = 'macOS';
+    else if (/Android/.test(ua)) os = 'Android';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    else if (/CrOS/.test(ua)) os = 'ChromeOS';
+
+    var deviceType = /Mobi|Android|iPhone|iPad|iPod|Touch/.test(ua) ? 'mobile' : 'desktop';
+    if (/iPad|Tablet/.test(ua)) deviceType = 'tablet';
+
+    return { browser: browser, os: os, deviceType: deviceType };
+  }
+
+  // ── Queue & flush ─────────────────────────────────────────────────────────
+  var queue = [];
+  function push(type, props) {
+    queue.push({
+      type: type,
+      sessionId: sessionId,
+      visitorId: visitorId,
+      url: location.href,
+      referrer: document.referrer || '',
+      properties: props || {},
+      ts: Date.now()
+    });
+    if (queue.length >= MAX_BATCH) flush();
+  }
+
+  function flush() {
+    if (queue.length === 0) return;
+    var batch = queue.splice(0);
+    var payload = JSON.stringify({ projectId: PROJECT_ID, events: batch });
+    try {
+      if (navigator.sendBeacon) {
+        var blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(ENDPOINT, blob);
+      } else {
+        fetch(ENDPOINT, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+      }
+    } catch(e) {}
+  }
+
+  setInterval(flush, BATCH_INTERVAL);
+  window.addEventListener('pagehide', flush);
+  window.addEventListener('beforeunload', flush);
+
+  // ── Public API ────────────────────────────────────────────────────────────
+  window.forge_track = function(name, props) { push(name, props || {}); };
+
+  // ── Session start ─────────────────────────────────────────────────────────
+  var uaInfo = parseUA(navigator.userAgent);
+  push('session_start', {
+    browser: uaInfo.browser,
+    os: uaInfo.os,
+    deviceType: uaInfo.deviceType,
+    viewport: window.innerWidth + 'x' + window.innerHeight,
+    screen: screen.width + 'x' + screen.height,
+    dpr: window.devicePixelRatio || 1,
+    language: navigator.language || '',
+    timezone: (function() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) { return ''; } })(),
+    connection: (function() { try { return (navigator.connection || navigator.mozConnection || navigator.webkitConnection || {}).effectiveType || ''; } catch(e) { return ''; } })(),
+    touch: (('ontouchstart' in window) || navigator.maxTouchPoints > 0)
+  });
+
+  // ── Pageview ──────────────────────────────────────────────────────────────
+  var pageEnterTs = Date.now();
+  push('pageview', { title: document.title });
+
+  // SPA route change detection
+  (function() {
+    var lastUrl = location.href;
+    function onNav() {
+      if (location.href !== lastUrl) {
+        if (pageEnterTs) push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+        lastUrl = location.href;
+        pageEnterTs = Date.now();
+        push('pageview', { title: document.title });
+      }
+    }
+    var origPush = history.pushState.bind(history);
+    var origReplace = history.replaceState.bind(history);
+    history.pushState = function() { origPush.apply(this, arguments); onNav(); };
+    history.replaceState = function() { origReplace.apply(this, arguments); onNav(); };
+    window.addEventListener('popstate', onNav);
+  })();
+
+  // Page exit — time on page
+  window.addEventListener('pagehide', function() {
+    push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+  });
+
+  // ── Scroll depth ─────────────────────────────────────────────────────────
+  (function() {
+    var marks = { 25: false, 50: false, 75: false, 100: false };
+    function onScroll() {
+      var el = document.documentElement;
+      var scrolled = el.scrollTop + el.clientHeight;
+      var total = el.scrollHeight;
+      if (total <= el.clientHeight) return;
+      var pct = Math.round((scrolled / total) * 100);
+      [25, 50, 75, 100].forEach(function(mark) {
+        if (!marks[mark] && pct >= mark) {
+          marks[mark] = true;
+          push('scroll_depth', { depth: String(mark) });
+        }
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+
+  // ── Tab visibility ────────────────────────────────────────────────────────
+  document.addEventListener('visibilitychange', function() {
+    push('visibility', { state: document.visibilityState });
+  });
+
+  // ── Clicks ───────────────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    // Walk up to find first meaningful element
+    var depth = 0;
+    while (el && depth < 5) {
+      if (el.tagName && /^(A|BUTTON|INPUT|SELECT|TEXTAREA|LABEL|LI)$/.test(el.tagName)) break;
+      el = el.parentElement;
+      depth++;
+    }
+    if (!el || !el.tagName) return;
+    push('click', {
+      tag: el.tagName.toLowerCase(),
+      id: el.id || null,
+      text: (el.textContent || '').trim().slice(0, 100),
+      href: el.href || null,
+      classes: (el.className && typeof el.className === 'string') ? el.className.slice(0, 100) : null
+    });
+  }, true);
+
+  // ── Form tracking ─────────────────────────────────────────────────────────
+  document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM') return;
+    var fields = Array.from(form.elements)
+      .filter(function(f) { return f.name && f.type !== 'password' && f.type !== 'hidden'; })
+      .map(function(f) { return f.name; });
+    push('form_submit', { formId: form.id || null, action: form.action || null, fields: fields });
+  }, true);
+
+  // ── Copy events ───────────────────────────────────────────────────────────
+  document.addEventListener('copy', function() {
+    var sel = window.getSelection ? window.getSelection().toString().slice(0, 200) : '';
+    push('copy', { text: sel });
+  });
+
+  // ── JS errors ────────────────────────────────────────────────────────────
+  window.addEventListener('error', function(e) {
+    push('js_error', {
+      message: (e.message || '').slice(0, 500),
+      source: (e.filename || '').slice(0, 300),
+      line: e.lineno,
+      col: e.colno,
+      stack: (e.error && e.error.stack ? e.error.stack.slice(0, 1000) : null)
+    });
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    var msg = '';
+    try { msg = String(e.reason && e.reason.message ? e.reason.message : e.reason); } catch(_) {}
+    push('unhandled_rejection', { message: msg.slice(0, 500) });
+  });
+
+  // ── Fetch / XHR intercept ─────────────────────────────────────────────────
+  (function() {
+    var origFetch = window.fetch;
+    window.fetch = function(resource, init) {
+      var url = typeof resource === 'string' ? resource : (resource.url || '');
+      if (url.indexOf(FORGE_ORIGIN) !== -1) return origFetch.apply(this, arguments);
+      var t0 = Date.now();
+      var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+      return origFetch.apply(this, arguments).then(function(resp) {
+        push('fetch', { url: url.slice(0, 300), method: method, status: resp.status, duration: Date.now() - t0 });
+        return resp;
+      }, function(err) {
+        push('fetch_error', { url: url.slice(0, 300), method: method, error: String(err).slice(0, 200), duration: Date.now() - t0 });
+        throw err;
+      });
+    };
+
+    var origOpen = XMLHttpRequest.prototype.open;
+    var origSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._fa_method = method;
+      this._fa_url = url;
+      this._fa_t0 = null;
+      return origOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function() {
+      var xhr = this;
+      xhr._fa_t0 = Date.now();
+      xhr.addEventListener('loadend', function() {
+        var url = String(xhr._fa_url || '');
+        if (url.indexOf(FORGE_ORIGIN) === -1) {
+          push('xhr', { url: url.slice(0, 300), method: xhr._fa_method || 'GET', status: xhr.status, duration: Date.now() - xhr._fa_t0 });
+        }
+      });
+      return origSend.apply(this, arguments);
+    };
+  })();
+
+  // ── Web Vitals via PerformanceObserver ────────────────────────────────────
+  (function() {
+    var vitals = {};
+    function reportVitals() {
+      if (Object.keys(vitals).length > 0) {
+        push('web_vitals', vitals);
+        vitals = {};
+      }
+    }
+    function observe(type, cb) {
+      try {
+        var po = new PerformanceObserver(function(list) {
+          list.getEntries().forEach(cb);
+        });
+        po.observe({ type: type, buffered: true });
+      } catch(e) {}
+    }
+
+    // LCP
+    observe('largest-contentful-paint', function(e) {
+      vitals.LCP = Math.round(e.startTime);
+    });
+    // FID
+    observe('first-input', function(e) {
+      vitals.FID = Math.round(e.processingStart - e.startTime);
+    });
+    // CLS
+    var clsVal = 0;
+    observe('layout-shift', function(e) {
+      if (!e.hadRecentInput) clsVal += e.value;
+      vitals.CLS = Math.round(clsVal * 1000) / 1000;
+    });
+    // FCP
+    observe('paint', function(e) {
+      if (e.name === 'first-contentful-paint') vitals.FCP = Math.round(e.startTime);
+    });
+    // INP
+    observe('event', function(e) {
+      if (e.duration > (vitals.INP || 0)) vitals.INP = Math.round(e.duration);
+    });
+
+    // TTFB via Navigation Timing
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        try {
+          var nav = performance.getEntriesByType('navigation')[0];
+          if (nav) vitals.TTFB = Math.round(nav.responseStart - nav.requestStart);
+        } catch(e) {}
+        reportVitals();
+      }, 0);
+    });
+  })();
+
+  // ── Performance: page load timing ─────────────────────────────────────────
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      try {
+        var nav = performance.getEntriesByType('navigation')[0];
+        if (!nav) return;
+        push('page_load', {
+          loadTime: Math.round(nav.loadEventEnd - nav.startTime),
+          domContentLoaded: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+          ttfb: Math.round(nav.responseStart - nav.requestStart),
+          transferSize: nav.transferSize || 0
+        });
+      } catch(e) {}
+    }, 100);
+  });
+
+})();
+</script>
+</body>
+</html>
