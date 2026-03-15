@@ -435,70 +435,6 @@ body {
   cursor: not-allowed;
 }
 
-.chat-plan-btn {
-  margin-top: 0.5rem;
-  margin-left: 0.5rem;
-  padding: 0.35rem 0.75rem;
-  background: rgba(168, 85, 247, 0.1);
-  color: #a855f7;
-  border: 1px solid rgba(168, 85, 247, 0.25);
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.chat-plan-btn:hover {
-  background: rgba(168, 85, 247, 0.18);
-}
-
-.chat-plan-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.chat-forge-btn {
-  margin-top: 0.5rem;
-  margin-left: 0.5rem;
-  padding: 0.35rem 0.75rem;
-  background: rgba(251, 146, 60, 0.1);
-  color: #fb923c;
-  border: 1px solid rgba(251, 146, 60, 0.25);
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.chat-forge-btn:hover {
-  background: rgba(251, 146, 60, 0.18);
-}
-
-.chat-forge-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.forge-gate-header .forge-gate-label {
-  color: #fb923c;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.forge-approve-btn {
-  background: rgba(251, 146, 60, 0.12) !important;
-  color: #fb923c !important;
-  border-color: rgba(251, 146, 60, 0.3) !important;
-}
-
-.forge-approve-btn:hover {
-  background: rgba(251, 146, 60, 0.22) !important;
-}
-
 /* ── Pipeline ── */
 .pipeline {
   padding: 0.75rem 1.25rem;
@@ -3897,6 +3833,138 @@ body {
   gap: 0.5rem;
   margin-top: 0.5rem;
   flex-shrink: 0;
+}
+
+/* ── Settings Mobile ── */
+@media (max-width: 640px) {
+  /* Stack sidebar on top as a horizontal scrollable tab strip */
+  .stg-page {
+    flex-direction: column;
+  }
+
+  .stg-sidebar {
+    width: 100%;
+    flex-direction: row;
+    padding: 0;
+    border-right: none;
+    border-bottom: 1px solid #1e293b;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    /* Hide scrollbar but keep scrolling */
+    scrollbar-width: none;
+  }
+  .stg-sidebar::-webkit-scrollbar { display: none; }
+
+  .stg-sidebar-title {
+    display: none;
+  }
+
+  .stg-tab {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.6rem 0.75rem;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    flex-shrink: 0;
+    min-width: 64px;
+  }
+
+  .stg-tab.active {
+    border-left-color: transparent;
+    border-bottom-color: #3b82f6;
+    background: #1e293b;
+  }
+
+  .stg-tab-icon {
+    font-size: 1rem;
+    width: auto;
+  }
+
+  .stg-tab-label {
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
+
+  /* Canvas gets full width with tighter padding */
+  .stg-canvas {
+    padding: 1rem;
+  }
+
+  /* Secrets/env rows stack key+value vertically */
+  .stg-list-row {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: flex-start;
+  }
+
+  .stg-key {
+    width: 100%;
+    font-size: 0.75rem;
+  }
+
+  .stg-val {
+    flex: 1;
+    font-size: 0.75rem;
+    min-width: 0;
+    word-break: break-all;
+  }
+
+  /* Add row stacks vertically */
+  .stg-add-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .stg-add-row .stg-input {
+    width: 100%;
+  }
+
+  .stg-add-row .stg-btn {
+    align-self: flex-start;
+  }
+
+  /* Skills panel: stack sidebar + canvas vertically */
+  .stg-skills-layout {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .stg-skills-sidebar {
+    width: 100%;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid #1e293b;
+    border-radius: 6px 6px 0 0;
+  }
+
+  .stg-skills-list {
+    max-height: 180px;
+  }
+
+  .stg-skills-canvas {
+    border-left: 1px solid #1e293b;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    min-height: 300px;
+  }
+
+  /* Skills import row stacks */
+  .stg-skills-import-row {
+    flex-direction: column;
+  }
+
+  .stg-skills-import-row .stg-input {
+    width: 100%;
+  }
+
+  /* Full-width inputs and selects */
+  .stg-input,
+  .stg-select {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 /* ── Publish Tab ── */
