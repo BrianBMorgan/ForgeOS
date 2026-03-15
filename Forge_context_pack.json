@@ -362,6 +362,40 @@
         "Should approved plans auto-execute when auto_approve is enabled, or always require user confirmation for PLAN:-sourced builds?",
         "Should the Plan tab surface whether a plan was sourced from a Chat Agent PLAN: signal vs a raw user prompt?"
       ]
+    },
+    {
+      "date": "2026-03-14",
+      "session_title": "Conversation History Window, Project History, Failure Memory, Settings Mobile, Site Analytics",
+      "shipped": [
+        "10-turn conversation history window \u2014 getConversation() now enforces a 10-turn limit; overflow turns are summarized by Haiku into project_history TEXT column on the projects table via summarizeAndTrimConversation(); trimmed rows deleted from DB; window turns still passed as messages array to builder",
+        "project_history column \u2014 ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_history TEXT; CREATE TABLE schema updated; getProjectHistory() added to brain.js; prepended to builder userMessages as PROJECT HISTORY block when present",
+        "extractFailureMemory() added to brain.js \u2014 Haiku call that produces { lesson, category } JSON from failed build context; called at all three failure stages: build (Claude API failure), install-failed, start-failed; replaces raw recordMistake() calls at those paths",
+        "summarizeAndTrimConversation() added to brain.js \u2014 internal helper called by getConversation when overflow detected; appends summary to project_history via COALESCE concat; deletes overflow rows by ID array",
+        "getProjectHistory() exported from brain.js \u2014 reads project_history from projects table for a given projectId",
+        "builder.js updated \u2014 getConversation call simplified to limit=10 (no more slice(-10)); getProjectHistory injected as PROJECT HISTORY unshift into userMessages; extractFailureMemory wired at build-failed and install/start-failed paths",
+        "Settings mobile layout \u2014 CSS-only, no Settings.tsx changes; sidebar collapses to horizontal scrollable tab strip at \u2264640px; tab icons stack above short labels; canvas gets full width; stg-list-row wraps key+value vertically; stg-add-row stacks; Skills panel inner sidebar+canvas goes vertical; stg-skills-list max-height 180px; inputs/selects full width on mobile",
+        "forge_analytics Neon table \u2014 BIGSERIAL id, project_id, session_id, visitor_id, event_type, url, referrer, properties JSONB, created_at BIGINT; indexes on project_id, event_type, created_at DESC, session_id",
+        "server/analytics/manager.js (new) \u2014 ensureSchema, ingestEvents, getOverview (pageviews/sessions/visitors/avgDuration/bounceRate), getTopPages, getTopEvents, getEventStream, getWebVitals (p50/p75/p95 per metric), getErrors (grouped by message+stack), getDeviceBreakdown (browsers/os/devices/viewports), getPageviewTimeseries (bucketed by range), getReferrers, getScrollDepth",
+        "server/analytics/tracker.js (new) \u2014 buildTrackerScript(projectId, forgeOrigin) returns self-contained IIFE script tag; collects: session_start (UA parse, viewport, screen, DPR, language, timezone, connection, touch), pageview + SPA route changes, page_exit (timeOnPage), scroll_depth (25/50/75/100), visibility, click (tag/id/text/href/classes), form_submit (fields, action), copy, js_error + unhandled_rejection, fetch + xhr intercept (url/method/status/duration), web_vitals via PerformanceObserver (LCP/FID/CLS/FCP/INP/TTFB), page_load timing; batched beacon sends every 4s via sendBeacon/fetch keepalive; window.forge_track() public API",
+        "server/publish/github.js updated \u2014 require('../analytics/tracker') added; pushToAppBranch injects tracker script before </body> in all .html files at publish time; forgeOrigin derived from BASE_DOMAIN env var; projectId baked in as slug",
+        "Analytics API routes added to server/index.js \u2014 POST /api/analytics/events (ingest beacon); GET /api/analytics/:projectId/overview|pages|events|vitals|errors|devices|timeseries|referrers|scroll",
+        "AnalyticsTab component added to Workspace.tsx \u2014 six views: Overview (stat cards + sparkline + referrers + scroll depth), Pages (table), Events (top events + stream), Performance (Web Vitals cards with good/needs-improvement/poor ratings), Errors (grouped with stack traces), Devices (browser/OS/device/viewport bar charts); range selector 1h/24h/7d/30d; reloads on view or range change",
+        "Analytics tab added to defaultTabs in Workspace.tsx \u2014 id: 'analytics', label: 'Analytics'",
+        "Analytics CSS added to index.css \u2014 full .an-* ruleset: stat cards, sparkline, two-col grid, list rows with bar fills, table, event pills, stream, Web Vitals cards with color-coded ratings, error cards with stack display, mobile responsive two-col collapse"
+      ],
+      "decisions": [
+        "10-turn window + project history is the right balance \u2014 builder gets precise recent context without context budget bleed; older turns aren't lost, just summarized",
+        "Streaming responses closed as not worth the complexity \u2014 time-to-working-app doesn't change, spinner duration identical, JSON parsing complexity not justified by visual nicety",
+        "Failed builds auto-record to Brain via extractFailureMemory \u2014 structured lesson + category more useful than raw error string; Haiku keeps it cheap",
+        "Settings mobile is CSS-only \u2014 no component changes, zero risk to desktop layout, purely additive media queries",
+        "Analytics tracker injected at publish time via pushToAppBranch \u2014 not at preview time, keeps analytics data clean (no dev noise); republish on any existing project activates tracker automatically",
+        "Tracker uses sendBeacon with Blob fallback to fetch keepalive \u2014 fires reliably on page unload without blocking navigation",
+        "projectId baked into tracker script at publish time \u2014 no runtime lookup needed, slug rename triggers republish which rebakes correct ID; old slug data stays in Neon under old ID",
+        "window.forge_track() public API injected globally \u2014 Forge or manual code can fire custom events without any setup or import",
+        "forge_analytics uses BIGSERIAL not VARCHAR for id \u2014 high-volume append table, numeric PK more efficient for indexed range queries"
+      ],
+      "pending": [],
+      "open_questions": []
     }
   ],
   "domain_knowledge": [
@@ -411,7 +445,16 @@
     "BUILD: vs PLAN: in Chat Agent: BUILD: = one root cause, one file, one code change; PLAN: = coordinated multi-step fix requiring planner to map scope; output one or the other, never both",
     "planSuggestion is exempt from banned-pattern validation \u2014 multi-step scope language is intentionally allowed in PLAN: text; banned-pattern check only runs on message and buildSuggestion",
     "Inspect-mode (Visual Editor) always produces BUILD: \u2014 element-level single-file changes never qualify as PLAN: scope",
-    "Chat Agent autonomy failure on API migrations was a system design gap \u2014 one-fix surgical model was the wrong tool; PLAN: signal closes the gap by routing complex fixes through the planner"
+    "Chat Agent autonomy failure on API migrations was a system design gap \u2014 one-fix surgical model was the wrong tool; PLAN: signal closes the gap by routing complex fixes through the planner",
+    "getConversation() enforces a 10-turn window \u2014 overflow turns are summarized into project_history via summarizeAndTrimConversation() and deleted from forge_conversations; builder receives last 10 turns as messages array plus project_history as a prepended context block",
+    "project_history TEXT column on projects table \u2014 accumulated summaries of conversation overflow; prepended to builder userMessages as PROJECT HISTORY block; updated via COALESCE concat in summarizeAndTrimConversation",
+    "extractFailureMemory() in brain.js \u2014 Haiku call producing { lesson, category } for any build failure (build/install-failed/start-failed); replaces raw recordMistake() at all three failure paths in builder.js",
+    "Analytics tracker injected at publish time in pushToAppBranch \u2014 tracker script baked before </body> in all .html files with projectId and forgeOrigin hardcoded; activated automatically on republish of any project",
+    "forge_analytics Neon table \u2014 stores all tracker events: project_id, session_id, visitor_id, event_type, url, referrer, properties JSONB, created_at BIGINT; indexed on project_id, event_type, created_at, session_id",
+    "window.forge_track('event_name', { ...data }) \u2014 public analytics API injected into every published app; no setup required for custom event tracking",
+    "Analytics tab in cockpit \u2014 six views (Overview, Pages, Events, Performance, Errors, Devices) with 1h/24h/7d/30d range selector; data fetched from /api/analytics/:projectId/* endpoints",
+    "Web Vitals rated good/needs-improvement/poor per Google thresholds \u2014 LCP, FID, CLS, FCP, TTFB, INP; p50/p75/p95 stored per metric; AnalyticsTab shows color-coded cards",
+    "Slug rename rebakes tracker \u2014 republish on new slug calls pushToAppBranch which injects tracker with new slug as projectId; old slug data preserved in Neon under old ID"
   ],
   "decisions_made": [
     {
@@ -497,6 +540,26 @@
     {
       "decision": "planSuggestion exempt from banned-pattern validation",
       "rationale": "PLAN: text must describe full migration scope \u2014 it inherently uses language like 'both routes', 'and package.json', file lists. Applying the bug-report two-sentence rule to planning text would make the plan description useless."
+    },
+    {
+      "decision": "10-turn conversation window with project history summarization",
+      "rationale": "Full conversation history at 50+ turns eats builder context budget. 10 turns gives precise recent context; overflow is summarized not discarded, so no knowledge is permanently lost."
+    },
+    {
+      "decision": "Streaming builder responses closed \u2014 not implemented",
+      "rationale": "Streaming doesn't change time-to-working-app. The build pipeline starts after full JSON parse regardless. Spinner duration identical. JSON chunk parsing complexity not justified."
+    },
+    {
+      "decision": "extractFailureMemory replaces recordMistake at all build failure paths",
+      "rationale": "A Haiku-generated structured lesson with category is more useful to Brain than a raw concatenated error string. Cost is negligible."
+    },
+    {
+      "decision": "Analytics tracker injected at publish time, not preview time",
+      "rationale": "Published-only keeps analytics signal clean. Preview sessions are dev noise. Any republish of an existing project automatically activates the tracker with no per-project setup."
+    },
+    {
+      "decision": "Tracker projectId baked at publish time as slug",
+      "rationale": "No runtime lookup needed. Slug rename triggers republish which rebakes the correct ID. Clean data separation between slug versions."
     }
   ],
   "preferences": [
@@ -564,7 +627,11 @@
     "Iteration rollback via GitHub API force-push \u2014 fast, no new commits, clean branch history",
     "HubSpot skill seeded automatically on startup when token is present \u2014 zero manual setup for builders using /hubspot",
     "PLAN: signal as Chat Agent escalation path \u2014 matches fix complexity to the right build mechanism without forcing the user to re-prompt",
-    "Planner prompt handling two input types \u2014 feature requests and Chat Agent diagnoses treated differently; diagnoses trusted as precise specifications with no extra scope added"
+    "Planner prompt handling two input types \u2014 feature requests and Chat Agent diagnoses treated differently; diagnoses trusted as precise specifications with no extra scope added",
+    "Project history summarization via COALESCE concat \u2014 appends new summaries to existing history without overwriting; single column, no separate table needed",
+    "Tracker injection in pushToAppBranch file loop \u2014 intercepts all .html files at the moment of GitHub push, zero additional pipeline steps",
+    "sendBeacon + Blob fallback pattern for analytics \u2014 fires on page unload reliably across browsers without blocking navigation",
+    "buildTrackerScript(projectId, forgeOrigin) returning a complete script tag string \u2014 clean separation between tracker logic and injection point"
   ],
   "mistakes_to_avoid": [
     "Inline backtick-wrapped content inside JS template literal strings \u2014 Node parser treats backtick as closing delimiter",
@@ -587,21 +654,18 @@
     "Attempting to restore a run with no snapshot \u2014 restoreIteration will fail; verify snapshot exists at stages.builder.output.files in run_snapshots before expecting restore to work; delete no-snapshot runs with deleteIteration instead",
     "Exposing HUBSPOT_ACCESS_TOKEN to the frontend \u2014 all HubSpot calls must be server-side only; token must never appear in client-side code or API responses",
     "Using PLAN: for single-line fixes \u2014 escalation to avoid writing a precise BUILD: line; always use BUILD: when the fix is one file, one code change",
-    "Forcing surgical BUILD: path for API migrations \u2014 when an external API changes endpoint or payload format, multiple routes must be rewritten together; surgical single-file path leaves the app in a broken partial state"
+    "Forcing surgical BUILD: path for API migrations \u2014 when an external API changes endpoint or payload format, multiple routes must be rewritten together; surgical single-file path leaves the app in a broken partial state",
+    "Injecting analytics tracker into preview HTML \u2014 preview sessions are dev noise; published-only keeps analytics signal clean",
+    "Using recordMistake() directly for build failures \u2014 extractFailureMemory() produces structured lessons with categories; always use the structured path"
   ],
-  "current_state": "ForgeOS self-repair pipeline complete. Agent can read its own infrastructure, diagnose cross-layer bugs, and autonomously fix + redeploy ForgeOS without intervention. LogoForge multipart proxy bug fixed. Secrets vault diagnostic added.",
+  "current_state": "ForgeOS fully operational with site analytics live. Every published app automatically receives the tracker (injected at publish time via pushToAppBranch). Analytics tab in cockpit shows six views: Overview, Pages, Events, Performance (Web Vitals), Errors, Devices. Conversation history capped at 10 turns with project history summarization. Failed builds auto-record structured lessons to Brain. Settings optimized for mobile. Self-repair pipeline, PLAN:/BUILD: signals, HubSpot integration, Restore Iteration, and Visual Editor all operational.",
   "next_steps": [
-    "Test FORGE: signal end-to-end on a real infrastructure bug",
-    "Build sandbox-xm contact form with HubSpot lead creation using /hubspot skill",
-    "Test Restore Iteration feature end-to-end in live environment",
-    "Point sandbox-xm.com DNS \u2014 A record @ to Render IP at Namecheap + www URL redirect"
+    "Republish existing projects to activate analytics tracker",
+    "Test Stage 2 React/Vite build end-to-end \u2014 verify Mode B scaffolds vite.config.js correctly on first pass",
+    "Consider pgvector semantic search upgrade for Brain once sufficient memory entries exist"
   ],
   "open_questions": [
-    "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?",
-    "Should the Plan tab show the full off-limits file list during a surgical build, or just the target file?",
-    "Should failed builds auto-record to Brain or require human confirmation?",
-    "What is the right conversation history limit per project before summarization is needed?",
-    "Should workspace builder stream responses or return complete JSON on completion?"
+    "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?"
   ],
   "key_terminology": [
     {
@@ -695,6 +759,30 @@
     {
       "term": "BUILD: vs PLAN: decision",
       "value": "Chat Agent chooses based on fix scope: BUILD: = one root cause, one file, one code change (surgical); PLAN: = multiple coordinated changes required. Inspect-mode always produces BUILD:. Never use PLAN: for single-line fixes. Never use BUILD: for API migrations that require touching multiple routes."
+    },
+    {
+      "term": "project_history",
+      "value": "TEXT column on the projects table. Accumulated summaries of conversation turns that have rolled out of the 10-turn window. Prepended to builder context as PROJECT HISTORY block. Updated via COALESCE concat in summarizeAndTrimConversation()."
+    },
+    {
+      "term": "extractFailureMemory",
+      "value": "Function in server/memory/brain.js. Haiku call that produces { lesson, category } JSON from a failed build. Called at all three failure stages (build, install-failed, start-failed). Replaces raw recordMistake() at those paths."
+    },
+    {
+      "term": "forge_analytics",
+      "value": "Neon table storing all analytics events from published apps. Columns: project_id, session_id, visitor_id, event_type, url, referrer, properties JSONB, created_at BIGINT. Indexed for fast per-project range queries."
+    },
+    {
+      "term": "buildTrackerScript",
+      "value": "Function in server/analytics/tracker.js. Returns a self-contained IIFE <script> tag with projectId and forgeOrigin baked in. Injected before </body> in all .html files during pushToAppBranch."
+    },
+    {
+      "term": "window.forge_track",
+      "value": "Public analytics API injected into every published app. Usage: window.forge_track('event_name', { ...data }). Queues a custom event for the next beacon flush. No setup or import required."
+    },
+    {
+      "term": "AnalyticsTab",
+      "value": "Cockpit tab component with six views (Overview, Pages, Events, Performance, Errors, Devices) and a 1h/24h/7d/30d range selector. Fetches from /api/analytics/:projectId/* endpoints. Web Vitals rated good/needs-improvement/poor per Google thresholds."
     }
   ]
 }
