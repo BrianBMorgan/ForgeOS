@@ -422,7 +422,8 @@ const defaultTabs: Tab[] = [
   { id: "shell", label: "Shell", description: "Terminal output and log stream." },
   { id: "db", label: "DB", description: "Database viewer — tables, queries, and schema." },
   { id: "env", label: "Env", description: "Project environment variables." },
-{ id: "publish", label: "Publish", description: "Deployment controls, domains, and promotion workflow." },
+  { id: "publish", label: "Publish", description: "Deployment controls, domains, and promotion workflow." },
+  { id: "analytics", label: "Analytics", description: "Real-time traffic, events, performance, and error data." },
   { id: "brain", label: "Brain", description: "Persistent team memory — patterns, preferences, and project history." },
 ];
 
@@ -2293,6 +2294,326 @@ function BrainTab() {
   );
 }
 
+// ── Analytics Tab ─────────────────────────────────────────────────────────
+
+type AnalyticsRange = "1h" | "24h" | "7d" | "30d";
+type AnalyticsView = "overview" | "pages" | "events" | "performance" | "errors" | "devices";
+
+function fmt(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+}
+
+function fmtNum(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function vitalRating(metric: string, p75: number): "good" | "needs-improvement" | "poor" {
+  const thresholds: Record<string, [number, number]> = {
+    LCP: [2500, 4000], FID: [100, 300], CLS: [0.1, 0.25],
+    FCP: [1800, 3000], TTFB: [800, 1800], INP: [200, 500],
+  };
+  const t = thresholds[metric];
+  if (!t) return "good";
+  if (p75 <= t[0]) return "good";
+  if (p75 <= t[1]) return "needs-improvement";
+  return "poor";
+}
+
+function AnalyticsTab({ projectId }: { projectId: string | undefined }) {
+  const [range, setRange] = useState<AnalyticsRange>("24h");
+  const [view, setView] = useState<AnalyticsView>("overview");
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<Record<string, unknown>>({});
+
+  const load = async (v: AnalyticsView, r: AnalyticsRange) => {
+    if (!projectId) return;
+    setLoading(true);
+    try {
+      const endpointMap: Record<AnalyticsView, string> = {
+        overview: `overview,timeseries,referrers,scroll`,
+        pages: "pages",
+        events: "events",
+        performance: "vitals",
+        errors: "errors",
+        devices: "devices",
+      };
+      const endpoints = endpointMap[v].split(",");
+      const results = await Promise.all(
+        endpoints.map(ep =>
+          fetch(`/api/analytics/${projectId}/${ep}?range=${r}`).then(r => r.json()).catch(() => null)
+        )
+      );
+      const merged: Record<string, unknown> = {};
+      endpoints.forEach((ep, i) => { merged[ep] = results[i]; });
+      setData(merged);
+    } catch (err) {
+      console.error("[analytics] load failed:", err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(view, range); }, [view, range, projectId]);
+
+  if (!projectId) {
+    return <div className="panel-placeholder"><div className="panel-title">Analytics</div><div className="panel-desc">No project loaded.</div></div>;
+  }
+
+  const views: { id: AnalyticsView; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "pages", label: "Pages" },
+    { id: "events", label: "Events" },
+    { id: "performance", label: "Performance" },
+    { id: "errors", label: "Errors" },
+    { id: "devices", label: "Devices" },
+  ];
+
+  const renderOverview = () => {
+    const ov = data.overview as { pageviews: number; sessions: number; visitors: number; avgDurationMs: number; bounceRate: number } | null;
+    const ts = (data.timeseries as { ts: number; pageviews: number; sessions: number }[]) || [];
+    const refs = (data.referrers as { referrer: string; visits: number }[]) || [];
+    const scroll = (data.scroll as { depth: string; count: number }[]) || [];
+
+    const maxPv = Math.max(...ts.map(t => t.pageviews), 1);
+
+    return (
+      <div className="an-overview">
+        <div className="an-stat-row">
+          {ov && <>
+            <div className="an-stat"><div className="an-stat-val">{fmtNum(ov.pageviews)}</div><div className="an-stat-label">Pageviews</div></div>
+            <div className="an-stat"><div className="an-stat-val">{fmtNum(ov.sessions)}</div><div className="an-stat-label">Sessions</div></div>
+            <div className="an-stat"><div className="an-stat-val">{fmtNum(ov.visitors)}</div><div className="an-stat-label">Visitors</div></div>
+            <div className="an-stat"><div className="an-stat-val">{fmt(ov.avgDurationMs)}</div><div className="an-stat-label">Avg Duration</div></div>
+            <div className="an-stat"><div className="an-stat-val">{ov.bounceRate}%</div><div className="an-stat-label">Bounce Rate</div></div>
+          </>}
+        </div>
+
+        {ts.length > 0 && (
+          <div className="an-section">
+            <div className="an-section-title">Pageviews over time</div>
+            <div className="an-sparkline">
+              {ts.map((t, i) => (
+                <div key={i} className="an-spark-bar-wrap" title={`${t.pageviews} pageviews`}>
+                  <div className="an-spark-bar" style={{ height: `${Math.max(2, (t.pageviews / maxPv) * 100)}%` }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="an-two-col">
+          {refs.length > 0 && (
+            <div className="an-section">
+              <div className="an-section-title">Top Referrers</div>
+              <div className="an-list">
+                {refs.slice(0, 10).map((r, i) => (
+                  <div key={i} className="an-list-row">
+                    <span className="an-list-label">{r.referrer}</span>
+                    <span className="an-list-val">{fmtNum(Number(r.visits))}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {scroll.length > 0 && (
+            <div className="an-section">
+              <div className="an-section-title">Scroll Depth</div>
+              <div className="an-list">
+                {scroll.map((s, i) => (
+                  <div key={i} className="an-list-row">
+                    <span className="an-list-label">{s.depth}%</span>
+                    <div className="an-bar-wrap">
+                      <div className="an-bar" style={{ width: `${Math.min(100, (Number(s.count) / (Number(scroll[0]?.count) || 1)) * 100)}%` }} />
+                    </div>
+                    <span className="an-list-val">{fmtNum(Number(s.count))}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {!ov && !loading && (
+          <div className="an-empty">No data yet for this range. Publish the app to start collecting.</div>
+        )}
+      </div>
+    );
+  };
+
+  const renderPages = () => {
+    const pages = (data.pages as { url: string; views: number; sessions: number; avg_time_ms: number }[]) || [];
+    if (pages.length === 0) return <div className="an-empty">No pageview data yet.</div>;
+    return (
+      <div className="an-section">
+        <div className="an-table-wrap">
+          <table className="an-table">
+            <thead><tr><th>URL</th><th>Views</th><th>Sessions</th><th>Avg Time</th></tr></thead>
+            <tbody>
+              {pages.map((p, i) => (
+                <tr key={i}>
+                  <td className="an-url">{p.url}</td>
+                  <td>{fmtNum(Number(p.views))}</td>
+                  <td>{fmtNum(Number(p.sessions))}</td>
+                  <td>{fmt(Number(p.avg_time_ms) || 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderEvents = () => {
+    const top = (data.events as { top: { event_type: string; count: number }[]; stream: { event_type: string; url: string; created_at: number }[] } | null);
+    if (!top) return <div className="an-empty">No event data yet.</div>;
+    return (
+      <div className="an-two-col">
+        <div className="an-section">
+          <div className="an-section-title">Top Events</div>
+          <div className="an-list">
+            {(top.top || []).map((e, i) => (
+              <div key={i} className="an-list-row">
+                <span className="an-event-pill">{e.event_type}</span>
+                <span className="an-list-val">{fmtNum(Number(e.count))}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="an-section">
+          <div className="an-section-title">Event Stream</div>
+          <div className="an-stream">
+            {(top.stream || []).slice(0, 50).map((e, i) => (
+              <div key={i} className="an-stream-row">
+                <span className="an-event-pill sm">{e.event_type}</span>
+                <span className="an-stream-url">{(e.url || "").replace(/^https?:\/\/[^/]+/, "")}</span>
+                <span className="an-stream-ts">{new Date(Number(e.created_at)).toLocaleTimeString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPerformance = () => {
+    const vitals = data.vitals as Record<string, { p50: number; p75: number; p95: number; count: number }> | null;
+    if (!vitals || Object.keys(vitals).length === 0) return <div className="an-empty">No Web Vitals data yet.</div>;
+    const metricLabel: Record<string, string> = {
+      LCP: "Largest Contentful Paint",
+      FID: "First Input Delay",
+      CLS: "Cumulative Layout Shift",
+      FCP: "First Contentful Paint",
+      TTFB: "Time to First Byte",
+      INP: "Interaction to Next Paint",
+    };
+    const isCls = (m: string) => m === "CLS";
+    return (
+      <div className="an-vitals">
+        {Object.entries(vitals).map(([metric, v]) => {
+          const rating = vitalRating(metric, v.p75);
+          return (
+            <div key={metric} className={`an-vital-card an-vital-${rating}`}>
+              <div className="an-vital-metric">{metric}</div>
+              <div className="an-vital-p75">{isCls(metric) ? v.p75.toFixed(3) : fmt(v.p75)}</div>
+              <div className="an-vital-label">{metricLabel[metric] || metric}</div>
+              <div className="an-vital-sub">
+                p50: {isCls(metric) ? v.p50.toFixed(3) : fmt(v.p50)} ·
+                p95: {isCls(metric) ? v.p95.toFixed(3) : fmt(v.p95)} ·
+                {v.count} samples
+              </div>
+              <div className={`an-vital-badge an-vital-badge-${rating}`}>{rating.replace("-", " ")}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderErrors = () => {
+    const errors = (data.errors as { message: string; source: string; count: number; last_seen: number; stack: string }[]) || [];
+    if (errors.length === 0) return <div className="an-empty">No errors recorded. 🎉</div>;
+    return (
+      <div className="an-section">
+        {errors.map((e, i) => (
+          <div key={i} className="an-error-card">
+            <div className="an-error-header">
+              <span className="an-error-count">{fmtNum(Number(e.count))}×</span>
+              <span className="an-error-msg">{e.message}</span>
+            </div>
+            {e.source && <div className="an-error-source">{e.source}</div>}
+            {e.stack && <pre className="an-error-stack">{e.stack.slice(0, 400)}</pre>}
+            <div className="an-error-ts">Last seen {new Date(Number(e.last_seen)).toLocaleString()}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderDevices = () => {
+    const devices = data.devices as { browsers: { browser: string; sessions: number }[]; os: { os: string; sessions: number }[]; devices: { device_type: string; sessions: number }[]; viewports: { viewport: string; count: number }[] } | null;
+    if (!devices) return <div className="an-empty">No device data yet.</div>;
+    const renderBreakdown = (title: string, rows: { label: string; val: number }[]) => {
+      const max = Math.max(...rows.map(r => r.val), 1);
+      return (
+        <div className="an-section">
+          <div className="an-section-title">{title}</div>
+          <div className="an-list">
+            {rows.map((r, i) => (
+              <div key={i} className="an-list-row">
+                <span className="an-list-label">{r.label || "Unknown"}</span>
+                <div className="an-bar-wrap"><div className="an-bar" style={{ width: `${(r.val / max) * 100}%` }} /></div>
+                <span className="an-list-val">{fmtNum(r.val)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+    return (
+      <div className="an-two-col">
+        {renderBreakdown("Browsers", (devices.browsers || []).map(r => ({ label: r.browser, val: Number(r.sessions) })))}
+        {renderBreakdown("Operating Systems", (devices.os || []).map(r => ({ label: r.os, val: Number(r.sessions) })))}
+        {renderBreakdown("Device Type", (devices.devices || []).map(r => ({ label: r.device_type, val: Number(r.sessions) })))}
+        {renderBreakdown("Viewports", (devices.viewports || []).map(r => ({ label: r.viewport, val: Number(r.count) })))}
+      </div>
+    );
+  };
+
+  const renderView = () => {
+    if (loading) return <div className="an-loading"><div className="plan-loading-spinner" /><div className="an-loading-text">Loading analytics...</div></div>;
+    switch (view) {
+      case "overview": return renderOverview();
+      case "pages": return renderPages();
+      case "events": return renderEvents();
+      case "performance": return renderPerformance();
+      case "errors": return renderErrors();
+      case "devices": return renderDevices();
+    }
+  };
+
+  return (
+    <div className="an-container">
+      <div className="an-header">
+        <div className="an-view-tabs">
+          {views.map(v => (
+            <button key={v.id} className={`an-view-btn${view === v.id ? " active" : ""}`} onClick={() => setView(v.id)}>{v.label}</button>
+          ))}
+        </div>
+        <div className="an-range-tabs">
+          {(["1h", "24h", "7d", "30d"] as AnalyticsRange[]).map(r => (
+            <button key={r} className={`an-range-btn${range === r ? " active" : ""}`} onClick={() => setRange(r)}>{r}</button>
+          ))}
+        </div>
+      </div>
+      <div className="an-body">{renderView()}</div>
+    </div>
+  );
+}
+
 export default function Workspace({ runData, projectData, viewingIterationRunId, onRefreshRunData, pendingPlan, planLoading, onApprovePlan, onRevisePlan, pendingForgePlan, forgePlanLoading, onApproveForgePlan, onRejectForgePlan }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
   useEffect(() => {
@@ -2333,6 +2654,8 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
         return <EnvTab projectId={projectData?.id || null} />;
 case "publish":
         return <PublishTab projectId={projectData?.id || null} />;
+      case "analytics":
+        return <AnalyticsTab projectId={projectData?.id} />;
       case "brain":
         return <BrainTab />;
       default:
@@ -2367,4 +2690,5 @@ case "publish":
     </div>
   );
 }
+
 
