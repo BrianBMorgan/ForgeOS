@@ -477,19 +477,133 @@ async function appendConversation(projectId, role, content) {
   }
 }
 
-async function getConversation(projectId, limit = 50) {
+// Returns the last 10 turns. If there are older turns beyond the window,
+// summarizes them into a project history block and stores it on the project,
+// then trims the DB rows so they don't accumulate unbounded.
+async function getConversation(projectId, limit = 10) {
   const sql = getDb();
   try {
     const rows = await sql`
-      SELECT role, content
+      SELECT id, role, content
       FROM forge_conversations
       WHERE project_id = ${projectId}
       ORDER BY created_at ASC
-      LIMIT ${limit}
     `;
-    return rows.map(r => ({ role: r.role, content: r.content }));
+
+    if (rows.length <= limit) {
+      return rows.map(r => ({ role: r.role, content: r.content }));
+    }
+
+    // There are turns beyond the window — summarize the overflow and trim
+    const overflow = rows.slice(0, rows.length - limit);
+    const window = rows.slice(rows.length - limit);
+
+    await summarizeAndTrimConversation(projectId, overflow, sql);
+
+    return window.map(r => ({ role: r.role, content: r.content }));
   } catch {
     return [];
+  }
+}
+
+async function summarizeAndTrimConversation(projectId, overflowRows, sql) {
+  const ai = getAI();
+  try {
+    const transcript = overflowRows
+      .map(r => `${r.role.toUpperCase()}: ${r.content}`)
+      .join("\n\n");
+
+    const response = await ai.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 600,
+      system: `You are a project history summarizer for ForgeOS.
+Compress a conversation transcript into a concise project history entry.
+Focus on: what was built or changed, key decisions made, errors encountered, and outcomes.
+Return ONLY a plain text paragraph. No JSON. No markdown. No headers.`,
+      messages: [{
+        role: "user",
+        content: `Summarize this ForgeOS project conversation into a brief history entry:\n\n${transcript}`,
+      }]
+    });
+
+    const summary = response.content[0].text.trim();
+
+    // Append to existing project_history in DB
+    await sql`
+      UPDATE projects
+      SET project_history = COALESCE(project_history || E'\n\n' || ${summary}, ${summary}),
+          updated_at = ${Date.now()}
+      WHERE id = ${projectId}
+    `;
+
+    // Trim overflow rows from DB
+    const overflowIds = overflowRows.map(r => r.id);
+    await sql`
+      DELETE FROM forge_conversations
+      WHERE id = ANY(${overflowIds}::int[])
+    `;
+
+    console.log(`[brain] Summarized ${overflowRows.length} turns into project history for ${projectId}`);
+  } catch (err) {
+    console.error("[brain] summarizeAndTrimConversation failed:", err.message);
+  }
+}
+
+async function getProjectHistory(projectId) {
+  const sql = getDb();
+  try {
+    const rows = await sql`
+      SELECT project_history FROM projects WHERE id = ${projectId}
+    `;
+    return rows[0]?.project_history || null;
+  } catch {
+    return null;
+  }
+}
+
+// Called after any build failure (build-failed, install-failed, start-failed).
+// Uses haiku to extract a structured failure memory entry for Brain.
+async function extractFailureMemory({ projectId, prompt, errorMessage, failureStage }) {
+  const ai = getAI();
+  const now = Date.now();
+  try {
+    const response = await ai.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 400,
+      system: `You are a failure analysis system for ForgeOS.
+Analyze a failed build and extract a reusable lesson.
+Return ONLY valid JSON. No markdown fences. No prose.`,
+      messages: [{
+        role: "user",
+        content: `A ForgeOS build failed. Extract a lesson.
+
+Stage: ${failureStage}
+User prompt: ${prompt.slice(0, 200)}
+Error: ${errorMessage.slice(0, 300)}
+
+Return JSON:
+{
+  "lesson": "one sentence — what went wrong and how to avoid it",
+  "category": "build|deployment|dependency|syntax|runtime"
+}`,
+      }]
+    });
+
+    let parsed;
+    try {
+      let text = response.content[0].text;
+      if (text.includes("```")) text = text.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "");
+      const firstBrace = text.search(/[{[]/);
+      if (firstBrace > 0) text = text.slice(firstBrace);
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = { lesson: `${failureStage} failure: ${errorMessage.slice(0, 150)}`, category: "build" };
+    }
+
+    await recordMistake(parsed.lesson, parsed.category || "build", projectId);
+    console.log(`[brain] Failure memory extracted (${failureStage}): ${parsed.lesson.slice(0, 80)}`);
+  } catch (err) {
+    console.error("[brain] extractFailureMemory failed:", err.message);
   }
 }
 
@@ -575,10 +689,13 @@ module.exports = {
   ensureSchema,
   buildContext,
   extractMemory,
+  extractFailureMemory,
   recordMistake,
   appendConversation,
   getConversation,
+  getProjectHistory,
   upvoteMemory,
   getBrainSummary,
   updatePublishedUrl,
 };
+
