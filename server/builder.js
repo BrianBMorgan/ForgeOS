@@ -389,15 +389,24 @@ async function buildWorkspace(prompt, existingFiles, projectId = null, approvedP
 
     if (projectId) {
       try {
-        const history = await brain.getConversation(projectId, 20);
-        const recentHistory = history.slice(-10);
-        if (recentHistory.length > 0) {
+        // getConversation now enforces a 10-turn window and auto-summarizes overflow into project_history
+        const history = await brain.getConversation(projectId, 10);
+        if (history.length > 0) {
           let historyText = "CONVERSATION HISTORY (previous builds on this project):\n\n";
-          for (const msg of recentHistory) {
+          for (const msg of history) {
             historyText += `[${msg.role.toUpperCase()}]: ${msg.content}\n\n`;
           }
           userMessages.push({ role: "user", content: historyText });
           userMessages.push({ role: "assistant", content: "I see the conversation history. I'll make sure my changes actually address the issues discussed and avoid repeating previous attempts that didn't work." });
+        }
+
+        // Prepend project history summary if present (older turns summarized out of the window)
+        const projectHistory = await brain.getProjectHistory(projectId);
+        if (projectHistory) {
+          userMessages.unshift(
+            { role: "user", content: `PROJECT HISTORY (summarized earlier sessions):\n\n${projectHistory}` },
+            { role: "assistant", content: "Understood. I have the project history context and will build on top of it." }
+          );
         }
       } catch {}
     }
@@ -505,11 +514,12 @@ async function buildAndDeploy(run) {
       run.workspace.status = "build-failed";
       run.workspace.error = err.message;
 
-      brain.recordMistake(
-        `Build failed for: ${run.prompt.slice(0, 100)} — ${err.message.slice(0, 200)}`,
-        "general",
-        run.projectId
-      ).catch(() => {});
+      brain.extractFailureMemory({
+        projectId: run.projectId,
+        prompt: run.prompt,
+        errorMessage: err.message,
+        failureStage: "build",
+      }).catch(() => {});
       saveRunSnapshot(run).catch(() => {});
       return;
     }
@@ -643,11 +653,12 @@ async function buildAndDeploy(run) {
         publishedUrl: null,
       }).catch(err => console.error("[brain] extraction error:", err.message));
     } else if (run.workspace.status === "start-failed" || run.workspace.status === "install-failed") {
-      brain.recordMistake(
-        `${run.workspace.status}: ${run.workspace.error?.slice(0, 200) || "unknown error"} — prompt: ${run.prompt.slice(0, 100)}`,
-        "deployment",
-        run.projectId
-      ).catch(() => {});
+      brain.extractFailureMemory({
+        projectId: run.projectId,
+        prompt: run.prompt,
+        errorMessage: run.workspace.error || "unknown error",
+        failureStage: run.workspace.status,
+      }).catch(() => {});
     }
   }
 }
@@ -693,4 +704,5 @@ module.exports = {
   BuilderOutputSchema,
   BUILDER_SYSTEM_PROMPT,
 };
+
 
