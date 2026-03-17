@@ -508,10 +508,26 @@ async function buildWorkspaceMultiPass(prompt, existingFiles, passes, projectId,
     // Build constraint block scoped to this pass only
     const passConstraintBlock = planToConstraintBlock(approvedPlan, pass);
 
-    // Build sub-prompt for this pass — full original prompt + pass scope instruction
-    const passPrompt = `${prompt}\n\n[MULTI-PASS BUILD — PASS ${pass.passNumber} OF ${totalPasses}]\nFocus only on: ${pass.description}\nOnly create/modify the files listed in the constraint block above.`;
+    // SCOPED PROMPT — use only pass description + brief context, NOT the full original prompt.
+    // Passing the full prompt to every pass was the root cause of context overflow.
+    const passFilesToBuild = [
+      ...(pass.filesToCreate || []),
+      ...(pass.filesToModify || []).map(f => f.split(" — ")[0].trim()),
+    ].join(", ");
 
-    // Get builder system prompt components
+    const promptSummary = prompt.length > 600
+      ? prompt.slice(0, 600) + "\n[full prompt truncated — build only the files listed above]"
+      : prompt;
+
+    const passPrompt = `Build pass ${pass.passNumber} of ${totalPasses} for: ${approvedPlan.taskSummary || "this project"}.
+
+Pass goal: ${pass.description}
+Files for this pass: ${passFilesToBuild}
+
+Original project context (brief):
+${promptSummary}`;
+
+    // Get builder system prompt — memory capped hard for multi-pass
     let basePrompt = accumulatedFiles.length > 0
       ? BUILDER_SYSTEM_PROMPT + ITERATION_ADDENDUM
       : BUILDER_SYSTEM_PROMPT;
@@ -519,26 +535,36 @@ async function buildWorkspaceMultiPass(prompt, existingFiles, passes, projectId,
     let memoryContext = "";
     try {
       memoryContext = await Promise.race([
-        brain.buildContext(prompt, projectId),
+        brain.buildContext(approvedPlan.taskSummary || prompt.slice(0, 80), projectId),
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
       ]);
-      if (memoryContext && memoryContext.length > 1500) {
-        memoryContext = memoryContext.slice(0, 1500) + "\n[memory truncated for multi-pass build]";
+      if (memoryContext && memoryContext.length > 600) {
+        memoryContext = memoryContext.slice(0, 600) + "\n[memory truncated for multi-pass build]";
       }
     } catch {}
 
     const systemPrompt = [memoryContext, basePrompt].filter(Boolean).join("\n\n");
     const finalSystemPrompt = passConstraintBlock + "\n\n" + systemPrompt;
 
-    // Build user messages for this pass
+    // Only send files relevant to this pass — not all accumulated files.
+    // Sending all files grows context unboundedly across passes.
+    const passRelevantPaths = new Set([
+      ...(pass.filesToCreate || []),
+      ...(pass.filesToModify || []).map(f => f.split(" — ")[0].trim()),
+    ]);
+    const relevantAccumulatedFiles = accumulatedFiles.filter(f =>
+      passRelevantPaths.has(f.path) ||
+      (pass.description || "").toLowerCase().includes(f.path.replace(/^.*\//, "").toLowerCase())
+    );
+
     const userMessages = [];
-    if (accumulatedFiles.length > 0) {
-      let filesContext = "EXISTING FILES (from previous passes):\n\n";
-      for (const f of accumulatedFiles) {
+    if (relevantAccumulatedFiles.length > 0) {
+      let filesContext = "EXISTING FILES (relevant to this pass):\n\n";
+      for (const f of relevantAccumulatedFiles) {
         filesContext += `--- ${f.path} ---\n${f.content}\n\n`;
       }
       userMessages.push({ role: "user", content: filesContext });
-      userMessages.push({ role: "assistant", content: "I have the existing files from previous passes. I will only create or modify the files permitted for this pass." });
+      userMessages.push({ role: "assistant", content: "I have the relevant existing files. I will only create or modify the files permitted for this pass." });
     }
     userMessages.push({ role: "user", content: passPrompt });
 
@@ -564,7 +590,7 @@ async function buildWorkspaceMultiPass(prompt, existingFiles, passes, projectId,
     }
 
     lastOutput = passOutput;
-    console.log(`[builder] Multi-pass: pass ${pass.passNumber} complete — ${(passOutput.files || []).length} files`);
+    console.log(`[builder] Multi-pass: pass ${pass.passNumber} complete — ${(passOutput.files || []).length} files written, ${accumulatedFiles.length} total accumulated`);
   }
 
   // Return merged result using last pass's metadata (startCommand, installCommand, etc.)
@@ -820,6 +846,7 @@ module.exports = {
   BuilderOutputSchema,
   BUILDER_SYSTEM_PROMPT,
 };
+
 
 
 
