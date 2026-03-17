@@ -326,7 +326,7 @@ function renderRegistration() {
     --bg: #0a0a0f;
     --surface: #111118;
     --border: rgba(255,255,255,0.08);
-    --accent: #6366f1;
+    --accent: #00aae8;
     --accent-glow: rgba(99,102,241,0.3);
     --text: #f1f5f9;
     --muted: #64748b;
@@ -453,7 +453,7 @@ function renderCanvas(attendee, stickers) {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     --bg: #0a0a0f; --surface: #111118; --panel: #0f0f17;
-    --border: rgba(255,255,255,0.07); --accent: #6366f1;
+    --border: rgba(255,255,255,0.07); --accent: #00aae8;
     --accent-glow: rgba(99,102,241,0.25); --text: #f1f5f9; --muted: #475569;
   }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Intel One Display', system-ui, sans-serif; }
@@ -937,7 +937,7 @@ function renderAdmin(stickers, artworks) {
 </script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { --bg: #0a0a0f; --surface: #111118; --border: rgba(255,255,255,0.08); --accent: #6366f1; --text: #f1f5f9; --muted: #64748b; }
+  :root { --bg: #0a0a0f; --surface: #111118; --border: rgba(255,255,255,0.08); --accent: #00aae8; --text: #f1f5f9; --muted: #64748b; }
   body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; min-height: 100vh; }
   .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
   .header h1 { font-size: 1.1rem; font-weight: 700; }
@@ -1065,8 +1065,8 @@ function renderAdminLogin(error) {
   h1 { font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; }
   label { display: block; font-size: 0.72rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
   input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #f1f5f9; font-family: inherit; font-size: 0.95rem; padding: 0.75rem; outline: none; margin-bottom: 1rem; }
-  input:focus { border-color: #6366f1; }
-  button { width: 100%; padding: 0.875rem; background: #6366f1; color: #fff; border: none; border-radius: 8px; font-family: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+  input:focus { border-color: #00aae8; }
+  button { width: 100%; padding: 0.875rem; background: #00aae8; color: #fff; border: none; border-radius: 8px; font-family: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
   button:hover { background: #4f46e5; }
   .error { color: #f87171; font-size: 0.82rem; margin-bottom: 1rem; }
 </style>
