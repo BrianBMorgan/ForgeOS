@@ -115,8 +115,8 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
   if (!falKey) return res.status(500).json({ error: "FAL_API_KEY not configured" });
 
   try {
-    // Inject current Intel logo (post-2020 rebrand: clean lowercase "intel" wordmark in white on Intel blue #00aae8, no swoosh/circle)
-    const enhancedPrompt = `${prompt}. Visible but not dominant in the background of the scene — on a building facade, distant billboard, or wall-mounted sign — the Intel logo appears: a flat rectangular panel with a solid Intel blue (#00aae8) background, the lowercase word "intel" in clean white rounded sans-serif lettering, and a small solid dark square dot positioned above the letter i. The wordmark is crisp, legible, and proportionally spaced. No circular swoosh, no oval ring, no tagline, no additional text. The logo is a secondary detail in the composition, not the focal point.`;
+    // Inject current Intel logo (post-2020 rebrand ONLY — absolutely no swoosh, oval, or circle)
+    const enhancedPrompt = `${prompt}. Somewhere in the background of the scene — on a building, billboard, or sign — show the Intel logo. CRITICAL: the Intel logo is ONLY the lowercase word "intel" in plain white sans-serif text on a solid blue rectangular background. There is NO oval shape. There is NO circle. There is NO swoosh. There is NO ring around the text. There is NO ellipse. The letter i has a small dark square dot above it, not a circular one. The logo is flat, minimal, and typographic only. Any version of the Intel logo with an oval, circle, ellipse, or swoosh shape is the OLD logo and must NOT be used. This is a secondary background detail, not the focal point of the image.`;
 
     const falRes = await fetch("https://fal.run/fal-ai/flux-pro", {
       method: "POST",
