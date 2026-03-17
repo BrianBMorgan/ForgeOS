@@ -844,7 +844,7 @@ async function saveArtwork() {
     const wrap = document.getElementById("canvasWrap");
     const canvas = await html2canvas(wrap, {
       width: 800, height: 800,
-      scale: 1,
+      scale: 2,
       useCORS: true,
       allowTaint: true,
       backgroundColor: "#1a1a2e",
@@ -861,7 +861,20 @@ async function saveArtwork() {
 
     if (data.qrCode) {
       document.getElementById("qrImg").src = data.qrCode;
-      document.getElementById("downloadLink").href = data.downloadUrl;
+      // Trigger real download via blob so it doesn't just open in browser
+      const dlLink = document.getElementById("downloadLink");
+      dlLink.onclick = async (e) => {
+        e.preventDefault();
+        try {
+          const r = await fetch(data.downloadUrl);
+          const blob = await r.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = data.downloadUrl.split("/").pop() + ".png";
+          a.click(); URL.revokeObjectURL(url);
+        } catch(err) { window.open(data.downloadUrl, "_blank"); }
+      };
+      dlLink.href = data.downloadUrl;
       document.getElementById("qrScreen").classList.add("active");
     } else {
       alert("Save failed: " + (data.error || "Unknown error"));
