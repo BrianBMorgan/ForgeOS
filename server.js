@@ -9,16 +9,20 @@ const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const sql = neon(process.env.NEON_DATABASE_URL);
+const DB_URL = process.env.CANVAS_DATABASE_URL;
+if (!DB_URL) { console.error("[canvas] FATAL: CANVAS_DATABASE_URL not set"); process.exit(1); }
+const sql = neon(DB_URL);
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(cookieSession({
+
+// Apply cookie-session only to admin routes
+const adminSession = cookieSession({
   name: "canvas_admin",
   keys: [process.env.ADMIN_PASSWORD || "canvas-secret"],
   maxAge: 8 * 60 * 60 * 1000,
-}));
+});
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 async function ensureSchema() {
@@ -56,21 +60,31 @@ function requireAdmin(req, res, next) {
 app.get("/", (req, res) => res.send(renderRegistration()));
 
 app.post("/register", async (req, res) => {
-  const { first_name, last_name, email } = req.body;
-  if (!first_name || !email) return res.redirect("/");
-  const sessionId = crypto.randomBytes(16).toString("hex");
-  await sql`INSERT INTO canvas_attendees (session_id, first_name, last_name, email, created_at)
-    VALUES (${sessionId}, ${first_name.trim()}, ${(last_name || "").trim()}, ${email.trim()}, ${Date.now()})`;
-  res.redirect(`/canvas/${sessionId}`);
+  try {
+    const { first_name, last_name, email } = req.body;
+    if (!first_name || !email) return res.redirect("/");
+    const sessionId = crypto.randomBytes(16).toString("hex");
+    await sql`INSERT INTO canvas_attendees (session_id, first_name, last_name, email, created_at)
+      VALUES (${sessionId}, ${first_name.trim()}, ${(last_name || "").trim()}, ${email.trim()}, ${Date.now()})`;
+    res.redirect(`/canvas/${sessionId}`);
+  } catch (err) {
+    console.error("[canvas] /register error:", err.message);
+    res.status(500).send(`<pre>Registration error: ${err.message}</pre>`);
+  }
 });
 
 // ── Canvas experience ─────────────────────────────────────────────────────────
 app.get("/canvas/:sessionId", async (req, res) => {
-  const rows = await sql`SELECT * FROM canvas_attendees WHERE session_id = ${req.params.sessionId}`;
-  if (!rows.length) return res.redirect("/");
-  const attendee = rows[0];
-  const stickers = await sql`SELECT id, name, image_data, mime_type FROM canvas_stickers ORDER BY created_at ASC`;
-  res.send(renderCanvas(attendee, stickers));
+  try {
+    const rows = await sql`SELECT * FROM canvas_attendees WHERE session_id = ${req.params.sessionId}`;
+    if (!rows.length) return res.redirect("/");
+    const attendee = rows[0];
+    const stickers = await sql`SELECT id, name, image_data, mime_type FROM canvas_stickers ORDER BY created_at ASC`;
+    res.send(renderCanvas(attendee, stickers));
+  } catch (err) {
+    console.error("[canvas] /canvas error:", err.message);
+    res.status(500).send(`<pre>Canvas error: ${err.message}</pre>`);
+  }
 });
 
 // ── AI Background generation ──────────────────────────────────────────────────
@@ -170,9 +184,9 @@ app.get("/download/:sessionId", async (req, res) => {
 });
 
 // ── Admin login ───────────────────────────────────────────────────────────────
-app.get("/admin/login", (req, res) => res.send(renderAdminLogin()));
+app.get("/admin/login", adminSession, (req, res) => res.send(renderAdminLogin()));
 
-app.post("/admin/login", (req, res) => {
+app.post("/admin/login", adminSession, (req, res) => {
   const { password } = req.body;
   if (password === (process.env.ADMIN_PASSWORD || "canvas")) {
     req.session.admin = true;
@@ -182,13 +196,13 @@ app.post("/admin/login", (req, res) => {
   }
 });
 
-app.get("/admin/logout", (req, res) => {
+app.get("/admin/logout", adminSession, (req, res) => {
   req.session = null;
   res.redirect("/admin/login");
 });
 
 // ── Admin dashboard ───────────────────────────────────────────────────────────
-app.get("/admin", requireAdmin, async (req, res) => {
+app.get("/admin", adminSession, requireAdmin, async (req, res) => {
   const stickers = await sql`SELECT * FROM canvas_stickers ORDER BY created_at DESC`;
   const artworks = await sql`
     SELECT a.id, a.session_id, a.png_data, a.created_at, att.first_name, att.last_name, att.email
@@ -200,7 +214,7 @@ app.get("/admin", requireAdmin, async (req, res) => {
 });
 
 // Sticker upload
-app.post("/admin/stickers", requireAdmin, async (req, res) => {
+app.post("/admin/stickers", adminSession, requireAdmin, async (req, res) => {
   const Busboy = require("busboy");
   const busboy = Busboy({ headers: req.headers, limits: { fileSize: 2 * 1024 * 1024 } });
   let name = "";
@@ -224,13 +238,13 @@ app.post("/admin/stickers", requireAdmin, async (req, res) => {
 });
 
 // Sticker delete
-app.post("/admin/stickers/:id/delete", requireAdmin, async (req, res) => {
+app.post("/admin/stickers/:id/delete", adminSession, requireAdmin, async (req, res) => {
   await sql`DELETE FROM canvas_stickers WHERE id = ${req.params.id}`;
   res.redirect("/admin");
 });
 
 // Gallery download all
-app.get("/admin/gallery/download", requireAdmin, async (req, res) => {
+app.get("/admin/gallery/download", adminSession, requireAdmin, async (req, res) => {
   const archiver = require("archiver");
   const rows = await sql`
     SELECT a.png_data, att.first_name, att.last_name, a.created_at
@@ -944,6 +958,12 @@ function renderAdminLogin(error) {
 </body>
 </html>`;
 }
+
+// ── Global error handler ─────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error("[canvas] Unhandled error:", err.message, err.stack);
+  res.status(500).send(`<pre>Server error: ${err.message}</pre>`);
+});
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 ensureSchema().then(() => {
