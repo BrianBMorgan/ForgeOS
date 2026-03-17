@@ -1484,14 +1484,23 @@ app.use("/preview/:runId", async (req, res) => {
   const reqContentType = (req.headers["content-type"] || "").toLowerCase();
   const isMultipart = reqContentType.includes("multipart/form-data");
 
-  const bodyBuffer = (!isMultipart && req.body !== undefined && req.body !== null)
-    ? Buffer.from(JSON.stringify(req.body))
-    : null;
+  let bodyBuffer = null;
+  if (!isMultipart && req.body !== undefined && req.body !== null) {
+    if (reqContentType.includes("application/x-www-form-urlencoded")) {
+      bodyBuffer = Buffer.from(new URLSearchParams(req.body).toString());
+    } else {
+      bodyBuffer = Buffer.from(JSON.stringify(req.body));
+    }
+  }
 
   const fwdHeaders = { ...req.headers, host: `127.0.0.1:${status.port}` };
   delete fwdHeaders["accept-encoding"];
+  delete fwdHeaders["content-length"]; // recalculated from bodyBuffer
   if (bodyBuffer) {
     fwdHeaders["content-length"] = String(bodyBuffer.length);
+    if (reqContentType.includes("application/x-www-form-urlencoded")) {
+      fwdHeaders["content-type"] = "application/x-www-form-urlencoded";
+    }
   }
 
   const options = {
