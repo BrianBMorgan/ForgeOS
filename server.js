@@ -24,6 +24,17 @@ const adminSession = cookieSession({
   maxAge: 8 * 60 * 60 * 1000,
 });
 
+// ── Debug (remove after proxy issue resolved) ────────────────────────────────
+app.post("/debug-register", (req, res) => {
+  res.json({
+    body: req.body,
+    headers: {
+      "content-type": req.headers["content-type"],
+      "content-length": req.headers["content-length"],
+    },
+  });
+});
+
 // ── Schema ────────────────────────────────────────────────────────────────────
 async function ensureSchema() {
   await sql`CREATE TABLE IF NOT EXISTS canvas_attendees (
