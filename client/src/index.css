@@ -415,15 +415,19 @@ body {
 
 .chat-build-btn {
   margin-top: 0.5rem;
-  padding: 0.35rem 0.75rem;
+  display: block;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
   background: rgba(74, 222, 128, 0.1);
   color: #4ade80;
   border: 1px solid rgba(74, 222, 128, 0.25);
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
+  min-height: 44px;
+  text-align: left;
 }
 
 .chat-build-btn:hover {
@@ -431,6 +435,58 @@ body {
 }
 
 .chat-build-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-plan-btn {
+  margin-top: 0.5rem;
+  display: block;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  background: rgba(168, 85, 247, 0.1);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-height: 44px;
+  text-align: left;
+}
+
+.chat-plan-btn:hover {
+  background: rgba(168, 85, 247, 0.18);
+}
+
+.chat-plan-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-forge-btn {
+  margin-top: 0.5rem;
+  display: block;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  background: rgba(249, 115, 22, 0.1);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-height: 44px;
+  text-align: left;
+}
+
+.chat-forge-btn:hover {
+  background: rgba(249, 115, 22, 0.18);
+}
+
+.chat-forge-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
