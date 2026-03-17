@@ -214,12 +214,19 @@ app.post("/api/runs/:id/reject", async (req, res) => {
 const projectManager = require("./projects/manager");
 
 app.post("/api/projects", async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, skipBuild } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return res.status(400).json({ error: "Prompt is required" });
   }
 
   const project = await projectManager.createProject(prompt.trim());
+
+  // skipBuild: true is used by the large prompt plan gate — creates the project
+  // without firing the builder so the client can route through /plan first.
+  if (skipBuild) {
+    return res.status(201).json({ id: project.id, runId: null, name: project.name });
+  }
+
   const run = createRun(prompt.trim(), { projectId: project.id, iterationNumber: 1 });
   await projectManager.addIteration(project.id, run.id, prompt.trim(), 1);
 
@@ -375,6 +382,23 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
   const project = await projectManager.getProject(req.params.id);
   if (!project) {
     return res.status(404).json({ error: "Project not found" });
+  }
+
+  // Large prompt guard — if the prompt is above the complexity threshold and there is
+  // no approvedPlan and this is not a surgical suggestion build, block the direct build
+  // and return a signal telling the client to route through the plan gate instead.
+  // This prevents context overflow in the builder pipeline on large multi-feature builds.
+  const LARGE_PROMPT_THRESHOLD = 1500; // characters
+  if (
+    !approvedPlan &&
+    !isSuggestion &&
+    prompt.trim().length > LARGE_PROMPT_THRESHOLD
+  ) {
+    return res.status(400).json({
+      error: "large_prompt",
+      message: "This prompt is too large for a direct build and requires a plan first.",
+      requiresPlan: true,
+    });
   }
 
   const chatMgr = require("./chat/manager");
@@ -1654,6 +1678,7 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Runtime backup setup error:", err.message);
   }
 });
+
 
 
 
