@@ -577,8 +577,8 @@ function renderCanvas(attendee, stickers) {
     .panel { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
     .sticker-tray { max-height: 120px; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); }
     .canvas-wrap { width: min(88vw, 88vh); height: min(88vw, 88vh); flex-shrink: 0; }
-    .canvas-area { min-height: auto; padding: 1rem 1rem 5rem; align-items: flex-start; justify-content: center; }
-    .save-bar { position: relative; bottom: auto; left: auto; transform: none; padding: 1rem; width: 100%; }
+    .canvas-area { min-height: auto; padding: 1rem; align-items: flex-start; justify-content: center; flex-direction: column; }
+    .save-bar { position: relative; bottom: auto; left: auto; transform: none; padding: 1rem; width: 100%; text-align: center; }
     .save-btn { width: 100%; }
   }
 </style>
