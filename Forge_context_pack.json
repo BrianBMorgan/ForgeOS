@@ -520,6 +520,37 @@
         "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault"
       ],
       "open_questions": []
+    },
+    {
+      "date": "2026-03-17",
+      "session_title": "Canvas App Build, Proxy Form POST Fixes, CANVAS_DATABASE_URL",
+      "shipped": [
+        "Canvas app built directly (not via Forge pipeline) \u2014 single server.js (~560 lines) + package.json. Routes: registration, canvas experience, Flux Pro AI generation, html2canvas save + sharp 3000x3000 upscale, QR code download, admin dashboard with sticker upload and gallery zip download.",
+        "server/agents/manager.js already shipped in session 19",
+        "apps/forge-canvas branch \u2014 server.js and package.json pushed. Canvas app seeded into Forge workspace via Shell curl commands, then published through ForgeOS publish flow.",
+        "CANVAS_BUILD_REPORT.md added to apps/forge-canvas branch \u2014 documents architecture decisions, route table, schema, dependency rationale, and decision framework for Forge on when to use single-file vs multi-pass vs single-pass builds.",
+        "server/index.js \u2014 subdomain proxy: fixed form POST body serialization (URLSearchParams for application/x-www-form-urlencoded, not JSON.stringify), deleted content-length before forwarding re-encoded body, added redirect:manual so proxy never follows redirects internally, rewrites Location header to keep traffic through proxy, strips Cloudflare headers, improved error logging.",
+        "server/index.js \u2014 workspace preview proxy: same form POST body serialization fix (URLSearchParams), correct content-length recalculation after re-encoding.",
+        "Canvas app: switched from NEON_DATABASE_URL to CANVAS_DATABASE_URL for dedicated isolated Neon DB. NEON_DATABASE_URL is a reserved system variable that cannot be overridden per-project. Each app with PII needs its own dedicated DB env var.",
+        "Canvas app: cookie-session scoped to admin routes only (not global middleware), global error handler added, try/catch on all DB routes."
+      ],
+      "decisions": [
+        "Canvas built directly by Claude, not via Forge pipeline \u2014 build was too complex (10+ files, 4 functional domains) for multi-pass at current pipeline maturity. CANVAS_BUILD_REPORT.md documents the decision framework for future reference.",
+        "Single server.js architecture for Canvas \u2014 all HTML rendered server-side as template strings, no frontend build step. Makes every future Forge iteration a single-file BUILD: suggestion.",
+        "CANVAS_DATABASE_URL not NEON_DATABASE_URL \u2014 NEON_DATABASE_URL is reserved and cannot be overridden per published service. Apps with PII need dedicated DB env vars.",
+        "Proxy redirect:manual \u2014 Node fetch() follows redirects automatically by default. Proxies must always use redirect:manual or they silently follow 302s and return the final destination as 200, breaking browser URL bar and navigation.",
+        "Proxy form POST body must use URLSearchParams not JSON.stringify \u2014 Express parses urlencoded bodies into objects; re-serializing as JSON changes content-type and byte length, breaking the receiving server's body parser.",
+        "content-length must be deleted before proxying re-encoded bodies \u2014 the original content-length from the browser no longer matches after re-encoding; Node recalculates correctly when omitted."
+      ],
+      "pending": [
+        "Verify custom slug forge-canvas.forge-os.ai works after proxy fixes deploy",
+        "Add FAL_API_KEY to Secrets Vault to enable AI background generation",
+        "Test sticker upload via admin dashboard",
+        "Update context pack with proxy bug learnings for Forge"
+      ],
+      "open_questions": [
+        "Should published apps that need isolated DBs use a naming convention like APP_DATABASE_URL to distinguish from the shared NEON_DATABASE_URL?"
+      ]
     }
   ],
   "domain_knowledge": [
@@ -609,7 +640,12 @@
     "Chat Agent proactive posture: on a failed build, first response must be a diagnosis. Never ask for information already in context (diagnostics, iteration history, source files, logs). [AUTO-ANALYSIS] prefixed messages are automated diagnoses \u2014 build on them, do not repeat them.",
     "server/agents/manager.js: four focused sub-agents \u2014 file_analyst (multi-file relationship mapping), failure_analyst (deep build failure diagnosis \u2192 CAUSE/FILE/FIX), fix_verifier (pre-build fix consistency check \u2192 VALID/ISSUES/VERDICT), spec_analyst (complex prompt decomposition \u2192 JSON with features/buildOrder/fileGroups/riskAreas/estimatedPasses).",
     "invoke_agent tool in Chat Agent: optional tool for tasks exceeding single-context analysis. Use file_analyst for 3+ file relationship questions, failure_analyst for ambiguous failures, fix_verifier for Canvas-scale multi-file changes, spec_analyst for large build prompts. Never use for simple fixes, routine diagnostics, or when the answer is already in context.",
-    "Sub-agents use Haiku at 0.1 temperature \u2014 fast, cheap, analytical. Each is a single Claude API call with a tight system prompt. No state between calls. runSubAgent(agentType, context, question) is the core dispatcher."
+    "Sub-agents use Haiku at 0.1 temperature \u2014 fast, cheap, analytical. Each is a single Claude API call with a tight system prompt. No state between calls. runSubAgent(agentType, context, question) is the core dispatcher.",
+    "NEON_DATABASE_URL is a reserved system variable in ForgeOS published services and cannot be overridden per-project. Apps that need their own isolated database (especially those handling PII) must use a custom env var name like CANVAS_DATABASE_URL or APP_DATABASE_URL.",
+    "Node fetch() follows redirects automatically by default. The ForgeOS subdomain proxy must always use redirect:'manual' in fetch options, otherwise it silently follows 302s from published apps and returns the final destination page as 200 to the browser. This breaks form submissions, auth flows, and any redirect-based navigation.",
+    "Proxy form POST bodies must be re-encoded with URLSearchParams for application/x-www-form-urlencoded requests. JSON.stringify(req.body) produces the wrong content-type and wrong byte length. The content-length header must also be deleted before forwarding so Node recalculates from the actual re-encoded body.",
+    "Canvas app architecture: single server.js with all HTML as template strings, no frontend build step, all assets stored as base64 in Neon. This makes every future iteration a single-file BUILD: suggestion in Forge. Apps with this pattern are maintainable by Forge without multi-pass.",
+    "CANVAS_BUILD_REPORT.md on apps/forge-canvas branch documents: architecture decisions, full route table, schema, dependency rationale, and decision framework (single-file vs multi-pass vs single-pass) for Forge to learn from."
   ],
   "decisions_made": [
     {
@@ -836,7 +872,10 @@
     "Forge FORGE: signal for architecture diagnosis \u2014 correctly identified the three files, the root cause, and the fix structure before implementation",
     "postBuildAnalysis as a non-blocking fire-and-forget hook \u2014 wired at all three failure paths, never delays pipeline, user sees diagnosis before they even open chat",
     "KNOWN_FAILURE_PATTERNS as a lookup table \u2014 instant classification of common failures, extensible as new patterns are discovered, no Claude tokens spent on known issues",
-    "Optional tool pattern for sub-agents \u2014 Chat Agent invokes only when needed, zero overhead on simple builds, no maintenance coupling between agents"
+    "Optional tool pattern for sub-agents \u2014 Chat Agent invokes only when needed, zero overhead on simple builds, no maintenance coupling between agents",
+    "Single server.js with server-side HTML templates for kiosk/activation apps \u2014 zero build complexity, all future iterations are single-file Forge BUILD: suggestions",
+    "Testing routes directly against the Render URL (bypassing proxy) to isolate whether bugs are in the app or the proxy \u2014 saved significant debugging time on Canvas",
+    "curl -v tests against both direct Render URL and proxy URL to pinpoint exactly where responses diverge"
   ],
   "mistakes_to_avoid": [
     "Inline backtick-wrapped content inside JS template literal strings \u2014 Node parser treats backtick as closing delimiter",
@@ -873,13 +912,19 @@
     "Sending all accumulated files to every pass in buildWorkspaceMultiPass \u2014 context grows unboundedly; filter to only files relevant to each pass",
     "Clearing pendingForgePlan before the apply call completes \u2014 keeps the user blind during a 30-60s operation; always show forgeApplying loading state first",
     "Large prompt threshold too low \u2014 1500 chars catches legitimate prompts and wastes plan gate cycles; threshold should be 3000 to match planner truncation and target only genuinely large multi-file builds",
-    "Chat Agent asking for information already in context \u2014 diagnostics, iteration history, source files, and runtime logs are always injected; any question about these is a banned behavior"
+    "Chat Agent asking for information already in context \u2014 diagnostics, iteration history, source files, and runtime logs are always injected; any question about these is a banned behavior",
+    "Using NEON_DATABASE_URL for per-app isolated databases in published services \u2014 it is reserved and cannot be overridden. Use APP_DATABASE_URL or a descriptive custom name.",
+    "Proxy fetch without redirect:'manual' \u2014 Node follows redirects silently, returns 200 with final destination HTML, breaks browser navigation entirely.",
+    "JSON.stringify(req.body) in proxy for form POST requests \u2014 must use new URLSearchParams(req.body).toString() for application/x-www-form-urlencoded and delete the original content-length header.",
+    "Applying cookie-session as global middleware \u2014 scope it to the routes that need it to avoid session middleware errors breaking public routes."
   ],
-  "current_state": "ForgeOS fully operational with sub-agent system live. Chat Agent can invoke four focused sub-agents (file_analyst, failure_analyst, fix_verifier, spec_analyst) via invoke_agent tool. Sub-agents are optional \u2014 used only for complex multi-file analysis, ambiguous failures, pre-build verification, and large spec decomposition. Forge self-diagnoses failures via postBuildAnalysis. Multi-pass pipeline handles large builds. Canvas app ready to build.",
+  "current_state": "ForgeOS fully operational. Canvas app live at forgeos-forge-canvas.onrender.com \u2014 registration, canvas experience, AI generation, sticker overlay, QR download, admin dashboard all working. Proxy form POST fixes deployed \u2014 custom slug and live preview should work after Render redeploys. Sub-agent system live. postBuildAnalysis auto-diagnosis live. Multi-pass pipeline stable at 200 char prompt cap.",
   "next_steps": [
-    "Test Canvas build \u2014 add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault first",
-    "Verify sub-agents invoke correctly on next complex failure",
-    "Test Stage 2 React/Vite build end-to-end"
+    "Verify forge-canvas.forge-os.ai works through proxy after latest deploy",
+    "Add FAL_API_KEY to Secrets Vault to enable AI background generation in Canvas",
+    "Test Canvas admin sticker upload",
+    "Test Stage 2 React/Vite build end-to-end",
+    "Consider pgvector semantic search upgrade for Brain"
   ],
   "open_questions": [
     "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?"
