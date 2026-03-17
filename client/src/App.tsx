@@ -112,6 +112,46 @@ function App() {
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startProject = useCallback(async (prompt: string) => {
+    // Large prompt guard — if the prompt is above the complexity threshold,
+    // create the project first then route through the plan gate instead of
+    // attempting a direct build that would overflow the builder's context budget.
+    const LARGE_PROMPT_THRESHOLD = 1500;
+    if (prompt.trim().length > LARGE_PROMPT_THRESHOLD) {
+      // Create the project without building
+      const res = await fetch(`${API_BASE}/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, skipBuild: true }),
+      });
+      const data = await res.json();
+      if (data.id) {
+        setCurrentProjectId(data.id);
+        setCurrentRunId(null);
+        setViewingIterationRunId(null);
+        setActiveNav("projects");
+        // Now route through the plan gate
+        setPlanLoading(true);
+        setPendingPlan(null);
+        window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
+        try {
+          const planRes = await fetch(`${API_BASE}/projects/${data.id}/plan`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt }),
+          });
+          const planData = await planRes.json();
+          if (planData.plan) {
+            setPendingPlan({ prompt, plan: planData.plan });
+          }
+        } catch (err) {
+          console.error("[plan] Failed to generate plan for large prompt:", err);
+        } finally {
+          setPlanLoading(false);
+        }
+      }
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/projects`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -124,7 +164,7 @@ function App() {
       setViewingIterationRunId(null);
       setActiveNav("projects");
     }
-  }, []);
+  }, [setPlanLoading, setPendingPlan, setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
 
   const iterateProject = useCallback(async (prompt: string, options?: { skipPlan?: boolean }) => {
     if (!currentProjectId) return;
@@ -536,4 +576,5 @@ function App() {
 }
 
 export default App;
+
 
