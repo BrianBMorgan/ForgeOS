@@ -41,6 +41,7 @@ app.use(async (req, res, next) => {
   // Strip headers that cause issues with Cloudflare/Render when proxying
   delete fetchHeaders["accept-encoding"];
   fetchHeaders["accept-encoding"] = "identity";
+  delete fetchHeaders["content-length"]; // recalculated after body re-encoding
   delete fetchHeaders["cf-connecting-ip"];
   delete fetchHeaders["cf-ipcountry"];
   delete fetchHeaders["cf-ray"];
