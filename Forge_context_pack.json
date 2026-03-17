@@ -471,6 +471,32 @@
         "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault before Canvas build"
       ],
       "open_questions": []
+    },
+    {
+      "date": "2026-03-17",
+      "session_title": "Proactive Self-Diagnosis, postBuildAnalysis, Known Failure Patterns, Threshold Increase",
+      "shipped": [
+        "server/chat/manager.js \u2014 KNOWN_FAILURE_PATTERNS table: 6 patterns mapping error signatures to instant diagnoses without Claude call (context_overflow \u2192 FORGE: with specific fix, missing_api_key \u2192 plain, json_schema_validation \u2192 FORGE:, start_failed \u2192 BUILD:, install_failed \u2192 plain, build_failed_generic \u2192 plain)",
+        "server/chat/manager.js \u2014 classifyRunFailure(run): runs pattern table against a failed run, returns first match",
+        "server/chat/manager.js \u2014 postBuildAnalysis(projectId, run): fires after every failed build; pattern-matched failures get instant diagnosis with no Claude call; unrecognized failures call Haiku with tight diagnostic context; saves result as assistant message in chat so user sees diagnosis without asking",
+        "server/chat/manager.js \u2014 PROACTIVE POSTURE section added to CHAT_AGENT_INSTRUCTIONS: 'You are not a chatbot waiting for instructions. You are an autonomous build agent.' Opening block mandates that first response on a failed build must be a diagnosis, not a question. [AUTO-ANALYSIS] prefix convention defined.",
+        "server/chat/manager.js \u2014 postBuildAnalysis exported from module",
+        "server/builder.js \u2014 postBuildAnalysis wired at all three failure paths: build-failed (Claude API error), start-failed, install-failed. Fires non-blocking after saveRunSnapshot.",
+        "server/index.js + client/src/App.tsx \u2014 large prompt threshold raised from 1500 to 3000 chars. Rationale: 1500 was too conservative, catching legitimate single-feature prompts; 3000 matches the planner truncation threshold and correctly targets only prompts that will generate >6 files."
+      ],
+      "decisions": [
+        "postBuildAnalysis fires non-blocking \u2014 never delays the build pipeline or the user response; it's a fire-and-forget hook",
+        "Pattern matching first, Claude second \u2014 known failure patterns (context overflow, missing key, etc.) are diagnosed instantly without a Claude call; only genuinely unrecognized failures invoke Haiku",
+        "Large prompt threshold raised to 3000 chars \u2014 aligns with planner truncation threshold; 1500 was blocking prompts that single-pass could handle fine and wasting plan gate cycles",
+        "Chat Agent proactive posture is a first-class instruction \u2014 not buried in behavioral rules but a top-level section that loads before everything else",
+        "[AUTO-ANALYSIS] prefix convention \u2014 automated diagnoses are clearly marked so Chat Agent can build on them rather than repeating them",
+        "Forge should never ask for information already in its context \u2014 this is now a named banned behavior with an explicit rule in CHAT_AGENT_INSTRUCTIONS"
+      ],
+      "pending": [
+        "Test Canvas build with new threshold and multi-pass fixes",
+        "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault before Canvas build"
+      ],
+      "open_questions": []
     }
   ],
   "domain_knowledge": [
@@ -553,7 +579,11 @@
     "Multi-pass builder pass prompt must be scoped: use approvedPlan.taskSummary + pass.description + first 600 chars of original prompt only. Never pass the full original prompt to each pass \u2014 it defeats the purpose of multi-pass and causes context overflow.",
     "Multi-pass accumulated files must be filtered per pass: only send files that the current pass directly creates, modifies, or references by name. Sending all accumulated files to every pass grows context unboundedly.",
     "Memory context hard cap in multi-pass: 600 chars max per pass (vs 2000 chars for single-pass large builds). The regular cap is too large when multiplied across passes with file context.",
-    "Forge repair apply takes 30-60 seconds: builder call + file write + git commit + push. The UI must show an explicit loading state during this time. Success shows files written and Render redeploy note. Failure shows the actual error message."
+    "Forge repair apply takes 30-60 seconds: builder call + file write + git commit + push. The UI must show an explicit loading state during this time. Success shows files written and Render redeploy note. Failure shows the actual error message.",
+    "postBuildAnalysis(projectId, run) in server/chat/manager.js fires automatically after every failed build. Classifies failure via KNOWN_FAILURE_PATTERNS, saves instant diagnosis as assistant message. Pattern-matched failures need no Claude call. Unrecognized failures invoke Haiku with tight diagnostic context.",
+    "KNOWN_FAILURE_PATTERNS: 6 patterns \u2014 context_overflow (JSON position >4 digits \u2192 FORGE:), missing_api_key (401/auth \u2192 plain), json_schema_validation (Zod \u2192 FORGE:), start_failed (workspace crash \u2192 BUILD:), install_failed (npm \u2192 plain), build_failed_generic (catch-all). Add new patterns here as failure modes are discovered.",
+    "Large prompt threshold is 3000 chars (both server/index.js and client/src/App.tsx). Matches planner truncation threshold. Prompts under 3000 go direct to build; 3000+ route through plan gate. Previously 1500 which was too conservative.",
+    "Chat Agent proactive posture: on a failed build, first response must be a diagnosis. Never ask for information already in context (diagnostics, iteration history, source files, logs). [AUTO-ANALYSIS] prefixed messages are automated diagnoses \u2014 build on them, do not repeat them."
   ],
   "decisions_made": [
     {
@@ -683,6 +713,14 @@
     {
       "decision": "Files accumulate across passes with merge semantics",
       "rationale": "Later passes need to import from earlier ones (e.g. routes referencing server.js). Each pass receiving the full accumulated file set ensures the builder can write correct import paths and references."
+    },
+    {
+      "decision": "Pattern matching before Claude call in postBuildAnalysis",
+      "rationale": "Known failure patterns (context overflow, missing API key, schema validation) can be diagnosed instantly from error strings without spending tokens on a Haiku call. Only genuinely unrecognized failures need Claude. Keeps the feedback loop fast."
+    },
+    {
+      "decision": "Large prompt threshold raised from 1500 to 3000 chars",
+      "rationale": "1500 was too conservative. The real protection is multi-pass execution, not the gate. 3000 matches the planner truncation threshold and only catches prompts that will genuinely generate >6 files."
     }
   ],
   "preferences": [
@@ -761,7 +799,9 @@
     "AI Receptionist per-call Map state keyed by CallSid \u2014 lightweight, no DB needed for conversation state, auto-cleans on /call-complete",
     "Multi-pass file accumulation \u2014 each pass receives all previously built files as existingFiles; later passes can correctly reference earlier ones",
     "passProgress on run.stages.builder \u2014 surfaces pass-level progress to Plan tab via existing run polling without any new API surface or schema changes",
-    "Forge FORGE: signal for architecture diagnosis \u2014 correctly identified the three files, the root cause, and the fix structure before implementation"
+    "Forge FORGE: signal for architecture diagnosis \u2014 correctly identified the three files, the root cause, and the fix structure before implementation",
+    "postBuildAnalysis as a non-blocking fire-and-forget hook \u2014 wired at all three failure paths, never delays pipeline, user sees diagnosis before they even open chat",
+    "KNOWN_FAILURE_PATTERNS as a lookup table \u2014 instant classification of common failures, extensible as new patterns are discovered, no Claude tokens spent on known issues"
   ],
   "mistakes_to_avoid": [
     "Inline backtick-wrapped content inside JS template literal strings \u2014 Node parser treats backtick as closing delimiter",
@@ -796,11 +836,14 @@
     "Asking Forge to implement multi-pass pipeline using the broken single-pass pipeline \u2014 circular dependency; infrastructure changes to the build pipeline must be made directly",
     "Passing full original prompt to every multi-pass build pass \u2014 causes context overflow on pass 1; each pass must receive a scoped prompt derived from pass.description and a brief prompt excerpt only",
     "Sending all accumulated files to every pass in buildWorkspaceMultiPass \u2014 context grows unboundedly; filter to only files relevant to each pass",
-    "Clearing pendingForgePlan before the apply call completes \u2014 keeps the user blind during a 30-60s operation; always show forgeApplying loading state first"
+    "Clearing pendingForgePlan before the apply call completes \u2014 keeps the user blind during a 30-60s operation; always show forgeApplying loading state first",
+    "Large prompt threshold too low \u2014 1500 chars catches legitimate prompts and wastes plan gate cycles; threshold should be 3000 to match planner truncation and target only genuinely large multi-file builds",
+    "Chat Agent asking for information already in context \u2014 diagnostics, iteration history, source files, and runtime logs are always injected; any question about these is a banned behavior"
   ],
-  "current_state": "ForgeOS fully operational. Multi-pass build pipeline context overflow fixed \u2014 each pass now receives a scoped prompt and only relevant files. Forge repair UX has explicit loading state, result card, and error surfacing. Chat button touch targets fixed. Canvas app prompt ready to build. All prior systems operational.",
+  "current_state": "ForgeOS fully operational. Forge now self-diagnoses build failures automatically via postBuildAnalysis \u2014 every failed build triggers an instant chat diagnosis before the user asks. Known failure patterns (context overflow, missing keys, schema validation, workspace crashes) are classified instantly. Chat Agent has a proactive posture mandate. Large prompt threshold raised to 3000 chars. Multi-pass context overflow fixed. Canvas app prompt ready to build.",
   "next_steps": [
-    "Test multi-pass Canvas build after context fix \u2014 add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault first",
+    "Test Canvas build \u2014 add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault first",
+    "Verify postBuildAnalysis fires correctly on next build failure",
     "Test Stage 2 React/Vite build end-to-end",
     "Consider pgvector semantic search upgrade for Brain"
   ],
@@ -955,6 +998,18 @@
     {
       "term": "passOverride",
       "value": "Optional second parameter to planToConstraintBlock(). When provided, generates a pass-scoped constraint block listing only that pass's files. Used by buildWorkspaceMultiPass to constrain each individual builder call."
+    },
+    {
+      "term": "postBuildAnalysis",
+      "value": "Function in server/chat/manager.js. Fires automatically after every failed build via hook in builder.js. Classifies failure using KNOWN_FAILURE_PATTERNS (no Claude call for known patterns), saves diagnosis as assistant message. User sees root cause before asking."
+    },
+    {
+      "term": "KNOWN_FAILURE_PATTERNS",
+      "value": "Lookup table in server/chat/manager.js. 6 patterns mapping error signatures to instant diagnoses: context_overflow \u2192 FORGE:, missing_api_key \u2192 plain, json_schema_validation \u2192 FORGE:, start_failed \u2192 BUILD:, install_failed \u2192 plain, build_failed_generic \u2192 plain. Extend this table as new failure modes are discovered."
+    },
+    {
+      "term": "proactive posture",
+      "value": "Chat Agent behavioral mandate in CHAT_AGENT_INSTRUCTIONS. First response on a failed build must be a diagnosis. Never ask for information already in context. [AUTO-ANALYSIS] prefixed messages are automated diagnoses \u2014 build on them, do not repeat."
     }
   ]
 }
