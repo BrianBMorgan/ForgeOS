@@ -201,9 +201,9 @@ app.post("/admin/login", adminSession, (req, res) => {
   const { password } = req.body;
   if (password === (process.env.ADMIN_PASSWORD || "canvas")) {
     req.session.admin = true;
-    res.redirect("/admin");
+    res.json({ redirect: "/admin" });
   } else {
-    res.send(renderAdminLogin("Invalid password"));
+    res.status(401).json({ error: "Invalid password" });
   }
 });
 
@@ -1001,11 +1001,29 @@ function renderAdminLogin(error) {
 <div class="card">
   <h1>Canvas Admin</h1>
   ${error ? `<div class="error">${error}</div>` : ""}
-  <form method="POST" action="/admin/login">
+  <div>
     <label>Password</label>
-    <input type="password" name="password" autofocus>
-    <button type="submit">Sign In</button>
-  </form>
+    <input type="password" id="admin_password" autofocus>
+    <div id="admin_error" style="color:#f87171;font-size:0.82rem;margin:0.5rem 0;display:none"></div>
+    <button onclick="submitAdminLogin()">Sign In</button>
+  </div>
+  <script>
+  async function submitAdminLogin() {
+    const password = document.getElementById("admin_password").value;
+    const errEl = document.getElementById("admin_error");
+    try {
+      const res = await fetch("/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (data.redirect) { window.location.href = data.redirect; }
+      else { errEl.textContent = data.error || "Login failed."; errEl.style.display = "block"; }
+    } catch(err) { errEl.textContent = "Network error."; errEl.style.display = "block"; }
+  }
+  document.addEventListener("keydown", e => { if (e.key === "Enter") submitAdminLogin(); });
+  </script>
 </div>
 </body>
 </html>`;
