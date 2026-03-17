@@ -663,7 +663,7 @@ function renderCanvas(attendee, stickers) {
         <div class="qr-sub">Scan to download your high-res image</div>
         <img class="qr-img" id="qrImg" width="220" height="220" alt="QR Code">
         <div class="qr-actions">
-          <a id="downloadLink" class="qr-btn primary" target="_blank">⬇ Download PNG</a>
+          <a id="downloadLink" class="qr-btn primary">⬇ Download PNG</a>
           <button class="qr-btn secondary" onclick="resetCanvas()">Create Another</button>
         </div>
       </div>
@@ -842,6 +842,10 @@ async function saveArtwork() {
 
   try {
     const wrap = document.getElementById("canvasWrap");
+    // Force wrap to true 800x800 for capture regardless of viewport scaling
+    const prevWidth = wrap.style.width, prevHeight = wrap.style.height;
+    wrap.style.width = "800px";
+    wrap.style.height = "800px";
     const canvas = await html2canvas(wrap, {
       width: 800, height: 800,
       scale: 2,
@@ -850,6 +854,8 @@ async function saveArtwork() {
       backgroundColor: "#1a1a2e",
       ignoreElements: el => el.classList.contains("generating-overlay") || el.classList.contains("qr-screen"),
     });
+    wrap.style.width = prevWidth;
+    wrap.style.height = prevHeight;
 
     const png = canvas.toDataURL("image/png");
     const res = await fetch("/canvas/" + SESSION_ID + "/save", {
@@ -870,7 +876,7 @@ async function saveArtwork() {
           const blob = await r.blob();
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
-          a.href = url; a.download = data.downloadUrl.split("/").pop() + ".png";
+          a.href = url; a.download = "intel-canvas-" + SESSION_ID + ".png";
           a.click(); URL.revokeObjectURL(url);
         } catch(err) { window.open(data.downloadUrl, "_blank"); }
       };
