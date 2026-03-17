@@ -551,11 +551,12 @@ function renderCanvas(attendee, stickers) {
 
   /* QR screen */
   .qr-screen {
-    position: absolute; inset: 0;
+    position: fixed; inset: 0;
     background: rgba(10,10,15,0.96);
     display: none; flex-direction: column;
     align-items: center; justify-content: center; gap: 1.5rem;
-    border-radius: 4px;
+    z-index: 1000;
+    padding: 2rem;
   }
   .qr-screen.active { display: flex; }
   .qr-title { font-size: 1.4rem; font-weight: 700; text-align: center; }
@@ -625,19 +626,21 @@ function renderCanvas(attendee, stickers) {
         <div class="gen-label">Generating your scene…</div>
       </div>
 
-      <div class="qr-screen" id="qrScreen">
-        <div class="qr-title">Your art is ready, ${attendee.first_name}! 🎨</div>
-        <div class="qr-sub">Scan to download your high-res image</div>
-        <img class="qr-img" id="qrImg" width="220" height="220" alt="QR Code">
-        <div class="qr-actions">
-          <a id="downloadLink" class="qr-btn primary" target="_blank">⬇ Download PNG</a>
-          <button class="qr-btn secondary" onclick="resetCanvas()">Create Another</button>
-        </div>
-      </div>
     </div>
 
     <div class="save-bar">
       <button class="save-btn" id="saveBtn" onclick="saveArtwork()">Save &amp; Get QR Code ✦</button>
+    </div>
+  </div>
+
+  <!-- QR screen — full page overlay, outside canvas wrap so it works on mobile -->
+  <div class="qr-screen" id="qrScreen">
+    <div class="qr-title">Your art is ready, ${attendee.first_name}! 🎨</div>
+    <div class="qr-sub">Scan to download your high-res image</div>
+    <img class="qr-img" id="qrImg" width="220" height="220" alt="QR Code">
+    <div class="qr-actions">
+      <a id="downloadLink" class="qr-btn primary" target="_blank">⬇ Download PNG</a>
+      <button class="qr-btn secondary" onclick="resetCanvas()">Create Another</button>
     </div>
   </div>
 </div>
@@ -809,9 +812,11 @@ async function saveArtwork() {
 
   try {
     const wrap = document.getElementById("canvasWrap");
+    const wrapRect = wrap.getBoundingClientRect();
     const canvas = await html2canvas(wrap, {
-      width: 800, height: 800,
-      scale: 1,
+      width: wrapRect.width,
+      height: wrapRect.height,
+      scale: 800 / wrapRect.width, // scale up to 800px output regardless of display size
       useCORS: true,
       allowTaint: true,
       backgroundColor: "#1a1a2e",
