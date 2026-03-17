@@ -5,9 +5,6 @@
 
 const path = require("path");
 const fs = require("fs");
-const { exec } = require("child_process");
-const { promisify } = require("util");
-const execAsync = promisify(exec);
 
 const FORGE_ROOT = path.resolve(__dirname, "../../");
 const FORGE_SERVER = path.resolve(FORGE_ROOT, "server");
@@ -103,10 +100,12 @@ async function applyForgeFix(forgeSuggestion, approvedPlan) {
 
   if (writtenPaths.length === 0) throw new Error("No files were written — all paths were out of bounds");
 
-  // Git commit + push
+  // Push files to GitHub via API — shell git commands cannot work on Render
+  // because the running service has no .git directory.
   const settingsManager = require("../settings/manager");
   const githubSettings = await settingsManager.getSetting("github");
   const repo = githubSettings?.repo || "BrianBMorgan/ForgeOS";
+  const [owner, repoName] = repo.split("/");
 
   let token = process.env.GITHUB_TOKEN;
   if (!token) {
@@ -116,19 +115,55 @@ async function applyForgeFix(forgeSuggestion, approvedPlan) {
   if (!token) throw new Error("GITHUB_TOKEN not available — add it to the Global Secrets Vault");
 
   const taskSummary = approvedPlan.taskSummary || forgeSuggestion.slice(0, 80);
-  const filePaths = writtenPaths.join(" ");
+  const commitMessage = `forge: ${taskSummary.replace(/"/g, "'")}`;
 
-  await execAsync(`git -C "${FORGE_ROOT}" config user.email "forge@forgeos.ai"`);
-  await execAsync(`git -C "${FORGE_ROOT}" config user.name "ForgeOS Self-Repair"`);
-  await execAsync(`git -C "${FORGE_ROOT}" add ${writtenPaths.map(p => `"${p}"`).join(" ")}`);
-  await execAsync(`git -C "${FORGE_ROOT}" commit -m "forge: ${taskSummary.replace(/"/g, "'")}"`);
-  await execAsync(`git -C "${FORGE_ROOT}" push https://${token}@github.com/${repo}.git HEAD:main`);
+  // Push each file individually via GitHub Contents API
+  const pushedPaths = [];
+  for (const filePath of writtenPaths) {
+    const fullPath = path.resolve(FORGE_ROOT, filePath);
+    const fileContent = fs.readFileSync(fullPath, "utf-8");
+    const encoded = Buffer.from(fileContent).toString("base64");
+
+    // Get current SHA for the file (needed for updates)
+    let fileSha = null;
+    try {
+      const getResp = await fetch(
+        `https://api.github.com/repos/${owner}/${repoName}/contents/${filePath}`,
+        { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } }
+      );
+      if (getResp.ok) {
+        const data = await getResp.json();
+        fileSha = data.sha;
+      }
+    } catch {}
+
+    const body = { message: commitMessage, content: encoded, branch: "main" };
+    if (fileSha) body.sha = fileSha;
+
+    const putResp = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/contents/${filePath}`,
+      {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!putResp.ok) {
+      const err = await putResp.json().catch(() => ({}));
+      throw new Error(`GitHub API push failed for ${filePath}: ${err.message || putResp.status}`);
+    }
+
+    pushedPaths.push(filePath);
+    console.log(`[forge-repair] Pushed ${filePath} to GitHub`);
+  }
 
   return {
     ok: true,
-    filesWritten: writtenPaths,
-    message: `ForgeOS self-repair applied — ${writtenPaths.length} file(s) updated and pushed. Render will redeploy automatically.`,
+    filesWritten: pushedPaths,
+    message: `ForgeOS self-repair applied — ${pushedPaths.length} file(s) updated and pushed to GitHub. Render will redeploy automatically.`,
   };
 }
 
 module.exports = { getAllForgeFilePaths, readForgeFile, getForgeFiles, generateForgePlan, applyForgeFix };
+
