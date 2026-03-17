@@ -4,6 +4,28 @@ const CHAT_AGENT_INSTRUCTIONS = `You are Forge Assistant.
 ${FORGE_VOICE}
 
 ${"═".repeat(63)}
+PROACTIVE POSTURE — READ THIS FIRST
+${"═".repeat(63)}
+
+You are not a chatbot waiting for instructions. You are an autonomous build agent.
+
+When a user opens this chat after a failed build, you do NOT wait for them to
+describe what went wrong. You already have everything:
+  - SYSTEM DIAGNOSTICS (auto-injected)
+  - ITERATION HISTORY with every pipeline error and stage failure
+  - CURRENT PROJECT FILES
+  - RUNTIME LOGS
+
+Your job is to diagnose proactively. If the latest run failed, your FIRST response
+must be a diagnosis — even if the user just says "why did this fail?" or "what happened?"
+Do not ask clarifying questions. Do not say "I need more information." Read what you
+have and state the root cause.
+
+POST-BUILD ANALYSIS: When a build fails, an automated analysis is injected into this
+conversation. You may see a message like "[AUTO-ANALYSIS]" — this is Forge's self-diagnosis
+of the failure. Build on it. Do not repeat it. If it is wrong, correct it with evidence.
+
+${"═".repeat(63)}
 DIAGNOSTIC PROCESS — MANDATORY ORDER
 ${"═".repeat(63)}
 
@@ -735,6 +757,158 @@ async function runDiagnostics(projectId, checks) {
   return report;
 }
 
+// ── Known failure pattern classifier ────────────────────────────────────────
+// Maps error signatures to instant diagnoses without requiring a Claude call.
+// Each entry: { test(run) => bool, signal, diagnosis, suggestion }
+const KNOWN_FAILURE_PATTERNS = [
+  {
+    id: "context_overflow",
+    test: (run) => {
+      const err = (run.error || "") + JSON.stringify(run.stages || {});
+      return /position \d{4,}|unterminated string|json parse.*position|failed to parse ai response/i.test(err);
+    },
+    signal: "FORGE",
+    diagnosis: (run) => {
+      const posMatch = (run.error || "").match(/position (\d+)/i);
+      const pos = posMatch ? ` at position ${posMatch[1]}` : "";
+      return `Builder JSON output was truncated${pos} — the total token input (system prompt + context + prompt) exceeded Claude's output budget. Root cause: server/builder.js context assembly is too large for this prompt. Fix: reduce pass scope or cap context further in buildWorkspaceMultiPass.`;
+    },
+    forge: "server/builder.js buildWorkspaceMultiPass assembles too much context per pass — the passPrompt, accumulated files, and system prompt together exceed the output token budget, truncating JSON at high position numbers. Reduce promptSummary cap from 600 to 300 chars and filter accumulated files more aggressively to only files with direct import relationships.",
+  },
+  {
+    id: "missing_api_key",
+    test: (run) => {
+      const err = (run.error || "") + JSON.stringify(run.stages || {});
+      return /api.?key|authentication|401|not configured|missing.*key/i.test(err);
+    },
+    signal: "PLAIN",
+    diagnosis: () => "Build failed due to a missing or invalid API key. Check the Global Secrets Vault in Settings — the required key is not configured or has expired.",
+  },
+  {
+    id: "json_schema_validation",
+    test: (run) => {
+      const err = (run.error || "") + JSON.stringify(run.stages || {});
+      return /zod|schema.*validation|invalid.*schema|parse.*schema/i.test(err);
+    },
+    signal: "FORGE",
+    diagnosis: () => "Builder output failed Zod schema validation — the AI response had the right structure but a field value didn't match the expected type. Root cause: server/pipeline/model-router.js schema validation is too strict or the builder prompt produced a field in the wrong format.",
+    forge: "server/pipeline/model-router.js schema.parse(parsed) throws when a field value doesn't match the Zod schema — add .passthrough() or loosen the field type to accept both string and null for optional fields that the builder may omit.",
+  },
+  {
+    id: "start_failed",
+    test: (run) => run.workspace?.status === "start-failed",
+    signal: "BUILD",
+    diagnosis: (run) => {
+      const err = run.workspace?.error || "unknown error";
+      return `App failed to start after build — ${err}. The builder produced files but the start command crashed. Check for missing dependencies in package.json, a wrong start command, or a syntax error in server.js.`;
+    },
+  },
+  {
+    id: "install_failed",
+    test: (run) => run.workspace?.status === "install-failed",
+    signal: "PLAIN",
+    diagnosis: (run) => {
+      const err = run.workspace?.error || "unknown error";
+      return `Dependency install failed — ${err}. The builder's package.json may reference a non-existent package version, a banned module, or have a syntax error.`;
+    },
+  },
+  {
+    id: "build_failed_generic",
+    test: (run) => run.status === "failed" && run.stages?.builder?.status === "failed",
+    signal: "PLAIN",
+    diagnosis: (run) => {
+      const err = run.stages?.builder?.error || run.error || "unknown error";
+      return `Builder stage failed: ${err.slice(0, 300)}`;
+    },
+  },
+];
+
+// Classify a failed run against known patterns. Returns the first match or null.
+function classifyRunFailure(run) {
+  for (const pattern of KNOWN_FAILURE_PATTERNS) {
+    if (pattern.test(run)) return pattern;
+  }
+  return null;
+}
+
+// Auto-analysis fired after every failed build. Saves a diagnosis as an assistant
+// message so the user sees it immediately without asking. Does not require user input.
+async function postBuildAnalysis(projectId, run) {
+  try {
+    if (!projectId) return;
+    if (!run || run.status !== "failed") return;
+
+    const pattern = classifyRunFailure(run);
+
+    let message, suggestForge, forgeSuggestion, suggestBuild, buildSuggestion;
+
+    if (pattern) {
+      // Pattern-matched — instant diagnosis, no Claude call needed
+      message = `[AUTO-ANALYSIS] ${typeof pattern.diagnosis === "function" ? pattern.diagnosis(run) : pattern.diagnosis}`;
+
+      if (pattern.signal === "FORGE" && pattern.forge) {
+        suggestForge = true;
+        forgeSuggestion = pattern.forge;
+      } else if (pattern.signal === "BUILD" && pattern.build) {
+        suggestBuild = true;
+        buildSuggestion = pattern.build;
+      }
+    } else {
+      // No pattern match — call Claude with tight diagnostic context for analysis
+      const runError = run.error || "";
+      const stageErrors = Object.entries(run.stages || {})
+        .filter(([, v]) => v.status === "failed")
+        .map(([k, v]) => `${k}: ${(v.error || v.output || "").toString().slice(0, 200)}`)
+        .join("\n");
+      const wsError = run.workspace?.error || "";
+
+      const diagPrompt = `A ForgeOS build just failed. Diagnose it and output the appropriate signal.
+
+Run status: ${run.status}
+Workspace status: ${run.workspace?.status || "unknown"}
+Run error: ${runError.slice(0, 400)}
+Stage errors:
+${stageErrors.slice(0, 600)}
+Workspace error: ${wsError.slice(0, 200)}
+
+Output your diagnosis in two sentences followed by the appropriate signal (FORGE:, BUILD:, or PLAN:).
+Prefix your message with [AUTO-ANALYSIS].`;
+
+      const result = await callChat(
+        "claude-haiku-4-5-20251001",
+        CHAT_AGENT_INSTRUCTIONS,
+        [{ role: "user", content: diagPrompt }],
+        null,
+        0.2,
+      );
+
+      const parsed = parseResponse(result.content || "");
+      message = parsed.message || "[AUTO-ANALYSIS] Build failed — check the iteration history for details.";
+      suggestForge = parsed.suggestForge;
+      forgeSuggestion = parsed.forgeSuggestion;
+      suggestBuild = parsed.suggestBuild;
+      buildSuggestion = parsed.buildSuggestion;
+    }
+
+    const assistantMsg = {
+      role: "assistant",
+      content: message,
+      suggestBuild: suggestBuild || false,
+      buildSuggestion: buildSuggestion || null,
+      suggestPlan: false,
+      planSuggestion: null,
+      suggestForge: suggestForge || false,
+      forgeSuggestion: forgeSuggestion || null,
+      createdAt: Date.now(),
+    };
+
+    await saveMessage(projectId, assistantMsg);
+    console.log(`[chat] Post-build analysis saved for project ${projectId}: ${pattern?.id || "claude-analysis"}`);
+  } catch (err) {
+    console.error("[chat] postBuildAnalysis failed (non-fatal):", err.message);
+  }
+}
+
 function parseResponse(content) {
   let message = content;
   let suggestBuild = false;
@@ -1089,5 +1263,7 @@ module.exports = {
   getChatHistory,
   clearBuildSuggestions,
   runDiagnostics,
+  postBuildAnalysis,
 };
+
 
