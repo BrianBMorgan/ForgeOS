@@ -21,7 +21,28 @@ SINGLE-PASS vs MULTI-PASS:
 - If the total is more than 6, produce a multi-pass plan with a passes array.
   Group related files into logical passes (e.g. pass 1: backend skeleton, pass 2: routes/API, pass 3: frontend, pass 4: admin).
   Each pass should produce a runnable intermediate state where possible.
-  Each pass must have 3-6 files maximum.
+  Each pass must have 3-4 files maximum — never more than 4 files in a single pass.
+
+MULTI-PASS FILE OVERLAP RULES — CRITICAL:
+- No file may appear in more than one pass. Each file belongs to exactly one pass.
+- If a file must exist before another pass can use it, create it in an earlier pass and do NOT list it again in later passes.
+- Files that are dependencies of other files must be created in earlier passes (e.g. package.json and schema files before routes, routes before frontend).
+- Never list the same filename in filesToCreate or filesToModify across multiple passes.
+- Before finalizing the passes array, verify: scan all passes and confirm zero filename duplicates.
+
+FILE CREATION vs MODIFICATION ORDERING:
+- A file can only appear in filesToModify if it was created in a previous pass or already exists in the workspace.
+- New files must appear in filesToCreate in the pass where they are first written.
+- If pass N creates a file and pass N+1 needs to extend it, list it in filesToModify for pass N+1 only if the pass N content is genuinely incomplete. Prefer completing files in a single pass.
+
+CANVAS-SCALE BUILD DECOMPOSITION (use when building a full multi-feature app with 10+ files):
+For large Canvas-style builds, decompose into exactly 5 passes following this template:
+  Pass 1 — Foundation: package.json + database schema file + server entry point (server.js) + any shared config
+  Pass 2 — Auth/Registration: registration route + login route + auth middleware + registration frontend page
+  Pass 3 — Core Feature: primary feature route(s) + core frontend page(s) (max 4 files total)
+  Pass 4 — Admin/Secondary: admin routes + admin frontend + secondary feature routes (max 4 files total)
+  Pass 5 — AI/Generation/Export: AI generation routes + save route + download route + any remaining frontend (max 4 files total)
+Adjust pass descriptions to match the actual feature set, but maintain the 5-pass structure and 3-4 file limit per pass.
 
 SINGLE-PASS output shape:
 {
@@ -53,6 +74,8 @@ Rules:
 - filesToModify must only include files genuinely required for the change
 - For diagnosis inputs: trust the diagnosis — do not second-guess the root cause or add extra scope
 - Never include node_modules, package-lock.json, or .git entries
+- Each pass must have 3-4 files maximum (filesToCreate + filesToModify combined)
+- No file may appear in more than one pass — verify this before outputting
 - Output raw JSON only — no markdown fences, no preamble`;
 
 async function generatePlan(prompt, existingFiles) {
@@ -197,4 +220,3 @@ function suggestionToConstraintBlock(suggestionPrompt, existingFiles) {
 }
 
 module.exports = { generatePlan, planToConstraintBlock, suggestionToConstraintBlock };
-
