@@ -1065,7 +1065,71 @@ function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePla
       filesToCreate?: string[];
       filesToModify?: string[];
       filesOffLimits?: string[];
+      multiPass?: boolean;
+      passes?: { passNumber: number; description: string; filesToCreate?: string[]; filesToModify?: string[] }[];
     };
+
+    // Multi-pass plan rendering
+    if (p.multiPass && p.passes?.length) {
+      return (
+        <div className="plan-content">
+          <div className="plan-gate-header">
+            <div className="plan-gate-label">Multi-Pass Build Plan</div>
+            <div className="plan-gate-prompt">"{pendingPlan.prompt.slice(0, 120)}{pendingPlan.prompt.length > 120 ? '…' : ''}"</div>
+          </div>
+
+          {p.taskSummary && (
+            <div className="plan-section">
+              <div className="plan-section-title">Task</div>
+              <div className="plan-summary-text">{p.taskSummary}</div>
+            </div>
+          )}
+
+          {p.approach && (
+            <div className="plan-section">
+              <div className="plan-section-title">Strategy</div>
+              <div className="plan-summary-text">{p.approach}</div>
+            </div>
+          )}
+
+          <div className="plan-section">
+            <div className="plan-section-title">{p.passes.length} Passes</div>
+            <div className="plan-passes-list">
+              {p.passes.map((pass, i) => (
+                <div key={i} className="plan-pass-card">
+                  <div className="plan-pass-header">
+                    <span className="plan-pass-number">Pass {pass.passNumber}</span>
+                    <span className="plan-pass-desc">{pass.description}</span>
+                  </div>
+                  <div className="plan-files-list">
+                    {(pass.filesToCreate || []).map((f, j) => (
+                      <div key={j} className="plan-file-item plan-file-create">
+                        <span className="plan-file-badge plan-badge-create">+</span>{f}
+                      </div>
+                    ))}
+                    {(pass.filesToModify || []).map((f, j) => (
+                      <div key={j} className="plan-file-item plan-file-modify">
+                        <span className="plan-file-badge plan-badge-modify">~</span>{f}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="plan-gate-actions">
+            <button className="plan-approve-btn" onClick={onApprovePlan}>
+              ✓ Approve &amp; Build All Passes
+            </button>
+            <button className="plan-revise-btn" onClick={onRevisePlan}>
+              ↩ Revise Prompt
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="plan-content">
         <div className="plan-gate-header">
@@ -1148,15 +1212,21 @@ function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePla
   const planOutput = builderOutput || legacyPlanOutput;
 
   if (!planOutput || typeof planOutput !== "object") {
-    // Show a richer state while a suggestion build is running — surface the parsed target file
-    // so the user can immediately see whether the constraint was parsed correctly.
     const isSuggestionBuild = runData?.isSuggestion;
     const suggestionTarget = runData?.suggestionTarget;
+    const passProgress = (runData?.stages?.builder as { passProgress?: string } | null)?.passProgress;
 
     return (
       <div className="panel-placeholder">
         <div className="panel-title">Plan</div>
-        {runData?.status === "running" && isSuggestionBuild ? (
+        {runData?.status === "running" && passProgress ? (
+          <div className="plan-surgical-status">
+            <div className="plan-surgical-label">Multi-pass build in progress</div>
+            <div className="plan-surgical-target">
+              <code className="plan-surgical-file">{passProgress}</code>
+            </div>
+          </div>
+        ) : runData?.status === "running" && isSuggestionBuild ? (
           <div className="plan-surgical-status">
             <div className="plan-surgical-label">Surgical edit in progress</div>
             {suggestionTarget ? (
