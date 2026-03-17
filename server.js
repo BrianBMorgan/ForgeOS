@@ -73,14 +73,14 @@ app.get("/", (req, res) => res.send(renderRegistration()));
 app.post("/register", async (req, res) => {
   try {
     const { first_name, last_name, email } = req.body;
-    if (!first_name || !email) return res.redirect("/");
+    if (!first_name || !email) return res.status(400).json({ error: "First name and email are required." });
     const sessionId = crypto.randomBytes(16).toString("hex");
     await sql`INSERT INTO canvas_attendees (session_id, first_name, last_name, email, created_at)
       VALUES (${sessionId}, ${first_name.trim()}, ${(last_name || "").trim()}, ${email.trim()}, ${Date.now()})`;
-    res.redirect(`/canvas/${sessionId}`);
+    res.json({ redirect: `/canvas/${sessionId}` });
   } catch (err) {
     console.error("[canvas] /register error:", err.message);
-    res.status(500).send(`<pre>Registration error: ${err.message}</pre>`);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -356,14 +356,36 @@ function renderRegistration() {
   <div class="eyebrow">Powered by Intel + Forge</div>
   <h1>Create Your Canvas</h1>
   <p class="subtitle">Design AI-generated artwork with brand stickers. Your creation gets printed on a tee.</p>
-  <form method="POST" action="/register">
+  <div>
     <div class="row">
-      <div class="field"><label>First Name</label><input name="first_name" required autocomplete="given-name" placeholder="Alex"></div>
-      <div class="field"><label>Last Name</label><input name="last_name" autocomplete="family-name" placeholder="Chen"></div>
+      <div class="field"><label>First Name</label><input id="first_name" required autocomplete="given-name" placeholder="Alex"></div>
+      <div class="field"><label>Last Name</label><input id="last_name" autocomplete="family-name" placeholder="Chen"></div>
     </div>
-    <div class="field"><label>Email</label><input name="email" type="email" required autocomplete="email" placeholder="alex@company.com"></div>
-    <button type="submit" class="btn">Start Creating →</button>
-  </form>
+    <div class="field"><label>Email</label><input id="email" type="email" required autocomplete="email" placeholder="alex@company.com"></div>
+    <div id="reg_error" style="color:#f87171;font-size:0.82rem;margin-bottom:0.5rem;display:none"></div>
+    <button class="btn" onclick="submitRegistration()">Start Creating →</button>
+  </div>
+  <script>
+  async function submitRegistration() {
+    const first_name = document.getElementById("first_name").value.trim();
+    const last_name = document.getElementById("last_name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const errEl = document.getElementById("reg_error");
+    if (!first_name || !email) { errEl.textContent = "First name and email are required."; errEl.style.display = "block"; return; }
+    errEl.style.display = "none";
+    try {
+      const res = await fetch("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ first_name, last_name, email }),
+      });
+      const data = await res.json();
+      if (data.redirect) { window.location.href = data.redirect; }
+      else { errEl.textContent = data.error || "Registration failed."; errEl.style.display = "block"; }
+    } catch(err) { errEl.textContent = "Network error — please try again."; errEl.style.display = "block"; }
+  }
+  document.addEventListener("keydown", e => { if (e.key === "Enter") submitRegistration(); });
+  </script>
 </div>
 </body>
 </html>`;
