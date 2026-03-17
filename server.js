@@ -3,6 +3,7 @@
 const express = require("express");
 const { neon } = require("@neondatabase/serverless");
 const cookieSession = require("cookie-session");
+const adminTokens = new Set(); // in-memory valid tokens
 const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
@@ -23,6 +24,16 @@ const adminSession = cookieSession({
   keys: [process.env.ADMIN_PASSWORD || "canvas-secret"],
   maxAge: 8 * 60 * 60 * 1000,
 });
+
+// Token-based auth middleware for proxy-friendly admin access
+function requireAdminToken(req, res, next) {
+  const auth = req.headers["authorization"] || "";
+  const token = auth.replace("Bearer ", "").trim();
+  if (token && adminTokens.has(token)) return next();
+  // Fall back to cookie-session for direct Render access
+  if (req.session && req.session.admin) return next();
+  res.status(401).json({ error: "Unauthorized" });
+}
 
 // ── Debug (remove after proxy issue resolved) ────────────────────────────────
 app.post("/debug-register", (req, res) => {
@@ -63,6 +74,11 @@ async function ensureSchema() {
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 function requireAdmin(req, res, next) {
+  // Check bearer token first (proxy-friendly)
+  const auth = req.headers["authorization"] || "";
+  const token = auth.replace("Bearer ", "").trim();
+  if (token && adminTokens.has(token)) return next();
+  // Fall back to cookie session
   if (req.session && req.session.admin) return next();
   res.redirect("/admin/login");
 }
@@ -201,7 +217,12 @@ app.post("/admin/login", adminSession, (req, res) => {
   const { password } = req.body;
   if (password === (process.env.ADMIN_PASSWORD || "canvas")) {
     req.session.admin = true;
-    res.json({ redirect: "/admin" });
+    // Also issue a bearer token for proxy-friendly auth
+    const token = crypto.randomBytes(32).toString("hex");
+    adminTokens.add(token);
+    // Clean up old tokens after 8 hours
+    setTimeout(() => adminTokens.delete(token), 8 * 60 * 60 * 1000);
+    res.json({ redirect: "/admin", token });
   } else {
     res.status(401).json({ error: "Invalid password" });
   }
@@ -861,6 +882,35 @@ function renderAdmin(stickers, artworks) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Canvas Admin</title>
+<script>
+// Inject token into all fetch requests and form submissions
+(function() {
+  const token = localStorage.getItem("canvas_admin_token");
+  if (!token) return;
+  // Override fetch to add Authorization header
+  const origFetch = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers, { "Authorization": "Bearer " + token });
+    return origFetch(url, opts);
+  };
+  // Intercept form submissions — convert to fetch with token
+  document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll("form").forEach(function(form) {
+      form.addEventListener("submit", async function(e) {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const res = await origFetch(form.action || window.location.pathname, {
+          method: form.method || "POST",
+          headers: { "Authorization": "Bearer " + token },
+          body: formData,
+        });
+        if (res.redirected || res.ok) { window.location.reload(); }
+      });
+    });
+  });
+})();
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root { --bg: #0a0a0f; --surface: #111118; --border: rgba(255,255,255,0.08); --accent: #6366f1; --text: #f1f5f9; --muted: #64748b; }
@@ -1018,8 +1068,13 @@ function renderAdminLogin(error) {
         body: JSON.stringify({ password }),
       });
       const data = await res.json();
-      if (data.redirect) { window.location.href = data.redirect; }
-      else { errEl.textContent = data.error || "Login failed."; errEl.style.display = "block"; }
+      if (data.redirect && data.token) {
+        localStorage.setItem("canvas_admin_token", data.token);
+        window.location.href = data.redirect;
+      } else {
+        errEl.textContent = data.error || "Login failed.";
+        errEl.style.display = "block";
+      }
     } catch(err) { errEl.textContent = "Network error."; errEl.style.display = "block"; }
   }
   document.addEventListener("keydown", e => { if (e.key === "Enter") submitAdminLogin(); });
