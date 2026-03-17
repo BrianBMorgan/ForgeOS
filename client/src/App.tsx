@@ -108,6 +108,8 @@ function App() {
   const [planLoading, setPlanLoading] = useState(false);
   const [pendingForgePlan, setPendingForgePlan] = useState<{ forgeSuggestion: string; plan: Record<string, unknown> } | null>(null);
   const [forgePlanLoading, setForgePlanLoading] = useState(false);
+  const [forgeApplying, setForgeApplying] = useState(false);
+  const [forgeApplyResult, setForgeApplyResult] = useState<{ ok: boolean; message: string; filesWritten?: string[] } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -250,7 +252,9 @@ function App() {
   const approveForgePlan = useCallback(async () => {
     if (!pendingForgePlan) return;
     const { forgeSuggestion, plan } = pendingForgePlan;
-    setPendingForgePlan(null);
+    // Keep plan visible while applying — don't clear until done
+    setForgeApplying(true);
+    setForgeApplyResult(null);
     try {
       const res = await fetch(`${API_BASE}/forge-repair/apply`, {
         method: "POST",
@@ -258,11 +262,16 @@ function App() {
         body: JSON.stringify({ forgeSuggestion, approvedPlan: plan }),
       });
       const data = await res.json();
-      if (data.ok) {
-        console.log("[forge-repair]", data.message);
+      if (res.ok && data.ok) {
+        setForgeApplyResult({ ok: true, message: data.message, filesWritten: data.filesWritten });
+        setPendingForgePlan(null);
+      } else {
+        setForgeApplyResult({ ok: false, message: data.error || "Forge repair failed — check Render logs." });
       }
     } catch (err) {
-      console.error("[forge-repair] Apply failed:", err);
+      setForgeApplyResult({ ok: false, message: "Network error — forge repair could not reach the server." });
+    } finally {
+      setForgeApplying(false);
     }
   }, [pendingForgePlan]);
 
@@ -507,6 +516,9 @@ function App() {
             forgePlanLoading={forgePlanLoading}
             onApproveForgePlan={approveForgePlan}
             onRejectForgePlan={rejectForgePlan}
+            forgeApplying={forgeApplying}
+            forgeApplyResult={forgeApplyResult}
+            onClearForgeResult={() => setForgeApplyResult(null)}
           />
         </div>
         <div className="mobile-view-toggle">
