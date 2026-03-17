@@ -385,9 +385,9 @@ function renderRegistration() {
   .btn:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: 0 8px 32px var(--accent-glow); }
   .btn:active { transform: translateY(0); }
   .intel-logo {
-    position: fixed; top: 1.5rem; left: 1.5rem;
+    position: fixed; top: 3rem; left: 3rem;
     width: 80px; height: 80px;
-    border-radius: 8px;
+    border-radius: 0;
     box-shadow: 0 0 16px rgba(255,255,255,0.35), 0 0 32px rgba(255,255,255,0.15);
   }
 </style>
