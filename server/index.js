@@ -40,13 +40,33 @@ app.use(async (req, res, next) => {
   const fetchHeaders = { ...req.headers, host: new URL(pubApp.renderUrl).hostname };
   delete fetchHeaders["accept-encoding"];
   fetchHeaders["accept-encoding"] = "identity";
-  fetchHeaders["content-type"] = req.headers["content-type"] || "application/json";
+
+  // Preserve original content-type — do NOT force JSON serialization.
+  // Form submissions (application/x-www-form-urlencoded) must be re-encoded
+  // as form data, not JSON, or the receiving server won't parse them correctly.
+  let proxyBody = undefined;
+  if (!["GET", "HEAD"].includes(req.method)) {
+    const ct = (req.headers["content-type"] || "").toLowerCase();
+    if (ct.includes("application/json")) {
+      proxyBody = JSON.stringify(req.body);
+      fetchHeaders["content-type"] = "application/json";
+    } else if (ct.includes("application/x-www-form-urlencoded")) {
+      proxyBody = new URLSearchParams(req.body).toString();
+      fetchHeaders["content-type"] = "application/x-www-form-urlencoded";
+    } else if (ct.includes("multipart/form-data")) {
+      // Multipart must be piped raw — cannot be reconstructed
+      // Fall through to undefined and let it fail gracefully
+      proxyBody = undefined;
+    } else {
+      proxyBody = JSON.stringify(req.body);
+    }
+  }
 
   try {
     const response = await fetch(targetUrl.toString(), {
       method: req.method,
       headers: fetchHeaders,
-      body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
+      body: proxyBody,
       duplex: "half",
     });
     res.status(response.status);
@@ -1678,6 +1698,7 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Runtime backup setup error:", err.message);
   }
 });
+
 
 
 
