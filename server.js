@@ -858,6 +858,12 @@ async function saveArtwork() {
     wrap.style.height = prevHeight;
 
     const png = canvas.toDataURL("image/png");
+
+    // Wire up download button directly from the captured PNG — no proxy round trip
+    const dlLink = document.getElementById("downloadLink");
+    dlLink.href = png;
+    dlLink.download = "intel-canvas-" + SESSION_ID + ".png";
+
     const res = await fetch("/canvas/" + SESSION_ID + "/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -867,20 +873,6 @@ async function saveArtwork() {
 
     if (data.qrCode) {
       document.getElementById("qrImg").src = data.qrCode;
-      // Trigger real download via blob so it doesn't just open in browser
-      const dlLink = document.getElementById("downloadLink");
-      dlLink.onclick = async (e) => {
-        e.preventDefault();
-        try {
-          const r = await fetch(data.downloadUrl);
-          const blob = await r.blob();
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url; a.download = "intel-canvas-" + SESSION_ID + ".png";
-          a.click(); URL.revokeObjectURL(url);
-        } catch(err) { window.open(data.downloadUrl, "_blank"); }
-      };
-      dlLink.href = data.downloadUrl;
       document.getElementById("qrScreen").classList.add("active");
     } else {
       alert("Save failed: " + (data.error || "Unknown error"));
