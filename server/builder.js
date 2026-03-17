@@ -663,6 +663,11 @@ async function buildAndDeploy(run) {
         failureStage: "build",
       }).catch(() => {});
       saveRunSnapshot(run).catch(() => {});
+      // Auto-diagnose and post analysis to chat so user sees root cause immediately
+      if (run.projectId) {
+        const chatMgr = require("./chat/manager");
+        chatMgr.postBuildAnalysis(run.projectId, run).catch(() => {});
+      }
       return;
     }
   }
@@ -801,6 +806,9 @@ async function buildAndDeploy(run) {
         errorMessage: run.workspace.error || "unknown error",
         failureStage: run.workspace.status,
       }).catch(() => {});
+      // Auto-diagnose and post analysis to chat
+      const chatMgr = require("./chat/manager");
+      chatMgr.postBuildAnalysis(run.projectId, run).catch(() => {});
     }
   }
 }
