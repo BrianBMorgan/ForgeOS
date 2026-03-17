@@ -71,9 +71,15 @@ app.use(async (req, res, next) => {
     });
     res.status(response.status);
     for (const [key, value] of response.headers.entries()) {
-      if (!["transfer-encoding", "connection"].includes(key.toLowerCase())) {
-        res.setHeader(key, value);
+      if (["transfer-encoding", "connection"].includes(key.toLowerCase())) continue;
+      // Rewrite redirect Location headers — replace Render URL with proxy URL
+      if (key.toLowerCase() === "location") {
+        const renderBase = pubApp.renderUrl.replace(/\/$/, "");
+        const proxyBase = `${req.protocol}://${req.get("host")}`;
+        res.setHeader("location", value.replace(renderBase, proxyBase));
+        continue;
       }
+      res.setHeader(key, value);
     }
     const body = await response.arrayBuffer();
     res.end(Buffer.from(body));
