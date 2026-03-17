@@ -38,8 +38,16 @@ app.use(async (req, res, next) => {
   // Proxy to Render service
   const targetUrl = new URL(req.originalUrl, pubApp.renderUrl);
   const fetchHeaders = { ...req.headers, host: new URL(pubApp.renderUrl).hostname };
+  // Strip headers that cause issues with Cloudflare/Render when proxying
   delete fetchHeaders["accept-encoding"];
   fetchHeaders["accept-encoding"] = "identity";
+  delete fetchHeaders["cf-connecting-ip"];
+  delete fetchHeaders["cf-ipcountry"];
+  delete fetchHeaders["cf-ray"];
+  delete fetchHeaders["cf-visitor"];
+  delete fetchHeaders["x-forwarded-proto"];
+  delete fetchHeaders["x-forwarded-for"];
+  delete fetchHeaders["cdn-loop"];
 
   // Preserve original content-type — do NOT force JSON serialization.
   // Form submissions (application/x-www-form-urlencoded) must be re-encoded
@@ -84,7 +92,7 @@ app.use(async (req, res, next) => {
     const body = await response.arrayBuffer();
     res.end(Buffer.from(body));
   } catch (err) {
-    console.error(`[subdomain proxy] Error proxying ${slug}:`, err.message);
+    console.error(`[subdomain proxy] Error proxying ${slug} ${req.method} ${req.originalUrl}:`, err.message, err.cause?.message || "");
     res.status(502).send("Bad Gateway");
   }
 });
