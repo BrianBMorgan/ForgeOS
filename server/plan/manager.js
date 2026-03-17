@@ -2,6 +2,7 @@
 // Lightweight pre-build planning agent.
 // Runs BEFORE the builder — produces a structured plan the user can approve,
 // revise, or ask about. Only fires for raw chat prompts, not inspect-mode edits.
+// For large builds (>6 files), generates a multi-pass plan with passes array.
 
 const Anthropic = require("@anthropic-ai/sdk");
 
@@ -15,7 +16,14 @@ INPUT TYPES:
 1. User feature request (e.g. "Add a dark mode toggle") — plan the implementation.
 2. Chat Agent diagnosis (e.g. "The Stability AI v1 endpoint is deprecated — rewrite both API routes to use v2beta with multipart/form-data") — treat this as a precise specification. Map exactly what files change and why. Do not add scope beyond what the diagnosis describes.
 
-Your output MUST be valid JSON with exactly this shape:
+SINGLE-PASS vs MULTI-PASS:
+- If the total number of files to create + modify is 6 or fewer, produce a single-pass plan (no passes array).
+- If the total is more than 6, produce a multi-pass plan with a passes array.
+  Group related files into logical passes (e.g. pass 1: backend skeleton, pass 2: routes/API, pass 3: frontend, pass 4: admin).
+  Each pass should produce a runnable intermediate state where possible.
+  Each pass must have 3-6 files maximum.
+
+SINGLE-PASS output shape:
 {
   "taskSummary": "One sentence describing what will be built or fixed",
   "approach": "One short paragraph describing how you will implement it",
@@ -24,9 +32,24 @@ Your output MUST be valid JSON with exactly this shape:
   "filesOffLimits": ["list of existing files that will NOT be touched"]
 }
 
+MULTI-PASS output shape:
+{
+  "taskSummary": "One sentence describing what will be built or fixed",
+  "approach": "One short paragraph describing the overall strategy",
+  "multiPass": true,
+  "passes": [
+    {
+      "passNumber": 1,
+      "description": "What this pass builds — one sentence",
+      "filesToCreate": ["files to create in this pass"],
+      "filesToModify": ["files to modify in this pass"]
+    }
+  ]
+}
+
 Rules:
 - Be specific about file names — no vague entries like "various files"
-- filesOffLimits must list every existing file you will NOT touch
+- For single-pass: filesOffLimits must list every existing file you will NOT touch
 - filesToModify must only include files genuinely required for the change
 - For diagnosis inputs: trust the diagnosis — do not second-guess the root cause or add extra scope
 - Never include node_modules, package-lock.json, or .git entries
@@ -80,32 +103,44 @@ async function generatePlan(prompt, existingFiles) {
 }
 
 // Serialize the approved plan into a constraint block injected at the top of the builder prompt.
-// This is what makes the builder surgical — explicit permission and denial lists.
-function planToConstraintBlock(plan) {
+// For multi-pass plans, this is called once per pass with the pass-specific file lists.
+function planToConstraintBlock(plan, passOverride = null) {
+  const pass = passOverride || plan;
   const lines = [
     "╔══════════════════════════════════════════════════════════════╗",
-    "  PRE-APPROVED BUILD PLAN — FOLLOW EXACTLY",
+    passOverride
+      ? `  PASS ${pass.passNumber} OF MULTI-PASS BUILD — FOLLOW EXACTLY`
+      : "  PRE-APPROVED BUILD PLAN — FOLLOW EXACTLY",
     "╚══════════════════════════════════════════════════════════════╝",
     "",
     `TASK: ${plan.taskSummary}`,
     "",
-    `APPROACH: ${plan.approach}`,
-    "",
   ];
 
-  if (plan.filesToCreate?.length) {
+  if (passOverride) {
+    lines.push(`PASS GOAL: ${pass.description}`);
+    lines.push("");
+    lines.push("IMPORTANT: Only build the files listed below for this pass.");
+    lines.push("Other passes will handle remaining files. Do not create files outside this list.");
+    lines.push("");
+  } else {
+    lines.push(`APPROACH: ${plan.approach}`);
+    lines.push("");
+  }
+
+  if (pass.filesToCreate?.length) {
     lines.push("FILES YOU MAY CREATE:");
-    plan.filesToCreate.forEach(f => lines.push(`  + ${f}`));
+    pass.filesToCreate.forEach(f => lines.push(`  + ${f}`));
     lines.push("");
   }
 
-  if (plan.filesToModify?.length) {
+  if (pass.filesToModify?.length) {
     lines.push("FILES YOU MAY MODIFY:");
-    plan.filesToModify.forEach(f => lines.push(`  ~ ${f}`));
+    pass.filesToModify.forEach(f => lines.push(`  ~ ${f}`));
     lines.push("");
   }
 
-  if (plan.filesOffLimits?.length) {
+  if (!passOverride && plan.filesOffLimits?.length) {
     lines.push("FILES THAT ARE STRICTLY OFF LIMITS — DO NOT TOUCH THESE:");
     plan.filesOffLimits.forEach(f => lines.push(`  ✗ ${f}`));
     lines.push("");
@@ -162,5 +197,4 @@ function suggestionToConstraintBlock(suggestionPrompt, existingFiles) {
 }
 
 module.exports = { generatePlan, planToConstraintBlock, suggestionToConstraintBlock };
-
 
