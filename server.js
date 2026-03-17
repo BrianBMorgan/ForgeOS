@@ -115,11 +115,14 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
   if (!falKey) return res.status(500).json({ error: "FAL_API_KEY not configured" });
 
   try {
+    // Inject current Intel logo (post-2020 rebrand: clean lowercase "intel" wordmark in white on Intel blue #00aae8, no swoosh/circle)
+    const enhancedPrompt = `${prompt}. Somewhere naturally in the scene, a flat rectangular sign, screen, or surface displays the current Intel logo: the lowercase word "intel" in clean white sans-serif lettering on a solid Intel blue (#00aae8) background, with a small dark square dot above the letter i. No circular swoosh. No oval. Modern 2020 rebrand only.`;
+
     const falRes = await fetch("https://fal.run/fal-ai/flux-pro", {
       method: "POST",
       headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt,
+        prompt: enhancedPrompt,
         image_size: { width: 1024, height: 1024 },
         num_inference_steps: 28,
         guidance_scale: 3.5,
