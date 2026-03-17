@@ -5467,3 +5467,38 @@ body {
   overflow-y: auto;
 }
 .an-error-ts { font-size: 0.68rem; color: #334155; }
+
+/* ── Multi-pass plan cards ── */
+.plan-passes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.plan-pass-card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+}
+
+.plan-pass-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.plan-pass-number {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.plan-pass-desc {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
