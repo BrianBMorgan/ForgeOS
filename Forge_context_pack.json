@@ -396,6 +396,35 @@
       ],
       "pending": [],
       "open_questions": []
+    },
+    {
+      "date": "2026-03-16",
+      "session_title": "Large Build Plan Gate, Context Overflow Fix, AI Receptionist, Canvas App Prompt, Forge Autonomy",
+      "shipped": [
+        "server/plan/manager.js \u2014 max_tokens bumped from 1024 to 2048; prompt truncated to 3000 chars before sending to planner (full prompt still sent to builder unchanged); prevents planner JSON truncation on large prompts",
+        "server/pipeline/model-router.js \u2014 schema instruction moved from system prompt to final user message in callClaudeStructured; frees system prompt space and prevents context overflow on large builds",
+        "server/builder.js \u2014 large prompt guard: when prompt.length > 3000, memory context capped at 2000 chars and assets context capped at 1000 chars before system prompt assembly",
+        "server/index.js \u2014 POST /api/projects now accepts skipBuild: true to create a project without firing the builder (used by large prompt plan gate); POST /api/projects/:id/iterate now returns 400 { error: 'large_prompt', requiresPlan: true } when prompt > 1500 chars and no approvedPlan and not isSuggestion",
+        "client/src/App.tsx \u2014 startProject detects prompts > 1500 chars, creates project with skipBuild: true, then routes through plan gate automatically; useCallback deps fixed: [setPlanLoading, setPendingPlan, setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]",
+        "server/chat/manager.js \u2014 FORGEOS INFRASTRUCTURE MAP updated: added server/pipeline/model-router.js and updated server/plan/manager.js entries; added CONTEXT OVERFLOW ERRORS section teaching Chat Agent to fire FORGE: on position >10000 JSON parse errors; added LARGE BUILD DETECTION section to BEHAVIORAL RULES teaching Chat Agent to proactively output PLAN: instead of BUILD: for multi-route/multi-file/multi-feature prompts",
+        "AI Receptionist (sandbox-ai-receptionist.forge-os.ai) \u2014 full Twilio Voice + Claude + Resend + HubSpot pipeline live; fixed Polly.Joanna \u2192 alice voice (Polly requires paid add-on); fixed statusCallback placement; confirmed working end-to-end with real call and email delivery",
+        "Canvas experiential activation app \u2014 full Forge prompt authored: kiosk registration flow, 800x800 canvas with drag-and-drop sticker overlay, Flux Pro via fal.ai AI background generation, html2canvas composite + sharp 3000x3000 upscale, QR code download, admin dashboard with sticker management and gallery, archiver zip export, GDPR-aware HubSpot opt-in wiring"
+      ],
+      "decisions": [
+        "Large prompts (>1500 chars) are blocked from direct build at both server level (/iterate 400) and client level (startProject auto-routes to plan gate) \u2014 two-layer enforcement so it cannot be bypassed",
+        "Plan gate is the correct path for all large/complex builds \u2014 the builder's context budget cannot safely handle multi-route multi-file prompts without a structured plan constraining file scope",
+        "Schema instruction moved to final user message not system prompt \u2014 system prompt is already large; schema in user turn is handled more efficiently by Claude and doesn't compound with other context",
+        "Forge should self-repair context overflow via FORGE: signal \u2014 Chat Agent now has context overflow in its infrastructure map and behavioral rules; future occurrences should trigger autonomous fix",
+        "AI Receptionist uses alice voice not Polly.Joanna \u2014 Polly is an Amazon Polly add-on requiring paid activation; alice is built-in on all Twilio accounts",
+        "Twilio statusCallback must be set at the Twilio console level (Call status changes field) not inside a <Gather> verb \u2014 Gather-level statusCallback is ignored by Twilio",
+        "Canvas app uses fal.ai for Flux Pro \u2014 same model weights as direct BFL API, better latency infrastructure, cleaner Node SDK; quality identical",
+        "Canvas sticker overlay uses DOM positioning not canvas drawing during editing \u2014 better drag/touch UX; html2canvas composites DOM \u2192 canvas at save time for final PNG output"
+      ],
+      "pending": [
+        "Retry Canvas build after large prompt plan gate is deployed \u2014 prompt will now auto-route through plan gate",
+        "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault before Canvas build"
+      ],
+      "open_questions": []
     }
   ],
   "domain_knowledge": [
@@ -460,7 +489,15 @@
     "Consent banner implementation pattern: fixed bottom-of-page banner (not a modal, not a blocker), single OK button, brief copy linking to a /privacy page. On load: if _fa_consent already set, skip banner entirely. Do not show banner on the /privacy page itself.",
     "Privacy policy page (/privacy route) required for any public-facing ForgeOS app using analytics. Must disclose: what is collected (pageviews, clicks, scroll depth, performance metrics, JS errors), that data is stored in a first-party database and never shared with third parties, how to opt out (clear localStorage), and a contact method.",
     "First-party analytics without third-party data sharing (no Google, no ad networks) is a significantly more favorable legal position under GDPR and CCPA. CCPA does not require a consent banner \u2014 only a privacy policy disclosing collection. EU ePrivacy requires consent specifically for persistent identifiers in localStorage.",
-    "Forge has full context to build GDPR-compliant consent banners and privacy pages for public-facing apps \u2014 include the above requirements in the build prompt. Key check: verify _fvid localStorage write is gated behind consent, banner is suppressed on the /privacy page, and privacy policy explicitly covers opt-out via localStorage clear."
+    "Forge has full context to build GDPR-compliant consent banners and privacy pages for public-facing apps \u2014 include the above requirements in the build prompt. Key check: verify _fvid localStorage write is gated behind consent, banner is suppressed on the /privacy page, and privacy policy explicitly covers opt-out via localStorage clear.",
+    "Large prompt plan gate: prompts >1500 chars are blocked from direct build at server level (POST /iterate returns 400 requiresPlan: true) and client level (startProject auto-routes through plan gate). approvedPlan bypasses the block. isSuggestion bypasses the block.",
+    "startProject large prompt path: creates project with skipBuild: true, then calls /plan, shows plan approval gate \u2014 identical UX to iterateProject plan gate. Project exists in DB before any build fires.",
+    "POST /api/projects accepts skipBuild: true \u2014 creates project record without firing builder. Returns { id, runId: null, name }. Used exclusively by the large prompt plan gate path.",
+    "Context overflow pattern: position >10000 JSON parse error in build output means the builder's total token input exceeded Claude's handling capacity. Root cause is server/pipeline/model-router.js (schema in system prompt) or server/builder.js (memory/assets context not capped). Chat Agent should fire FORGE: on this pattern.",
+    "schema instruction in model-router.js is now injected as the final user message, not appended to system prompt \u2014 this frees system prompt budget on large builds and is more efficient for Claude to process.",
+    "AI Receptionist pattern: Twilio Voice \u2192 POST /incoming-call (TwiML Gather) \u2192 POST /respond (Claude conversation loop) \u2192 POST /call-complete (Resend email + HubSpot contact). Per-call state in Map keyed by CallSid. Voice must be 'alice' (built-in) not Polly.Joanna (paid add-on).",
+    "Twilio statusCallback for call-complete must be configured in Twilio console under 'Call status changes' \u2014 not inside a <Gather> verb where it is ignored.",
+    "Canvas app architecture: Node/Express backend, plain HTML/JS frontend (Mode A), fal.ai Flux Pro for background generation, DOM-overlay stickers (not canvas-drawn) for drag UX, html2canvas composite at save time, sharp upscale to 3000x3000 for heat transfer print quality, QR code via qrcode npm package linking to /download/:sessionId."
   ],
   "decisions_made": [
     {
@@ -566,6 +603,18 @@
     {
       "decision": "Tracker projectId baked at publish time as slug",
       "rationale": "No runtime lookup needed. Slug rename triggers republish which rebakes the correct ID. Clean data separation between slug versions."
+    },
+    {
+      "decision": "Two-layer large prompt enforcement \u2014 server blocks at /iterate, client auto-routes in startProject",
+      "rationale": "Single-layer enforcement can be bypassed (e.g. direct API call). Both layers must agree: server returns 400 requiresPlan, client never sends large prompts to /iterate without approvedPlan."
+    },
+    {
+      "decision": "Schema instruction moved from system prompt to final user message in model-router.js",
+      "rationale": "System prompt is already large on complex builds. Appending the full JSON schema to it compounded context usage and caused overflow. Claude handles schema instruction in user turn more efficiently."
+    },
+    {
+      "decision": "Forge should self-repair context overflow \u2014 Chat Agent has FORGE: trigger for this pattern",
+      "rationale": "Manually patching ForgeOS instead of letting Forge diagnose and fix itself undermines the self-repair pipeline. Context overflow is now a named failure mode in the infrastructure map."
     }
   ],
   "preferences": [
@@ -638,7 +687,10 @@
     "Tracker injection in pushToAppBranch file loop \u2014 intercepts all .html files at the moment of GitHub push, zero additional pipeline steps",
     "sendBeacon + Blob fallback pattern for analytics \u2014 fires on page unload reliably across browsers without blocking navigation",
     "buildTrackerScript(projectId, forgeOrigin) returning a complete script tag string \u2014 clean separation between tracker logic and injection point",
-    "Minimal consent banner + /privacy page pattern for public analytics \u2014 non-intrusive bottom banner, single OK button, honest privacy policy; legally sound for EU/CCPA without scary cookie walls"
+    "Minimal consent banner + /privacy page pattern for public analytics \u2014 non-intrusive bottom banner, single OK button, honest privacy policy; legally sound for EU/CCPA without scary cookie walls",
+    "Two-layer large prompt guard (server 400 + client auto-route) \u2014 belt and suspenders; neither layer alone is sufficient",
+    "skipBuild: true on POST /api/projects \u2014 clean separation between project creation and build initiation; enables plan-first flow for new projects",
+    "AI Receptionist per-call Map state keyed by CallSid \u2014 lightweight, no DB needed for conversation state, auto-cleans on /call-complete"
   ],
   "mistakes_to_avoid": [
     "Inline backtick-wrapped content inside JS template literal strings \u2014 Node parser treats backtick as closing delimiter",
@@ -664,11 +716,16 @@
     "Forcing surgical BUILD: path for API migrations \u2014 when an external API changes endpoint or payload format, multiple routes must be rewritten together; surgical single-file path leaves the app in a broken partial state",
     "Injecting analytics tracker into preview HTML \u2014 preview sessions are dev noise; published-only keeps analytics signal clean",
     "Using recordMistake() directly for build failures \u2014 extractFailureMemory() produces structured lessons with categories; always use the structured path",
-    "Writing _fvid to localStorage before consent on public-facing sites \u2014 this is the specific ePrivacy trigger; always gate that write behind _fa_consent check on any site that may have EU visitors"
+    "Writing _fvid to localStorage before consent on public-facing sites \u2014 this is the specific ePrivacy trigger; always gate that write behind _fa_consent check on any site that may have EU visitors",
+    "Using Polly.Joanna voice in Twilio TwiML without verifying Polly add-on is activated \u2014 use alice for guaranteed availability on all accounts",
+    "Setting statusCallback inside a Twilio <Gather> verb \u2014 it is silently ignored; must be set at the Twilio console number level or via Twilio API",
+    "Bypassing the plan gate for large builds \u2014 prompts >1500 chars risk context overflow; always route through /plan first and build with approvedPlan",
+    "Patching ForgeOS infrastructure manually instead of letting Forge self-repair via FORGE: signal \u2014 undermines autonomous repair capability"
   ],
-  "current_state": "ForgeOS fully operational with site analytics live. Every published app automatically receives the tracker (injected at publish time via pushToAppBranch). Analytics tab in cockpit shows six views: Overview, Pages, Events, Performance (Web Vitals), Errors, Devices. Conversation history capped at 10 turns with project history summarization. Failed builds auto-record structured lessons to Brain. Settings optimized for mobile. Self-repair pipeline, PLAN:/BUILD: signals, HubSpot integration, Restore Iteration, and Visual Editor all operational.",
+  "current_state": "ForgeOS fully operational. Large build plan gate live \u2014 prompts >1500 chars auto-route through plan approval before building, preventing context overflow. Context overflow is a named FORGE: trigger in Chat Agent infrastructure map. AI Receptionist live at sandbox-ai-receptionist.forge-os.ai with Twilio Voice + Claude + Resend + HubSpot. Canvas experiential activation app prompt authored and ready to build. Site analytics, self-repair pipeline, PLAN:/BUILD:/FORGE: signals, HubSpot integration, Restore Iteration, and Visual Editor all operational.",
   "next_steps": [
-    "Republish existing projects to activate analytics tracker",
+    "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault then build Canvas app",
+    "Test large prompt plan gate end-to-end with Canvas prompt",
     "Test Stage 2 React/Vite build end-to-end \u2014 verify Mode B scaffolds vite.config.js correctly on first pass",
     "Consider pgvector semantic search upgrade for Brain once sufficient memory entries exist"
   ],
@@ -795,6 +852,22 @@
     {
       "term": "analytics consent gate",
       "value": "Pattern for GDPR-compliant analytics on public-facing sites. _fvid localStorage write gated behind localStorage.getItem('_fa_consent') === '1'. Session/vitals/errors fire freely. Consent set via bottom-of-page banner with OK button linking to /privacy page. Banner suppressed on /privacy route and when consent already set."
+    },
+    {
+      "term": "large prompt plan gate",
+      "value": "Two-layer enforcement preventing large prompts from bypassing the plan approval flow. Server: POST /iterate returns 400 { requiresPlan: true } when prompt > 1500 chars without approvedPlan. Client: startProject auto-creates project with skipBuild: true then routes through /plan. Both bypassed by approvedPlan or isSuggestion."
+    },
+    {
+      "term": "skipBuild",
+      "value": "Parameter on POST /api/projects. When true, creates the project record in DB without firing the builder. Returns { id, runId: null }. Used by the large prompt plan gate so the project exists before the plan is generated and approved."
+    },
+    {
+      "term": "context overflow",
+      "value": "Builder failure mode where total Claude input tokens (system prompt + schema + conversation + prompt) exceed capacity, causing truncated JSON output that fails to parse. Identified by position >10000 in JSON parse errors. Root cause: model-router.js schema in system prompt or builder.js uncapped memory/assets context. Chat Agent should fire FORGE: on this pattern."
+    },
+    {
+      "term": "AI Receptionist",
+      "value": "Twilio Voice + Claude + Resend + HubSpot pipeline at sandbox-ai-receptionist.forge-os.ai. Handles callback/message, scheduling, and services inquiries. Per-call state in Map keyed by CallSid. Voice: alice. statusCallback configured in Twilio console Call status changes field."
     }
   ]
 }
