@@ -499,12 +499,13 @@ function renderCanvas(attendee, stickers) {
 
   /* ── Canvas Area ── */
   .canvas-area {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-    position: relative; overflow: hidden;
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1.25rem; padding: 1.25rem;
+    overflow: auto;
     background: radial-gradient(ellipse at center, rgba(99,102,241,0.04) 0%, transparent 70%);
   }
   .canvas-wrap {
-    position: relative; width: 800px; height: 800px;
+    position: relative; width: min(800px, calc(100vh - 8rem)); height: min(800px, calc(100vh - 8rem));
     border: 2px solid var(--border);
     border-radius: 4px;
     box-shadow: 0 0 60px rgba(0,0,0,0.5), 0 0 1px rgba(99,102,241,0.2);
@@ -559,7 +560,7 @@ function renderCanvas(attendee, stickers) {
 
   /* Save button */
   .save-bar {
-    position: absolute; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    flex-shrink: 0;
   }
   .save-btn {
     padding: 0.875rem 2.5rem; background: var(--accent);
