@@ -797,6 +797,25 @@ async function saveArtwork() {
 function resetCanvas() {
   window.location.href = "/";
 }
+
+// ── Inactivity timer — reset to registration after 2 minutes ─────────────────
+let inactivityTimer;
+const INACTIVITY_MS = 2 * 60 * 1000;
+
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(() => {
+    window.location.href = "/";
+  }, INACTIVITY_MS);
+}
+
+// Reset timer on any user interaction
+["mousemove", "mousedown", "touchstart", "touchmove", "keydown", "wheel"].forEach(evt => {
+  document.addEventListener(evt, resetInactivityTimer, { passive: true });
+});
+
+// Start the timer on load
+resetInactivityTimer();
 </script>
 </body>
 </html>`;
