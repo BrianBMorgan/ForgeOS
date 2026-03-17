@@ -806,24 +806,62 @@ async function saveArtwork() {
   btn.disabled = true;
   btn.textContent = "Saving…";
 
-  // Hide delete buttons before capture
   document.querySelectorAll(".delete-btn").forEach(b => b.style.display = "none");
   document.querySelectorAll(".sticker-el").forEach(s => s.classList.remove("selected"));
 
   try {
     const wrap = document.getElementById("canvasWrap");
     const wrapRect = wrap.getBoundingClientRect();
-    const canvas = await html2canvas(wrap, {
-      width: wrapRect.width,
-      height: wrapRect.height,
-      scale: 800 / wrapRect.width, // scale up to 800px output regardless of display size
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#1a1a2e",
-      ignoreElements: el => el.classList.contains("generating-overlay") || el.classList.contains("qr-screen"),
-    });
+    const SIZE = 800;
+    const scale = SIZE / wrapRect.width;
 
-    const png = canvas.toDataURL("image/png");
+    // Composite manually onto a real canvas element
+    // This avoids html2canvas CSS background-image issues on mobile Safari
+    const offscreen = document.createElement("canvas");
+    offscreen.width = SIZE;
+    offscreen.height = SIZE;
+    const ctx = offscreen.getContext("2d");
+
+    // 1. Fill background color
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    // 2. Draw background image if one has been generated
+    const bgDiv = document.getElementById("canvasBg");
+    const bgStyle = bgDiv.style.backgroundImage;
+    if (bgStyle && bgStyle !== "none" && bgStyle !== "") {
+      const bgSrc = bgStyle.replace(/^url\(["']?/, "").replace(/["']?\)$/, "");
+      if (bgSrc) {
+        await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0, SIZE, SIZE);
+            resolve();
+          };
+          img.onerror = resolve; // continue even if bg fails
+          img.src = bgSrc;
+        });
+      }
+    }
+
+    // 3. Draw each sticker
+    const stickers = document.querySelectorAll(".sticker-el");
+    for (const sticker of stickers) {
+      const img = sticker.querySelector("img");
+      if (!img) continue;
+      const rect = sticker.getBoundingClientRect();
+      const wrapLeft = wrapRect.left;
+      const wrapTop = wrapRect.top;
+      const x = (rect.left - wrapLeft) * scale;
+      const y = (rect.top - wrapTop) * scale;
+      const w = rect.width * scale;
+      const h = rect.height * scale;
+      try {
+        ctx.drawImage(img, x, y, w, h);
+      } catch(e) {}
+    }
+
+    const png = offscreen.toDataURL("image/png");
     const res = await fetch("/canvas/" + SESSION_ID + "/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
