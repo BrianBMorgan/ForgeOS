@@ -436,6 +436,18 @@ try {
   console.error("[builder] Assets context failed (non-fatal):", err.message);
 }
 
+// For large prompts (>3000 chars), cap memory and assets context to prevent
+// total token count from exceeding Claude's context limits.
+const isLargePrompt = prompt.length > 3000;
+if (isLargePrompt) {
+  if (memoryContext && memoryContext.length > 2000) {
+    memoryContext = memoryContext.slice(0, 2000) + "\n[memory context truncated for large build]";
+  }
+  if (assetsContext && assetsContext.length > 1000) {
+    assetsContext = assetsContext.slice(0, 1000) + "\n[assets context truncated for large build]";
+  }
+}
+
 const systemPrompt = [memoryContext, assetsContext, basePrompt]
   .filter(Boolean)
   .join("\n\n");
@@ -704,5 +716,6 @@ module.exports = {
   BuilderOutputSchema,
   BUILDER_SYSTEM_PROMPT,
 };
+
 
 
