@@ -77,6 +77,7 @@ app.use(async (req, res, next) => {
       headers: fetchHeaders,
       body: proxyBody,
       duplex: "half",
+      redirect: "manual", // never follow redirects — forward them to the browser as-is
     });
     res.status(response.status);
     for (const [key, value] of response.headers.entries()) {
