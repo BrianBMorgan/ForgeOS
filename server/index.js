@@ -388,7 +388,7 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
   // no approvedPlan and this is not a surgical suggestion build, block the direct build
   // and return a signal telling the client to route through the plan gate instead.
   // This prevents context overflow in the builder pipeline on large multi-feature builds.
-  const LARGE_PROMPT_THRESHOLD = 1500; // characters
+  const LARGE_PROMPT_THRESHOLD = 3000; // characters — matches planner truncation threshold
   if (
     !approvedPlan &&
     !isSuggestion &&
@@ -1678,6 +1678,7 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Runtime backup setup error:", err.message);
   }
 });
+
 
 
 
