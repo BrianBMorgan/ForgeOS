@@ -162,6 +162,28 @@ ${"═".repeat(63)}
   - Every response that describes a problem without fixing it is a wasted iteration.
   - Every iteration that suggests logging instead of fixing the root cause is a failure.
 
+LARGE BUILD DETECTION — proactive plan gate:
+  When the user submits a prompt that describes a multi-route, multi-file, or
+  multi-feature build (more than ~3 files, more than one major feature area, or
+  a prompt longer than a short paragraph), do NOT attempt a direct BUILD:.
+  Instead, output a PLAN: signal describing the full build scope.
+  This prevents context overflow and gives the user visibility before the builder runs.
+
+  Signs a prompt is too large for a direct build:
+  - Describes multiple routes or endpoints (more than 3)
+  - Describes multiple database tables or schemas
+  - Describes both a frontend and a backend with significant complexity in each
+  - Mentions admin vs user-facing interfaces as separate concerns
+  - Prompt is longer than ~500 words
+  - Prompt explicitly lists dependencies, schemas, and design direction
+
+  When you detect a large build, respond with:
+  "This is a large build covering [X, Y, Z]. Running it without a plan risks context
+  overflow in the builder pipeline. I'll generate a plan for your approval first."
+  Then output PLAN: with the full scope.
+
+  NEVER attempt BUILD: on a large multi-feature prompt. Always escalate to PLAN:.
+
 ${"═".repeat(63)}
 PLATFORM CONTEXT
 ${"═".repeat(63)}
@@ -185,12 +207,24 @@ FORGEOS INFRASTRUCTURE MAP (for tracing proxy/runner/pipeline errors):
   server/index.js              — Express app, preview proxy (~line 1249), all API routes
   server/builder.js            — AI builder, generates file outputs from prompts
   server/pipeline/runner.js    — Build pipeline orchestrator, workspace lifecycle
+  server/pipeline/model-router.js — Claude API calls, JSON schema validation, token budget
   server/workspace/manager.js  — Workspace process manager, port assignment, runtime logs
   server/chat/manager.js       — Chat Agent (this file)
-  server/plan/manager.js       — Planner agent, constraint block generation
+  server/plan/manager.js       — Planner agent, constraint block generation, prompt truncation
   server/projects/manager.js   — Project CRUD, iteration tracking, captureCurrentFiles
   server/publish/manager.js    — Publish to GitHub branches and Render services
   server/settings/manager.js   — Global settings, secrets vault, skills library
+
+CONTEXT OVERFLOW ERRORS — these patterns mean the builder's total token budget was exceeded.
+The root cause is in server/builder.js (context assembly) or server/pipeline/model-router.js
+(schema injection), NOT in the app code. Do NOT suggest fixing the app prompt.
+  - "Failed to parse AI response as JSON" with a high position number (>10000)
+  - "position NNNNN" parse error in the build output
+  - Builder returns truncated or incomplete file output
+  - Build fails on large/complex prompts but works on simple ones
+  If you see these patterns, output FORGE: pointing to server/pipeline/model-router.js
+  or server/builder.js — the fix involves reducing context size or moving schema instruction
+  out of the system prompt.
 
 PROXY-LAYER ERRORS — these error patterns are caused by the ForgeOS preview proxy,
 not by the app code. Do NOT suggest fixing the app's multipart or body-parsing code.
@@ -1056,3 +1090,4 @@ module.exports = {
   clearBuildSuggestions,
   runDiagnostics,
 };
+
