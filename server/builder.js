@@ -484,6 +484,97 @@ const systemPrompt = [memoryContext, assetsContext, basePrompt]
   return result;
 }
 
+// Multi-pass builder — executes sequential passes, each feeding accumulated
+// files as existingFiles into the next. Called when approvedPlan.multiPass is true.
+async function buildWorkspaceMultiPass(prompt, existingFiles, passes, projectId, approvedPlan, run) {
+  const { planToConstraintBlock } = require("./plan/manager");
+  let accumulatedFiles = existingFiles ? [...existingFiles] : [];
+  let lastOutput = null;
+  const totalPasses = passes.length;
+
+  for (const pass of passes) {
+    // Update run status so Plan tab shows pass progress
+    if (run) {
+      run.currentStage = `building`;
+      run.stages.builder = {
+        status: "running",
+        output: null,
+        passProgress: `Pass ${pass.passNumber} of ${totalPasses}: ${pass.description}`,
+      };
+    }
+
+    console.log(`[builder] Multi-pass: starting pass ${pass.passNumber}/${totalPasses} — ${pass.description}`);
+
+    // Build constraint block scoped to this pass only
+    const passConstraintBlock = planToConstraintBlock(approvedPlan, pass);
+
+    // Build sub-prompt for this pass — full original prompt + pass scope instruction
+    const passPrompt = `${prompt}\n\n[MULTI-PASS BUILD — PASS ${pass.passNumber} OF ${totalPasses}]\nFocus only on: ${pass.description}\nOnly create/modify the files listed in the constraint block above.`;
+
+    // Get builder system prompt components
+    let basePrompt = accumulatedFiles.length > 0
+      ? BUILDER_SYSTEM_PROMPT + ITERATION_ADDENDUM
+      : BUILDER_SYSTEM_PROMPT;
+
+    let memoryContext = "";
+    try {
+      memoryContext = await Promise.race([
+        brain.buildContext(prompt, projectId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
+      ]);
+      if (memoryContext && memoryContext.length > 1500) {
+        memoryContext = memoryContext.slice(0, 1500) + "\n[memory truncated for multi-pass build]";
+      }
+    } catch {}
+
+    const systemPrompt = [memoryContext, basePrompt].filter(Boolean).join("\n\n");
+    const finalSystemPrompt = passConstraintBlock + "\n\n" + systemPrompt;
+
+    // Build user messages for this pass
+    const userMessages = [];
+    if (accumulatedFiles.length > 0) {
+      let filesContext = "EXISTING FILES (from previous passes):\n\n";
+      for (const f of accumulatedFiles) {
+        filesContext += `--- ${f.path} ---\n${f.content}\n\n`;
+      }
+      userMessages.push({ role: "user", content: filesContext });
+      userMessages.push({ role: "assistant", content: "I have the existing files from previous passes. I will only create or modify the files permitted for this pass." });
+    }
+    userMessages.push({ role: "user", content: passPrompt });
+
+    // Execute this pass
+    const passOutput = await callStructured(
+      BUILDER_MODEL,
+      finalSystemPrompt,
+      userMessages,
+      BuilderOutputSchema,
+      `workspace_build_pass_${pass.passNumber}`,
+      0.2,
+    );
+
+    // Merge this pass's files into accumulated files
+    // New files get added; existing files get their content updated
+    for (const newFile of (passOutput.files || [])) {
+      const existing = accumulatedFiles.find(f => f.path === newFile.path);
+      if (existing) {
+        existing.content = newFile.content;
+      } else {
+        accumulatedFiles.push(newFile);
+      }
+    }
+
+    lastOutput = passOutput;
+    console.log(`[builder] Multi-pass: pass ${pass.passNumber} complete — ${(passOutput.files || []).length} files`);
+  }
+
+  // Return merged result using last pass's metadata (startCommand, installCommand, etc.)
+  return {
+    ...lastOutput,
+    files: accumulatedFiles,
+    summary: `Multi-pass build complete (${totalPasses} passes): ${approvedPlan.taskSummary}`,
+  };
+}
+
 async function buildAndDeploy(run) {
   const workspace = require("./workspace/manager");
   const projectManager = require("./projects/manager");
@@ -502,7 +593,20 @@ async function buildAndDeploy(run) {
   const MAX_RETRIES = 2;
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
-      builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null, run.isSuggestion || false);
+      // Multi-pass build — when the approved plan has a passes array
+      if (run.approvedPlan?.multiPass && Array.isArray(run.approvedPlan?.passes) && run.approvedPlan.passes.length > 1) {
+        console.log(`[builder] Multi-pass build detected — ${run.approvedPlan.passes.length} passes`);
+        builderOutput = await buildWorkspaceMultiPass(
+          run.prompt,
+          run.existingFiles,
+          run.approvedPlan.passes,
+          run.projectId,
+          run.approvedPlan,
+          run,
+        );
+      } else {
+        builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null, run.isSuggestion || false);
+      }
       // If this was a suggestion build, store the parsed target file on the run
       // so the Plan tab can display "Surgical edit targeting: <file>".
       if (builderOutput._suggestionTarget !== undefined) {
@@ -716,6 +820,7 @@ module.exports = {
   BuilderOutputSchema,
   BUILDER_SYSTEM_PROMPT,
 };
+
 
 
 
