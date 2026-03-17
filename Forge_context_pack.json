@@ -425,6 +425,30 @@
         "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault before Canvas build"
       ],
       "open_questions": []
+    },
+    {
+      "date": "2026-03-16",
+      "session_title": "Multi-Pass Build Pipeline, Chat Button Fix, Forge Autonomy Loop",
+      "shipped": [
+        "server/plan/manager.js \u2014 planner now detects large scope (>6 files total); outputs multiPass: true with passes array when scope exceeds threshold; each pass has passNumber, description, filesToCreate, filesToModify (3-6 files max); planToConstraintBlock updated to accept passOverride for per-pass constraint blocks; single-pass plan shape unchanged for backward compatibility",
+        "server/builder.js \u2014 buildWorkspaceMultiPass(prompt, existingFiles, passes, projectId, approvedPlan, run) added; iterates through passes sequentially, each pass calls buildWorkspace with scoped constraint block and accumulated files as existingFiles; files merged across passes (new files added, existing files updated); run.stages.builder.passProgress updated per pass for Plan tab visibility; buildAndDeploy detects approvedPlan.multiPass and routes to multi-pass executor",
+        "client/src/components/Workspace.tsx \u2014 PlanTab renders multi-pass plan with pass cards showing passNumber, description, filesToCreate/filesToModify per pass; Approve button reads 'Approve & Build All Passes'; running state shows 'Multi-pass build in progress' with current pass progress from run.stages.builder.passProgress",
+        "client/src/index.css \u2014 multi-pass CSS added: .plan-passes-list, .plan-pass-card, .plan-pass-header, .plan-pass-number (indigo), .plan-pass-desc; chat action buttons (.chat-build-btn, .chat-plan-btn, .chat-forge-btn) rewritten as full-width, 44px min-height touch targets with proper colors (green/purple/orange)"
+      ],
+      "decisions": [
+        "Multi-pass threshold: >6 total files triggers multi-pass plan \u2014 single Claude call can safely handle up to ~6 files without context overflow; beyond that sequential passes are required",
+        "Each pass 3-6 files max \u2014 keeps each individual builder call well within token budget regardless of prompt complexity",
+        "buildWorkspaceMultiPass is internal to builder.js \u2014 runner.js needs no changes; multi-pass is transparent to the orchestration layer",
+        "Files accumulate across passes \u2014 each pass receives all previously built files as existingFiles so later passes can reference and import from earlier ones",
+        "passProgress stored on run.stages.builder \u2014 surfaces to Plan tab via existing run polling without new API surface",
+        "Forge diagnosed the multi-pass architecture correctly via FORGE: signal \u2014 autonomy loop working as designed; only intervention needed was the final implementation since building multi-pass with a single-pass pipeline is circular",
+        "Chat action buttons must be full-width with 44px min-height \u2014 all three (Build/Plan/Forge) were either unstyled or too small for mobile; standardized on block display with proper touch targets"
+      ],
+      "pending": [
+        "Test multi-pass build end-to-end with Canvas prompt",
+        "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault before Canvas build"
+      ],
+      "open_questions": []
     }
   ],
   "domain_knowledge": [
@@ -497,7 +521,13 @@
     "schema instruction in model-router.js is now injected as the final user message, not appended to system prompt \u2014 this frees system prompt budget on large builds and is more efficient for Claude to process.",
     "AI Receptionist pattern: Twilio Voice \u2192 POST /incoming-call (TwiML Gather) \u2192 POST /respond (Claude conversation loop) \u2192 POST /call-complete (Resend email + HubSpot contact). Per-call state in Map keyed by CallSid. Voice must be 'alice' (built-in) not Polly.Joanna (paid add-on).",
     "Twilio statusCallback for call-complete must be configured in Twilio console under 'Call status changes' \u2014 not inside a <Gather> verb where it is ignored.",
-    "Canvas app architecture: Node/Express backend, plain HTML/JS frontend (Mode A), fal.ai Flux Pro for background generation, DOM-overlay stickers (not canvas-drawn) for drag UX, html2canvas composite at save time, sharp upscale to 3000x3000 for heat transfer print quality, QR code via qrcode npm package linking to /download/:sessionId."
+    "Canvas app architecture: Node/Express backend, plain HTML/JS frontend (Mode A), fal.ai Flux Pro for background generation, DOM-overlay stickers (not canvas-drawn) for drag UX, html2canvas composite at save time, sharp upscale to 3000x3000 for heat transfer print quality, QR code via qrcode npm package linking to /download/:sessionId.",
+    "Multi-pass build pipeline: when planner detects >6 files total (filesToCreate + filesToModify), it outputs multiPass: true with a passes array. Each pass has 3-6 files max. buildWorkspaceMultiPass executes passes sequentially, each feeding accumulated files as existingFiles to the next pass.",
+    "buildWorkspaceMultiPass in server/builder.js: iterates passes, calls buildWorkspace per pass with scoped constraint block, merges output files across passes (new files added, existing updated), stores passProgress on run.stages.builder for Plan tab visibility.",
+    "planToConstraintBlock now accepts an optional passOverride parameter \u2014 when provided, generates a pass-scoped constraint block with only that pass's files permitted. Single-pass behavior unchanged.",
+    "Multi-pass plan shape: { taskSummary, approach, multiPass: true, passes: [{ passNumber, description, filesToCreate, filesToModify }] }. Single-pass shape unchanged: { taskSummary, approach, filesToCreate, filesToModify, filesOffLimits }.",
+    "Chat action buttons (.chat-build-btn, .chat-plan-btn, .chat-forge-btn) are full-width block elements with 44px min-height \u2014 required for mobile touch targets. All three were previously either unstyled or too small.",
+    "Forge correctly diagnosed the multi-pass architecture via FORGE: signal and proposed the correct implementation \u2014 the autonomy loop worked as designed. Direct implementation was only needed because building multi-pass with a broken single-pass pipeline is inherently circular."
   ],
   "decisions_made": [
     {
@@ -615,6 +645,18 @@
     {
       "decision": "Forge should self-repair context overflow \u2014 Chat Agent has FORGE: trigger for this pattern",
       "rationale": "Manually patching ForgeOS instead of letting Forge diagnose and fix itself undermines the self-repair pipeline. Context overflow is now a named failure mode in the infrastructure map."
+    },
+    {
+      "decision": "Multi-pass threshold is >6 total files",
+      "rationale": "A single Claude builder call can safely handle ~6 files without hitting context limits. Beyond that, sequential passes are required to keep each call within budget."
+    },
+    {
+      "decision": "buildWorkspaceMultiPass is internal to builder.js \u2014 runner.js unchanged",
+      "rationale": "The multi-pass orchestration is a builder concern. Keeping it inside builder.js means the runner, the API routes, and the client all work without modification. The run object's existing structure carries all needed state."
+    },
+    {
+      "decision": "Files accumulate across passes with merge semantics",
+      "rationale": "Later passes need to import from earlier ones (e.g. routes referencing server.js). Each pass receiving the full accumulated file set ensures the builder can write correct import paths and references."
     }
   ],
   "preferences": [
@@ -690,7 +732,10 @@
     "Minimal consent banner + /privacy page pattern for public analytics \u2014 non-intrusive bottom banner, single OK button, honest privacy policy; legally sound for EU/CCPA without scary cookie walls",
     "Two-layer large prompt guard (server 400 + client auto-route) \u2014 belt and suspenders; neither layer alone is sufficient",
     "skipBuild: true on POST /api/projects \u2014 clean separation between project creation and build initiation; enables plan-first flow for new projects",
-    "AI Receptionist per-call Map state keyed by CallSid \u2014 lightweight, no DB needed for conversation state, auto-cleans on /call-complete"
+    "AI Receptionist per-call Map state keyed by CallSid \u2014 lightweight, no DB needed for conversation state, auto-cleans on /call-complete",
+    "Multi-pass file accumulation \u2014 each pass receives all previously built files as existingFiles; later passes can correctly reference earlier ones",
+    "passProgress on run.stages.builder \u2014 surfaces pass-level progress to Plan tab via existing run polling without any new API surface or schema changes",
+    "Forge FORGE: signal for architecture diagnosis \u2014 correctly identified the three files, the root cause, and the fix structure before implementation"
   ],
   "mistakes_to_avoid": [
     "Inline backtick-wrapped content inside JS template literal strings \u2014 Node parser treats backtick as closing delimiter",
@@ -720,14 +765,15 @@
     "Using Polly.Joanna voice in Twilio TwiML without verifying Polly add-on is activated \u2014 use alice for guaranteed availability on all accounts",
     "Setting statusCallback inside a Twilio <Gather> verb \u2014 it is silently ignored; must be set at the Twilio console number level or via Twilio API",
     "Bypassing the plan gate for large builds \u2014 prompts >1500 chars risk context overflow; always route through /plan first and build with approvedPlan",
-    "Patching ForgeOS infrastructure manually instead of letting Forge self-repair via FORGE: signal \u2014 undermines autonomous repair capability"
+    "Patching ForgeOS infrastructure manually instead of letting Forge self-repair via FORGE: signal \u2014 undermines autonomous repair capability",
+    "Attempting to build >6 files in a single Claude call \u2014 context overflow is guaranteed; always use multi-pass for large builds",
+    "Asking Forge to implement multi-pass pipeline using the broken single-pass pipeline \u2014 circular dependency; infrastructure changes to the build pipeline must be made directly"
   ],
-  "current_state": "ForgeOS fully operational. Large build plan gate live \u2014 prompts >1500 chars auto-route through plan approval before building, preventing context overflow. Context overflow is a named FORGE: trigger in Chat Agent infrastructure map. AI Receptionist live at sandbox-ai-receptionist.forge-os.ai with Twilio Voice + Claude + Resend + HubSpot. Canvas experiential activation app prompt authored and ready to build. Site analytics, self-repair pipeline, PLAN:/BUILD:/FORGE: signals, HubSpot integration, Restore Iteration, and Visual Editor all operational.",
+  "current_state": "ForgeOS fully operational with multi-pass build pipeline live. Large builds (>6 files) automatically generate a multi-pass plan with sequential pass execution, each pass scoped to 3-6 files and feeding accumulated output to the next. Plan tab shows per-pass progress. Chat action buttons are full-width touch targets on mobile. AI Receptionist live. Canvas app prompt ready to build. All prior systems operational.",
   "next_steps": [
-    "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault then build Canvas app",
-    "Test large prompt plan gate end-to-end with Canvas prompt",
-    "Test Stage 2 React/Vite build end-to-end \u2014 verify Mode B scaffolds vite.config.js correctly on first pass",
-    "Consider pgvector semantic search upgrade for Brain once sufficient memory entries exist"
+    "Test multi-pass build end-to-end with Canvas prompt \u2014 add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault first",
+    "Test Stage 2 React/Vite build end-to-end",
+    "Consider pgvector semantic search upgrade for Brain"
   ],
   "open_questions": [
     "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?"
@@ -868,6 +914,18 @@
     {
       "term": "AI Receptionist",
       "value": "Twilio Voice + Claude + Resend + HubSpot pipeline at sandbox-ai-receptionist.forge-os.ai. Handles callback/message, scheduling, and services inquiries. Per-call state in Map keyed by CallSid. Voice: alice. statusCallback configured in Twilio console Call status changes field."
+    },
+    {
+      "term": "multi-pass build",
+      "value": "Build mode triggered when planner detects >6 total files. Outputs multiPass: true with passes array (3-6 files each). buildWorkspaceMultiPass executes passes sequentially, accumulating files across passes. Plan tab shows 'Pass N of M' progress. Approve once, all passes execute autonomously."
+    },
+    {
+      "term": "buildWorkspaceMultiPass",
+      "value": "Function in server/builder.js. Takes prompt, existingFiles, passes array, projectId, approvedPlan, run. Iterates passes, calls buildWorkspace per pass with scoped constraint block, merges output. Updates run.stages.builder.passProgress for Plan tab visibility."
+    },
+    {
+      "term": "passOverride",
+      "value": "Optional second parameter to planToConstraintBlock(). When provided, generates a pass-scoped constraint block listing only that pass's files. Used by buildWorkspaceMultiPass to constrain each individual builder call."
     }
   ]
 }
