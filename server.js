@@ -427,8 +427,8 @@ function renderCanvas(attendee, stickers) {
     --border: rgba(255,255,255,0.07); --accent: #6366f1;
     --accent-glow: rgba(99,102,241,0.25); --text: #f1f5f9; --muted: #475569;
   }
-  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; overflow: hidden; }
-  .layout { display: flex; height: 100vh; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; }
+  .layout { display: flex; min-height: 100vh; }
 
   /* ── Left Panel ── */
   .panel {
@@ -572,12 +572,14 @@ function renderCanvas(attendee, stickers) {
 
   /* Mobile */
   @media (max-width: 900px) {
-    .layout { flex-direction: column; }
+    html, body { height: auto; overflow-y: auto; }
+    .layout { flex-direction: column; height: auto; }
     .panel { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
     .sticker-tray { max-height: 120px; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); }
-    .canvas-wrap { width: min(90vw, 90vh); height: min(90vw, 90vh); }
-    .layout { overflow-y: auto; }
-    .canvas-area { min-height: min(90vw, 90vh); padding: 1rem; }
+    .canvas-wrap { width: min(88vw, 88vh); height: min(88vw, 88vh); flex-shrink: 0; }
+    .canvas-area { min-height: auto; padding: 1rem 1rem 5rem; align-items: flex-start; justify-content: center; }
+    .save-bar { position: relative; bottom: auto; left: auto; transform: none; padding: 1rem; width: 100%; }
+    .save-btn { width: 100%; }
   }
 </style>
 </head>
