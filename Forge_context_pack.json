@@ -533,7 +533,10 @@
         "server/index.js \u2014 workspace preview proxy: same form POST body serialization fix (URLSearchParams), correct content-length recalculation after re-encoding.",
         "Canvas app: switched from NEON_DATABASE_URL to CANVAS_DATABASE_URL for dedicated isolated Neon DB. NEON_DATABASE_URL is a reserved system variable that cannot be overridden per-project. Each app with PII needs its own dedicated DB env var.",
         "Canvas app: cookie-session scoped to admin routes only (not global middleware), global error handler added, try/catch on all DB routes.",
-        "Canvas server.js \u2014 replaced HTML form POST with fetch() JSON for /register route. Server returns { redirect: '/canvas/sessionId' } instead of 302. Frontend handles redirect via window.location.href. Bypasses proxy urlencoded body handling entirely."
+        "Canvas server.js \u2014 replaced HTML form POST with fetch() JSON for /register route. Server returns { redirect: '/canvas/sessionId' } instead of 302. Frontend handles redirect via window.location.href. Bypasses proxy urlencoded body handling entirely.",
+        "Canvas server.js \u2014 admin login replaced with bearer token auth. Server issues crypto token on login, client stores in localStorage, redirects to /admin?token=xxx. requireAdmin checks header, query param, and cookie-session in that order.",
+        "Canvas server.js \u2014 admin dashboard injects token into all fetch requests and form submissions via fetch override and form submit interceptor.",
+        "Canvas server.js \u2014 debug route /debug-register removed."
       ],
       "decisions": [
         "Canvas built directly by Claude, not via Forge pipeline \u2014 build was too complex (10+ files, 4 functional domains) for multi-pass at current pipeline maturity. CANVAS_BUILD_REPORT.md documents the decision framework for future reference.",
@@ -542,7 +545,8 @@
         "Proxy redirect:manual \u2014 Node fetch() follows redirects automatically by default. Proxies must always use redirect:manual or they silently follow 302s and return the final destination as 200, breaking browser URL bar and navigation.",
         "Proxy form POST body must use URLSearchParams not JSON.stringify \u2014 Express parses urlencoded bodies into objects; re-serializing as JSON changes content-type and byte length, breaking the receiving server's body parser.",
         "content-length must be deleted before proxying re-encoded bodies \u2014 the original content-length from the browser no longer matches after re-encoding; Node recalculates correctly when omitted.",
-        "Published apps must use fetch() with Content-Type application/json for all form submissions through the ForgeOS proxy \u2014 never standard HTML form POSTs. The proxy reliably handles JSON; urlencoded body re-encoding through the proxy has proven unreliable across multiple fix attempts."
+        "Published apps must use fetch() with Content-Type application/json for all form submissions through the ForgeOS proxy \u2014 never standard HTML form POSTs. The proxy reliably handles JSON; urlencoded body re-encoding through the proxy has proven unreliable across multiple fix attempts.",
+        "Admin auth through ForgeOS proxy requires bearer token approach \u2014 cookie-session Set-Cookie headers don't survive the proxy reliably, and window.location.href page loads don't carry Authorization headers. Solution: issue token on login, pass as query param on first load (/admin?token=xxx), store in localStorage for subsequent requests."
       ],
       "pending": [
         "Verify custom slug forge-canvas.forge-os.ai works after proxy fixes deploy",
@@ -648,7 +652,8 @@
     "Proxy form POST bodies must be re-encoded with URLSearchParams for application/x-www-form-urlencoded requests. JSON.stringify(req.body) produces the wrong content-type and wrong byte length. The content-length header must also be deleted before forwarding so Node recalculates from the actual re-encoded body.",
     "Canvas app architecture: single server.js with all HTML as template strings, no frontend build step, all assets stored as base64 in Neon. This makes every future iteration a single-file BUILD: suggestion in Forge. Apps with this pattern are maintainable by Forge without multi-pass.",
     "CANVAS_BUILD_REPORT.md on apps/forge-canvas branch documents: architecture decisions, full route table, schema, dependency rationale, and decision framework (single-file vs multi-pass vs single-pass) for Forge to learn from.",
-    "Published ForgeOS apps must use fetch() with JSON bodies for all form submissions \u2014 never standard HTML form action/method POSTs. The subdomain proxy reliably forwards JSON; urlencoded form data re-encoding through the proxy has multiple failure modes (content-length mismatch, Cloudflare caching, encoding differences)."
+    "Published ForgeOS apps must use fetch() with JSON bodies for all form submissions \u2014 never standard HTML form action/method POSTs. The subdomain proxy reliably forwards JSON; urlencoded form data re-encoding through the proxy has multiple failure modes (content-length mismatch, Cloudflare caching, encoding differences).",
+    "Admin auth pattern for ForgeOS published apps: (1) login returns JSON { redirect, token }, (2) client stores token in localStorage, (3) redirect to protected route with ?token=xxx query param, (4) server validates token and serves page, (5) subsequent requests inject token via fetch override. This pattern works reliably through the ForgeOS subdomain proxy."
   ],
   "decisions_made": [
     {
@@ -920,9 +925,10 @@
     "Proxy fetch without redirect:'manual' \u2014 Node follows redirects silently, returns 200 with final destination HTML, breaks browser navigation entirely.",
     "JSON.stringify(req.body) in proxy for form POST requests \u2014 must use new URLSearchParams(req.body).toString() for application/x-www-form-urlencoded and delete the original content-length header.",
     "Applying cookie-session as global middleware \u2014 scope it to the routes that need it to avoid session middleware errors breaking public routes.",
-    "Standard HTML form POSTs in published apps going through the ForgeOS proxy \u2014 use fetch() with Content-Type application/json instead. The proxy handles JSON correctly from day one; urlencoded form encoding through the proxy is unreliable."
+    "Standard HTML form POSTs in published apps going through the ForgeOS proxy \u2014 use fetch() with Content-Type application/json instead. The proxy handles JSON correctly from day one; urlencoded form encoding through the proxy is unreliable.",
+    "Cookie-session for admin auth in published apps through ForgeOS proxy \u2014 Set-Cookie headers are unreliable through the proxy. Use bearer tokens stored in localStorage with token passed as query param on initial authenticated page loads."
   ],
-  "current_state": "Canvas app fully live at forge-canvas.forge-os.ai \u2014 registration, canvas experience, Flux Pro AI generation, sticker drag/drop, QR code download, 2-min inactivity timer, admin dashboard all working. ForgeOS proxy stable. All systems operational.",
+  "current_state": "Canvas app fully live at forge-canvas.forge-os.ai \u2014 registration, canvas experience, Flux Pro AI generation, sticker drag/drop, QR code download, 2-min inactivity timer, admin dashboard with sticker upload and gallery all working. Debug route removed. Ready for event deployment.",
   "next_steps": [
     "Verify forge-canvas.forge-os.ai works through proxy after latest deploy",
     "Add FAL_API_KEY to Secrets Vault to enable AI background generation in Canvas",
