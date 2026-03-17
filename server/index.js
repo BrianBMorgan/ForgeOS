@@ -42,6 +42,8 @@ app.use(async (req, res, next) => {
   delete fetchHeaders["accept-encoding"];
   fetchHeaders["accept-encoding"] = "identity";
   delete fetchHeaders["content-length"]; // recalculated after body re-encoding
+  fetchHeaders["cache-control"] = "no-store, no-cache";
+  fetchHeaders["pragma"] = "no-cache";
   delete fetchHeaders["cf-connecting-ip"];
   delete fetchHeaders["cf-ipcountry"];
   delete fetchHeaders["cf-ray"];
