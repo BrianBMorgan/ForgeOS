@@ -248,6 +248,43 @@ The root cause is in server/builder.js (context assembly) or server/pipeline/mod
   or server/builder.js — the fix involves reducing context size or moving schema instruction
   out of the system prompt.
 
+${"═".repeat(63)}
+SUB-AGENTS — invoke_agent TOOL
+${"═".repeat(63)}
+
+You have access to an invoke_agent tool that runs focused sub-agents for deep analysis.
+Sub-agents are optional — use them only when the task genuinely exceeds what you can
+do with the context you already have.
+
+AGENT TYPES:
+  file_analyst    — understands how 3+ files interact. Use when you need to map
+                    imports, exports, data flow, and interfaces across multiple files
+                    before diagnosing a multi-file bug or planning a change.
+
+  failure_analyst — deep-diagnoses a build failure. Use when postBuildAnalysis
+                    didn't fire or when the failure is genuinely ambiguous after
+                    reading the iteration history and run data.
+
+  fix_verifier    — verifies a proposed multi-file fix is internally consistent
+                    before a build cycle is spent. Use for Canvas-scale or
+                    multi-route changes. Never use for single-file fixes.
+
+  spec_analyst    — breaks down a complex build prompt into ordered feature groups.
+                    Use when a user submits a large prompt (Canvas, receptionist, etc.)
+                    and the planner needs a structured decomposition before generating passes.
+
+WHEN TO USE:
+  ✓ 3+ files need to be understood together before diagnosing
+  ✓ A build failure didn't match any known pattern and iteration history is ambiguous
+  ✓ A multi-file fix needs consistency verification before running
+  ✓ A large build prompt needs structural decomposition before planning
+
+WHEN NOT TO USE:
+  ✗ Single-file fixes — read the file yourself and use BUILD:
+  ✗ Routine failures that match known patterns — postBuildAnalysis already handled it
+  ✗ When the answer is already in your iteration history, source files, or logs
+  ✗ As a delay tactic — if you already know the fix, state it
+
 PROXY-LAYER ERRORS — these error patterns are caused by the ForgeOS preview proxy,
 not by the app code. Do NOT suggest fixing the app's multipart or body-parsing code.
 Instead, tell the user this is a ForgeOS infrastructure issue:
@@ -441,6 +478,46 @@ const SEARCH_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "invoke_agent",
+      description: `Invoke a focused sub-agent for tasks requiring deeper analysis than your context supports.
+
+WHEN TO USE — only when genuinely needed:
+  file_analyst: understand how 3+ files interact before diagnosing or planning. Use when relationships between files are unclear.
+  failure_analyst: deep-diagnose a build failure when postBuildAnalysis didn't match a known pattern and the failure is genuinely ambiguous.
+  fix_verifier: verify a complex multi-file fix is internally consistent before spending a build cycle. Use for Canvas-scale changes, not single-file fixes.
+  spec_analyst: break down a large complex build prompt before planning. Use for prompts describing 5+ features or multiple interconnected systems.
+
+WHEN NOT TO USE:
+  - Simple single-file fixes (use BUILD: directly)
+  - Routine diagnostics (use diagnose_system)
+  - When the answer is already in your context
+  - As a substitute for reading files you already have
+
+Sub-agents add ~2-3 seconds. Use selectively.`,
+      parameters: {
+        type: "object",
+        properties: {
+          agent_type: {
+            type: "string",
+            enum: ["file_analyst", "failure_analyst", "fix_verifier", "spec_analyst"],
+            description: "The sub-agent to invoke.",
+          },
+          context: {
+            type: "string",
+            description: "Everything the agent needs — file contents, run data, error messages, or build prompt.",
+          },
+          question: {
+            type: "string",
+            description: "Optional question for file_analyst or fix_verifier. Leave empty for failure_analyst and spec_analyst.",
+          },
+        },
+        required: ["agent_type", "context"],
+      },
+    },
+  },
 ];
 
 const dbUrl = process.env.NEON_DATABASE_URL;
@@ -588,6 +665,18 @@ async function executeToolCall(toolCall) {
         return JSON.stringify({ filepath, content });
       } catch (err) {
         return JSON.stringify({ error: `Cannot read ${filepath}: ${err.message}` });
+      }
+    } else if (name === "invoke_agent") {
+      const agentType = args.agent_type || "";
+      const context = args.context || "";
+      const question = args.question || null;
+      console.log(`  [chat] invoke_agent: ${agentType}`);
+      try {
+        const agents = require("../agents/manager");
+        const result = await agents.runSubAgent(agentType, context, question);
+        return JSON.stringify(result);
+      } catch (err) {
+        return JSON.stringify({ error: `Sub-agent ${agentType} failed: ${err.message}` });
       }
     }
     return JSON.stringify({ error: "Unknown tool" });
