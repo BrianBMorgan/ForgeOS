@@ -497,6 +497,29 @@
         "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault before Canvas build"
       ],
       "open_questions": []
+    },
+    {
+      "date": "2026-03-17",
+      "session_title": "Sub-Agent System \u2014 invoke_agent Tool, Four Focused Agents, Selective Invocation",
+      "shipped": [
+        "server/agents/manager.js (new) \u2014 four focused sub-agents: file_analyst (maps relationships across 3+ files, returns structured analysis), failure_analyst (deep-diagnoses build failures, outputs CAUSE/FILE/FIX), fix_verifier (verifies multi-file fix consistency before build cycle, outputs VALID/ISSUES/VERDICT), spec_analyst (breaks down complex build prompts into ordered feature groups, outputs JSON with features/buildOrder/fileGroups/riskAreas/estimatedPasses)",
+        "server/agents/manager.js \u2014 runSubAgent(agentType, context, question): core dispatcher using Haiku at 0.1 temperature; convenience wrappers: analyzeFiles, diagnoseFailure, verifyFix, analyzeSpec",
+        "server/chat/manager.js \u2014 invoke_agent tool added to SEARCH_TOOLS with full usage guidance (when to use/not use per agent type)",
+        "server/chat/manager.js \u2014 invoke_agent handler added to executeToolCall: requires ../agents/manager, calls runSubAgent, returns JSON result",
+        "server/chat/manager.js \u2014 SUB-AGENTS section added to CHAT_AGENT_INSTRUCTIONS: explicit when-to-use/when-not-to-use rules per agent type; sub-agents are optional tools, not mandatory pipeline stages"
+      ],
+      "decisions": [
+        "Sub-agents are optional tools invoked by the Chat Agent, not mandatory pipeline stages \u2014 avoids the maintenance problem of the old rigid multi-agent pipeline",
+        "All sub-agents use Haiku at 0.1 temperature \u2014 fast (~2-3s), cheap, analytical; sub-agents are not creative tasks",
+        "Chat Agent decides when to invoke \u2014 explicit when-to-use rules prevent overuse; sub-agents are last resort, not first response",
+        "Four agents cover the four cases where single-context analysis breaks down: multi-file relationships, ambiguous failures, fix verification, and spec decomposition",
+        "spec_analyst outputs structured JSON \u2014 planner and builder can consume it directly without re-parsing prose"
+      ],
+      "pending": [
+        "Test Canvas build with full pipeline (multi-pass + sub-agents)",
+        "Add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault"
+      ],
+      "open_questions": []
     }
   ],
   "domain_knowledge": [
@@ -583,7 +606,10 @@
     "postBuildAnalysis(projectId, run) in server/chat/manager.js fires automatically after every failed build. Classifies failure via KNOWN_FAILURE_PATTERNS, saves instant diagnosis as assistant message. Pattern-matched failures need no Claude call. Unrecognized failures invoke Haiku with tight diagnostic context.",
     "KNOWN_FAILURE_PATTERNS: 6 patterns \u2014 context_overflow (JSON position >4 digits \u2192 FORGE:), missing_api_key (401/auth \u2192 plain), json_schema_validation (Zod \u2192 FORGE:), start_failed (workspace crash \u2192 BUILD:), install_failed (npm \u2192 plain), build_failed_generic (catch-all). Add new patterns here as failure modes are discovered.",
     "Large prompt threshold is 3000 chars (both server/index.js and client/src/App.tsx). Matches planner truncation threshold. Prompts under 3000 go direct to build; 3000+ route through plan gate. Previously 1500 which was too conservative.",
-    "Chat Agent proactive posture: on a failed build, first response must be a diagnosis. Never ask for information already in context (diagnostics, iteration history, source files, logs). [AUTO-ANALYSIS] prefixed messages are automated diagnoses \u2014 build on them, do not repeat them."
+    "Chat Agent proactive posture: on a failed build, first response must be a diagnosis. Never ask for information already in context (diagnostics, iteration history, source files, logs). [AUTO-ANALYSIS] prefixed messages are automated diagnoses \u2014 build on them, do not repeat them.",
+    "server/agents/manager.js: four focused sub-agents \u2014 file_analyst (multi-file relationship mapping), failure_analyst (deep build failure diagnosis \u2192 CAUSE/FILE/FIX), fix_verifier (pre-build fix consistency check \u2192 VALID/ISSUES/VERDICT), spec_analyst (complex prompt decomposition \u2192 JSON with features/buildOrder/fileGroups/riskAreas/estimatedPasses).",
+    "invoke_agent tool in Chat Agent: optional tool for tasks exceeding single-context analysis. Use file_analyst for 3+ file relationship questions, failure_analyst for ambiguous failures, fix_verifier for Canvas-scale multi-file changes, spec_analyst for large build prompts. Never use for simple fixes, routine diagnostics, or when the answer is already in context.",
+    "Sub-agents use Haiku at 0.1 temperature \u2014 fast, cheap, analytical. Each is a single Claude API call with a tight system prompt. No state between calls. runSubAgent(agentType, context, question) is the core dispatcher."
   ],
   "decisions_made": [
     {
@@ -721,6 +747,14 @@
     {
       "decision": "Large prompt threshold raised from 1500 to 3000 chars",
       "rationale": "1500 was too conservative. The real protection is multi-pass execution, not the gate. 3000 matches the planner truncation threshold and only catches prompts that will genuinely generate >6 files."
+    },
+    {
+      "decision": "Sub-agents are optional Chat Agent tools, not mandatory pipeline stages",
+      "rationale": "Mandatory pipelines are hard to maintain and apply overhead to every build. Optional tools invoked by the Chat Agent only when needed give the same capability with zero overhead on simple builds."
+    },
+    {
+      "decision": "All sub-agents use Haiku at 0.1 temperature",
+      "rationale": "Sub-agents are analytical tasks \u2014 low temperature improves precision. Haiku is fast and cheap enough to invoke mid-conversation without meaningful latency impact."
     }
   ],
   "preferences": [
@@ -801,7 +835,8 @@
     "passProgress on run.stages.builder \u2014 surfaces pass-level progress to Plan tab via existing run polling without any new API surface or schema changes",
     "Forge FORGE: signal for architecture diagnosis \u2014 correctly identified the three files, the root cause, and the fix structure before implementation",
     "postBuildAnalysis as a non-blocking fire-and-forget hook \u2014 wired at all three failure paths, never delays pipeline, user sees diagnosis before they even open chat",
-    "KNOWN_FAILURE_PATTERNS as a lookup table \u2014 instant classification of common failures, extensible as new patterns are discovered, no Claude tokens spent on known issues"
+    "KNOWN_FAILURE_PATTERNS as a lookup table \u2014 instant classification of common failures, extensible as new patterns are discovered, no Claude tokens spent on known issues",
+    "Optional tool pattern for sub-agents \u2014 Chat Agent invokes only when needed, zero overhead on simple builds, no maintenance coupling between agents"
   ],
   "mistakes_to_avoid": [
     "Inline backtick-wrapped content inside JS template literal strings \u2014 Node parser treats backtick as closing delimiter",
@@ -840,12 +875,11 @@
     "Large prompt threshold too low \u2014 1500 chars catches legitimate prompts and wastes plan gate cycles; threshold should be 3000 to match planner truncation and target only genuinely large multi-file builds",
     "Chat Agent asking for information already in context \u2014 diagnostics, iteration history, source files, and runtime logs are always injected; any question about these is a banned behavior"
   ],
-  "current_state": "ForgeOS fully operational. Forge now self-diagnoses build failures automatically via postBuildAnalysis \u2014 every failed build triggers an instant chat diagnosis before the user asks. Known failure patterns (context overflow, missing keys, schema validation, workspace crashes) are classified instantly. Chat Agent has a proactive posture mandate. Large prompt threshold raised to 3000 chars. Multi-pass context overflow fixed. Canvas app prompt ready to build.",
+  "current_state": "ForgeOS fully operational with sub-agent system live. Chat Agent can invoke four focused sub-agents (file_analyst, failure_analyst, fix_verifier, spec_analyst) via invoke_agent tool. Sub-agents are optional \u2014 used only for complex multi-file analysis, ambiguous failures, pre-build verification, and large spec decomposition. Forge self-diagnoses failures via postBuildAnalysis. Multi-pass pipeline handles large builds. Canvas app ready to build.",
   "next_steps": [
     "Test Canvas build \u2014 add FAL_API_KEY and ADMIN_PASSWORD to Secrets Vault first",
-    "Verify postBuildAnalysis fires correctly on next build failure",
-    "Test Stage 2 React/Vite build end-to-end",
-    "Consider pgvector semantic search upgrade for Brain"
+    "Verify sub-agents invoke correctly on next complex failure",
+    "Test Stage 2 React/Vite build end-to-end"
   ],
   "open_questions": [
     "Should Render redeploy be triggered automatically after a force-push rollback, or always require manual trigger?"
@@ -1010,6 +1044,18 @@
     {
       "term": "proactive posture",
       "value": "Chat Agent behavioral mandate in CHAT_AGENT_INSTRUCTIONS. First response on a failed build must be a diagnosis. Never ask for information already in context. [AUTO-ANALYSIS] prefixed messages are automated diagnoses \u2014 build on them, do not repeat."
+    },
+    {
+      "term": "sub-agent",
+      "value": "A focused Claude Haiku API call invoked by the Chat Agent via the invoke_agent tool. Four types: file_analyst, failure_analyst, fix_verifier, spec_analyst. Optional \u2014 only invoked when the task exceeds single-context analysis. Never mandatory pipeline stages."
+    },
+    {
+      "term": "spec_analyst",
+      "value": "Sub-agent in server/agents/manager.js. Takes a complex build prompt, returns structured JSON: features, buildOrder (dependency-ordered), fileGroups (3-5 files each), riskAreas, estimatedPasses. Use before the planner on Canvas-scale builds."
+    },
+    {
+      "term": "fix_verifier",
+      "value": "Sub-agent in server/agents/manager.js. Takes existing files + proposed fix, checks imports, interface matching, syntax, side effects. Returns VALID/ISSUES/VERDICT. Use for multi-file fixes before spending a build cycle."
     }
   ]
 }
