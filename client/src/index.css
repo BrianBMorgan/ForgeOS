@@ -5502,3 +5502,39 @@ body {
   font-size: 0.78rem;
   color: #94a3b8;
 }
+
+/* ── Forge Apply Result Card ── */
+.forge-result-card {
+  border-radius: 8px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.forge-result-ok {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+.forge-result-fail {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.forge-result-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.forge-result-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+.forge-result-message {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+.forge-result-note {
+  font-size: 0.75rem;
+  color: #4ade80;
+  margin-top: 0.25rem;
+}
