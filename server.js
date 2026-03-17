@@ -115,11 +115,14 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
   if (!falKey) return res.status(500).json({ error: "FAL_API_KEY not configured" });
 
   try {
+    // Always inject Intel branding into the scene
+    const enhancedPrompt = `${prompt}. The Intel logo appears naturally integrated into the scene on a surface, screen, or object within the environment. Photorealistic, brand-accurate Intel blue wordmark.`;
+
     const falRes = await fetch("https://fal.run/fal-ai/flux-pro", {
       method: "POST",
       headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt,
+        prompt: enhancedPrompt,
         image_size: { width: 1024, height: 1024 },
         num_inference_steps: 28,
         guidance_scale: 3.5,
