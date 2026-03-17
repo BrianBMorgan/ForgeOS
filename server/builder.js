@@ -515,17 +515,17 @@ async function buildWorkspaceMultiPass(prompt, existingFiles, passes, projectId,
       ...(pass.filesToModify || []).map(f => f.split(" — ")[0].trim()),
     ].join(", ");
 
-    const promptSummary = prompt.length > 600
-      ? prompt.slice(0, 600) + "\n[full prompt truncated — build only the files listed above]"
+    // Hard cap at 200 chars — the constraint block and pass description carry
+    // all the context the builder needs; the original prompt is supplementary only.
+    const promptSummary = prompt.length > 200
+      ? prompt.slice(0, 200) + "\n[truncated]"
       : prompt;
 
     const passPrompt = `Build pass ${pass.passNumber} of ${totalPasses} for: ${approvedPlan.taskSummary || "this project"}.
 
 Pass goal: ${pass.description}
 Files for this pass: ${passFilesToBuild}
-
-Original project context (brief):
-${promptSummary}`;
+Context: ${promptSummary}`;
 
     // Get builder system prompt — memory capped hard for multi-pass
     let basePrompt = accumulatedFiles.length > 0
@@ -552,9 +552,10 @@ ${promptSummary}`;
       ...(pass.filesToCreate || []),
       ...(pass.filesToModify || []).map(f => f.split(" — ")[0].trim()),
     ]);
+    // Strict filter — only files explicitly listed in this pass's filesToCreate/filesToModify.
+    // The loose description-match was including unrelated files and bloating context.
     const relevantAccumulatedFiles = accumulatedFiles.filter(f =>
-      passRelevantPaths.has(f.path) ||
-      (pass.description || "").toLowerCase().includes(f.path.replace(/^.*\//, "").toLowerCase())
+      passRelevantPaths.has(f.path)
     );
 
     const userMessages = [];
@@ -854,6 +855,7 @@ module.exports = {
   BuilderOutputSchema,
   BUILDER_SYSTEM_PROMPT,
 };
+
 
 
 
