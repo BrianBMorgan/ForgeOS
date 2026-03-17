@@ -39,11 +39,19 @@ async function generatePlan(prompt, existingFiles) {
     ? existingFiles.map(f => f.path || f).join("\n")
     : "(empty workspace — first build)";
 
-  const userMessage = `User request: ${prompt}\n\nCurrent workspace files:\n${fileList}`;
+  // Truncate very long prompts — the planner only needs enough to understand
+  // the task scope. Passing the full prompt of a complex build risks the planner
+  // trying to echo it back in its output, blowing the token budget and producing
+  // truncated/malformed JSON.
+  const truncatedPrompt = prompt.length > 3000
+    ? prompt.slice(0, 3000) + "\n\n[prompt truncated for planning — full prompt passed to builder]"
+    : prompt;
+
+  const userMessage = `User request: ${truncatedPrompt}\n\nCurrent workspace files:\n${fileList}`;
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
+    max_tokens: 2048,
     system: PLAN_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],
   });
@@ -154,4 +162,5 @@ function suggestionToConstraintBlock(suggestionPrompt, existingFiles) {
 }
 
 module.exports = { generatePlan, planToConstraintBlock, suggestionToConstraintBlock };
+
 
