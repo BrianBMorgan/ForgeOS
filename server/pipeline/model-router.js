@@ -38,17 +38,22 @@ async function callClaudeStructured(model, systemPrompt, userMessages, schema, f
   if (!client) throw new Error("Anthropic not configured — missing ANTHROPIC_API_KEY environment variable");
 
   const jsonSchema = zodToJsonSchema(schema);
-  const schemaInstruction = `\n\nYou MUST respond with ONLY valid JSON matching this exact schema — no prose, no markdown, no explanation outside the JSON:\n${JSON.stringify(jsonSchema, null, 2)}`;
+  // Inject the schema instruction as the LAST user message rather than appending to the
+  // system prompt — this keeps the system prompt lean and avoids context overflow on large builds.
+  const schemaInstruction = `You MUST respond with ONLY valid JSON matching this exact schema — no prose, no markdown, no explanation outside the JSON:\n${JSON.stringify(jsonSchema, null, 2)}`;
 
   const messages = userMessages.map(m => ({
     role: m.role === "system" ? "user" : m.role,
     content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
   }));
 
+  // Append schema instruction as final user turn
+  messages.push({ role: "user", content: schemaInstruction });
+
   const params = {
     model,
     max_tokens: 16384,
-    system: systemPrompt + schemaInstruction,
+    system: systemPrompt,
     messages,
   };
   if (temperature != null) {
@@ -218,3 +223,4 @@ module.exports = {
   NO_TEMPERATURE_MODELS,
   getLastUsage,
 };
+
