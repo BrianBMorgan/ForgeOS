@@ -117,7 +117,7 @@ function App() {
     // Large prompt guard — if the prompt is above the complexity threshold,
     // create the project first then route through the plan gate instead of
     // attempting a direct build that would overflow the builder's context budget.
-    const LARGE_PROMPT_THRESHOLD = 1500;
+    const LARGE_PROMPT_THRESHOLD = 3000; // matches planner truncation threshold
     if (prompt.trim().length > LARGE_PROMPT_THRESHOLD) {
       // Create the project without building
       const res = await fetch(`${API_BASE}/projects`, {
@@ -588,5 +588,6 @@ function App() {
 }
 
 export default App;
+
 
 
