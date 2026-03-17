@@ -116,7 +116,7 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
 
   try {
     // Inject current Intel logo (post-2020 rebrand: clean lowercase "intel" wordmark in white on Intel blue #00aae8, no swoosh/circle)
-    const enhancedPrompt = `${prompt}. Somewhere naturally in the scene, a flat rectangular sign, screen, or surface displays the current Intel logo: the lowercase word "intel" in clean white sans-serif lettering on a solid Intel blue (#00aae8) background, with a small dark square dot above the letter i. No circular swoosh. No oval. Modern 2020 rebrand only.`;
+    const enhancedPrompt = `${prompt}. Visible but not dominant in the background of the scene — on a building facade, distant billboard, or wall-mounted sign — the Intel logo appears: a flat rectangular panel with a solid Intel blue (#00aae8) background, the lowercase word "intel" in clean white rounded sans-serif lettering, and a small solid dark square dot positioned above the letter i. The wordmark is crisp, legible, and proportionally spaced. No circular swoosh, no oval ring, no tagline, no additional text. The logo is a secondary detail in the composition, not the focal point.`;
 
     const falRes = await fetch("https://fal.run/fal-ai/flux-pro", {
       method: "POST",
