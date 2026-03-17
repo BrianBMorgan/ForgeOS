@@ -901,6 +901,9 @@ interface WorkspaceProps {
   forgePlanLoading?: boolean;
   onApproveForgePlan?: () => void;
   onRejectForgePlan?: () => void;
+  forgeApplying?: boolean;
+  forgeApplyResult?: { ok: boolean; message: string; filesWritten?: string[] } | null;
+  onClearForgeResult?: () => void;
 }
 
 function renderField(label: string, value: unknown) {
@@ -943,7 +946,7 @@ function renderField(label: string, value: unknown) {
   );
 }
 
-function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePlan, pendingForgePlan, forgePlanLoading, onApproveForgePlan, onRejectForgePlan }: {
+function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePlan, pendingForgePlan, forgePlanLoading, onApproveForgePlan, onRejectForgePlan, forgeApplying, forgeApplyResult, onClearForgeResult }: {
   runData: RunData | null;
   pendingPlan?: { prompt: string; plan: Record<string, unknown> } | null;
   planLoading?: boolean;
@@ -953,6 +956,9 @@ function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePla
   forgePlanLoading?: boolean;
   onApproveForgePlan?: () => void;
   onRejectForgePlan?: () => void;
+  forgeApplying?: boolean;
+  forgeApplyResult?: { ok: boolean; message: string; filesWritten?: string[] } | null;
+  onClearForgeResult?: () => void;
 }) {
   // ── LOADING STATE: plan is being generated ──
   if (planLoading) {
@@ -972,6 +978,48 @@ function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePla
         <div className="plan-loading-spinner" />
         <div className="panel-title">Analyzing Infrastructure...</div>
         <div className="panel-desc">Forge is mapping the self-repair scope.</div>
+      </div>
+    );
+  }
+
+  // ── FORGE APPLYING ──
+  if (forgeApplying) {
+    return (
+      <div className="panel-placeholder">
+        <div className="plan-loading-spinner" />
+        <div className="panel-title">Applying ForgeOS Fix...</div>
+        <div className="panel-desc">Building the fix, writing files, committing and pushing to GitHub. Render will redeploy automatically. This may take 30–60 seconds.</div>
+      </div>
+    );
+  }
+
+  // ── FORGE APPLY RESULT ──
+  if (forgeApplyResult) {
+    return (
+      <div className="plan-content">
+        <div className={`forge-result-card ${forgeApplyResult.ok ? "forge-result-ok" : "forge-result-fail"}`}>
+          <div className="forge-result-icon">{forgeApplyResult.ok ? "✓" : "✗"}</div>
+          <div className="forge-result-title">{forgeApplyResult.ok ? "ForgeOS Fix Applied" : "Forge Repair Failed"}</div>
+          <div className="forge-result-message">{forgeApplyResult.message}</div>
+          {forgeApplyResult.ok && forgeApplyResult.filesWritten && forgeApplyResult.filesWritten.length > 0 && (
+            <div className="plan-section" style={{ marginTop: "0.75rem" }}>
+              <div className="plan-section-title">Files Updated</div>
+              <div className="plan-files-list">
+                {forgeApplyResult.filesWritten.map((f, i) => (
+                  <div key={i} className="plan-file-item plan-file-modify">
+                    <span className="plan-file-badge plan-badge-modify">~</span>{f}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {forgeApplyResult.ok && (
+            <div className="forge-result-note">Render is redeploying now — changes will be live in ~2 minutes.</div>
+          )}
+        </div>
+        <button className="plan-revise-btn" style={{ marginTop: "1rem" }} onClick={onClearForgeResult}>
+          Dismiss
+        </button>
       </div>
     );
   }
@@ -1046,7 +1094,7 @@ function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePla
         )}
 
         <div className="plan-gate-actions">
-          <button className="plan-approve-btn forge-approve-btn" onClick={onApproveForgePlan}>
+          <button className="plan-approve-btn forge-approve-btn" onClick={onApproveForgePlan} disabled={forgeApplying}>
             ✓ Approve &amp; Apply Fix
           </button>
           <button className="plan-revise-btn" onClick={onRejectForgePlan}>
@@ -2684,7 +2732,7 @@ function AnalyticsTab({ projectId }: { projectId: string | undefined }) {
   );
 }
 
-export default function Workspace({ runData, projectData, viewingIterationRunId, onRefreshRunData, pendingPlan, planLoading, onApprovePlan, onRevisePlan, pendingForgePlan, forgePlanLoading, onApproveForgePlan, onRejectForgePlan }: WorkspaceProps) {
+export default function Workspace({ runData, projectData, viewingIterationRunId, onRefreshRunData, pendingPlan, planLoading, onApprovePlan, onRevisePlan, pendingForgePlan, forgePlanLoading, onApproveForgePlan, onRejectForgePlan, forgeApplying, forgeApplyResult, onClearForgeResult }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("plan");
   useEffect(() => {
     const handler = (e: CustomEvent) => setActiveTab(e.detail);
@@ -2709,7 +2757,7 @@ export default function Workspace({ runData, projectData, viewingIterationRunId,
   const renderTabContent = () => {
     switch (activeTab) {
       case "plan":
-        return <PlanTab runData={runData} pendingPlan={pendingPlan} planLoading={planLoading} onApprovePlan={onApprovePlan} onRevisePlan={onRevisePlan} pendingForgePlan={pendingForgePlan} forgePlanLoading={forgePlanLoading} onApproveForgePlan={onApproveForgePlan} onRejectForgePlan={onRejectForgePlan} />;
+        return <PlanTab runData={runData} pendingPlan={pendingPlan} planLoading={planLoading} onApprovePlan={onApprovePlan} onRevisePlan={onRevisePlan} pendingForgePlan={pendingForgePlan} forgePlanLoading={forgePlanLoading} onApproveForgePlan={onApproveForgePlan} onRejectForgePlan={onRejectForgePlan} forgeApplying={forgeApplying} forgeApplyResult={forgeApplyResult} onClearForgeResult={onClearForgeResult} />;
       case "render":
         return <RenderTab runData={runData} />;
       case "diff":
