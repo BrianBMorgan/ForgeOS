@@ -74,11 +74,14 @@ async function ensureSchema() {
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 function requireAdmin(req, res, next) {
-  // Check bearer token first (proxy-friendly)
+  // Check bearer token in header (proxy-friendly fetch requests)
   const auth = req.headers["authorization"] || "";
-  const token = auth.replace("Bearer ", "").trim();
-  if (token && adminTokens.has(token)) return next();
-  // Fall back to cookie session
+  const headerToken = auth.replace("Bearer ", "").trim();
+  if (headerToken && adminTokens.has(headerToken)) return next();
+  // Check token in query param (initial page load after login)
+  const queryToken = req.query.token || "";
+  if (queryToken && adminTokens.has(queryToken)) return next();
+  // Fall back to cookie session (direct Render URL)
   if (req.session && req.session.admin) return next();
   res.redirect("/admin/login");
 }
@@ -1070,7 +1073,7 @@ function renderAdminLogin(error) {
       const data = await res.json();
       if (data.redirect && data.token) {
         localStorage.setItem("canvas_admin_token", data.token);
-        window.location.href = data.redirect;
+        window.location.href = data.redirect + "?token=" + data.token;
       } else {
         errEl.textContent = data.error || "Login failed.";
         errEl.style.display = "block";
