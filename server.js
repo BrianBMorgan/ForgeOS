@@ -498,8 +498,9 @@ function renderCanvas(attendee, stickers) {
 
   /* ── Canvas Area ── */
   .canvas-area {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-    position: relative; overflow: hidden;
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1.5rem; padding: 1.5rem;
+    overflow: auto;
     background: radial-gradient(ellipse at center, rgba(99,102,241,0.04) 0%, transparent 70%);
   }
   .canvas-wrap {
@@ -558,7 +559,7 @@ function renderCanvas(attendee, stickers) {
 
   /* Save button */
   .save-bar {
-    position: absolute; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    flex-shrink: 0;
   }
   .save-btn {
     padding: 0.875rem 2.5rem; background: var(--accent);
@@ -598,9 +599,8 @@ function renderCanvas(attendee, stickers) {
     .layout { flex-direction: column; height: auto; }
     .panel { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
     .sticker-tray { max-height: 120px; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); }
-    .canvas-wrap { width: min(88vw, 88vh); height: min(88vw, 88vh); flex-shrink: 0; }
-    .canvas-area { min-height: auto; padding: 1rem; align-items: flex-start; justify-content: center; flex-direction: column; }
-    .save-bar { position: relative; bottom: auto; left: auto; transform: none; padding: 1rem; width: 100%; text-align: center; }
+    .canvas-wrap { width: min(88vw, 60vh); height: min(88vw, 60vh); flex-shrink: 0; }
+    .canvas-area { padding: 1rem; gap: 1rem; }
     .save-btn { width: 100%; }
   }
 </style>
