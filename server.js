@@ -1272,6 +1272,8 @@ resetInactivityTimer();
 }
 
 function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
+  const adminToken = req.query.token || "";
+  const host = req.protocol + "://" + req.get("host");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1367,7 +1369,7 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
 <div class="content">
   <div class="panel active" id="tab-events">
     <div class="section-title">Create Event</div>
-    <form method="POST" action="/admin/events?token=${req.query.token || ''}">
+    <form method="POST" action="/admin/events?token=${adminToken}">
       <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:flex-end">
         <div class="form-field" style="flex:2;min-width:160px"><label>Event Name</label><input type="text" name="name" placeholder="Intel Summit 2026" required></div>
         <div class="form-field" style="width:100px"><label>Kiosks</label><input type="number" name="kiosk_count" value="1" min="1" max="10"></div>
@@ -1386,16 +1388,16 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
               <span style="margin-left:0.75rem;font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:20px;background:${e.active ? 'rgba(0,170,232,0.15)' : 'rgba(255,255,255,0.05)'};color:${e.active ? '#00aae8' : 'var(--muted)'}">${e.active ? 'Active' : 'Inactive'}</span>
             </div>
             <div style="display:flex;gap:0.5rem">
-              <form method="POST" action="/admin/events/${e.id}/toggle?token=${req.query.token || ''}"><button class="btn secondary" style="font-size:0.75rem;padding:0.3rem 0.75rem">${e.active ? 'Deactivate' : 'Activate'}</button></form>
-              <form method="POST" action="/admin/events/${e.id}/delete?token=${req.query.token || ''}" onsubmit="return confirm('Delete ${e.name} and all its kiosks?')"><button class="btn danger" style="font-size:0.75rem;padding:0.3rem 0.75rem">Delete</button></form>
+              <form method="POST" action="/admin/events/${e.id}/toggle?token=${adminToken}"><button class="btn secondary" style="font-size:0.75rem;padding:0.3rem 0.75rem">${e.active ? 'Deactivate' : 'Activate'}</button></form>
+              <form method="POST" action="/admin/events/${e.id}/delete?token=${adminToken}" onsubmit="return confirm('Delete ${e.name} and all its kiosks?')"><button class="btn danger" style="font-size:0.75rem;padding:0.3rem 0.75rem">Delete</button></form>
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:0.4rem">
             ${(kiosks || []).filter(k => k.event_id === e.id).map(k => `
               <div style="display:flex;align-items:center;gap:0.75rem;background:rgba(255,255,255,0.03);border-radius:6px;padding:0.5rem 0.75rem">
                 <span style="font-size:0.8rem;color:var(--muted);width:60px">Kiosk ${k.kiosk_number}</span>
-                <code style="flex:1;font-size:0.78rem;color:var(--text);background:rgba(0,0,0,0.3);padding:0.25rem 0.5rem;border-radius:4px">${req.protocol}://${req.get('host')}/k/${k.token}</code>
-                <button onclick="navigator.clipboard.writeText('${req.protocol}://${req.get('host')}/k/${k.token}').then(()=>this.textContent='Copied!').catch(()=>{})" class="btn secondary" style="font-size:0.72rem;padding:0.25rem 0.6rem;white-space:nowrap">Copy URL</button>
+                <code style="flex:1;font-size:0.78rem;color:var(--text);background:rgba(0,0,0,0.3);padding:0.25rem 0.5rem;border-radius:4px">${host}/k/${k.token}</code>
+                <button onclick="navigator.clipboard.writeText('${host}/k/${k.token}').then(()=>this.textContent='Copied!').catch(()=>{})" class="btn secondary" style="font-size:0.72rem;padding:0.25rem 0.6rem;white-space:nowrap">Copy URL</button>
               </div>`).join('')}
           </div>
         </div>`).join('')
@@ -1425,7 +1427,7 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
   <div class="panel" id="tab-colors">
     <div class="section-title">Text Color Palette</div>
     <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem">Define the 4 colors available to attendees for text overlays.</p>
-    <form method="POST" action="/admin/config/colors?token=${req.query.token || ''}">
+    <form method="POST" action="/admin/config/colors?token=${adminToken}">
       <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
         ${(colors || ['#ffffff','#000000','#00aae8','#cccccc']).map((c, i) => `
           <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:center">
@@ -1442,8 +1444,7 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
     <div class="artwork-grid">
       ${artworks.map(a => `
         <div class="artwork-card">
-          <img class="artwork-thumb" src="data:image/png;base64,${a.png_data.slice(0, 200)}..." alt="${a.first_name}'s art" onerror="this.style.display='none'">
-          <div style="background:#1a1a2e;aspect-ratio:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.75rem" id="thumb-${a.id}">Preview</div>
+          <div class="artwork-thumb" style="background:#1a1a2e;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.75rem">Preview</div>
           <div class="artwork-info">
             <div class="artwork-name">${a.first_name} ${a.last_name || ""}</div>
             <div class="artwork-meta">${a.email} · ${new Date(Number(a.created_at)).toLocaleDateString()}</div>
