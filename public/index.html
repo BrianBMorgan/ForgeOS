@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ForgeVision &mdash; AI Image Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">&#9670;</span>
+        <span class="logo-text">ForgeVision</span>
+      </div>
+      <p class="header-tagline">AI Image Generator</p>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <main class="main-layout">
+
+    <!-- Sidebar / Controls -->
+    <aside class="sidebar">
+
+      <!-- Mode Tabs -->
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="text">&#9998; Text to Image</button>
+        <button class="mode-tab" data-mode="i2i">&#8635; Image to Image</button>
+        <button class="mode-tab" data-mode="upscale">&#8599; Upscale</button>
+      </div>
+
+      <!-- Panel: Text to Image -->
+      <div class="panel" id="panel-text">
+
+        <div class="field-group">
+          <label class="field-label" for="txt-prompt">Prompt <span class="char-count"><span id="txt-prompt-count">0</span> / 2000</span></label>
+          <textarea id="txt-prompt" class="field-textarea" rows="5" maxlength="2000" placeholder="Describe the image you want to create..."></textarea>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="txt-negative">Negative Prompt</label>
+          <textarea id="txt-negative" class="field-textarea" rows="2" placeholder="What to exclude from the image..."></textarea>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group half">
+            <label class="field-label" for="txt-model">Model</label>
+            <select id="txt-model" class="field-select">
+              <option value="flux-pro">Flux Pro</option>
+              <option value="flux-pro-1.1">Flux Pro 1.1</option>
+              <option value="flux-dev">Flux Dev</option>
+            </select>
+          </div>
+          <div class="field-group half">
+            <label class="field-label" for="txt-style">Style Preset</label>
+            <select id="txt-style" class="field-select">
+              <option value="">None</option>
+              <option value="photographic">Photographic</option>
+              <option value="cinematic">Cinematic</option>
+              <option value="digital-art">Digital Art</option>
+              <option value="anime">Anime</option>
+              <option value="fantasy-art">Fantasy Art</option>
+              <option value="neon-punk">Neon Punk</option>
+              <option value="isometric">Isometric</option>
+              <option value="low-poly">Low Poly</option>
+              <option value="origami">Origami</option>
+              <option value="line-art">Line Art</option>
+              <option value="3d-model">3D Model</option>
+              <option value="pixel-art">Pixel Art</option>
+              <option value="tile-texture">Tile Texture</option>
+              <option value="comic-book">Comic Book</option>
+              <option value="analog-film">Analog Film</option>
+              <option value="enhance">Enhance</option>
+              <option value="modeling-compound">Modeling Compound</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group half">
+            <label class="field-label" for="txt-width">Width</label>
+            <select id="txt-width" class="field-select">
+              <option value="512">512</option>
+              <option value="768">768</option>
+              <option value="1024" selected>1024</option>
+              <option value="1280">1280</option>
+              <option value="1440">1440</option>
+            </select>
+          </div>
+          <div class="field-group half">
+            <label class="field-label" for="txt-height">Height</label>
+            <select id="txt-height" class="field-select">
+              <option value="512">512</option>
+              <option value="768">768</option>
+              <option value="1024" selected>1024</option>
+              <option value="1280">1280</option>
+              <option value="1440">1440</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Guidance Scale &mdash; <span id="cfg-val">7</span></label>
+          <input type="range" id="txt-cfg" class="field-range" min="1" max="20" value="7" step="0.5" />
+          <div class="range-labels"><span>Creative</span><span>Precise</span></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Steps &mdash; <span id="steps-val">30</span></label>
+          <input type="range" id="txt-steps" class="field-range" min="10" max="50" value="30" step="1" />
+          <div class="range-labels"><span>Fast</span><span>Quality</span></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Samples</label>
+          <div class="sample-btns">
+            <button class="sample-btn active" data-val="1">1</button>
+            <button class="sample-btn" data-val="2">2</button>
+            <button class="sample-btn" data-val="4">4</button>
+          </div>
+        </div>
+
+        <button id="txt-generate" class="generate-btn">&#9654; Generate</button>
+
+      </div>
+      <!-- /panel-text -->
+
+      <!-- Panel: Image to Image -->
+      <div class="panel hidden" id="panel-i2i">
+
+        <div class="field-group">
+          <label class="field-label">Source Image</label>
+          <div class="drop-zone" id="img2img-drop">
+            <div class="drop-inner">
+              <span class="drop-icon">&#8682;</span>
+              <p class="drop-text">Drop image here or click to browse</p>
+              <p class="drop-hint">JPEG, PNG, WebP &mdash; max 20MB</p>
+            </div>
+            <img id="img2img-preview" class="drop-preview hidden" alt="Source preview" />
+          </div>
+          <input type="file" id="img2img-file" accept="image/*" class="file-input-hidden" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="i2i-prompt">Prompt</label>
+          <textarea id="i2i-prompt" class="field-textarea" rows="4" placeholder="Describe the transformation..."></textarea>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="i2i-negative">Negative Prompt</label>
+          <textarea id="i2i-negative" class="field-textarea" rows="2" placeholder="What to exclude..."></textarea>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="i2i-style">Style Preset</label>
+          <select id="i2i-style" class="field-select">
+            <option value="">None</option>
+            <option value="photographic">Photographic</option>
+            <option value="cinematic">Cinematic</option>
+            <option value="digital-art">Digital Art</option>
+            <option value="anime">Anime</option>
+            <option value="fantasy-art">Fantasy Art</option>
+            <option value="neon-punk">Neon Punk</option>
+            <option value="3d-model">3D Model</option>
+            <option value="pixel-art">Pixel Art</option>
+            <option value="comic-book">Comic Book</option>
+            <option value="analog-film">Analog Film</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Image Strength &mdash; <span id="strength-val">0.35</span></label>
+          <input type="range" id="i2i-strength" class="field-range" min="0.1" max="0.9" value="0.35" step="0.05" />
+          <div class="range-labels"><span>Preserve</span><span>Transform</span></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Guidance Scale &mdash; <span id="i2i-cfg-val">7</span></label>
+          <input type="range" id="i2i-cfg" class="field-range" min="1" max="20" value="7" step="0.5" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Steps &mdash; <span id="i2i-steps-val">30</span></label>
+          <input type="range" id="i2i-steps" class="field-range" min="10" max="50" value="30" step="1" />
+        </div>
+
+        <button id="i2i-generate" class="generate-btn">&#8635; Transform</button>
+
+      </div>
+      <!-- /panel-i2i -->
+
+      <!-- Panel: Upscale -->
+      <div class="panel hidden" id="panel-upscale">
+
+        <div class="field-group">
+          <label class="field-label">Image to Upscale</label>
+          <div class="drop-zone" id="upscale-drop">
+            <div class="drop-inner">
+              <span class="drop-icon">&#8682;</span>
+              <p class="drop-text">Drop image here or click to browse</p>
+              <p class="drop-hint">JPEG, PNG, WebP &mdash; max 20MB</p>
+            </div>
+            <img id="upscale-preview" class="drop-preview hidden" alt="Upscale preview" />
+          </div>
+          <input type="file" id="upscale-file" accept="image/*" class="file-input-hidden" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="upscale-width">Target Width</label>
+          <select id="upscale-width" class="field-select">
+            <option value="2048">2048px &mdash; 2x</option>
+            <option value="4096">4096px &mdash; 4x</option>
+          </select>
+        </div>
+
+        <div class="upscale-info">
+          <p>&#9432; ESRGAN upscaling preserves fine detail and sharpens edges. Best results with clean source images.</p>
+        </div>
+
+        <button id="upscale-generate" class="generate-btn">&#8599; Upscale</button>
+
+      </div>
+      <!-- /panel-upscale -->
+
+    </aside>
+    <!-- /sidebar -->
+
+    <!-- Gallery area -->
+    <section class="gallery-section">
+
+      <!-- Gallery toolbar -->
+      <div class="gallery-toolbar">
+        <h2 class="gallery-title">Gallery</h2>
+        <button id="clear-gallery" class="clear-btn" hidden>&#128465; Clear All</button>
+      </div>
+
+      <!-- Loading overlay -->
+      <div id="loading" class="loading-overlay" hidden>
+        <div class="loading-inner">
+          <div class="spinner"></div>
+          <p id="loading-text" class="loading-text">Generating your image...</p>
+        </div>
+      </div>
+
+      <!-- Error box -->
+      <div id="error-box" class="error-box" hidden>
+        <span class="error-icon">&#9888;</span>
+        <span id="error-msg" class="error-msg"></span>
+      </div>
+
+      <!-- Gallery grid -->
+      <div id="gallery" class="gallery-grid">
+        <div class="gallery-empty">
+          <span class="empty-icon">&#127912;</span>
+          <p>Your generated images will appear here</p>
+          <p class="hint">Configure your settings and click Generate</p>
+        </div>
+      </div>
+
+    </section>
+    <!-- /gallery-section -->
+
+  </main>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox" hidden>
+    <div class="lightbox-backdrop"></div>
+    <div class="lightbox-modal">
+      <button class="lightbox-close" aria-label="Close">&times;</button>
+      <div class="lightbox-img-wrap">
+        <img id="lightbox-img" class="lightbox-image" alt="Full size preview" />
+      </div>
+      <div class="lightbox-actions">
+        <a id="lightbox-download" class="lightbox-btn" download="forge-vision.jpg">&#8659; Download</a>
+        <button id="lightbox-upscale" class="lightbox-btn">&#8599; Send to Upscale</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+<script>
+(function() {
+  var PROJECT_ID = "forge-vision";
+  var FORGE_ORIGIN = "https://forge-os.ai";
+  var ENDPOINT = FORGE_ORIGIN + '/api/analytics/events';
+  var BATCH_INTERVAL = 4000;
+  var MAX_BATCH = 30;
+
+  // ── Identity ──────────────────────────────────────────────────────────────
+  function uid() {
+    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+  var visitorId = (function() {
+    try {
+      var k = '_fvid';
+      var v = localStorage.getItem(k);
+      if (!v) { v = uid(); localStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+  var sessionId = (function() {
+    try {
+      var k = '_fsid';
+      var v = sessionStorage.getItem(k);
+      if (!v) { v = uid(); sessionStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+
+  // ── UA parsing ───────────────────────────────────────────────────────────
+  function parseUA(ua) {
+    var browser = 'Other', os = 'Other';
+    if (/Edg//.test(ua)) browser = 'Edge';
+    else if (/OPR/|Opera/.test(ua)) browser = 'Opera';
+    else if (/Chrome//.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+    else if (/Firefox//.test(ua)) browser = 'Firefox';
+    else if (/Safari//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+    else if (/Chromium//.test(ua)) browser = 'Chromium';
+    else if (/MSIE|Trident/.test(ua)) browser = 'IE';
+
+    if (/Windows/.test(ua)) os = 'Windows';
+    else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+    else if (/Mac OS X/.test(ua)) os = 'macOS';
+    else if (/Android/.test(ua)) os = 'Android';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    else if (/CrOS/.test(ua)) os = 'ChromeOS';
+
+    var deviceType = /Mobi|Android|iPhone|iPad|iPod|Touch/.test(ua) ? 'mobile' : 'desktop';
+    if (/iPad|Tablet/.test(ua)) deviceType = 'tablet';
+
+    return { browser: browser, os: os, deviceType: deviceType };
+  }
+
+  // ── Queue & flush ─────────────────────────────────────────────────────────
+  var queue = [];
+  function push(type, props) {
+    queue.push({
+      type: type,
+      sessionId: sessionId,
+      visitorId: visitorId,
+      url: location.href,
+      referrer: document.referrer || '',
+      properties: props || {},
+      ts: Date.now()
+    });
+    if (queue.length >= MAX_BATCH) flush();
+  }
+
+  function flush() {
+    if (queue.length === 0) return;
+    var batch = queue.splice(0);
+    var payload = JSON.stringify({ projectId: PROJECT_ID, events: batch });
+    try {
+      if (navigator.sendBeacon) {
+        var blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(ENDPOINT, blob);
+      } else {
+        fetch(ENDPOINT, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+      }
+    } catch(e) {}
+  }
+
+  setInterval(flush, BATCH_INTERVAL);
+  window.addEventListener('pagehide', flush);
+  window.addEventListener('beforeunload', flush);
+
+  // ── Public API ────────────────────────────────────────────────────────────
+  window.forge_track = function(name, props) { push(name, props || {}); };
+
+  // ── Session start ─────────────────────────────────────────────────────────
+  var uaInfo = parseUA(navigator.userAgent);
+  push('session_start', {
+    browser: uaInfo.browser,
+    os: uaInfo.os,
+    deviceType: uaInfo.deviceType,
+    viewport: window.innerWidth + 'x' + window.innerHeight,
+    screen: screen.width + 'x' + screen.height,
+    dpr: window.devicePixelRatio || 1,
+    language: navigator.language || '',
+    timezone: (function() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) { return ''; } })(),
+    connection: (function() { try { return (navigator.connection || navigator.mozConnection || navigator.webkitConnection || {}).effectiveType || ''; } catch(e) { return ''; } })(),
+    touch: (('ontouchstart' in window) || navigator.maxTouchPoints > 0)
+  });
+
+  // ── Pageview ──────────────────────────────────────────────────────────────
+  var pageEnterTs = Date.now();
+  push('pageview', { title: document.title });
+
+  // SPA route change detection
+  (function() {
+    var lastUrl = location.href;
+    function onNav() {
+      if (location.href !== lastUrl) {
+        if (pageEnterTs) push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+        lastUrl = location.href;
+        pageEnterTs = Date.now();
+        push('pageview', { title: document.title });
+      }
+    }
+    var origPush = history.pushState.bind(history);
+    var origReplace = history.replaceState.bind(history);
+    history.pushState = function() { origPush.apply(this, arguments); onNav(); };
+    history.replaceState = function() { origReplace.apply(this, arguments); onNav(); };
+    window.addEventListener('popstate', onNav);
+  })();
+
+  // Page exit — time on page
+  window.addEventListener('pagehide', function() {
+    push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+  });
+
+  // ── Scroll depth ─────────────────────────────────────────────────────────
+  (function() {
+    var marks = { 25: false, 50: false, 75: false, 100: false };
+    function onScroll() {
+      var el = document.documentElement;
+      var scrolled = el.scrollTop + el.clientHeight;
+      var total = el.scrollHeight;
+      if (total <= el.clientHeight) return;
+      var pct = Math.round((scrolled / total) * 100);
+      [25, 50, 75, 100].forEach(function(mark) {
+        if (!marks[mark] && pct >= mark) {
+          marks[mark] = true;
+          push('scroll_depth', { depth: String(mark) });
+        }
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+
+  // ── Tab visibility ────────────────────────────────────────────────────────
+  document.addEventListener('visibilitychange', function() {
+    push('visibility', { state: document.visibilityState });
+  });
+
+  // ── Clicks ───────────────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    // Walk up to find first meaningful element
+    var depth = 0;
+    while (el && depth < 5) {
+      if (el.tagName && /^(A|BUTTON|INPUT|SELECT|TEXTAREA|LABEL|LI)$/.test(el.tagName)) break;
+      el = el.parentElement;
+      depth++;
+    }
+    if (!el || !el.tagName) return;
+    push('click', {
+      tag: el.tagName.toLowerCase(),
+      id: el.id || null,
+      text: (el.textContent || '').trim().slice(0, 100),
+      href: el.href || null,
+      classes: (el.className && typeof el.className === 'string') ? el.className.slice(0, 100) : null
+    });
+  }, true);
+
+  // ── Form tracking ─────────────────────────────────────────────────────────
+  document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM') return;
+    var fields = Array.from(form.elements)
+      .filter(function(f) { return f.name && f.type !== 'password' && f.type !== 'hidden'; })
+      .map(function(f) { return f.name; });
+    push('form_submit', { formId: form.id || null, action: form.action || null, fields: fields });
+  }, true);
+
+  // ── Copy events ───────────────────────────────────────────────────────────
+  document.addEventListener('copy', function() {
+    var sel = window.getSelection ? window.getSelection().toString().slice(0, 200) : '';
+    push('copy', { text: sel });
+  });
+
+  // ── JS errors ────────────────────────────────────────────────────────────
+  window.addEventListener('error', function(e) {
+    push('js_error', {
+      message: (e.message || '').slice(0, 500),
+      source: (e.filename || '').slice(0, 300),
+      line: e.lineno,
+      col: e.colno,
+      stack: (e.error && e.error.stack ? e.error.stack.slice(0, 1000) : null)
+    });
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    var msg = '';
+    try { msg = String(e.reason && e.reason.message ? e.reason.message : e.reason); } catch(_) {}
+    push('unhandled_rejection', { message: msg.slice(0, 500) });
+  });
+
+  // ── Fetch / XHR intercept ─────────────────────────────────────────────────
+  (function() {
+    var origFetch = window.fetch;
+    window.fetch = function(resource, init) {
+      var url = typeof resource === 'string' ? resource : (resource.url || '');
+      if (url.indexOf(FORGE_ORIGIN) !== -1) return origFetch.apply(this, arguments);
+      var t0 = Date.now();
+      var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+      return origFetch.apply(this, arguments).then(function(resp) {
+        push('fetch', { url: url.slice(0, 300), method: method, status: resp.status, duration: Date.now() - t0 });
+        return resp;
+      }, function(err) {
+        push('fetch_error', { url: url.slice(0, 300), method: method, error: String(err).slice(0, 200), duration: Date.now() - t0 });
+        throw err;
+      });
+    };
+
+    var origOpen = XMLHttpRequest.prototype.open;
+    var origSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._fa_method = method;
+      this._fa_url = url;
+      this._fa_t0 = null;
+      return origOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function() {
+      var xhr = this;
+      xhr._fa_t0 = Date.now();
+      xhr.addEventListener('loadend', function() {
+        var url = String(xhr._fa_url || '');
+        if (url.indexOf(FORGE_ORIGIN) === -1) {
+          push('xhr', { url: url.slice(0, 300), method: xhr._fa_method || 'GET', status: xhr.status, duration: Date.now() - xhr._fa_t0 });
+        }
+      });
+      return origSend.apply(this, arguments);
+    };
+  })();
+
+  // ── Web Vitals via PerformanceObserver ────────────────────────────────────
+  (function() {
+    var vitals = {};
+    function reportVitals() {
+      if (Object.keys(vitals).length > 0) {
+        push('web_vitals', vitals);
+        vitals = {};
+      }
+    }
+    function observe(type, cb) {
+      try {
+        var po = new PerformanceObserver(function(list) {
+          list.getEntries().forEach(cb);
+        });
+        po.observe({ type: type, buffered: true });
+      } catch(e) {}
+    }
+
+    // LCP
+    observe('largest-contentful-paint', function(e) {
+      vitals.LCP = Math.round(e.startTime);
+    });
+    // FID
+    observe('first-input', function(e) {
+      vitals.FID = Math.round(e.processingStart - e.startTime);
+    });
+    // CLS
+    var clsVal = 0;
+    observe('layout-shift', function(e) {
+      if (!e.hadRecentInput) clsVal += e.value;
+      vitals.CLS = Math.round(clsVal * 1000) / 1000;
+    });
+    // FCP
+    observe('paint', function(e) {
+      if (e.name === 'first-contentful-paint') vitals.FCP = Math.round(e.startTime);
+    });
+    // INP
+    observe('event', function(e) {
+      if (e.duration > (vitals.INP || 0)) vitals.INP = Math.round(e.duration);
+    });
+
+    // TTFB via Navigation Timing
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        try {
+          var nav = performance.getEntriesByType('navigation')[0];
+          if (nav) vitals.TTFB = Math.round(nav.responseStart - nav.requestStart);
+        } catch(e) {}
+        reportVitals();
+      }, 0);
+    });
+  })();
+
+  // ── Performance: page load timing ─────────────────────────────────────────
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      try {
+        var nav = performance.getEntriesByType('navigation')[0];
+        if (!nav) return;
+        push('page_load', {
+          loadTime: Math.round(nav.loadEventEnd - nav.startTime),
+          domContentLoaded: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+          ttfb: Math.round(nav.responseStart - nav.requestStart),
+          transferSize: nav.transferSize || 0
+        });
+      } catch(e) {}
+    }, 100);
+  });
+
+})();
+</script>
+</body>
+</html>
