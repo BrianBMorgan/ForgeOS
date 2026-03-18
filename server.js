@@ -185,9 +185,9 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
     let falBody;
     if (brandLogo) {
       falBody = {
-        prompt: prompt + (brandName ? `. Scene should feel consistent with the ${brandName} brand.` : ""),
+        prompt: prompt,
         image_url: brandLogo,
-        image_prompt_strength: 0.1,
+        image_prompt_strength: 0.35,
         aspect_ratio: "1:1",
         num_images: 1,
         output_format: "jpeg",
