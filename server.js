@@ -1297,11 +1297,21 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
     document.querySelectorAll("form").forEach(function(form) {
       form.addEventListener("submit", async function(e) {
         e.preventDefault();
-        const formData = new FormData(form);
+        const isFileUpload = form.enctype === "multipart/form-data";
+        let body, headers;
+        if (isFileUpload) {
+          body = new FormData(form);
+          headers = { "Authorization": "Bearer " + token };
+        } else {
+          const data = {};
+          new FormData(form).forEach(function(v, k) { data[k] = v; });
+          body = JSON.stringify(data);
+          headers = { "Authorization": "Bearer " + token, "Content-Type": "application/json" };
+        }
         const res = await origFetch(form.action || window.location.pathname, {
           method: form.method || "POST",
-          headers: { "Authorization": "Bearer " + token },
-          body: formData,
+          headers: headers,
+          body: body,
         });
         if (res.redirected || res.ok) { window.location.reload(); }
       });
