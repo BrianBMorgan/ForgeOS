@@ -189,6 +189,11 @@ function App() {
                 m.createdAt === thinkingId ? { ...m, content: preview, isLive: true } : m
               ));
             }
+          } else if (evt.type === "agent_message") {
+            // Direct message from agent via ask_user tool — always show, never echo-filter
+            setChatMessages((prev) => prev.map(m =>
+              m.createdAt === thinkingId ? { ...m, content: evt.content, isLive: true } : m
+            ));
           } else if (evt.type === "file_written") {
             setChatMessages((prev) => prev.map(m =>
               m.createdAt === thinkingId ? { ...m, content: "Writing " + evt.path + "...", isLive: true } : m

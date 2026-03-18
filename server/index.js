@@ -1230,6 +1230,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
   function onMessage(evt) {
     if (evt.type === "thinking") send({ type: "thinking", content: evt.content });
+    if (evt.type === "agent_message") send({ type: "agent_message", content: evt.content });
     if (evt.type === "file_written") {
       filesWritten.push(evt.path);
       send({ type: "file_written", path: evt.path });

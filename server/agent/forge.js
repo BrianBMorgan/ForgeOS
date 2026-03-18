@@ -319,7 +319,8 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
       return "__TASK_COMPLETE__";
 
     case "ask_user":
-      if (onMessage) onMessage({ type: "message", content: toolInput.message });
+      // Use distinct type "agent_message" so client never echo-filters it
+      if (onMessage) onMessage({ type: "agent_message", content: toolInput.message });
       return "Message sent to user.";
 
     default:
