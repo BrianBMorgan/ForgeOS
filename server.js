@@ -88,6 +88,7 @@ async function ensureSchema() {
   // Add printed_at to artworks if not exists
   await sql`ALTER TABLE canvas_artworks ADD COLUMN IF NOT EXISTS printed_at BIGINT`;
   await sql`ALTER TABLE canvas_config ADD COLUMN IF NOT EXISTS brand_logo TEXT`;
+  await sql`ALTER TABLE canvas_config ADD COLUMN IF NOT EXISTS brand_logo_url TEXT`;
   await sql`ALTER TABLE canvas_config ADD COLUMN IF NOT EXISTS brand_name VARCHAR(100)`;
   console.log("[canvas] Schema ready");
 }
@@ -177,16 +178,17 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
 
   try {
     // Load brand logo from config if available
-    const cfgRows = await sql`SELECT brand_logo, brand_name FROM canvas_config LIMIT 1`;
+    const cfgRows = await sql`SELECT brand_logo, brand_logo_url, brand_name FROM canvas_config LIMIT 1`;
+    const brandLogoUrl = cfgRows.length ? (cfgRows[0].brand_logo_url || cfgRows[0].brand_logo) : null;
     const brandLogo = cfgRows.length ? cfgRows[0].brand_logo : null;
     const brandName = cfgRows.length ? cfgRows[0].brand_name : null;
 
     // Build request — use ultra with image conditioning if logo exists, plain flux-pro if not
     let falBody;
-    if (brandLogo) {
+    if (brandLogoUrl) {
       falBody = {
         prompt: prompt,
-        image_url: brandLogo,
+        image_url: brandLogoUrl,
         image_prompt_strength: 0.35,
         aspect_ratio: "1:1",
         num_images: 1,
@@ -204,7 +206,7 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
       };
     }
 
-    const endpoint = brandLogo ? "https://fal.run/fal-ai/flux-pro/v1.1-ultra" : "https://fal.run/fal-ai/flux-pro";
+    const endpoint = brandLogoUrl ? "https://fal.run/fal-ai/flux-pro/v1.1-ultra" : "https://fal.run/fal-ai/flux-pro";
     const falRes = await fetch(endpoint, {
       method: "POST",
       headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
@@ -333,7 +335,33 @@ app.post("/admin/config/brand", adminSession, requireAdmin, async (req, res) => 
     try {
       if (fileData) {
         const dataUri = "data:" + mimeType + ";base64," + fileData;
-        await sql`UPDATE canvas_config SET brand_logo = ${dataUri}, brand_name = ${brandName || null}`;
+        // Upload to fal storage for a real CDN URL (base64 data URIs don't work reliably as image_url)
+        let falCdnUrl = null;
+        const falKey = process.env.FAL_API_KEY;
+        if (falKey) {
+          try {
+            const imgBuffer = Buffer.from(fileData, "base64");
+            const uploadRes = await fetch("https://fal.run/storage/upload", {
+              method: "POST",
+              headers: {
+                "Authorization": "Key " + falKey,
+                "Content-Type": mimeType,
+              },
+              body: imgBuffer,
+            });
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              falCdnUrl = uploadData.url || null;
+              console.log("[canvas] fal upload url:", falCdnUrl);
+            } else {
+              const errText = await uploadRes.text();
+              console.warn("[canvas] fal upload failed:", uploadRes.status, errText.slice(0,200));
+            }
+          } catch(uploadErr) {
+            console.warn("[canvas] fal upload error:", uploadErr.message);
+          }
+        }
+        await sql`UPDATE canvas_config SET brand_logo = ${dataUri}, brand_logo_url = ${falCdnUrl}, brand_name = ${brandName || null}`;
       } else if (brandName) {
         await sql`UPDATE canvas_config SET brand_name = ${brandName}`;
       }
