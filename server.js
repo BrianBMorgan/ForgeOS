@@ -264,9 +264,8 @@ app.get("/download/:sessionId", async (req, res) => {
 
 // ── Event management ──────────────────────────────────────────────────────────
 app.post("/admin/events", adminSession, requireAdmin, async (req, res) => {
-  console.log("[events] body:", JSON.stringify(req.body), "contentType:", req.headers["content-type"]);
   const { name, kiosk_count } = req.body;
-  if (!name) return res.status(400).json({ error: "name is required", body: req.body });
+  if (!name) return res.status(400).json({ error: "Event name is required" });
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const count = Math.min(10, Math.max(1, parseInt(kiosk_count) || 1));
   const token = req.query.token || "";
