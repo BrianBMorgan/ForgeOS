@@ -335,19 +335,21 @@ app.post("/admin/config/brand", adminSession, requireAdmin, async (req, res) => 
     try {
       if (fileData) {
         const dataUri = "data:" + mimeType + ";base64," + fileData;
-        // Upload to fal storage for a real CDN URL (base64 data URIs don't work reliably as image_url)
+        // Upload to fal storage via multipart/form-data for a real CDN URL
         let falCdnUrl = null;
         const falKey = process.env.FAL_API_KEY;
         if (falKey) {
           try {
             const imgBuffer = Buffer.from(fileData, "base64");
-            const uploadRes = await fetch("https://fal.run/storage/upload", {
+            // Use Node's built-in FormData (Node 18+)
+            const form = new FormData();
+            const blob = new Blob([imgBuffer], { type: mimeType });
+            const ext = mimeType.split("/")[1] || "png";
+            form.append("file", blob, "brand-logo." + ext);
+            const uploadRes = await fetch("https://fal.run/files/upload", {
               method: "POST",
-              headers: {
-                "Authorization": "Key " + falKey,
-                "Content-Type": mimeType,
-              },
-              body: imgBuffer,
+              headers: { "Authorization": "Key " + falKey },
+              body: form,
             });
             if (uploadRes.ok) {
               const uploadData = await uploadRes.json();
