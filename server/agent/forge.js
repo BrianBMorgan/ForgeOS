@@ -73,6 +73,17 @@ bcrypt, bcryptjs, pg, postgres, mysql2, dotenv, sqlite3, jsonwebtoken, passport,
 - The app starts and serves a real response at GET /
 - Every feature mentioned in the prompt is actually implemented
 
+## WORKING WITH EXTERNAL REPOS AND URLS
+
+When a user pastes a GitHub repo URL, use fetch_url to explore and read it:
+
+1. Get the file listing: fetch https://api.github.com/repos/{owner}/{repo}/contents/ (or /contents/{path} for subdirectories)
+2. The response is JSON — parse it to find files and their download_url
+3. Fetch individual files using their download_url or convert to raw.githubusercontent.com format:
+   github.com/{owner}/{repo}/blob/{branch}/{path} → raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+4. Read the key files (package.json, main entry, README) to understand the structure
+5. Build the app based on what you found
+
 ## YOUR SCOPE — IMPORTANT
 
 You are not sandboxed to a project workspace. You are the engineer who built ForgeOS and you can fix anything.
@@ -185,6 +196,18 @@ const TOOLS = [
       required: ["message"],
     },
   },
+  {
+    name: "fetch_url",
+    description: "Fetch the contents of any URL — GitHub raw files, APIs, documentation, repo file listings. Use this to read files from a GitHub repo URL, fetch a package README, or retrieve any external content needed for a build. For GitHub repos, convert the URL to raw.githubusercontent.com format to get file contents.",
+    input_schema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "URL to fetch. For GitHub files use raw.githubusercontent.com. For repo listings use the GitHub API: https://api.github.com/repos/{owner}/{repo}/contents/{path}" },
+        description: { type: "string", description: "What you are fetching and why" },
+      },
+      required: ["url"],
+    },
+  },
 ];
 
 // ── TOOL EXECUTOR ─────────────────────────────────────────────────────────────
@@ -259,6 +282,33 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
         return context || "No relevant memory found.";
       } catch {
         return "Memory search unavailable.";
+      }
+    }
+
+    case "fetch_url": {
+      var fetchUrl = toolInput.url;
+      if (!fetchUrl || !fetchUrl.startsWith("http")) {
+        return "Error: URL must start with http or https";
+      }
+      try {
+        var fetchRes = await fetch(fetchUrl, {
+          headers: {
+            "User-Agent": "ForgeOS-Agent/1.0",
+            "Accept": "application/vnd.github.v3.raw, text/plain, */*",
+          },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!fetchRes.ok) {
+          return "HTTP " + fetchRes.status + " fetching " + fetchUrl;
+        }
+        var fetchText = await fetchRes.text();
+        if (fetchText.length > 60000) {
+          fetchText = fetchText.slice(0, 60000) + "\n\n[truncated at 60KB]";
+        }
+        if (onMessage) onMessage({ type: "thinking", content: "Fetched: " + fetchUrl.slice(0, 80) });
+        return fetchText;
+      } catch (err) {
+        return "Fetch error: " + err.message;
       }
     }
 
