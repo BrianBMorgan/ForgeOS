@@ -248,21 +248,12 @@ app.post("/api/projects", async (req, res) => {
 
   const project = await projectManager.createProject(prompt.trim());
 
-  // skipBuild: true is used by the large prompt plan gate — creates the project
-  // without firing the builder so the client can route through /plan first.
-  if (skipBuild) {
-    return res.status(201).json({ id: project.id, runId: null, name: project.name });
-  }
+  // All builds now go through the unified agent chat — just create the project
+  // and return. The client will open it and the first chat message fires the build.
+  // The prompt is stored so the agent sees it as the opening message.
+  brain.appendConversation(project.id, "user", prompt.trim()).catch(() => {});
 
-  const run = createRun(prompt.trim(), { projectId: project.id, iterationNumber: 1 });
-  await projectManager.addIteration(project.id, run.id, prompt.trim(), 1);
-
-  buildAndDeploy(run).catch((err) => {
-    console.error(`[builder] Error for project ${project.id}, run ${run.id}:`, err);
-    projectManager.updateProjectStatus(project.id, "failed");
-  });
-
-  res.status(201).json({ id: project.id, runId: run.id, name: project.name });
+  res.status(201).json({ id: project.id, runId: null, name: project.name, prompt: prompt.trim() });
 });
 
 app.get("/api/projects", async (_req, res) => {

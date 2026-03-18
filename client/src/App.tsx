@@ -106,7 +106,25 @@ function App() {
 
 
   const sendChat = useCallback(async (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => {
-    if (!currentProjectId) return;
+    // New project flow — create the project first, then send the message as the first chat turn.
+    // The agent receives the prompt and builds immediately.
+    let projectId = currentProjectId;
+    if (!projectId) {
+      try {
+        const res = await fetch(`${API_BASE}/projects`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: message }),
+        });
+        const data = await res.json();
+        if (!data.id) return;
+        projectId = data.id;
+        setCurrentProjectId(data.id);
+        setCurrentRunId(null);
+        setViewingIterationRunId(null);
+        setActiveNav("projects");
+      } catch { return; }
+    }
     const userMsg: ChatMessage = { role: "user", content: message, createdAt: Date.now() };
     setChatMessages((prev) => [...prev, userMsg]);
     setChatLoading(true);
@@ -122,7 +140,7 @@ function App() {
     setChatMessages((prev) => [...prev, thinkingMsg]);
 
     try {
-      const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, skillContext: "", attachments: attachments || [] }),
@@ -201,7 +219,7 @@ function App() {
     } finally {
       setChatLoading(false);
     }
-  }, [currentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
+  }, [currentProjectId, setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
 
   const openProject = useCallback((projectId: string) => {
     setCurrentProjectId(projectId);
