@@ -18,7 +18,8 @@ const fs = require("fs");
 const brain = require("../memory/brain");
 
 const FORGE_MODEL = "claude-sonnet-4-6";
-const MAX_AGENT_ROUNDS = 40;
+const MAX_AGENT_ROUNDS = 20;
+const MAX_AGENT_MS = 3 * 60 * 1000; // 3 minute hard ceiling
 
 // ── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 
@@ -302,8 +303,10 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
           return "HTTP " + fetchRes.status + " fetching " + fetchUrl;
         }
         var fetchText = await fetchRes.text();
-        if (fetchText.length > 60000) {
-          fetchText = fetchText.slice(0, 60000) + "\n\n[truncated at 60KB]";
+        // Hard cap at 30KB per fetch — large files (embedded JSON, minified bundles)
+        // blow the context window and cause the agent to loop
+        if (fetchText.length > 30000) {
+          fetchText = fetchText.slice(0, 30000) + "\n\n[truncated at 30KB — file too large, focus on key sections only]";
         }
         if (onMessage) onMessage({ type: "thinking", content: "Fetched: " + fetchUrl.slice(0, 80) });
         return fetchText;
@@ -421,15 +424,20 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
   var taskCompleteInput = null;
   var finalMessage = "";
   var buildTriggered = false;
+  var agentStartTime = Date.now();
 
   for (var round = 0; round < MAX_AGENT_ROUNDS; round++) {
+    if (Date.now() - agentStartTime > MAX_AGENT_MS) {
+      console.error("[forge-agent] Hard timeout after " + MAX_AGENT_ROUNDS + " rounds or 3 minutes");
+      break;
+    }
     var response = await client.messages.create({
       model: FORGE_MODEL,
       max_tokens: 8096,
       system: fullSystem,
       tools: TOOLS,
       messages: messages,
-    });
+    }, { timeout: 90000 }); // 90s per Claude call max
 
     // Append assistant turn
     messages.push({ role: "assistant", content: response.content });
