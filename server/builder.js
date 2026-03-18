@@ -116,10 +116,6 @@ async function buildAndDeploy(run) {
 
     run.status = "completed";
 
-    if (run.projectId) {
-      await projectManager.setCurrentRun(run.projectId, run.id);
-    }
-
     brain.extractMemory({
       projectId: run.projectId,
       userRequest: run.prompt,
