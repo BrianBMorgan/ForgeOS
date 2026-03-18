@@ -642,7 +642,6 @@ function App() {
                 <span className="topbar-separator">|</span>
               </>
             ) : null}
-            System Kernel Online
           </div>
         </header>
 
