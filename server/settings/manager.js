@@ -4,68 +4,12 @@ const dbUrl = process.env.NEON_DATABASE_URL;
 const sql = dbUrl ? neon(dbUrl) : null;
 
 const DEFAULTS = {
-  model_config: {
-    plannerModel: "claude-sonnet-4-6",
-    reviewerModel: "claude-haiku-4-5-20251001",
-    chatModel: "claude-haiku-4-5-20251001",
-    plannerTemp: 0.7,
-    reviewerTemp: 0.2,
-  },
-  auto_approve: {
-    enabled: false,
-    maxRiskLevel: "low",
-  },
   default_env_vars: {
     vars: [],
-  },
-  workspace_limits: {
-    portRangeStart: 4000,
-    portRangeEnd: 4099,
-    maxConcurrentApps: 5,
-    logRetention: 2000,
   },
   github: {
     repo: "BrianBMorgan/ForgeOS",
     autoPush: true,
-  },
-  allowed_tech_stack: {
-    allowed: [
-      "express",
-      "@neondatabase/serverless",
-      "@anthropic-ai/sdk",
-      "uuid",
-      "cors",
-      "cookie-parser",
-      "body-parser",
-      "multer",
-      "nodemailer",
-      "node-cron",
-      "ws",
-      "socket.io",
-      "marked",
-      "cheerio",
-      "axios",
-      "node-fetch",
-    ],
-    banned: [
-      "react",
-      "vue",
-      "angular",
-      "next",
-      "nuxt",
-      "svelte",
-      "bcrypt",
-      "jsonwebtoken",
-      "dotenv",
-      "typescript",
-      "webpack",
-      "vite",
-      "rollup",
-      "parcel",
-      "esbuild",
-      "tailwindcss",
-      "openai",
-    ],
   },
 };
 
