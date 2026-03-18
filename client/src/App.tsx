@@ -70,6 +70,7 @@ export interface IterationData {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  toolStatus?: string;
   isLive?: boolean;
   createdAt: number;
 }
@@ -189,6 +190,11 @@ function App() {
                 m.createdAt === thinkingId ? { ...m, content: preview, isLive: true } : m
               ));
             }
+          } else if (evt.type === "tool_status") {
+            // Tool call status — update the live bubble with what the agent is doing right now
+            setChatMessages((prev) => prev.map(m =>
+              m.createdAt === thinkingId ? { ...m, toolStatus: evt.content, isLive: true } : m
+            ));
           } else if (evt.type === "agent_message") {
             // Direct message from agent via ask_user tool — always show, never echo-filter
             setChatMessages((prev) => prev.map(m =>

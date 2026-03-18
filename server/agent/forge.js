@@ -469,6 +469,25 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       var toolUse = toolUseBlocks[t];
       console.log("[forge-agent] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 120));
 
+      // Emit a readable status message for each tool call
+      if (onMessage) {
+        var statusMsg = (function() {
+          var inp = toolUse.input || {};
+          switch (toolUse.name) {
+            case "list_files":    return "Scanning workspace files...";
+            case "read_file":     return "Reading " + (inp.path || "file") + "...";
+            case "write_file":    return "Writing " + (inp.path || "file") + "...";
+            case "run_command":   return "Running: " + (inp.command || "").slice(0, 60) + "...";
+            case "memory_search": return "Searching Brain: \"" + (inp.query || "").slice(0, 50) + "\"...";
+            case "fetch_url":     return "Fetching " + (inp.url || "").replace("https://","").slice(0, 60) + "...";
+            case "ask_user":      return null; // ask_user sends its own agent_message
+            case "task_complete": return "Build complete. Starting app...";
+            default:              return "Running " + toolUse.name + "...";
+          }
+        })();
+        if (statusMsg) onMessage({ type: "tool_status", content: statusMsg });
+      }
+
       var result = await executeTool(toolUse.name, toolUse.input, wsDir, onMessage);
 
       if (result === "__TASK_COMPLETE__") {

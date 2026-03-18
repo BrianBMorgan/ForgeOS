@@ -5577,3 +5577,24 @@ body {
 .attach-chip-remove:hover {
   color: #ef4444;
 }
+
+/* ── Markdown rendering in chat ── */
+.md-h1 { font-size: 1.1em; font-weight: 700; margin: 8px 0 4px; color: #e2e8f0; }
+.md-h2 { font-size: 1.05em; font-weight: 600; margin: 6px 0 3px; color: #e2e8f0; }
+.md-h3 { font-size: 1em; font-weight: 600; margin: 4px 0 2px; color: #cbd5e1; }
+.md-p { margin: 2px 0; line-height: 1.55; }
+.md-li { padding-left: 12px; margin: 2px 0; line-height: 1.55; }
+.md-br { height: 6px; }
+.md-code { background: #1e2030; border: 1px solid #2d3250; border-radius: 6px; padding: 8px 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.78em; overflow-x: auto; margin: 6px 0; white-space: pre; }
+.md-inline-code { background: #1e2030; border: 1px solid #2d3250; border-radius: 3px; padding: 1px 5px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85em; color: #7dd3fc; }
+
+/* ── Tool status indicator ── */
+.chat-tool-status {
+  font-size: 0.72em;
+  color: #4a5580;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  margin-top: 3px;
+  padding-left: 2px;
+  letter-spacing: 0.02em;
+  transition: opacity 0.2s;
+}
