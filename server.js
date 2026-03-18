@@ -58,6 +58,15 @@ async function ensureSchema() {
     mime_type VARCHAR(50) NOT NULL,
     created_at BIGINT NOT NULL
   )`;
+  await sql`CREATE TABLE IF NOT EXISTS canvas_config (
+    id SERIAL PRIMARY KEY,
+    text_colors JSONB NOT NULL DEFAULT '["#ffffff","#000000","#00aae8","#cccccc"]'
+  )`;
+  // Seed default config row if empty
+  const cfg = await sql`SELECT id FROM canvas_config LIMIT 1`;
+  if (!cfg.length) {
+    await sql`INSERT INTO canvas_config (text_colors) VALUES ('["#ffffff","#000000","#00aae8","#cccccc"]')`;
+  }
   console.log("[canvas] Schema ready");
 }
 
@@ -99,7 +108,9 @@ app.get("/canvas/:sessionId", async (req, res) => {
     if (!rows.length) return res.redirect("/");
     const attendee = rows[0];
     const stickers = await sql`SELECT id, name, image_data, mime_type FROM canvas_stickers ORDER BY created_at ASC`;
-    res.send(renderCanvas(attendee, stickers));
+    const cfgRows = await sql`SELECT text_colors FROM canvas_config LIMIT 1`;
+    const textColors = cfgRows.length ? cfgRows[0].text_colors : ["#ffffff","#000000","#00aae8","#cccccc"];
+    res.send(renderCanvas(attendee, stickers, textColors));
   } catch (err) {
     console.error("[canvas] /canvas error:", err.message);
     res.status(500).send(`<pre>Canvas error: ${err.message}</pre>`);
@@ -205,6 +216,14 @@ app.get("/download/:sessionId", async (req, res) => {
   res.send(buffer);
 });
 
+// ── Text color config ─────────────────────────────────────────────────────────
+app.post("/admin/config/colors", adminSession, requireAdmin, async (req, res) => {
+  const colors = [req.body.color1, req.body.color2, req.body.color3, req.body.color4]
+    .map(c => (c && /^#[0-9a-fA-F]{6}$/.test(c) ? c : "#ffffff"));
+  await sql`UPDATE canvas_config SET text_colors = ${JSON.stringify(colors)}::jsonb`;
+  res.redirect("/admin?token=" + (req.query.token || ""));
+});
+
 // ── Admin login ───────────────────────────────────────────────────────────────
 app.get("/admin/login", adminSession, (req, res) => res.send(renderAdminLogin()));
 
@@ -237,7 +256,9 @@ app.get("/admin", adminSession, requireAdmin, async (req, res) => {
     JOIN canvas_attendees att ON att.session_id = a.session_id
     ORDER BY a.created_at DESC
   `;
-  res.send(renderAdmin(stickers, artworks));
+  const cfgRows = await sql`SELECT text_colors FROM canvas_config LIMIT 1`;
+  const colors = cfgRows.length ? cfgRows[0].text_colors : ["#ffffff","#000000","#00aae8","#cccccc"];
+  res.send(renderAdmin(stickers, artworks, colors, req));
 });
 
 // Sticker upload
@@ -436,12 +457,13 @@ function renderRegistration() {
 </html>`;
 }
 
-function renderCanvas(attendee, stickers) {
+function renderCanvas(attendee, stickers, textColors) {
   const stickersJson = JSON.stringify(stickers.map(s => ({
     id: s.id,
     name: s.name,
     src: `data:${s.mime_type};base64,${s.image_data}`,
   })));
+  const textColorsJson = JSON.stringify(textColors || ["#ffffff","#000000","#00aae8","#cccccc"]);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -568,6 +590,32 @@ function renderCanvas(attendee, stickers) {
   @keyframes spin { to { transform: rotate(360deg); } }
   .gen-label { font-size: 0.85rem; color: #94a3b8; letter-spacing: 0.04em; }
 
+  /* ── Text Tool ── */
+  .text-section { display: flex; flex-direction: column; gap: 0.5rem; }
+  .text-input-row { display: flex; gap: 0.5rem; }
+  .text-input { flex: 1; background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: 'Intel One Display', system-ui, sans-serif; font-size: 0.9rem;
+    padding: 0.5rem 0.75rem; outline: none; }
+  .text-input:focus { border-color: var(--accent); }
+  .text-size-select { background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: inherit; font-size: 0.85rem; padding: 0.5rem 0.5rem; outline: none;
+    cursor: pointer; }
+  .text-add-btn { padding: 0.5rem 1rem; background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; font-family: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    white-space: nowrap; transition: background 0.2s; }
+  .text-add-btn:hover { background: #0090c8; }
+  .color-swatches { display: flex; gap: 0.5rem; align-items: center; }
+  .color-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+    cursor: pointer; transition: border-color 0.15s, transform 0.15s; flex-shrink: 0; }
+  .color-swatch:hover { transform: scale(1.15); }
+  .color-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+  .text-el-inner {
+    font-family: 'Intel One Display', system-ui, sans-serif;
+    font-weight: 500; line-height: 1.2; white-space: nowrap;
+    pointer-events: none; user-select: none; padding: 0.15em 0.25em;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+
   /* Save button */
   .save-bar {
     flex-shrink: 0;
@@ -631,6 +679,23 @@ function renderCanvas(attendee, stickers) {
       <button class="gen-btn" id="genBtn" onclick="generateBackground()">✦ Generate Background</button>
     </div>
 
+    <div class="section">
+      <div class="section-label">Add Text</div>
+      <div class="text-section">
+        <div class="text-input-row">
+          <input class="text-input" id="textInput" type="text" placeholder="Type something…" maxlength="60">
+          <select class="text-size-select" id="textSize">
+            <option value="24">S</option>
+            <option value="36" selected>M</option>
+            <option value="52">L</option>
+            <option value="72">XL</option>
+          </select>
+        </div>
+        <div class="color-swatches" id="colorSwatches"></div>
+        <button class="text-add-btn" onclick="addText()">＋ Add Text</button>
+      </div>
+    </div>
+
     <div class="section" style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding-bottom:0">
       <div class="section-label">Brand Stickers</div>
       <div class="sticker-tray" id="stickerTray">
@@ -678,6 +743,7 @@ function renderCanvas(attendee, stickers) {
 <script>
 const SESSION_ID = "${attendee.session_id}";
 const STICKERS = ${stickersJson};
+const TEXT_COLORS = ${textColorsJson};
 let stickerCounter = 0;
 let bgLoaded = false;
 
@@ -755,6 +821,80 @@ function addSticker(stickerId) {
   // Select it
   document.querySelectorAll(".sticker-el").forEach(s => s.classList.remove("selected"));
   el.classList.add("selected");
+}
+
+// ── Text Tool ─────────────────────────────────────────────────────────────────
+let activeTextColor = null;
+
+function initColorSwatches() {
+  const tray = document.getElementById("colorSwatches");
+  TEXT_COLORS.forEach((color, i) => {
+    const sw = document.createElement("div");
+    sw.className = "color-swatch" + (i === 0 ? " active" : "");
+    sw.style.background = color;
+    sw.dataset.color = color;
+    sw.title = color;
+    sw.onclick = () => {
+      document.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("active"));
+      sw.classList.add("active");
+      activeTextColor = color;
+      // Update selected text element if one is selected
+      const sel = document.querySelector(".sticker-el.selected .text-el-inner");
+      if (sel) sel.style.color = color;
+    };
+    tray.appendChild(sw);
+  });
+  activeTextColor = TEXT_COLORS[0] || "#ffffff";
+}
+
+function addText() {
+  const input = document.getElementById("textInput");
+  const text = input.value.trim();
+  if (!text) return;
+  const fontSize = parseInt(document.getElementById("textSize").value) || 36;
+  const color = activeTextColor || "#ffffff";
+
+  const overlay = document.getElementById("stickerOverlay");
+  const wrap = document.getElementById("canvasWrap");
+  const wrapRect = wrap.getBoundingClientRect();
+
+  const el = document.createElement("div");
+  el.className = "sticker-el";
+  el.dataset.id = ++stickerCounter;
+  el.dataset.type = "text";
+
+  // Size based on font — start centered
+  el.style.cssText = "left:50%;top:50%;transform:translate(-50%,-50%);width:auto;height:auto;";
+
+  const span = document.createElement("span");
+  span.className = "text-el-inner";
+  span.textContent = text;
+  span.style.fontSize = fontSize + "px";
+  span.style.color = color;
+  el.appendChild(span);
+
+  const del = document.createElement("button");
+  del.className = "delete-btn";
+  del.innerHTML = "×";
+  del.onclick = (e) => { e.stopPropagation(); el.remove(); };
+  el.appendChild(del);
+
+  overlay.appendChild(el);
+
+  // Normalize position after append so we have real dimensions
+  const elRect = el.getBoundingClientRect();
+  const wR = wrap.getBoundingClientRect();
+  el.style.transform = "";
+  el.style.left = ((wR.width - elRect.width) / 2) + "px";
+  el.style.top = ((wR.height - elRect.height) / 2) + "px";
+
+  makeDraggable(el, wrap);
+  makeResizable(el);
+
+  document.querySelectorAll(".sticker-el").forEach(s => s.classList.remove("selected"));
+  el.classList.add("selected");
+
+  input.value = "";
 }
 
 function makeDraggable(el, container) {
@@ -890,6 +1030,9 @@ function resetCanvas() {
   window.location.href = "/";
 }
 
+// Init color swatches on load
+initColorSwatches();
+
 // ── Inactivity timer — reset to registration after 2 minutes ─────────────────
 let inactivityTimer;
 const INACTIVITY_MS = 2 * 60 * 1000;
@@ -913,7 +1056,7 @@ resetInactivityTimer();
 </html>`;
 }
 
-function renderAdmin(stickers, artworks) {
+function renderAdmin(stickers, artworks, colors, req) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1002,6 +1145,7 @@ function renderAdmin(stickers, artworks) {
 </div>
 <div class="tabs">
   <div class="tab active" onclick="showTab('stickers',this)">Stickers</div>
+  <div class="tab" onclick="showTab('colors',this)">Text Colors</div>
   <div class="tab" onclick="showTab('gallery',this)">Gallery</div>
 </div>
 <div class="content">
@@ -1023,6 +1167,21 @@ function renderAdmin(stickers, artworks) {
           </form>
         </div>`).join("") || "<p style='color:var(--muted);font-size:0.85rem'>No stickers yet.</p>"}
     </div>
+  </div>
+
+  <div class="panel" id="tab-colors">
+    <div class="section-title">Text Color Palette</div>
+    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem">Define the 4 colors available to attendees for text overlays.</p>
+    <form method="POST" action="/admin/config/colors?token=${req.query.token || ''}">
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+        ${(colors || ['#ffffff','#000000','#00aae8','#cccccc']).map((c, i) => `
+          <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:center">
+            <input type="color" name="color${i+1}" value="${c}" style="width:52px;height:52px;border:none;border-radius:8px;cursor:pointer;background:none">
+            <span style="font-size:0.75rem;color:var(--muted)">${c}</span>
+          </div>`).join('')}
+      </div>
+      <button type="submit" class="btn">Save Colors</button>
+    </form>
   </div>
 
   <div class="panel" id="tab-gallery">
