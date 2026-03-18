@@ -355,11 +355,18 @@ function App() {
           try { evt = JSON.parse(line.slice(6)); } catch { continue; }
 
           if (evt.type === "thinking") {
-            // Only show agent reasoning — skip if it's just echoing the user's message
             const evtText = (evt.content || "").trim();
             const userText = message.trim();
-            const isEcho = evtText.slice(0, 60) === userText.slice(0, 60);
-            if (!isEcho && evtText.length > 0) {
+            // Skip if content is a near-verbatim echo of the user message.
+            // Normalize both to lowercase words and check overlap ratio.
+            const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
+            const evtWords = normalize(evtText);
+            const userWords = new Set(normalize(userText));
+            const overlap = evtWords.length > 0
+              ? evtWords.filter(w => userWords.has(w)).length / evtWords.length
+              : 0;
+            const isEcho = overlap > 0.7;
+            if (!isEcho && evtText.length > 10) {
               thinkingLines.push(evtText);
               const preview = thinkingLines[thinkingLines.length - 1].slice(0, 140);
               setChatMessages((prev) => prev.map(m =>
