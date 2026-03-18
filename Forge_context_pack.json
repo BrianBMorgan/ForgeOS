@@ -595,6 +595,33 @@
         "Consider per-event gallery filtering in admin Gallery tab",
         "Consider adding event name to downloaded PNG filename"
       ]
+    },
+    {
+      "date": "2026-03-17",
+      "session_title": "ForgeCanvas \u2014 Operator Print Queue + Production Loop Closed",
+      "shipped": [
+        "printed_at BIGINT column added to canvas_artworks via ALTER TABLE ADD COLUMN IF NOT EXISTS",
+        "GET /operator/:token \u2014 operator print queue view, scoped to single kiosk by token",
+        "POST /operator/:token/printed/:artworkId \u2014 toggles printed_at timestamp (mark/unmark)",
+        "renderOperator: full dark-themed operator UI \u2014 pending queue (blue-bordered), printed section (dimmed), attendee name + time, Mark Printed button",
+        "Auto-refresh every 15s with countdown timer so new artwork appears without touching screen",
+        "Admin Events tab now shows both Kiosk URL and Operator URL per kiosk with separate Copy buttons",
+        "Operator URL displayed in Intel blue to distinguish from kiosk URL visually"
+      ],
+      "decisions": [
+        "Operator view uses same /k/:token token as kiosk \u2014 no new auth needed, token is the credential",
+        "Pending items sorted first (printed_at NULLS FIRST), then by created_at ASC \u2014 oldest unprinted first",
+        "Toggle pattern on mark printed: if printed_at is set, unmark it \u2014 supports operator error recovery",
+        "Operator URL added to admin alongside kiosk URL so admin can distribute both from one place",
+        "Full production loop: attendee registers at kiosk \u2192 creates canvas \u2192 saves \u2192 QR download \u2192 operator sees image \u2192 marks printed \u2192 shirt handed back"
+      ],
+      "stable_commit": "92bc45d1b522",
+      "branch": "apps/forge-canvas",
+      "open_items": [
+        "Test full end-to-end production loop at a real event",
+        "Consider per-event gallery filtering in admin Gallery tab",
+        "Consider adding kiosk number to downloaded PNG filename for traceability"
+      ]
     }
   ],
   "domain_knowledge": [
@@ -966,7 +993,7 @@
     "Standard HTML form POSTs in published apps going through the ForgeOS proxy \u2014 use fetch() with Content-Type application/json instead. The proxy handles JSON correctly from day one; urlencoded form encoding through the proxy is unreliable.",
     "Cookie-session for admin auth in published apps through ForgeOS proxy \u2014 Set-Cookie headers are unreliable through the proxy. Use bearer tokens stored in localStorage with token passed as query param on initial authenticated page loads."
   ],
-  "current_state": "ForgeCanvas is a fully functional Intel event kiosk app deployed on Render at forgeos-forge-canvas.onrender.com. Features: AI background generation via fal.ai Flux Pro with Intel logo prompt injection, brand sticker drag/drop/scale/rotate, text overlay tool with Intel One Display font and 4-color admin-configurable palette, full-res PNG export (3000x3000), QR code for mobile download. Multi-event kiosk system supports N kiosks per event with unique /k/:token URLs. Stable build: 57c0da43267c on branch apps/forge-canvas.",
+  "current_state": "ForgeCanvas is a complete Intel event kiosk and T-shirt production system deployed on Render at forgeos-forge-canvas.onrender.com. Full feature set: AI background generation via fal.ai Flux Pro with Intel logo prompt injection, brand sticker drag/drop/scale/rotate, text overlay tool with Intel One Display font and 4-color admin-configurable palette, full-res 3000x3000 PNG export, QR code for mobile download. Multi-event kiosk system supports N kiosks per event with unique /k/:token URLs. Operator print queue at /operator/:token shows per-kiosk artwork queue with Mark Printed toggle and 15s auto-refresh \u2014 closes the production loop from canvas creation to T-shirt handoff. Stable build: 92bc45d1b522 on branch apps/forge-canvas.",
   "next_steps": [
     "Verify forge-canvas.forge-os.ai works through proxy after latest deploy",
     "Add FAL_API_KEY to Secrets Vault to enable AI background generation in Canvas",
