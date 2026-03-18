@@ -31,60 +31,6 @@ interface AssetOption {
  * Strip markdown formatting to produce clean plain text for chat display.
  * Handles: headers, bold, italic, code blocks, inline code, links, lists, etc.
  */
-function stripMarkdown(text: string): string {
-  if (!text) return "";
-  
-  let result = text;
-  
-  // Remove code blocks (```...```) - preserve the code content
-  result = result.replace(/```[\s\S]*?```/g, (match) => {
-    const code = match.replace(/```\w*\n?/g, "").replace(/```$/g, "").trim();
-    return code;
-  });
-  
-  // Remove inline code (`...`) - preserve content
-  result = result.replace(/`([^`]+)`/g, "$1");
-  
-  // Remove headers (# ## ### etc.) - keep the text
-  result = result.replace(/^#{1,6}\s+(.*)$/gm, "$1");
-  
-  // Remove bold (**text** or __text__)
-  result = result.replace(/\*\*([^*]+)\*\*/g, "$1");
-  result = result.replace(/__([^_]+)__/g, "$1");
-  
-  // Remove italic (*text* or _text_) - be careful not to match list items
-  result = result.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1");
-  result = result.replace(/(?<!_)_([^_]+)_(?!_)/g, "$1");
-  
-  // Remove strikethrough (~~text~~)
-  result = result.replace(/~~([^~]+)~~/g, "$1");
-  
-  // Convert links [text](url) to just text
-  result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-  
-  // Remove image references ![alt](url)
-  result = result.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1");
-  
-  // Remove blockquotes (> ) - keep content
-  result = result.replace(/^>\s?/gm, "");
-  
-  // Remove horizontal rules (---, ***, ___)
-  result = result.replace(/^[-*_]{3,}\s*$/gm, "");
-  
-  // Convert unordered list markers (-, *, +) to simple bullets
-  result = result.replace(/^[\s]*[-*+]\s+/gm, "• ");
-  
-  // Convert ordered list markers (1., 2., etc.) to the number with a period
-  result = result.replace(/^[\s]*(\d+)\.\s+/gm, "$1. ");
-  
-  // Remove extra blank lines (more than 2 consecutive newlines)
-  result = result.replace(/\n{3,}/g, "\n\n");
-  
-  // Trim whitespace
-  result = result.trim();
-  
-  return result;
-}
 
 export default function PromptColumn({
   runData,
