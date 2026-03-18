@@ -759,11 +759,7 @@ export default function PromptColumn({
             <textarea
               ref={textareaRef}
               className="prompt-textarea"
-              placeholder={
-                isProjectView
-                  ? "Ask a question or type / for skills, /assets/ for files..."
-                  : "Describe what you want to build..."
-              }
+              placeholder="Message Forge — ask, build, fix, or type / for skills..."
               value={prompt}
               onChange={handlePromptChange}
               onKeyDown={handleKeyDown}
@@ -772,45 +768,18 @@ export default function PromptColumn({
             />
           </div>
           <div className="prompt-actions">
-            {isProjectView && canIterate && (
-              <button
-                className="prompt-build-btn"
-                onClick={() => {
-                  if (prompt.trim()) {
-                    onRunBuild(prompt);
-                    setPrompt("");
-                  }
-                }}
-                disabled={isRunning || chatLoading || !prompt.trim()}
-              >
-                Build
-              </button>
-            )}
             <button
               className="prompt-run-btn"
               onClick={handleSubmit}
               disabled={isRunning || chatLoading || !prompt.trim()}
             >
-              {isRunning ? "Running..." : chatLoading ? "Thinking..." : isProjectView ? "Send" : "Run Build"}
+              {isRunning ? "Running..." : chatLoading ? "Working..." : "Send"}
             </button>
           </div>
         </div>
       )}
 
-      <div className="pipeline">
-        <div className="pipeline-label">PIPELINE</div>
-        <div className="pipeline-stages">
-          {stages.map((stage, i) => (
-            <div key={stage.id} className="pipeline-stage">
-              <div className={`stage-node ${stage.status}`}>
-                <span className="stage-icon">{stage.icon}</span>
-              </div>
-              <span className="stage-label"><span className="stage-label-full">{stage.label}</span><span className="stage-label-short">{stage.short}</span></span>
-              {i < stages.length - 1 && <div className={`stage-connector ${stage.status === "passed" ? "stage-connector-passed" : ""}`} />}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Pipeline visualization removed — agent chat is the pipeline */}
 
       {isAwaitingApproval && !isViewingHistory && (
         <ApprovalModal
