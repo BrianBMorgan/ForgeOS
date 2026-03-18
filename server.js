@@ -264,8 +264,9 @@ app.get("/download/:sessionId", async (req, res) => {
 
 // ── Event management ──────────────────────────────────────────────────────────
 app.post("/admin/events", adminSession, requireAdmin, async (req, res) => {
+  console.log("[events] body:", JSON.stringify(req.body), "contentType:", req.headers["content-type"]);
   const { name, kiosk_count } = req.body;
-  if (!name) return res.redirect("/admin?token=" + (req.query.token || ""));
+  if (!name) return res.status(400).json({ error: "name is required", body: req.body });
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const count = Math.min(10, Math.max(1, parseInt(kiosk_count) || 1));
   const token = req.query.token || "";
@@ -276,8 +277,11 @@ app.post("/admin/events", adminSession, requireAdmin, async (req, res) => {
       const kToken = require("crypto").randomBytes(6).toString("hex");
       await sql`INSERT INTO canvas_kiosks (event_id, kiosk_number, token, created_at) VALUES (${eventId}, ${i}, ${kToken}, ${Date.now()})`;
     }
-  } catch(err) { console.error("[canvas] create event error:", err.message); }
-  res.redirect("/admin?token=" + token);
+  } catch(err) {
+    console.error("[canvas] create event error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+  res.json({ ok: true });
 });
 
 app.post("/admin/events/:id/delete", adminSession, requireAdmin, async (req, res) => {
