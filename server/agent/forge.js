@@ -345,6 +345,18 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
 async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skillContext = "", attachments = [], onMessage }) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  // New project — no workspace exists yet. Create a fresh one so the agent
+  // has a real directory to write files into from the very first tool call.
+  if (!wsDir) {
+    var workspacesBase = process.env.DATA_DIR
+      ? path.join(process.env.DATA_DIR, "workspaces")
+      : path.join(__dirname, "..", "..", "workspaces");
+    var tmpId = "new-" + projectId + "-" + Date.now();
+    wsDir = path.join(workspacesBase, tmpId);
+    fs.mkdirSync(wsDir, { recursive: true });
+    console.log("[forge-agent] Created temp workspace for new project:", wsDir);
+  }
+
   // Fetch memory context
   let memoryBlock = "";
   try {
