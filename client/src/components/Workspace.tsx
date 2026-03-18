@@ -1372,29 +1372,6 @@ function PlanTab({ runData, pendingPlan, planLoading, onApprovePlan, onRevisePla
   );
 }
 
-interface FileEntry {
-  path: string;
-  purpose: string;
-  content?: string;
-}
-
-interface BuildTask {
-  order: number;
-  task: string;
-  details: string;
-}
-
-function parseFileTree(files: FileEntry[]) {
-  const sorted = [...files].sort((a, b) => a.path.localeCompare(b.path));
-  return sorted.map((file) => {
-    const parts = file.path.split("/");
-    const depth = parts.length - 1;
-    const name = parts[parts.length - 1];
-    const isDir = file.path.endsWith("/");
-    return { ...file, depth, name, isDir };
-  });
-}
-
 function WorkspaceStatusBadge({ status }: { status: string }) {
   const labels: Record<string, string> = {
     "writing-files": "Writing files...",
