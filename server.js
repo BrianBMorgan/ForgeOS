@@ -184,30 +184,32 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
     // Serve the logo via our own public /brand-logo endpoint so fal can fetch it
     const brandLogoUrl = brandLogo ? (req.protocol + "://" + req.get("host") + "/brand-logo") : null;
 
-    // Build request — use ultra with image conditioning if logo exists, plain flux-pro if not
+    // Build request:
+    //   - With brand logo: use Kontext to place the logo into the generated scene
+    //   - Without logo: plain flux-pro text-to-image
     let falBody;
+    let endpoint;
     if (brandLogoUrl) {
+      const kontextPrompt = prompt + ". Incorporate the brand logo from the reference image visibly into the scene — place it on a surface, wall, screen, or as part of the environment. Keep the logo clearly recognizable.";
       falBody = {
-        prompt: prompt,
+        prompt: kontextPrompt,
         image_url: brandLogoUrl,
-        image_prompt_strength: 0.35,
-        aspect_ratio: "1:1",
         num_images: 1,
         output_format: "jpeg",
         safety_tolerance: "5",
       };
+      endpoint = "https://fal.run/fal-ai/flux-pro/kontext";
     } else {
       falBody = {
         prompt,
-        aspect_ratio: "1:1",
+        image_size: { width: 1024, height: 1024 },
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
         output_format: "jpeg",
       };
+      endpoint = "https://fal.run/fal-ai/flux-pro";
     }
-
-    const endpoint = brandLogoUrl ? "https://fal.run/fal-ai/flux-pro/v1.1-ultra" : "https://fal.run/fal-ai/flux-pro";
     const falRes = await fetch(endpoint, {
       method: "POST",
       headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
