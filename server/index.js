@@ -1268,6 +1268,9 @@ const { runForgeAgent } = require("./agent/forge");
 // One route. One Claude session. Chat and build are the same thing.
 // If the agent calls task_complete, the build pipeline fires automatically.
 // If the agent just responds, the message is returned as chat.
+// ── UNIFIED AGENT CHAT — SSE streaming ───────────────────────────────────────
+// Each agent tool call streams an event to the client in real time.
+// Events: { type: "thinking"|"file_written"|"done"|"error", ... }
 app.post("/api/projects/:id/chat", async (req, res) => {
   const { message, skillContext } = req.body;
   if (!message || typeof message !== "string" || !message.trim()) {
@@ -1277,29 +1280,38 @@ app.post("/api/projects/:id/chat", async (req, res) => {
   const project = await projectManager.getProject(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
-  // Workspace directory for this project's current run
   const lastRunId = project.currentRunId;
   const wsDir = lastRunId
     ? require("path").join(process.env.DATA_DIR || require("path").join(__dirname, ".."), "workspaces", lastRunId)
     : null;
 
-  // Conversation history for this project
   let history = [];
   try {
     const rows = await brain.getConversation(project.id, 20);
     history = rows.map(function(r) { return { role: r.role, content: r.content }; });
   } catch {}
 
-  // Record user message
   brain.appendConversation(project.id, "user", message.trim()).catch(function() {});
 
-  // Streaming-friendly: collect messages the agent sends mid-run
-  const agentMessages = [];
+  // Set up SSE
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  function send(evt) {
+    res.write("data: " + JSON.stringify(evt) + "\n\n");
+  }
+
   const filesWritten = [];
 
   function onMessage(evt) {
-    if (evt.type === "message" || evt.type === "thinking") agentMessages.push(evt.content);
-    if (evt.type === "file_written") filesWritten.push(evt.path);
+    if (evt.type === "thinking") send({ type: "thinking", content: evt.content });
+    if (evt.type === "file_written") {
+      filesWritten.push(evt.path);
+      send({ type: "file_written", path: evt.path });
+    }
+    if (evt.type === "message") send({ type: "thinking", content: evt.content });
   }
 
   try {
@@ -1312,22 +1324,19 @@ app.post("/api/projects/:id/chat", async (req, res) => {
       onMessage: onMessage,
     });
 
-    // Record assistant message
     const assistantMsg = result.message || "Done.";
     brain.appendConversation(project.id, "assistant", assistantMsg).catch(function() {});
 
     if (result.type === "build") {
-      // Agent wrote files — run the install + start pipeline
       const iterationNumber = project.iterations.length + 1;
       const run = createRun(message.trim(), {
         projectId: project.id,
         iterationNumber: iterationNumber,
-        existingFiles: [], // agent manages files directly, no pre-seeding needed
+        existingFiles: [],
       });
 
       await projectManager.addIteration(project.id, run.id, message.trim(), iterationNumber);
 
-      // Wire the agent's files into the run output so buildAndDeploy can use them
       run.stages.builder = {
         status: "passed",
         output: {
@@ -1338,37 +1347,36 @@ app.post("/api/projects/:id/chat", async (req, res) => {
           summary: result.summary,
         },
       };
-      run.agentBuild = true; // flag so buildAndDeploy skips the Claude builder call
+      run.agentBuild = true;
 
       buildAndDeploy(run).catch(function(err) {
         console.error("[forge-agent] buildAndDeploy error:", err.message);
       });
 
-      return res.json({
+      send({
+        type: "done",
         role: "assistant",
         content: assistantMsg,
-        suggestBuild: false,
-        buildSuggestion: null,
-        runId: run.id,
         building: true,
+        runId: run.id,
         filesWritten: filesWritten,
         createdAt: Date.now(),
       });
+    } else {
+      send({
+        type: "done",
+        role: "assistant",
+        content: assistantMsg,
+        building: false,
+        createdAt: Date.now(),
+      });
     }
-
-    // Pure chat response — no build triggered
-    return res.json({
-      role: "assistant",
-      content: assistantMsg,
-      suggestBuild: false,
-      buildSuggestion: null,
-      createdAt: Date.now(),
-    });
-
   } catch (err) {
     console.error("[forge-agent] Error:", err.message);
-    return res.status(500).json({ error: "Agent error: " + err.message });
+    send({ type: "error", error: "Agent error: " + err.message });
   }
+
+  res.end();
 });
 
 app.get("/api/projects/:id/chat", async (req, res) => {

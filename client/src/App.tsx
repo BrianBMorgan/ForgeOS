@@ -309,42 +309,91 @@ function App() {
     const userMsg: ChatMessage = { role: "user", content: message, suggestBuild: false, buildSuggestion: null, createdAt: Date.now() };
     setChatMessages((prev) => [...prev, userMsg]);
     setChatLoading(true);
+
+    // Live thinking state shown while agent works
+    const thinkingId = Date.now();
+    const thinkingMsg: ChatMessage = {
+      role: "assistant",
+      content: "Working...",
+      suggestBuild: false,
+      buildSuggestion: null,
+      createdAt: thinkingId,
+    };
+    setChatMessages((prev) => [...prev, thinkingMsg]);
+
     try {
       const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, skillContext: activeSkillContext || "" }),
       });
-      if (res.ok) {
-        const data: any = await res.json();
-        // If the agent triggered a build, update the run ID so the UI polls the new run
-        if (data.building && data.runId) {
-          setCurrentRunId(data.runId);
-          setViewingIterationRunId(null);
-          setActiveNav("projects");
+
+      if (!res.ok || !res.body) {
+        setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
+        setChatMessages((prev) => [...prev, { role: "assistant", content: "Something went wrong. Please try again.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
+        return;
+      }
+
+      // Consume SSE stream
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let thinkingLines: string[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("
+
+");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let evt: any;
+          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (evt.type === "thinking") {
+            // Update the live thinking message with latest agent status
+            thinkingLines.push(evt.content);
+            const preview = thinkingLines[thinkingLines.length - 1].slice(0, 120);
+            setChatMessages((prev) => prev.map(m =>
+              m.createdAt === thinkingId ? { ...m, content: "⚡ " + preview } : m
+            ));
+          } else if (evt.type === "file_written") {
+            setChatMessages((prev) => prev.map(m =>
+              m.createdAt === thinkingId ? { ...m, content: "📝 Writing " + evt.path + "..." } : m
+            ));
+          } else if (evt.type === "done") {
+            // Replace thinking message with final response
+            setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
+            const finalMsg: ChatMessage = {
+              role: "assistant",
+              content: evt.content || "Done.",
+              suggestBuild: false,
+              buildSuggestion: null,
+              createdAt: evt.createdAt || Date.now(),
+            };
+            setChatMessages((prev) => [...prev, finalMsg]);
+            if (evt.building && evt.runId) {
+              setCurrentRunId(evt.runId);
+              setViewingIterationRunId(null);
+              setActiveNav("projects");
+            }
+          } else if (evt.type === "error") {
+            setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
+            setChatMessages((prev) => [...prev, { role: "assistant", content: evt.error || "Something went wrong.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
+          }
         }
-        const chatMsg: ChatMessage = {
-          role: "assistant",
-          content: data.content || data.message || "",
-          suggestBuild: false,
-          buildSuggestion: null,
-          createdAt: data.createdAt || Date.now(),
-        };
-        setChatMessages((prev) => [...prev, chatMsg]);
-      } else {
-        let errorMsg = "Something went wrong. Please try again.";
-        try {
-          const errData = await res.json();
-          if (errData.error) errorMsg = errData.error;
-        } catch {}
-        setChatMessages((prev) => [...prev, { role: "assistant", content: errorMsg, suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
       }
     } catch {
+      setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
       setChatMessages((prev) => [...prev, { role: "assistant", content: "Connection error. Please try again.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
     } finally {
       setChatLoading(false);
     }
-  }, [currentProjectId]);
+  }, [currentProjectId, activeSkillContext, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
 
   const openProject = useCallback((projectId: string) => {
     setCurrentProjectId(projectId);
