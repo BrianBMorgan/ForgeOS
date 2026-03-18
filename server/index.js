@@ -92,8 +92,35 @@ app.use(async (req, res, next) => {
       }
       res.setHeader(key, value);
     }
-    const body = await response.arrayBuffer();
-    res.end(Buffer.from(body));
+    // SSE and streaming responses must be piped — never buffered.
+    // arrayBuffer() waits for the full response before sending, killing SSE entirely.
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    const isSSE = contentType.includes("text/event-stream");
+
+    if (isSSE) {
+      // Pipe SSE directly — each chunk forwarded immediately as it arrives
+      res.setHeader("content-type", "text/event-stream");
+      res.setHeader("cache-control", "no-store");
+      res.setHeader("x-accel-buffering", "no");
+      res.flushHeaders();
+      const reader = response.body.getReader();
+      const pump = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) { res.end(); break; }
+            res.write(Buffer.from(value));
+            if (typeof res.flush === "function") res.flush();
+          }
+        } catch (err) {
+          if (!res.writableEnded) res.end();
+        }
+      };
+      pump();
+    } else {
+      const body = await response.arrayBuffer();
+      res.end(Buffer.from(body));
+    }
   } catch (err) {
     console.error(`[subdomain proxy] Error proxying ${slug} ${req.method} ${req.originalUrl}:`, err.message, err.cause?.message || "");
     res.status(502).send("Bad Gateway");
