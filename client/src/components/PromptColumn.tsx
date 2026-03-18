@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import type { RunData, ProjectData, ChatMessage } from "../App";
 
 interface PromptColumnProps {
@@ -346,7 +347,33 @@ export default function PromptColumn({
               <div className="chat-role">
                 {msg.role === "user" ? "You" : msg.isLive ? "Forge is working…" : "Forge"}
               </div>
-              <div className={`chat-content${msg.isLive ? " chat-live-content" : ""}`}>{msg.content}</div>
+              <div className={`chat-content${msg.isLive ? " chat-live-content" : ""}`}>
+                {msg.role === "assistant" && !msg.isLive ? (
+                  <ReactMarkdown
+                    components={{
+                      // Render code blocks with simple styling
+                      code: ({ className, children, ...props }) => {
+                        const isInline = !className;
+                        return isInline ? (
+                          <code className="chat-inline-code" {...props}>{children}</code>
+                        ) : (
+                          <pre className="chat-code-block">
+                            <code className={className} {...props}>{children}</code>
+                          </pre>
+                        );
+                      },
+                      // Open links in new tab
+                      a: ({ children, ...props }) => (
+                        <a target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+                      ),
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
+              </div>
 
             </div>
           ))}
@@ -518,4 +545,3 @@ export default function PromptColumn({
     </div>
   );
 }
-
