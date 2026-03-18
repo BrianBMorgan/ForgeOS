@@ -18,8 +18,8 @@ const fs = require("fs");
 const brain = require("../memory/brain");
 
 const FORGE_MODEL = "claude-sonnet-4-6";
-const MAX_AGENT_ROUNDS = 20;
-const MAX_AGENT_MS = 3 * 60 * 1000; // 3 minute hard ceiling
+const MAX_AGENT_ROUNDS = 30;
+const MAX_AGENT_MS = 8 * 60 * 1000; // 8 minute hard ceiling
 
 // ── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 
