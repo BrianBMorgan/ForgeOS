@@ -184,41 +184,24 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
     // Serve the logo via our own public /brand-logo endpoint so fal can fetch it
     const brandLogoUrl = brandLogo ? (req.protocol + "://" + req.get("host") + "/brand-logo") : null;
 
-    // Build prompt and select model.
-    // When a brand logo is uploaded: use flux-pro/v1.1-ultra with image_url conditioning —
-    // this is the only reliable way to lock the logo to a specific visual identity.
-    // Text-only prompt cannot control which era logo the model hallucinates.
-    // When no logo: fall back to plain flux-pro text-to-image.
+    // Text-only prompt with hard logo constraints.
+    // Do NOT use image conditioning — that path was removed because it did not work.
+    // All logo control is via prompt text only.
     let finalPrompt = prompt;
-    let endpoint;
-    let falBody;
-
-    if (brandLogoUrl) {
-      // Image-conditioned generation — logo reference drives the visual identity
-      finalPrompt = prompt + (brandName ? `. Include the ${brandName} logo visually present in the scene on a sign, screen, billboard or wall.` : "");
-      endpoint = "https://fal.run/fal-ai/flux-pro/v1.1-ultra";
-      falBody = {
-        prompt: finalPrompt,
-        image_url: brandLogoUrl,
-        image_prompt_strength: 0.12,
-        aspect_ratio: "1:1",
-        num_images: 1,
-        output_format: "jpeg",
-        safety_tolerance: "5",
-      };
-    } else {
-      // No logo uploaded — text-only generation
-      endpoint = "https://fal.run/fal-ai/flux-pro";
-      falBody = {
-        prompt: finalPrompt,
-        image_size: { width: 1024, height: 1024 },
-        num_inference_steps: 28,
-        guidance_scale: 3.5,
-        num_images: 1,
-        output_format: "jpeg",
-        safety_tolerance: "5",
-      };
+    if (brandName) {
+      finalPrompt = prompt + `. If the ${brandName} logo appears in this scene it MUST be the version from intel.com as of 2025: the flat lowercase word "${brandName.toLowerCase()}" in bold sans-serif only. STRICTLY FORBIDDEN — do not render any of these under any circumstances: oval shape, swoosh, circular emblem, arc, ring, italic letterform, legacy badge, any logo that predates 2025, any logo that is not the flat 2025 wordmark.`;
     }
+
+    const endpoint = "https://fal.run/fal-ai/flux-pro";
+    const falBody = {
+      prompt: finalPrompt,
+      image_size: { width: 1024, height: 1024 },
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
+      num_images: 1,
+      output_format: "jpeg",
+      safety_tolerance: "5",
+    };
     const falRes = await fetch(endpoint, {
       method: "POST",
       headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
