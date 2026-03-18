@@ -1387,8 +1387,8 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
     <form method="POST" action="/admin/events?token=${adminToken}">
       <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:flex-end">
         <div class="form-field" style="flex:2;min-width:160px"><label>Event Name</label><input type="text" name="name" placeholder="Intel Summit 2026" required></div>
-        <div class="form-field" style="width:100px"><label>Kiosks</label><input type="number" name="kiosk_count" value="1" min="1" max="10"></div>
-        <button type="submit" class="btn" style="height:40px">Create Event</button>
+        <div class="form-field" style="width:72px"><label>Kiosks</label><input type="number" name="kiosk_count" value="1" min="1" max="10"></div>
+        <button type="submit" class="btn" style="align-self:flex-end;height:38px;padding-top:0;padding-bottom:0">Create Event</button>
       </div>
     </form>
 
