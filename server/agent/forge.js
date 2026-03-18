@@ -74,6 +74,16 @@ bcrypt, bcryptjs, pg, postgres, mysql2, dotenv, sqlite3, jsonwebtoken, passport,
 - The app starts and serves a real response at GET /
 - Every feature mentioned in the prompt is actually implemented
 
+## WRITING TO FORGEOS DIRECTLY
+
+To read or modify ForgeOS source files, use the dedicated tools:
+- github_read: reads any file from the ForgeOS repo (authenticated, reliable)
+- github_write: writes/updates any file and commits it to main in one call
+
+These are the correct tools for all ForgeOS self-repair work. Do NOT use fetch_url for GitHub files — use github_read. Do NOT use curl in run_command — use github_write.
+
+After pushing a file with github_write, Render auto-deploys from main within ~2 minutes.
+
 ## WORKING WITH EXTERNAL REPOS AND URLS
 
 When a user pastes a GitHub repo URL, use fetch_url to explore and read it:
@@ -198,6 +208,30 @@ const TOOLS = [
     },
   },
   {
+    name: "github_write",
+    description: "Write or update a file in the ForgeOS GitHub repository (BrianBMorgan/ForgeOS, main branch). Use this to fix ForgeOS server files directly. Reads the current SHA automatically, then commits the new content. This is the correct way to push changes to ForgeOS.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filepath: { type: "string", description: "File path relative to repo root, e.g. 'server/index.js'" },
+        content: { type: "string", description: "Complete new file content" },
+        message: { type: "string", description: "Commit message" },
+      },
+      required: ["filepath", "content", "message"],
+    },
+  },
+  {
+    name: "github_read",
+    description: "Read any file from the ForgeOS GitHub repository (BrianBMorgan/ForgeOS, main branch). More reliable than fetch_url for ForgeOS files because it uses authentication.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filepath: { type: "string", description: "File path relative to repo root, e.g. 'server/index.js'" },
+      },
+      required: ["filepath"],
+    },
+  },
+  {
     name: "fetch_url",
     description: "Fetch the contents of any URL — GitHub raw files, APIs, documentation, repo file listings. Use this to read files from a GitHub repo URL, fetch a package README, or retrieve any external content needed for a build. For GitHub repos, convert the URL to raw.githubusercontent.com format to get file contents.",
     input_schema: {
@@ -283,6 +317,60 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
         return context || "No relevant memory found.";
       } catch {
         return "Memory search unavailable.";
+      }
+    }
+
+    case "github_read": {
+      var ghToken = process.env.GITHUB_TOKEN;
+      if (!ghToken) return "Error: GITHUB_TOKEN not set in environment";
+      try {
+        var ghReadRes = await fetch(
+          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath + "?ref=main",
+          { headers: { "Authorization": "Bearer " + ghToken, "Accept": "application/vnd.github.v3+json", "User-Agent": "ForgeOS-Agent" } }
+        );
+        var ghReadData = await ghReadRes.json();
+        if (!ghReadRes.ok) return "GitHub error " + ghReadRes.status + ": " + JSON.stringify(ghReadData).slice(0, 200);
+        var decoded = Buffer.from(ghReadData.content, "base64").toString("utf-8");
+        return decoded.length > 30000 ? decoded.slice(0, 30000) + "\n\n[truncated at 30KB]" : decoded;
+      } catch (err) {
+        return "github_read error: " + err.message;
+      }
+    }
+
+    case "github_write": {
+      var gwToken = process.env.GITHUB_TOKEN;
+      if (!gwToken) return "Error: GITHUB_TOKEN not set in environment";
+      try {
+        // Step 1: get current SHA
+        var shaRes = await fetch(
+          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath + "?ref=main",
+          { headers: { "Authorization": "Bearer " + gwToken, "Accept": "application/vnd.github.v3+json", "User-Agent": "ForgeOS-Agent" } }
+        );
+        var shaData = await shaRes.json();
+        var currentSha = shaRes.ok ? shaData.sha : null;
+
+        // Step 2: push new content
+        var pushBody = {
+          message: toolInput.message,
+          content: Buffer.from(toolInput.content, "utf-8").toString("base64"),
+          branch: "main",
+        };
+        if (currentSha) pushBody.sha = currentSha;
+
+        var pushRes = await fetch(
+          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath,
+          {
+            method: "PUT",
+            headers: { "Authorization": "Bearer " + gwToken, "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "ForgeOS-Agent" },
+            body: JSON.stringify(pushBody),
+          }
+        );
+        var pushData = await pushRes.json();
+        if (!pushRes.ok) return "GitHub push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 300);
+        if (onMessage) onMessage({ type: "agent_message", content: "✓ Pushed " + toolInput.filepath + " to GitHub" });
+        return "Successfully pushed " + toolInput.filepath + " — commit: " + (pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done");
+      } catch (err) {
+        return "github_write error: " + err.message;
       }
     }
 
@@ -480,6 +568,8 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
             case "run_command":   return "Running: " + (inp.command || "").slice(0, 60) + "...";
             case "memory_search": return "Searching Brain: \"" + (inp.query || "").slice(0, 50) + "\"...";
             case "fetch_url":     return "Fetching " + (inp.url || "").replace("https://","").slice(0, 60) + "...";
+            case "github_read":   return "Reading " + (inp.filepath || "") + " from GitHub...";
+            case "github_write":  return "Pushing " + (inp.filepath || "") + " to GitHub...";
             case "ask_user":      return null; // ask_user sends its own agent_message
             case "task_complete": return "Build complete. Starting app...";
             default:              return "Running " + toolUse.name + "...";
