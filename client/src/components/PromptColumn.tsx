@@ -147,8 +147,7 @@ export default function PromptColumn({
 
   function renderMarkdown(text: string): React.ReactNode {
     if (!text) return null;
-    const lines = text.split("
-");
+    const lines = text.split("\n");
     const elements: React.ReactNode[] = [];
     let i = 0;
     while (i < lines.length) {
@@ -170,8 +169,7 @@ export default function PromptColumn({
           codeLines.push(lines[i]);
           i++;
         }
-        elements.push(<pre key={i} className="md-code">{codeLines.join("
-")}</pre>);
+        elements.push(<pre key={i} className="md-code">{codeLines.join("\n")}</pre>);
       } else if (line.trim() === "") {
         elements.push(<div key={i} className="md-br" />);
       } else {
