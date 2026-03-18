@@ -101,7 +101,6 @@ app.use(async (req, res, next) => {
 });
 // Auth gate removed — no authentication required
 
-mountMcp(app);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
