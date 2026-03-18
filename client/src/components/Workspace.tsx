@@ -1437,7 +1437,6 @@ function WorkspaceStatusBadge({ status }: { status: string }) {
 }
 
 function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunData?: RunData | null }) {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [inspectMode, setInspectMode] = useState(false);
   const [selection, setSelection] = useState<{ outerHTML: string; textContent: string; selector: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -1526,14 +1525,8 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
     );
   }
 
+  // stageOutput retained for startCommand check (Mode B detection)
   const exec = stageOutput as Record<string, unknown>;
-  const summary = (exec.implementationSummary || exec.summary) as string | undefined;
-  const files = (exec.files || exec.fileStructure || []) as FileEntry[];
-  const envVars = (exec.environmentVariables || []) as string[];
-  const dbSchema = exec.databaseSchema as string | null;
-  const buildTasks = (exec.buildTasks || []) as BuildTask[];
-  const treeEntries = parseFileTree(files);
-  const selectedFileData = files.find((f) => f.path === selectedFile);
 
   return (
     <div className="render-content">
@@ -1607,86 +1600,6 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
         );
       })()}
 
-      {summary && (
-        <div className="render-section">
-          <div className="render-section-label">Implementation Summary</div>
-          <div className="render-summary">{summary}</div>
-        </div>
-      )}
-
-      {treeEntries.length > 0 && (
-        <div className="render-section">
-          <div className="render-section-label">
-            Files ({files.length})
-          </div>
-          <div className="file-tree">
-            {treeEntries.map((entry, i) => (
-              <div
-                key={i}
-                className={`file-tree-entry ${selectedFile === entry.path ? "selected" : ""} ${entry.content ? "clickable" : ""}`}
-                style={{ paddingLeft: `${entry.depth * 1.25 + 0.5}rem` }}
-                onClick={() => {
-                  if (entry.content) {
-                    setSelectedFile(
-                      selectedFile === entry.path ? null : entry.path
-                    );
-                  }
-                }}
-              >
-                <span className="file-tree-icon">
-                  {entry.isDir ? "📁" : "📄"}
-                </span>
-                <span className="file-tree-name">{entry.name}</span>
-                <span className="file-tree-purpose">{entry.purpose}</span>
-              </div>
-            ))}
-          </div>
-          {selectedFileData?.content && (
-            <div className="file-content-viewer">
-              <div className="file-content-header">{selectedFileData.path}</div>
-              <pre className="file-content-code">{selectedFileData.content}</pre>
-            </div>
-          )}
-        </div>
-      )}
-
-      {envVars.length > 0 && (
-        <div className="render-section">
-          <div className="render-section-label">Environment Variables</div>
-          <div className="env-var-list">
-            {envVars.map((v, i) => (
-              <span key={i} className="env-var-badge">{v}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {dbSchema && (
-        <div className="render-section">
-          <div className="render-section-label">Database Schema</div>
-          <pre className="db-schema-block">{dbSchema}</pre>
-        </div>
-      )}
-
-      {buildTasks.length > 0 && (
-        <div className="render-section">
-          <div className="render-section-label">Build Tasks</div>
-          <div className="build-task-list">
-            {buildTasks
-              .sort((a, b) => a.order - b.order)
-              .map((task) => (
-                <div key={task.order} className="build-task">
-                  <div className="build-task-header">
-                    <span className="build-task-number">{task.order}</span>
-                    <span className="build-task-indicator" />
-                    <span className="build-task-name">{task.task}</span>
-                  </div>
-                  <div className="build-task-details">{task.details}</div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
