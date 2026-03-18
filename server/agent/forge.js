@@ -526,6 +526,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       max_tokens: 16000,
       system: fullSystem,
       tools: TOOLS,
+      tool_choice: round === 0 ? { type: "auto" } : { type: "any" },
       messages: messages,
     }, { timeout: 300000 }); // 5 min per Claude call max
 
