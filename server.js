@@ -184,24 +184,41 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
     // Serve the logo via our own public /brand-logo endpoint so fal can fetch it
     const brandLogoUrl = brandLogo ? (req.protocol + "://" + req.get("host") + "/brand-logo") : null;
 
-    // Build prompt — append a brand logo suffix when a brand name is configured.
-    // Text-based logo injection is the most reliable method with flux models.
-    // Hard-locked to the 2025 wordmark: plain lowercase, no oval, no swoosh, no legacy marks.
+    // Build prompt and select model.
+    // When a brand logo is uploaded: use flux-pro/v1.1-ultra with image_url conditioning —
+    // this is the only reliable way to lock the logo to a specific visual identity.
+    // Text-only prompt cannot control which era logo the model hallucinates.
+    // When no logo: fall back to plain flux-pro text-to-image.
     let finalPrompt = prompt;
-    if (brandName) {
-      finalPrompt = prompt + `. The scene features the ${brandName} logo as it appears in 2025 — the plain lowercase word "${brandName.toLowerCase()}" in bold condensed sans-serif, no oval shape, no swoosh, no circle, no arc, no legacy emblem, no vintage mark, displayed on a sign, billboard, screen or wall in the scene.`;
-    }
+    let endpoint;
+    let falBody;
 
-    const falBody = {
-      prompt: finalPrompt,
-      image_size: { width: 1024, height: 1024 },
-      num_inference_steps: 28,
-      guidance_scale: 3.5,
-      num_images: 1,
-      output_format: "jpeg",
-      safety_tolerance: "5",
-    };
-    const endpoint = "https://fal.run/fal-ai/flux-pro";
+    if (brandLogoUrl) {
+      // Image-conditioned generation — logo reference drives the visual identity
+      finalPrompt = prompt + (brandName ? `. Include the ${brandName} logo visually present in the scene on a sign, screen, billboard or wall.` : "");
+      endpoint = "https://fal.run/fal-ai/flux-pro/v1.1-ultra";
+      falBody = {
+        prompt: finalPrompt,
+        image_url: brandLogoUrl,
+        image_prompt_strength: 0.12,
+        aspect_ratio: "1:1",
+        num_images: 1,
+        output_format: "jpeg",
+        safety_tolerance: "5",
+      };
+    } else {
+      // No logo uploaded — text-only generation
+      endpoint = "https://fal.run/fal-ai/flux-pro";
+      falBody = {
+        prompt: finalPrompt,
+        image_size: { width: 1024, height: 1024 },
+        num_inference_steps: 28,
+        guidance_scale: 3.5,
+        num_images: 1,
+        output_format: "jpeg",
+        safety_tolerance: "5",
+      };
+    }
     const falRes = await fetch(endpoint, {
       method: "POST",
       headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
