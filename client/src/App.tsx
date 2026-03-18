@@ -263,11 +263,12 @@ function App() {
           setChatMessages((prev) => {
             const hasLive = prev.some(m => m.isLive);
             if (hasLive) return prev;
-            // Map server history to ChatMessage format
-            return data.map((m: any) => ({
+            // Assign unique timestamps so history messages never collide with thinkingId
+            const base = Date.now() - data.length * 1000;
+            return data.map((m: any, idx: number) => ({
               role: m.role as "user" | "assistant",
               content: m.content || "",
-              createdAt: m.created_at || Date.now(),
+              createdAt: base + idx,
             }));
           });
         }
