@@ -282,7 +282,7 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
  *   { type: "build", message, startCommand, installCommand, summary, envVars, files }
  *   { type: "error", message }
  */
-async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skillContext = "", onMessage }) {
+async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skillContext = "", attachments = [], onMessage }) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   // Fetch memory context
@@ -306,7 +306,23 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
   for (var i = 0; i < history.length; i++) {
     messages.push({ role: history[i].role, content: history[i].content });
   }
-  messages.push({ role: "user", content: userMessage });
+  // Build user message — include image attachments as vision blocks if present
+  var userContent;
+  if (attachments && attachments.length > 0) {
+    userContent = [{ type: "text", text: userMessage }];
+    for (var a = 0; a < attachments.length; a++) {
+      var att = attachments[a];
+      // Extract base64 data from data URL
+      var base64Data = att.dataUrl.split(",")[1] || att.dataUrl;
+      userContent.push({
+        type: "image",
+        source: { type: "base64", media_type: att.mimeType || "image/png", data: base64Data },
+      });
+    }
+  } else {
+    userContent = userMessage;
+  }
+  messages.push({ role: "user", content: userContent });
 
   var taskCompleteInput = null;
   var finalMessage = "";

@@ -13,7 +13,7 @@ interface PromptColumnProps {
   onViewLatest: () => void;
   onRestoreIteration: (runId: string) => void;
   chatMessages: ChatMessage[];
-  onSendChat: (message: string) => void;
+  onSendChat: (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => void;
   chatLoading: boolean;
   onClearBuildSuggestions?: () => void;
   onGenerateForgePlan?: (forgeSuggestion: string) => void;
@@ -340,6 +340,10 @@ export default function PromptColumn({
   const [skillOptions, setSkillOptions] = useState<SkillOption[]>([]);
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [attachments, setAttachments] = useState<{name: string; dataUrl: string; mimeType: string}[]>([]);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [assets, setAssets] = useState<{filename: string; url: string; mimetype: string}[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [slashPos, setSlashPos] = useState(-1);
   const [assetOptions, setAssetOptions] = useState<AssetOption[]>([]);
   const [assetQuery, setAssetQuery] = useState<string | null>(null);
@@ -477,17 +481,53 @@ export default function PromptColumn({
   };
 
   const handleSubmit = () => {
-    if (!prompt.trim() || isRunning || chatLoading) return;
+    if ((!prompt.trim() && attachments.length === 0) || isRunning || chatLoading) return;
     if (isProjectView) {
-      onSendChat(prompt);
+      onSendChat(prompt, attachments);
     } else {
       onRunBuild(prompt);
     }
     setPrompt("");
+    setAttachments([]);
     setSlashQuery(null);
     setSlashPos(-1);
     setAssetQuery(null);
     setAssetPos(-1);
+  };
+
+  const loadAssets = useCallback(async () => {
+    try {
+      const res = await fetch("/api/assets");
+      if (res.ok) {
+        const data = await res.json();
+        setAssets(data.assets || []);
+      }
+    } catch {}
+  }, []);
+
+  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
+      if (!file.type.startsWith("image/")) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        setAttachments(prev => [...prev, { name: file.name, dataUrl, mimeType: file.type }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+    setShowAttachMenu(false);
+  };
+
+  const handleAssetAttach = (asset: {filename: string; url: string; mimetype: string}) => {
+    // For assets, store the URL as a reference in the message text instead
+    setPrompt(prev => prev + (prev ? " " : "") + "/assets/" + asset.filename);
+    setShowAttachMenu(false);
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleBuildFromSuggestion = (suggestion: string) => {
@@ -705,14 +745,52 @@ export default function PromptColumn({
               disabled={isRunning || chatLoading}
             />
           </div>
+          {attachments.length > 0 && (
+            <div className="attach-chips">
+              {attachments.map((att, i) => (
+                <div key={i} className="attach-chip">
+                  <span className="attach-chip-name">{att.name}</span>
+                  <button className="attach-chip-remove" onClick={() => removeAttachment(i)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="prompt-actions">
-            <button
-              className="prompt-run-btn"
-              onClick={handleSubmit}
-              disabled={isRunning || chatLoading || !prompt.trim()}
-            >
-              {isRunning ? "Running..." : chatLoading ? "Working..." : "Send"}
-            </button>
+            <div className="attach-wrap">
+              <button
+                className="attach-btn"
+                onClick={() => { setShowAttachMenu(prev => !prev); if (!showAttachMenu) loadAssets(); }}
+                disabled={isRunning || chatLoading}
+                title="Attach file or asset"
+              >+</button>
+              {showAttachMenu && (
+                <div className="attach-menu">
+                  <div className="attach-menu-item" onClick={() => fileInputRef.current?.click()}>
+                    <span className="attach-menu-icon">🖼</span>
+                    <span>Upload image</span>
+                  </div>
+                  {assets.length > 0 && (
+                    <div className="attach-menu-section">
+                      <div className="attach-menu-label">Global Assets</div>
+                      {assets.slice(0, 8).map(asset => (
+                        <div key={asset.filename} className="attach-menu-item" onClick={() => handleAssetAttach(asset)}>
+                          <span className="attach-menu-icon">📎</span>
+                          <span className="attach-menu-asset-name">{asset.filename}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: "none" }}
+                onChange={handleFileAttach}
+              />
+            </div>
           </div>
         </div>
       )}

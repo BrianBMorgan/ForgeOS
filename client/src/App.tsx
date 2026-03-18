@@ -305,7 +305,7 @@ function App() {
     [currentRunId]
   );
 
-  const sendChat = useCallback(async (message: string) => {
+  const sendChat = useCallback(async (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => {
     if (!currentProjectId) return;
     const userMsg: ChatMessage = { role: "user", content: message, suggestBuild: false, buildSuggestion: null, createdAt: Date.now() };
     setChatMessages((prev) => [...prev, userMsg]);
@@ -327,7 +327,7 @@ function App() {
       const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, skillContext: activeSkillContext || "" }),
+        body: JSON.stringify({ message, skillContext: activeSkillContext || "", attachments: attachments || [] }),
       });
 
       if (!res.ok || !res.body) {

@@ -1272,7 +1272,7 @@ const { runForgeAgent } = require("./agent/forge");
 // Each agent tool call streams an event to the client in real time.
 // Events: { type: "thinking"|"file_written"|"done"|"error", ... }
 app.post("/api/projects/:id/chat", async (req, res) => {
-  const { message, skillContext } = req.body;
+  const { message, skillContext, attachments } = req.body;
   if (!message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ error: "Message is required" });
   }
@@ -1321,6 +1321,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
       wsDir: wsDir,
       history: history,
       skillContext: skillContext || "",
+      attachments: attachments || [],
       onMessage: onMessage,
     });
 
