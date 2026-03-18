@@ -622,6 +622,46 @@
         "Consider per-event gallery filtering in admin Gallery tab",
         "Consider adding kiosk number to downloaded PNG filename for traceability"
       ]
+    },
+    {
+      "date": "2026-03-17",
+      "session_title": "ForgeCanvas \u2014 Brand Logo Conditioning + Full Session Wrap",
+      "shipped": [
+        "Brand logo image conditioning: brand_logo (TEXT) and brand_name (VARCHAR) columns added to canvas_config via ALTER TABLE",
+        "Admin Brand tab: upload logo (PNG/JPG/WebP, 2MB max), preview current logo, remove logo, set brand name",
+        "POST /admin/config/brand: busboy file upload, stores as data URI in canvas_config",
+        "POST /admin/config/brand/clear: nulls out brand_logo and brand_name",
+        "Generate route updated: if brand_logo exists in DB, switches to fal-ai/flux-pro/v1.1-ultra with image_url=brand_logo and image_prompt_strength (tunable); falls back to fal-ai/flux-pro text-to-image if no logo",
+        "Removed all hardcoded Intel prompt injection \u2014 brand conditioning now entirely image-driven",
+        "image_prompt_strength tuning: started at 0.12 (too subtle), bumped to 0.35 (still not visible), currently testing 0.85 to find ceiling",
+        "Brand tab uses its own fetch (not admin interceptor) since it needs multipart \u2014 bypasses the JSON interceptor correctly",
+        "Operator print queue fully working: /operator/:token shows per-kiosk artwork, Mark Printed toggle, 15s auto-refresh",
+        "Admin Events tab shows both Kiosk URL and Operator URL per kiosk with separate Copy buttons",
+        "Fix: admin form interceptor sends JSON for non-file forms, multipart only for sticker/brand uploads",
+        "Fix: adminToken + host vars in renderAdmin \u2014 all form actions evaluate server-side correctly",
+        "Fix: broken thumbnail loader script removed (div not img)",
+        "Fix: number input styled to match dark theme, min-width overridden for kiosk count field",
+        "Fix: kiosk count field width narrowed to 72px, Create Event button height aligned to input"
+      ],
+      "decisions": [
+        "Brand logo stored as base64 data URI in canvas_config \u2014 no separate file storage needed, fal.ai accepts data URIs directly",
+        "Switching to flux-pro/v1.1-ultra for image conditioning (supports image_url + image_prompt_strength), staying on flux-pro for plain text-to-image",
+        "image_prompt_strength sweet spot TBD \u2014 0.85 is current test ceiling, likely final value will be 0.4-0.6",
+        "Brand tab bypasses admin form interceptor with its own fetch \u2014 required for multipart upload to work correctly",
+        "Full production loop confirmed working: kiosk registration \u2192 canvas creation \u2192 AI generation \u2192 save \u2192 QR download \u2192 operator print queue \u2192 mark printed",
+        "This is a resellable product \u2014 brand is fully swappable via admin, no code changes needed per client"
+      ],
+      "stable_commit": "92bc45d1b522",
+      "latest_commit": "c7b13af36712",
+      "branch": "apps/forge-canvas",
+      "open_items": [
+        "Determine final image_prompt_strength sweet spot (currently testing 0.85)",
+        "Lock new stable commit once brand conditioning confirmed working",
+        "Consider making image_prompt_strength configurable from admin Brand tab",
+        "Test full kiosk flow end-to-end at a real event",
+        "Consider per-event gallery filtering in admin Gallery tab",
+        "Consider adding kiosk number + brand name to downloaded PNG filename"
+      ]
     }
   ],
   "domain_knowledge": [
@@ -993,7 +1033,7 @@
     "Standard HTML form POSTs in published apps going through the ForgeOS proxy \u2014 use fetch() with Content-Type application/json instead. The proxy handles JSON correctly from day one; urlencoded form encoding through the proxy is unreliable.",
     "Cookie-session for admin auth in published apps through ForgeOS proxy \u2014 Set-Cookie headers are unreliable through the proxy. Use bearer tokens stored in localStorage with token passed as query param on initial authenticated page loads."
   ],
-  "current_state": "ForgeCanvas is a complete Intel event kiosk and T-shirt production system deployed on Render at forgeos-forge-canvas.onrender.com. Full feature set: AI background generation via fal.ai Flux Pro with Intel logo prompt injection, brand sticker drag/drop/scale/rotate, text overlay tool with Intel One Display font and 4-color admin-configurable palette, full-res 3000x3000 PNG export, QR code for mobile download. Multi-event kiosk system supports N kiosks per event with unique /k/:token URLs. Operator print queue at /operator/:token shows per-kiosk artwork queue with Mark Printed toggle and 15s auto-refresh \u2014 closes the production loop from canvas creation to T-shirt handoff. Stable build: 92bc45d1b522 on branch apps/forge-canvas.",
+  "current_state": "ForgeCanvas is a complete branded event kiosk and T-shirt production system deployed on Render at forgeos-forge-canvas.onrender.com (branch: apps/forge-canvas). \n\nFULL FEATURE SET:\n- AI background generation via fal.ai Flux Pro with brand logo image conditioning (flux-pro/v1.1-ultra when logo present)\n- Brand logo fully swappable from admin \u2014 no code changes needed per client\n- Brand sticker drag/drop/scale/rotate on canvas\n- Text overlay tool: Intel One Display font, S/M/L/XL sizes, 4-color admin-configurable palette, draggable/resizable\n- Scale + rotate for all elements: scroll wheel, Shift+scroll, pinch/twist, rotate handle\n- Full-res 3000x3000 PNG export via html2canvas (scale:2, force 800x800 before capture)\n- Download: direct from PNG dataURL, bypasses proxy\n- QR code for mobile download\n- Multi-event kiosk system: canvas_events + canvas_kiosks tables, /k/:token routes\n- Admin: Events & Kiosks tab (create event + N kiosks, per-kiosk Kiosk URL + Operator URL)\n- Operator print queue: /operator/:token \u2014 per-kiosk artwork queue, Mark Printed toggle, 15s auto-refresh, pending/printed sections\n- Admin tabs: Events & Kiosks, Stickers, Brand, Text Colors, Gallery\n\nDB SCHEMA: canvas_attendees (session_id, first_name, last_name, email, kiosk_id, event_id), canvas_artworks (session_id, png_data, printed_at), canvas_stickers, canvas_config (text_colors, brand_logo, brand_name), canvas_events (name, slug, active), canvas_kiosks (event_id, kiosk_number, token)\n\nKEY ROUTES: GET / (registration), GET /k/:token (kiosk registration), GET /canvas/:sessionId, GET /k/:token/canvas/:sessionId, POST /canvas/:sessionId/generate, POST /canvas/:sessionId/save, GET /download/:sessionId, GET /operator/:token, POST /operator/:token/printed/:artworkId, GET /admin, POST /admin/events, POST /admin/config/brand, POST /admin/config/colors\n\nSTABLE BUILD: 92bc45d1b522 | LATEST: c7b13af36712 | BRANCH: apps/forge-canvas",
   "next_steps": [
     "Verify forge-canvas.forge-os.ai works through proxy after latest deploy",
     "Add FAL_API_KEY to Secrets Vault to enable AI background generation in Canvas",
@@ -1176,6 +1216,38 @@
     {
       "term": "fix_verifier",
       "value": "Sub-agent in server/agents/manager.js. Takes existing files + proposed fix, checks imports, interface matching, syntax, side effects. Returns VALID/ISSUES/VERDICT. Use for multi-file fixes before spending a build cycle."
+    },
+    {
+      "term": "ForgeCanvas",
+      "definition": "Intel event kiosk app \u2014 AI art generation, stickers, text tool, full-res export, QR code, multi-kiosk system, operator print queue. Deployed on Render."
+    },
+    {
+      "term": "canvas_config",
+      "definition": "Single-row DB table storing text_colors (JSONB), brand_logo (TEXT data URI), brand_name (VARCHAR). Controls brand conditioning and text palette globally."
+    },
+    {
+      "term": "image_prompt_strength",
+      "definition": "fal.ai flux-pro/v1.1-ultra parameter (0-1) controlling how strongly the brand logo reference image influences generation. Currently testing 0.85; sweet spot TBD."
+    },
+    {
+      "term": "Operator URL",
+      "definition": "/operator/:token \u2014 same token as kiosk URL. Shows per-kiosk print queue with Mark Printed toggle and 15s auto-refresh. Distributed to heat press operators."
+    },
+    {
+      "term": "Kiosk URL",
+      "definition": "/k/:token \u2014 unique per kiosk. Registration screen shows event name + kiosk number in eyebrow. Token stored with attendee record for traceability."
+    },
+    {
+      "term": "printed_at",
+      "definition": "BIGINT column on canvas_artworks. NULL = unprinted (shows in pending queue). Timestamp = printed (dimmed in operator view). Toggleable."
+    },
+    {
+      "term": "brand_logo",
+      "definition": "Base64 data URI stored in canvas_config. Passed as image_url to fal-ai/flux-pro/v1.1-ultra for image conditioning. Swappable per client from admin Brand tab."
+    },
+    {
+      "term": "fal.ai",
+      "definition": "Image generation provider. Uses fal-ai/flux-pro for text-to-image (no brand logo), fal-ai/flux-pro/v1.1-ultra for image conditioning (brand logo present). Auth: 'Key {FAL_API_KEY}' header."
     }
   ]
 }
