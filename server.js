@@ -178,10 +178,11 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
 
   try {
     // Load brand logo from config if available
-    const cfgRows = await sql`SELECT brand_logo, brand_logo_url, brand_name FROM canvas_config LIMIT 1`;
-    const brandLogoUrl = cfgRows.length ? (cfgRows[0].brand_logo_url || cfgRows[0].brand_logo) : null;
+    const cfgRows = await sql`SELECT brand_logo, brand_name FROM canvas_config LIMIT 1`;
     const brandLogo = cfgRows.length ? cfgRows[0].brand_logo : null;
     const brandName = cfgRows.length ? cfgRows[0].brand_name : null;
+    // Serve the logo via our own public /brand-logo endpoint so fal can fetch it
+    const brandLogoUrl = brandLogo ? (req.protocol + "://" + req.get("host") + "/brand-logo") : null;
 
     // Build request — use ultra with image conditioning if logo exists, plain flux-pro if not
     let falBody;
@@ -335,40 +336,8 @@ app.post("/admin/config/brand", adminSession, requireAdmin, async (req, res) => 
     try {
       if (fileData) {
         const dataUri = "data:" + mimeType + ";base64," + fileData;
-        // Upload to fal storage via multipart/form-data for a real CDN URL
-        // Endpoint: POST https://api.fal.ai/v1/serverless/files/file/local/{target_path}
-        let falCdnUrl = null;
-        const falKey = process.env.FAL_API_KEY;
-        if (falKey) {
-          try {
-            const imgBuffer = Buffer.from(fileData, "base64");
-            const ext = mimeType.split("/")[1] || "png";
-            const targetPath = "brand-logo." + ext;
-            const form = new FormData();
-            const blob = new Blob([imgBuffer], { type: mimeType });
-            form.append("file", blob, targetPath);
-            const uploadRes = await fetch(
-              "https://api.fal.ai/v1/serverless/files/file/local/" + encodeURIComponent(targetPath),
-              {
-                method: "POST",
-                headers: { "Authorization": "Key " + falKey },
-                body: form,
-              }
-            );
-            if (uploadRes.ok) {
-              const uploadData = await uploadRes.json();
-              // Response is the CDN URL string directly, or an object with .url
-              falCdnUrl = (typeof uploadData === "string") ? uploadData : (uploadData.url || uploadData.access_url || null);
-              console.log("[canvas] fal upload url:", falCdnUrl);
-            } else {
-              const errText = await uploadRes.text();
-              console.warn("[canvas] fal upload failed:", uploadRes.status, errText.slice(0,200));
-            }
-          } catch(uploadErr) {
-            console.warn("[canvas] fal upload error:", uploadErr.message);
-          }
-        }
-        await sql`UPDATE canvas_config SET brand_logo = ${dataUri}, brand_logo_url = ${falCdnUrl}, brand_name = ${brandName || null}`;
+        // Store the logo — it will be served publicly at /brand-logo for fal conditioning
+        await sql`UPDATE canvas_config SET brand_logo = ${dataUri}, brand_logo_url = NULL, brand_name = ${brandName || null}`;
       } else if (brandName) {
         await sql`UPDATE canvas_config SET brand_name = ${brandName}`;
       }
@@ -389,6 +358,24 @@ app.post("/admin/config/colors", adminSession, requireAdmin, async (req, res) =>
     .map(c => (c && /^#[0-9a-fA-F]{6}$/.test(c) ? c : "#ffffff"));
   await sql`UPDATE canvas_config SET text_colors = ${JSON.stringify(colors)}::jsonb`;
   res.redirect("/admin?token=" + (req.query.token || ""));
+});
+
+// ── Public brand logo (served so fal.ai can fetch it as image_url) ──────────
+app.get("/brand-logo", async (req, res) => {
+  try {
+    const rows = await sql`SELECT brand_logo FROM canvas_config LIMIT 1`;
+    if (!rows.length || !rows[0].brand_logo) return res.status(404).send("No logo");
+    const dataUri = rows[0].brand_logo;
+    const match = dataUri.match(/^data:([^;]+);base64,(.+)$/s);
+    if (!match) return res.status(400).send("Invalid logo format");
+    const mimeType = match[1];
+    const imgBuffer = Buffer.from(match[2], "base64");
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(imgBuffer);
+  } catch(err) {
+    res.status(500).send("Error: " + err.message);
+  }
 });
 
 // ── Operator print queue ──────────────────────────────────────────────────────
