@@ -193,6 +193,16 @@ function App() {
             setChatMessages((prev) => prev.map(m =>
               m.createdAt === thinkingId ? { ...m, content: "Writing " + evt.path + "...", isLive: true } : m
             ));
+          } else if (evt.type === "run_created") {
+            // Run exists — start polling the workspace immediately so the
+            // install/start progress shows up while the agent message streams.
+            setCurrentRunId(evt.runId);
+            setViewingIterationRunId(null);
+            setActiveNav("projects");
+            // Update the live bubble to show we are now in the install/start phase
+            setChatMessages((prev) => prev.map(m =>
+              m.createdAt === thinkingId ? { ...m, content: "Installing dependencies and starting app...", isLive: true } : m
+            ));
           } else if (evt.type === "done") {
             // Replace thinking message with final response
             setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));

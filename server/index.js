@@ -1273,6 +1273,13 @@ app.post("/api/projects/:id/chat", async (req, res) => {
       };
       run.agentBuild = true;
 
+      // Send runId to client BEFORE buildAndDeploy fires so the workspace
+      // panel can start polling immediately during install + start.
+      send({
+        type: "run_created",
+        runId: run.id,
+      });
+
       buildAndDeploy(run).catch(function(err) {
         console.error("[forge-agent] buildAndDeploy error:", err.message);
       });
