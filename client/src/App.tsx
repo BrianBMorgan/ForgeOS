@@ -76,6 +76,7 @@ export interface ChatMessage {
   planSuggestion?: string | null;
   suggestForge?: boolean;
   forgeSuggestion?: string | null;
+  activeSkillContext?: string | null;
   createdAt: number;
 }
 
@@ -168,6 +169,10 @@ function App() {
     }
   }, [setPlanLoading, setPendingPlan, setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
 
+  // Tracks the skill context active on the last chat response — threaded to /iterate
+  // so the builder actually receives the skill instructions, not just the Chat Agent.
+  const [activeSkillContext, setActiveSkillContext] = React.useState<string>("");
+
   const iterateProject = useCallback(async (prompt: string, options?: { skipPlan?: boolean }) => {
     if (!currentProjectId) return;
 
@@ -178,7 +183,7 @@ function App() {
       const res = await fetch(`${API_BASE}/projects/${currentProjectId}/iterate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, isSuggestion: true }),
+        body: JSON.stringify({ prompt, isSuggestion: true, skillContext: activeSkillContext || "" }),
       });
       const data = await res.json();
       if (data.runId) {
@@ -312,6 +317,11 @@ function App() {
       });
       if (res.ok) {
         const data: ChatMessage = await res.json();
+        // Capture skill context from the chat response so it can be threaded
+        // to the next /iterate call — this is how skill instructions reach the builder.
+        if (data.activeSkillContext) {
+          setActiveSkillContext(data.activeSkillContext);
+        }
         setChatMessages((prev) => [...prev, data]);
       } else {
         let errorMsg = "Something went wrong. Please try again.";

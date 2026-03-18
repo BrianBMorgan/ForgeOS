@@ -1107,6 +1107,25 @@ async function chat(projectId, userMessage) {
   const userMsg = { role: "user", content: userMessage, suggestBuild: false, buildSuggestion: null, createdAt: now };
   await saveMessage(projectId, userMsg);
 
+  // Repeat-prompt detection — if the user is sending a very similar message to their last one,
+  // the previous build likely didn't satisfy the request. Log this as a logical failure to Brain.
+  try {
+    const recentHistory = await getHistory(projectId);
+    const lastUserMsg = recentHistory.filter(m => m.role === "user").slice(-2, -1)[0];
+    if (lastUserMsg && lastUserMsg.content) {
+      const prev = lastUserMsg.content.toLowerCase().trim().slice(0, 80);
+      const curr = userMessage.toLowerCase().trim().slice(0, 80);
+      // Simple overlap check — if 60%+ of words match, flag as a repeat
+      const prevWords = new Set(prev.split(/\s+/));
+      const currWords = curr.split(/\s+/);
+      const overlap = currWords.filter(w => prevWords.has(w)).length / Math.max(currWords.length, 1);
+      if (overlap > 0.6 && currWords.length > 4) {
+        const lesson = "User repeated a nearly identical prompt, suggesting the previous build did not address the request: \"" + userMessage.slice(0, 120) + "\". Builder must read existing files carefully and address the exact stated change.";
+        brain.recordMistake(lesson, "repeat-prompt", projectId).catch(() => {});
+      }
+    }
+  } catch {}
+
   const lastRunId = project.currentRunId;
   const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
 
@@ -1326,6 +1345,9 @@ async function chat(projectId, userMessage) {
       planSuggestion: parsed.planSuggestion,
       suggestForge: parsed.suggestForge || false,
       forgeSuggestion: parsed.forgeSuggestion || null,
+      // Thread active skill context back to client so it can be passed to /iterate.
+      // This is how skill instructions reach the actual builder — not just the Chat Agent.
+      activeSkillContext: skillContext || null,
       createdAt: Date.now(),
     };
     await saveMessage(projectId, assistantMsg);

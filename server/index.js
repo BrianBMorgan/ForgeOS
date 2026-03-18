@@ -412,7 +412,7 @@ app.post("/api/projects/:id/plan", async (req, res) => {
 });
 
 app.post("/api/projects/:id/iterate", async (req, res) => {
-  const { prompt, approvedPlan, isSuggestion } = req.body;
+  const { prompt, approvedPlan, isSuggestion, skillContext } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return res.status(400).json({ error: "Prompt is required" });
   }
@@ -461,6 +461,7 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
     existingFiles,
     approvedPlan: approvedPlan || null,
     isSuggestion: isSuggestion || false,
+    skillContext: skillContext || "",
   });
   await projectManager.addIteration(project.id, run.id, prompt.trim(), iterationNumber);
 

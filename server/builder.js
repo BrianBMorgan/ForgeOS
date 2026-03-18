@@ -370,7 +370,7 @@ You are iterating on an existing app. The user's existing files are provided bel
 - If the conversation history shows you already attempted this fix and it didn't work, try a different approach
 - Check the existing code carefully — if the user says something is broken, find the actual bug in the code and fix it`;
 
-async function buildWorkspace(prompt, existingFiles, projectId = null, approvedPlan = null, isSuggestion = false) {
+async function buildWorkspace(prompt, existingFiles, projectId = null, approvedPlan = null, isSuggestion = false, skillContext = "") {
   const userMessages = [];
 
   if (existingFiles && existingFiles.length > 0) {
@@ -448,7 +448,7 @@ if (isLargePrompt) {
   }
 }
 
-const systemPrompt = [memoryContext, assetsContext, basePrompt]
+const systemPrompt = [memoryContext, assetsContext, skillContext ? `ACTIVATED SKILL INSTRUCTIONS — you MUST follow these patterns in your build output:\n${skillContext}` : "", basePrompt]
   .filter(Boolean)
   .join("\n\n");
 
@@ -632,7 +632,7 @@ async function buildAndDeploy(run) {
           run,
         );
       } else {
-        builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null, run.isSuggestion || false);
+        builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null, run.isSuggestion || false, run.skillContext || "");
       }
       // If this was a suggestion build, store the parsed target file on the run
       // so the Plan tab can display "Surgical edit targeting: <file>".
@@ -713,11 +713,36 @@ async function buildAndDeploy(run) {
 
     workspace.createWorkspace(run.id);
 
-    // For surgical builds (isSuggestion), seed the workspace with all existing files first,
-    // then overwrite only the files the builder returned. This preserves server.js and any
-    // other files the builder correctly did not touch.
-    if (run.isSuggestion && run.existingFiles && run.existingFiles.length > 0) {
+    // ALWAYS seed workspace with existingFiles first — not just for surgical builds.
+    // Builder output then overwrites on top. This means no file can silently disappear
+    // just because the builder didn't include it in its output.
+    if (run.existingFiles && run.existingFiles.length > 0) {
       workspace.writeFiles(run.id, run.existingFiles);
+    }
+
+    // Post-build file integrity check — detect and log dropped files to Brain.
+    if (run.existingFiles && run.existingFiles.length > 0) {
+      const existingPaths = new Set(run.existingFiles.map(f => f.path));
+      const outputPaths = new Set((builderOutput.files || []).map(f => f.path));
+      const droppedFiles = [...existingPaths].filter(p => !outputPaths.has(p));
+      if (droppedFiles.length > 0) {
+        const lesson = `Builder silently dropped ${droppedFiles.length} existing file(s) from output: ${droppedFiles.join(", ")}. Always return ALL existing files in output, not just modified ones.`;
+        console.warn("[builder] File integrity violation:", lesson);
+        brain.recordMistake(lesson, "file-integrity", run.projectId).catch(() => {});
+      }
+    }
+
+    // Skill usage check — if a skill was activated, verify the builder output references
+    // the skill's key patterns. Log to brain if the skill appears to have been ignored.
+    if (run.skillContext && run.skillContext.length > 0) {
+      const outputCode = (builderOutput.files || []).map(f => f.content).join("\n");
+      // Extract first meaningful keyword from skill context as a smoke-test signal
+      const skillKeyword = run.skillContext.match(/fal\.run|stability\.ai|openai\.com|HUBSPOT|RESEND|twilio/i);
+      if (skillKeyword && !outputCode.includes(skillKeyword[0])) {
+        const lesson = `Builder ignored an activated skill (looked for "${skillKeyword[0]}" in output but it was absent). Always apply the full skill instructions to the build.`;
+        console.warn("[builder] Skill compliance violation:", lesson);
+        brain.recordMistake(lesson, "skill-ignored", run.projectId).catch(() => {});
+      }
     }
 
     for (const f of builderOutput.files) {
