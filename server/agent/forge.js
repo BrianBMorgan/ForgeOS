@@ -438,7 +438,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       system: fullSystem,
       tools: TOOLS,
       messages: messages,
-    }, { timeout: 90000 }); // 90s per Claude call max
+    }, { timeout: 300000 }); // 5 min per Claude call max
 
     // Append assistant turn
     messages.push({ role: "assistant", content: response.content });
