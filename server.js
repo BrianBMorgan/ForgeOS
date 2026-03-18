@@ -486,25 +486,28 @@ function renderCanvas(attendee, stickers, textColors) {
 
   /* ── Left Panel ── */
   .panel {
-    width: 260px; flex-shrink: 0;
+    width: 290px; flex-shrink: 0;
     background: var(--panel); border-right: 1px solid var(--border);
     display: flex; flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto; overflow-x: hidden;
   }
+  .panel::-webkit-scrollbar { width: 4px; }
+  .panel::-webkit-scrollbar-track { background: transparent; }
+  .panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .panel-header { padding: 1.25rem 1rem 0.75rem; border-bottom: 1px solid var(--border); }
   .panel-name { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.2rem; }
   .panel-title { font-size: 1rem; font-weight: 600; }
-  .section { padding: 0.875rem 1rem; border-bottom: 1px solid var(--border); }
-  .section-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.6rem; }
+  .section { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+  .section-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.45rem; }
   .prompt-input {
     width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
     border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.82rem;
     padding: 0.6rem 0.75rem; resize: none; outline: none; transition: border-color 0.2s;
-    min-height: 80px;
+    min-height: 60px;
   }
   .prompt-input:focus { border-color: var(--accent); }
   .gen-btn {
-    width: 100%; margin-top: 0.5rem; padding: 0.65rem;
+    width: 100%; margin-top: 0.4rem; padding: 0.55rem;
     background: var(--accent); color: #fff; border: none; border-radius: 8px;
     font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
     transition: background 0.15s; min-height: 40px;
@@ -591,7 +594,7 @@ function renderCanvas(attendee, stickers, textColors) {
   .gen-label { font-size: 0.85rem; color: #94a3b8; letter-spacing: 0.04em; }
 
   /* ── Text Tool ── */
-  .text-section { display: flex; flex-direction: column; gap: 0.5rem; }
+  .text-section { display: flex; flex-direction: column; gap: 0.4rem; }
   .text-input-row { display: flex; gap: 0.5rem; }
   .text-input { flex: 1; background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
     color: var(--text); font-family: 'Intel One Display', system-ui, sans-serif; font-size: 0.9rem;
@@ -696,7 +699,7 @@ function renderCanvas(attendee, stickers, textColors) {
       </div>
     </div>
 
-    <div class="section" style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding-bottom:0">
+    <div class="section" style="min-height:180px;flex:1;overflow:hidden;display:flex;flex-direction:column;padding-bottom:0">
       <div class="section-label">Brand Stickers</div>
       <div class="sticker-tray" id="stickerTray">
         ${stickers.length === 0
