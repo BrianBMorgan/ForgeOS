@@ -336,24 +336,29 @@ app.post("/admin/config/brand", adminSession, requireAdmin, async (req, res) => 
       if (fileData) {
         const dataUri = "data:" + mimeType + ";base64," + fileData;
         // Upload to fal storage via multipart/form-data for a real CDN URL
+        // Endpoint: POST https://api.fal.ai/v1/serverless/files/file/local/{target_path}
         let falCdnUrl = null;
         const falKey = process.env.FAL_API_KEY;
         if (falKey) {
           try {
             const imgBuffer = Buffer.from(fileData, "base64");
-            // Use Node's built-in FormData (Node 18+)
+            const ext = mimeType.split("/")[1] || "png";
+            const targetPath = "brand-logo." + ext;
             const form = new FormData();
             const blob = new Blob([imgBuffer], { type: mimeType });
-            const ext = mimeType.split("/")[1] || "png";
-            form.append("file", blob, "brand-logo." + ext);
-            const uploadRes = await fetch("https://fal.run/files/upload", {
-              method: "POST",
-              headers: { "Authorization": "Key " + falKey },
-              body: form,
-            });
+            form.append("file", blob, targetPath);
+            const uploadRes = await fetch(
+              "https://api.fal.ai/v1/serverless/files/file/local/" + encodeURIComponent(targetPath),
+              {
+                method: "POST",
+                headers: { "Authorization": "Key " + falKey },
+                body: form,
+              }
+            );
             if (uploadRes.ok) {
               const uploadData = await uploadRes.json();
-              falCdnUrl = uploadData.url || null;
+              // Response is the CDN URL string directly, or an object with .url
+              falCdnUrl = (typeof uploadData === "string") ? uploadData : (uploadData.url || uploadData.access_url || null);
               console.log("[canvas] fal upload url:", falCdnUrl);
             } else {
               const errText = await uploadRes.text();
