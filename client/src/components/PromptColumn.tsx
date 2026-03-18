@@ -5,9 +5,6 @@ interface PromptColumnProps {
   runData: RunData | null;
   projectData: ProjectData | null;
   isNewProject: boolean;
-  onRunBuild: (prompt: string, options?: { skipPlan?: boolean }) => void;
-  onApprove: () => void;
-  onReject: (feedback: string) => void;
   onViewIteration: (runId: string) => void;
   viewingIterationRunId: string | null;
   onViewLatest: () => void;
@@ -15,295 +12,8 @@ interface PromptColumnProps {
   chatMessages: ChatMessage[];
   onSendChat: (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => void;
   chatLoading: boolean;
-  onClearBuildSuggestions?: () => void;
-  onGenerateForgePlan?: (forgeSuggestion: string) => void;
 }
 
-function getLatestStageOutput(runData: RunData | null, keys: string[]): Record<string, unknown> | null {
-  if (!runData) return null;
-  for (const key of keys) {
-    const stage = runData.stages[key];
-    if (stage?.output && typeof stage.output === "object") return stage.output as Record<string, unknown>;
-  }
-  return null;
-}
-
-function ApprovalModal({
-  runData,
-  onApprove,
-  onReject,
-}: {
-  runData: RunData | null;
-  onApprove: () => void;
-  onReject: (feedback: string) => void;
-}) {
-  const [showRejectInput, setShowRejectInput] = useState(false);
-  const [rejectFeedback, setRejectFeedback] = useState("");
-
-  const plan = getLatestStageOutput(runData, ["revise_p3", "revise_p2", "planner"]);
-  const review = getLatestStageOutput(runData, ["reviewer_p3", "reviewer_p2", "reviewer_p1"]);
-  const policyGate = runData?.stages?.policy_gate?.output as Record<string, unknown> | null;
-
-  const projectName = (plan?.projectName as string) || "Unnamed Project";
-  const template = (plan?.template as string) || "";
-  const modules = (plan?.modules as string[]) || [];
-  const apiEndpoints = (plan?.apiEndpoints as { method: string; route: string; purpose: string }[]) || [];
-  const uiPages = (plan?.uiPages as { route: string; purpose: string }[]) || [];
-  const dbTables = (plan?.database as { required: boolean; tables: { name: string; purpose: string }[] })?.tables || [];
-  const dbRequired = (plan?.database as { required: boolean })?.required || false;
-  const envVars = (plan?.environmentVariables as string[]) || [];
-  const risks = (plan?.risks as string[]) || [];
-  const backgroundWorkers = (plan?.backgroundWorkers as { name: string; purpose: string }[]) || [];
-  const dataFlows = (plan?.dataFlows as string[]) || [];
-  const acceptanceCriteria = (plan?.acceptanceCriteria as string[]) || [];
-
-  const riskLevel = (review?.riskLevel as string) || "unknown";
-  const reviewSummary = (review?.summary as string) || "";
-  const securityConcerns = (review?.securityConcerns as string[]) || [];
-  const architecturalConcerns = (review?.architecturalConcerns as string[]) || [];
-  const requiredChanges = (review?.withRequiredChanges as { issue: string; whyItMatters: string; requiredFix: string }[]) || [];
-
-  const policyReason = (policyGate?.reason as string) || "";
-
-  const handleReject = () => {
-    if (!rejectFeedback.trim()) return;
-    onReject(rejectFeedback);
-    setShowRejectInput(false);
-    setRejectFeedback("");
-  };
-
-  const riskClass = riskLevel === "high" ? "risk-high" : riskLevel === "medium" ? "risk-medium" : riskLevel === "low" ? "risk-low" : "risk-unknown";
-
-  return (
-    <div className="approval-overlay">
-      <div className="approval-modal">
-        <div className="approval-modal-header">
-          <div className="approval-modal-icon">!</div>
-          <div>
-            <div className="approval-modal-title">Approval Required</div>
-            <div className="approval-modal-subtitle">
-              The agent is ready to build. Review the plan below.
-            </div>
-          </div>
-        </div>
-
-        <div className="approval-modal-body">
-          <div className="approval-summary-row">
-            <span className="approval-label-text">Project</span>
-            <span className="approval-value-text">{projectName}</span>
-          </div>
-          {template && (
-            <div className="approval-summary-row">
-              <span className="approval-label-text">Template</span>
-              <span className="approval-value-text">{template.replace(/-/g, " ")}</span>
-            </div>
-          )}
-          <div className="approval-summary-row">
-            <span className="approval-label-text">Risk Level</span>
-            <span className={`approval-risk-badge ${riskClass}`}>{riskLevel}</span>
-          </div>
-
-          {reviewSummary && (
-            <div className="approval-section">
-              <div className="approval-section-title">Reviewer Summary</div>
-              <p className="approval-section-text">{reviewSummary}</p>
-            </div>
-          )}
-
-          {policyReason && (
-            <div className="approval-section">
-              <div className="approval-section-title">Why Approval is Needed</div>
-              <p className="approval-section-text">{policyReason}</p>
-            </div>
-          )}
-
-          {apiEndpoints.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">API Endpoints ({apiEndpoints.length})</div>
-              <ul className="approval-list">
-                {apiEndpoints.map((ep, i) => (
-                  <li key={i}>
-                    <code>{ep.method} {ep.route}</code> — {ep.purpose}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {uiPages.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">UI Pages ({uiPages.length})</div>
-              <ul className="approval-list">
-                {uiPages.map((pg, i) => (
-                  <li key={i}>
-                    <code>{pg.route}</code> — {pg.purpose}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {dbRequired && dbTables.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Database Tables ({dbTables.length})</div>
-              <ul className="approval-list">
-                {dbTables.map((t, i) => (
-                  <li key={i}>
-                    <code>{t.name}</code> — {t.purpose}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {modules.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Packages</div>
-              <div className="approval-tags">
-                {modules.map((m, i) => (
-                  <span key={i} className="approval-tag">{m}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {envVars.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Environment Variables</div>
-              <div className="approval-tags">
-                {envVars.map((v, i) => (
-                  <span key={i} className="approval-tag env-tag">{v}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {risks.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Risks</div>
-              <ul className="approval-list risk-list">
-                {risks.map((r, i) => (
-                  <li key={i}>{r}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {securityConcerns.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Security Concerns</div>
-              <ul className="approval-list risk-list">
-                {securityConcerns.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {architecturalConcerns.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Architectural Concerns</div>
-              <ul className="approval-list risk-list">
-                {architecturalConcerns.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {requiredChanges.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Required Changes</div>
-              <ul className="approval-list risk-list">
-                {requiredChanges.map((rc, i) => (
-                  <li key={i}>
-                    <strong>{rc.issue}</strong> — {rc.requiredFix}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {backgroundWorkers.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Background Workers</div>
-              <ul className="approval-list">
-                {backgroundWorkers.map((w, i) => (
-                  <li key={i}>
-                    <code>{w.name}</code> — {w.purpose}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {dataFlows.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Data Flows</div>
-              <ul className="approval-list">
-                {dataFlows.map((df, i) => (
-                  <li key={i}>{df}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {acceptanceCriteria.length > 0 && (
-            <div className="approval-section">
-              <div className="approval-section-title">Acceptance Criteria</div>
-              <ul className="approval-list">
-                {acceptanceCriteria.map((ac, i) => (
-                  <li key={i}>{ac}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        <div className="approval-modal-footer">
-          {!showRejectInput ? (
-            <div className="approval-modal-actions">
-              <button className="approval-modal-approve" onClick={onApprove}>
-                Approve Build
-              </button>
-              <button
-                className="approval-modal-reject"
-                onClick={() => setShowRejectInput(true)}
-              >
-                Reject
-              </button>
-            </div>
-          ) : (
-            <div className="approval-modal-reject-area">
-              <textarea
-                className="approval-modal-textarea"
-                placeholder="Explain what should change..."
-                value={rejectFeedback}
-                onChange={(e) => setRejectFeedback(e.target.value)}
-                rows={3}
-                autoFocus
-              />
-              <div className="approval-modal-actions">
-                <button className="approval-modal-reject-submit" onClick={handleReject}>
-                  Submit Rejection
-                </button>
-                <button
-                  className="approval-modal-reject-cancel"
-                  onClick={() => {
-                    setShowRejectInput(false);
-                    setRejectFeedback("");
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface SkillOption {
   id: number;
@@ -321,9 +31,6 @@ export default function PromptColumn({
   runData,
   projectData,
   isNewProject,
-  onRunBuild,
-  onApprove,
-  onReject,
   onViewIteration,
   viewingIterationRunId,
   onViewLatest,
@@ -331,8 +38,6 @@ export default function PromptColumn({
   chatMessages,
   onSendChat,
   chatLoading,
-  onClearBuildSuggestions,
-  onGenerateForgePlan,
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -356,24 +61,17 @@ export default function PromptColumn({
         textareaRef.current.focus();
       }
     };
-    (window as unknown as Record<string, unknown>).__forgeRunBuild = (text: string) => {
-      if (!text || !text.trim()) return;
-      onRunBuild(text.trim());
-    };
     return () => {
       delete (window as unknown as Record<string, unknown>).__forgeSetPrompt;
-      delete (window as unknown as Record<string, unknown>).__forgeRunBuild;
     };
-  }, [onRunBuild]);
+  }, []);
 
   // stages removed — pipeline visualization removed
   const isRunning = runData?.status === "running";
-  const isAwaitingApproval = runData?.status === "awaiting-approval";
   const isViewingHistory = !!viewingIterationRunId;
 
   const isProjectView = !isNewProject && projectData;
   const hasIterations = projectData && projectData.iterations.length > 0;
-  const canIterate = isProjectView && (runData?.status === "completed" || runData?.status === "failed");
   const hasChatHistory = chatMessages.length > 0;
 
   useEffect(() => {
@@ -482,11 +180,7 @@ export default function PromptColumn({
 
   const handleSubmit = () => {
     if ((!prompt.trim() && attachments.length === 0) || isRunning || chatLoading) return;
-    if (isProjectView) {
-      onSendChat(prompt, attachments);
-    } else {
-      onRunBuild(prompt);
-    }
+    onSendChat(prompt, attachments);
     setPrompt("");
     setAttachments([]);
     setSlashQuery(null);
@@ -530,19 +224,7 @@ export default function PromptColumn({
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleBuildFromSuggestion = (suggestion: string) => {
-    if (onClearBuildSuggestions) onClearBuildSuggestions();
-    onRunBuild(suggestion, { skipPlan: true });
-  };
 
-  const handlePlanFromSuggestion = (planSuggestion: string) => {
-    if (onClearBuildSuggestions) onClearBuildSuggestions();
-    onRunBuild(planSuggestion); // no skipPlan → routes through the full plan gate
-  };
-
-  const handleForgeRepair = useCallback((forgeSuggestion: string) => {
-    if (onGenerateForgePlan) onGenerateForgePlan(forgeSuggestion);
-  }, [onGenerateForgePlan]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (assetQuery !== null && filteredAssets.length > 0) {
@@ -665,33 +347,7 @@ export default function PromptColumn({
                 {msg.role === "user" ? "You" : msg.isLive ? "Forge is working…" : "Forge"}
               </div>
               <div className={`chat-content${msg.isLive ? " chat-live-content" : ""}`}>{msg.content}</div>
-              {msg.suggestBuild && msg.buildSuggestion && (
-                <button
-                  className="chat-build-btn"
-                  onClick={() => handleBuildFromSuggestion(msg.buildSuggestion!)}
-                  disabled={isRunning || chatLoading || !canIterate}
-                >
-                  Build this change
-                </button>
-              )}
-              {msg.suggestPlan && msg.planSuggestion && (
-                <button
-                  className="chat-plan-btn"
-                  onClick={() => handlePlanFromSuggestion(msg.planSuggestion!)}
-                  disabled={isRunning || chatLoading || !canIterate}
-                >
-                  Generate Plan
-                </button>
-              )}
-              {msg.suggestForge && msg.forgeSuggestion && (
-                <button
-                  className="chat-forge-btn"
-                  onClick={() => handleForgeRepair(msg.forgeSuggestion!)}
-                  disabled={isRunning || chatLoading}
-                >
-                  Apply ForgeOS Fix
-                </button>
-              )}
+
             </div>
           ))}
           {/* Live in-progress bubble is injected via chatMessages with isLive:true — no static fallback needed */}
@@ -797,13 +453,7 @@ export default function PromptColumn({
 
       {/* Pipeline visualization removed — agent chat is the pipeline */}
 
-      {isAwaitingApproval && !isViewingHistory && (
-        <ApprovalModal
-          runData={runData}
-          onApprove={onApprove}
-          onReject={onReject}
-        />
-      )}
+
 
       <div className="prompt-meta">
         <div className="meta-row">

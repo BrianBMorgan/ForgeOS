@@ -70,13 +70,6 @@ export interface IterationData {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
-  suggestBuild: boolean;
-  buildSuggestion: string | null;
-  suggestPlan?: boolean;
-  planSuggestion?: string | null;
-  suggestForge?: boolean;
-  forgeSuggestion?: string | null;
-  activeSkillContext?: string | null;
   isLive?: boolean;
   createdAt: number;
 }
@@ -106,56 +99,11 @@ function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [mobileView, setMobileView] = useState<"chat" | "workspace">("chat");
-  const [pendingPlan, setPendingPlan] = useState<{ prompt: string; plan: Record<string, unknown> } | null>(null);
-  const [planLoading, setPlanLoading] = useState(false);
-  const [pendingForgePlan, setPendingForgePlan] = useState<{ forgeSuggestion: string; plan: Record<string, unknown> } | null>(null);
-  const [forgePlanLoading, setForgePlanLoading] = useState(false);
-  const [forgeApplying, setForgeApplying] = useState(false);
-  const [forgeApplyResult, setForgeApplyResult] = useState<{ ok: boolean; message: string; filesWritten?: string[] } | null>(null);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startProject = useCallback(async (prompt: string) => {
-    // Large prompt guard — if the prompt is above the complexity threshold,
-    // create the project first then route through the plan gate instead of
-    // attempting a direct build that would overflow the builder's context budget.
-    const LARGE_PROMPT_THRESHOLD = 3000; // matches planner truncation threshold
-    if (prompt.trim().length > LARGE_PROMPT_THRESHOLD) {
-      // Create the project without building
-      const res = await fetch(`${API_BASE}/projects`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, skipBuild: true }),
-      });
-      const data = await res.json();
-      if (data.id) {
-        setCurrentProjectId(data.id);
-        setCurrentRunId(null);
-        setViewingIterationRunId(null);
-        setActiveNav("projects");
-        // Now route through the plan gate
-        setPlanLoading(true);
-        setPendingPlan(null);
-        window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
-        try {
-          const planRes = await fetch(`${API_BASE}/projects/${data.id}/plan`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt }),
-          });
-          const planData = await planRes.json();
-          if (planData.plan) {
-            setPendingPlan({ prompt, plan: planData.plan });
-          }
-        } catch (err) {
-          console.error("[plan] Failed to generate plan for large prompt:", err);
-        } finally {
-          setPlanLoading(false);
-        }
-      }
-      return;
-    }
-
     const res = await fetch(`${API_BASE}/projects`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -164,146 +112,11 @@ function App() {
     const data = await res.json();
     if (data.id) {
       setCurrentProjectId(data.id);
-      setCurrentRunId(data.runId);
+      setCurrentRunId(data.runId || null);
       setViewingIterationRunId(null);
       setActiveNav("projects");
     }
-  }, [setPlanLoading, setPendingPlan, setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
-
-  // Tracks the skill context active on the last chat response — threaded to /iterate
-  // so the builder actually receives the skill instructions, not just the Chat Agent.
-  const activeSkillContext = "";
-
-  const iterateProject = useCallback(async (prompt: string, options?: { skipPlan?: boolean }) => {
-    if (!currentProjectId) return;
-
-    // Build suggestions from the Chat Agent are already surgical single-file instructions —
-    // skip the plan gate and fire the builder directly with the suggestion as the constraint.
-    if (options?.skipPlan) {
-      window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
-      const res = await fetch(`${API_BASE}/projects/${currentProjectId}/iterate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, isSuggestion: true, skillContext: activeSkillContext || "" }),
-      });
-      const data = await res.json();
-      if (data.runId) {
-        setCurrentRunId(data.runId);
-        setViewingIterationRunId(null);
-      }
-      return;
-    }
-
-    // Normal path — run the planner first and show the approval gate.
-    setPlanLoading(true);
-    setPendingPlan(null);
-    window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
-    try {
-      const res = await fetch(`${API_BASE}/projects/${currentProjectId}/plan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      const data = await res.json();
-      if (data.plan) {
-        setPendingPlan({ prompt, plan: data.plan });
-      }
-    } catch (err) {
-      console.error("[plan] Failed to generate plan:", err);
-    } finally {
-      setPlanLoading(false);
-    }
-  }, [currentProjectId]);
-
-  const approvePlan = useCallback(async () => {
-    if (!currentProjectId || !pendingPlan) return;
-    setPendingPlan(null);
-    const res = await fetch(`${API_BASE}/projects/${currentProjectId}/iterate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: pendingPlan.prompt, approvedPlan: pendingPlan.plan }),
-    });
-    const data = await res.json();
-    if (data.runId) {
-      setCurrentRunId(data.runId);
-      setViewingIterationRunId(null);
-    }
-  }, [currentProjectId, pendingPlan]);
-
-  const revisePlan = useCallback(() => {
-    setPendingPlan(null);
-  }, []);
-
-  const generateForgePlan = useCallback(async (forgeSuggestion: string) => {
-    setForgePlanLoading(true);
-    setPendingForgePlan(null);
-    window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "plan" }));
-    try {
-      const res = await fetch(`${API_BASE}/forge-repair/plan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ forgeSuggestion }),
-      });
-      const data = await res.json();
-      if (data.plan) {
-        setPendingForgePlan({ forgeSuggestion, plan: data.plan });
-      }
-    } catch (err) {
-      console.error("[forge-repair] Failed to generate plan:", err);
-    } finally {
-      setForgePlanLoading(false);
-    }
-  }, []);
-
-  const approveForgePlan = useCallback(async () => {
-    if (!pendingForgePlan) return;
-    const { forgeSuggestion, plan } = pendingForgePlan;
-    // Keep plan visible while applying — don't clear until done
-    setForgeApplying(true);
-    setForgeApplyResult(null);
-    try {
-      const res = await fetch(`${API_BASE}/forge-repair/apply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ forgeSuggestion, approvedPlan: plan }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setForgeApplyResult({ ok: true, message: data.message, filesWritten: data.filesWritten });
-        setPendingForgePlan(null);
-      } else {
-        setForgeApplyResult({ ok: false, message: data.error || "Forge repair failed — check Render logs." });
-      }
-    } catch (err) {
-      setForgeApplyResult({ ok: false, message: "Network error — forge repair could not reach the server." });
-    } finally {
-      setForgeApplying(false);
-    }
-  }, [pendingForgePlan]);
-
-  const rejectForgePlan = useCallback(() => {
-    setPendingForgePlan(null);
-  }, []);
-
-  const approveRun = useCallback(async () => {
-    if (!currentRunId) return;
-    await fetch(`${API_BASE}/runs/${currentRunId}/approve`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-  }, [currentRunId]);
-
-  const rejectRun = useCallback(
-    async (feedback: string) => {
-      if (!currentRunId) return;
-      await fetch(`${API_BASE}/runs/${currentRunId}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feedback }),
-      });
-    },
-    [currentRunId]
-  );
+  }, [setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
 
   const sendChat = useCallback(async (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => {
     if (!currentProjectId) return;
@@ -567,9 +380,6 @@ function App() {
             runData={runData}
             projectData={projectData}
             isNewProject={activeNav === "new-project"}
-            onRunBuild={currentProjectId ? iterateProject : startProject}
-            onApprove={approveRun}
-            onReject={rejectRun}
             onViewIteration={viewIteration}
             viewingIterationRunId={viewingIterationRunId}
             onViewLatest={viewLatest}
@@ -577,8 +387,6 @@ function App() {
             chatMessages={chatMessages}
             onSendChat={sendChat}
             chatLoading={chatLoading}
-            onClearBuildSuggestions={() => setChatMessages(prev => prev.map(m => ({ ...m, suggestBuild: false })))}
-            onGenerateForgePlan={generateForgePlan}
           />
         </div>
         <div className={`mobile-panel mobile-panel-workspace ${mobileView === "workspace" ? "mobile-active" : ""}`}>
@@ -587,17 +395,6 @@ function App() {
             projectData={projectData}
             viewingIterationRunId={viewingIterationRunId}
             onRefreshRunData={refreshRunData}
-            pendingPlan={pendingPlan}
-            planLoading={planLoading}
-            onApprovePlan={approvePlan}
-            onRevisePlan={revisePlan}
-            pendingForgePlan={pendingForgePlan}
-            forgePlanLoading={forgePlanLoading}
-            onApproveForgePlan={approveForgePlan}
-            onRejectForgePlan={rejectForgePlan}
-            forgeApplying={forgeApplying}
-            forgeApplyResult={forgeApplyResult}
-            onClearForgeResult={() => setForgeApplyResult(null)}
           />
         </div>
         <div className="mobile-view-toggle">

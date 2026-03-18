@@ -10,7 +10,6 @@ const {
 } = require("./pipeline/runner");
 const { buildAndDeploy } = require("./builder");
 const workspace = require("./workspace/manager");
-const { mountMcp } = require("./mcp/handler");
 const brain = require("./memory/brain");
 const publishManager = require("./publish/manager");
 
@@ -240,15 +239,6 @@ app.post("/api/runs/:id/exec", async (req, res) => {
   res.json(result);
 });
 
-// ARCHIVED: approve/reject routes (pipeline disconnected)
-app.post("/api/runs/:id/approve", async (req, res) => {
-  res.status(501).json({ error: "Pipeline archived. Approval flow not active." });
-});
-
-app.post("/api/runs/:id/reject", async (req, res) => {
-  res.status(501).json({ error: "Pipeline archived. Rejection flow not active." });
-});
-
 const projectManager = require("./projects/manager");
 
 app.post("/api/projects", async (req, res) => {
@@ -357,60 +347,6 @@ app.get("/api/projects/:id", async (req, res) => {
   res.json({ ...project, iterations, currentRun });
 });
 
-// ── ForgeOS Self-Repair ──────────────────────────────────────────────────
-
-app.post("/api/forge-repair/plan", async (req, res) => {
-  const { forgeSuggestion } = req.body;
-  if (!forgeSuggestion || typeof forgeSuggestion !== "string" || !forgeSuggestion.trim()) {
-    return res.status(400).json({ error: "forgeSuggestion is required" });
-  }
-  try {
-    const forgeRepair = require("./forge-repair/manager");
-    const plan = await forgeRepair.generateForgePlan(forgeSuggestion.trim());
-    res.json({ plan });
-  } catch (err) {
-    console.error("[forge-repair] Plan generation failed:", err.message);
-    res.status(500).json({ error: "Failed to generate forge repair plan: " + err.message });
-  }
-});
-
-app.post("/api/forge-repair/apply", async (req, res) => {
-  const { forgeSuggestion, approvedPlan } = req.body;
-  if (!forgeSuggestion || !approvedPlan) {
-    return res.status(400).json({ error: "forgeSuggestion and approvedPlan are required" });
-  }
-  try {
-    const forgeRepair = require("./forge-repair/manager");
-    const result = await forgeRepair.applyForgeFix(forgeSuggestion.trim(), approvedPlan);
-    res.json(result);
-  } catch (err) {
-    console.error("[forge-repair] Apply failed:", err.message);
-    res.status(500).json({ error: "Forge repair failed: " + err.message });
-  }
-});
-
-app.post("/api/projects/:id/plan", async (req, res) => {
-  const { prompt } = req.body;
-  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-    return res.status(400).json({ error: "Prompt is required" });
-  }
-
-  const project = await projectManager.getProject(req.params.id);
-  if (!project) return res.status(404).json({ error: "Project not found" });
-
-  const { generatePlan } = require("./plan/manager");
-  const lastRunId = project.currentRunId;
-  const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
-
-  try {
-    const plan = await generatePlan(prompt.trim(), existingFiles);
-    res.json({ plan });
-  } catch (err) {
-    console.error("[plan] Error generating plan:", err.message);
-    res.status(500).json({ error: "Failed to generate plan" });
-  }
-});
-
 app.post("/api/projects/:id/iterate", async (req, res) => {
   const { prompt, approvedPlan, isSuggestion, skillContext } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -438,9 +374,6 @@ app.post("/api/projects/:id/iterate", async (req, res) => {
       requiresPlan: true,
     });
   }
-
-  const chatMgr = require("./chat/manager");
-  chatMgr.clearBuildSuggestions(req.params.id).catch(() => {});
 
   const lastRunId = project.currentRunId;
   const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
@@ -1802,22 +1735,6 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("HubSpot skill seed error:", err.message);
   }
 
-  try {
-    const runtimeBackup = require("./workspace/runtime-backup");
-    runtimeBackup.startPeriodicBackup(() => {
-      const allWs = [];
-      const projects = projectManager.getAllProjectsSync ? projectManager.getAllProjectsSync() : [];
-      for (const p of projects) {
-        if ((p.status === "active" || p.status === "building") && p.currentRunId) {
-          allWs.push(p.currentRunId);
-        }
-      }
-      return allWs;
-    });
-    console.log("[runtime-backup] Periodic backup started (every 5 minutes)");
-  } catch (err) {
-    console.error("Runtime backup setup error:", err.message);
-  }
 });
 
 
