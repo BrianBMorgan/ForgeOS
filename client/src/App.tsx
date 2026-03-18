@@ -77,6 +77,7 @@ export interface ChatMessage {
   suggestForge?: boolean;
   forgeSuggestion?: string | null;
   activeSkillContext?: string | null;
+  isLive?: boolean;
   createdAt: number;
 }
 
@@ -317,6 +318,7 @@ function App() {
       content: "Working...",
       suggestBuild: false,
       buildSuggestion: null,
+      isLive: true,
       createdAt: thinkingId,
     };
     setChatMessages((prev) => [...prev, thinkingMsg]);
@@ -344,9 +346,7 @@ function App() {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("
-
-");
+        const lines = buffer.split("\n\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
@@ -359,11 +359,11 @@ function App() {
             thinkingLines.push(evt.content);
             const preview = thinkingLines[thinkingLines.length - 1].slice(0, 120);
             setChatMessages((prev) => prev.map(m =>
-              m.createdAt === thinkingId ? { ...m, content: "⚡ " + preview } : m
+              m.createdAt === thinkingId ? { ...m, content: preview, isLive: true } : m
             ));
           } else if (evt.type === "file_written") {
             setChatMessages((prev) => prev.map(m =>
-              m.createdAt === thinkingId ? { ...m, content: "📝 Writing " + evt.path + "..." } : m
+              m.createdAt === thinkingId ? { ...m, content: "Writing " + evt.path + "...", isLive: true } : m
             ));
           } else if (evt.type === "done") {
             // Replace thinking message with final response

@@ -682,9 +682,11 @@ export default function PromptColumn({
       {isProjectView && !isViewingHistory && hasChatHistory && (
         <div className="chat-thread">
           {chatMessages.map((msg, i) => (
-            <div key={i} className={`chat-message chat-${msg.role}`}>
-              <div className="chat-role">{msg.role === "user" ? "You" : "Forge"}</div>
-              <div className="chat-content">{msg.content}</div>
+            <div key={i} className={`chat-message chat-${msg.role}${msg.isLive ? " chat-live" : ""}`}>
+              <div className="chat-role">
+                {msg.role === "user" ? "You" : msg.isLive ? "Forge is working…" : "Forge"}
+              </div>
+              <div className={`chat-content${msg.isLive ? " chat-live-content" : ""}`}>{msg.content}</div>
               {msg.suggestBuild && msg.buildSuggestion && (
                 <button
                   className="chat-build-btn"
@@ -714,12 +716,7 @@ export default function PromptColumn({
               )}
             </div>
           ))}
-          {chatLoading && (
-            <div className="chat-message chat-assistant">
-              <div className="chat-role">Forge</div>
-              <div className="chat-content chat-thinking">Thinking...</div>
-            </div>
-          )}
+          {/* Live in-progress bubble is injected via chatMessages with isLive:true — no static fallback needed */}
           <div ref={chatEndRef} />
         </div>
       )}
