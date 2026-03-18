@@ -87,6 +87,8 @@ async function ensureSchema() {
   await sql`ALTER TABLE canvas_attendees ADD COLUMN IF NOT EXISTS event_id INTEGER REFERENCES canvas_events(id)`;
   // Add printed_at to artworks if not exists
   await sql`ALTER TABLE canvas_artworks ADD COLUMN IF NOT EXISTS printed_at BIGINT`;
+  await sql`ALTER TABLE canvas_config ADD COLUMN IF NOT EXISTS brand_logo TEXT`;
+  await sql`ALTER TABLE canvas_config ADD COLUMN IF NOT EXISTS brand_name VARCHAR(100)`;
   console.log("[canvas] Schema ready");
 }
 
@@ -174,20 +176,39 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
   if (!falKey) return res.status(500).json({ error: "FAL_API_KEY not configured" });
 
   try {
-    // Inject current Intel logo (post-2020 rebrand ONLY — absolutely no swoosh, oval, or circle)
-    const enhancedPrompt = `${prompt}. Somewhere in the background of the scene — on a building, billboard, or sign — show the Intel logo. CRITICAL: the Intel logo is ONLY the lowercase word "intel" in plain white sans-serif text on a solid blue rectangular background. There is NO oval shape. There is NO circle. There is NO swoosh. There is NO ring around the text. There is NO ellipse. The letter i has a small dark square dot above it, not a circular one. The logo is flat, minimal, and typographic only. Any version of the Intel logo with an oval, circle, ellipse, or swoosh shape is the OLD logo and must NOT be used. This is a secondary background detail, not the focal point of the image.`;
+    // Load brand logo from config if available
+    const cfgRows = await sql`SELECT brand_logo, brand_name FROM canvas_config LIMIT 1`;
+    const brandLogo = cfgRows.length ? cfgRows[0].brand_logo : null;
+    const brandName = cfgRows.length ? cfgRows[0].brand_name : null;
 
-    const falRes = await fetch("https://fal.run/fal-ai/flux-pro", {
-      method: "POST",
-      headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: enhancedPrompt,
+    // Build request — use ultra with image conditioning if logo exists, plain flux-pro if not
+    let falBody;
+    if (brandLogo) {
+      falBody = {
+        prompt: prompt + (brandName ? `. Scene should feel consistent with the ${brandName} brand.` : ""),
+        image_url: brandLogo,
+        image_prompt_strength: 0.12,
+        image_size: { width: 1024, height: 1024 },
+        num_images: 1,
+        output_format: "jpeg",
+        safety_tolerance: "5",
+      };
+    } else {
+      falBody = {
+        prompt,
         image_size: { width: 1024, height: 1024 },
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
         output_format: "jpeg",
-      }),
+      };
+    }
+
+    const endpoint = brandLogo ? "https://fal.run/fal-ai/flux-pro/v1.1-ultra" : "https://fal.run/fal-ai/flux-pro";
+    const falRes = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(falBody),
     });
 
     if (!falRes.ok) {
@@ -295,6 +316,38 @@ app.post("/admin/events/:id/toggle", adminSession, requireAdmin, async (req, res
   res.redirect("/admin?token=" + (req.query.token || ""));
 });
 
+// ── Brand logo upload ─────────────────────────────────────────────────────────
+app.post("/admin/config/brand", adminSession, requireAdmin, async (req, res) => {
+  const Busboy = require("busboy");
+  const busboy = Busboy({ headers: req.headers, limits: { fileSize: 2 * 1024 * 1024 } });
+  let fileData = null, mimeType = "", brandName = "";
+
+  busboy.on("field", (name, val) => { if (name === "brand_name") brandName = val.trim(); });
+  busboy.on("file", (name, file, info) => {
+    mimeType = info.mimeType;
+    const chunks = [];
+    file.on("data", d => chunks.push(d));
+    file.on("end", () => { fileData = Buffer.concat(chunks).toString("base64"); });
+  });
+  busboy.on("finish", async () => {
+    try {
+      if (fileData) {
+        const dataUri = "data:" + mimeType + ";base64," + fileData;
+        await sql`UPDATE canvas_config SET brand_logo = ${dataUri}, brand_name = ${brandName || null}`;
+      } else if (brandName) {
+        await sql`UPDATE canvas_config SET brand_name = ${brandName}`;
+      }
+      res.json({ ok: true });
+    } catch(err) { res.status(500).json({ error: err.message }); }
+  });
+  req.pipe(busboy);
+});
+
+app.post("/admin/config/brand/clear", adminSession, requireAdmin, async (req, res) => {
+  await sql`UPDATE canvas_config SET brand_logo = NULL, brand_name = NULL`;
+  res.json({ ok: true });
+});
+
 // ── Text color config ─────────────────────────────────────────────────────────
 app.post("/admin/config/colors", adminSession, requireAdmin, async (req, res) => {
   const colors = [req.body.color1, req.body.color2, req.body.color3, req.body.color4]
@@ -375,8 +428,10 @@ app.get("/admin", adminSession, requireAdmin, async (req, res) => {
     JOIN canvas_attendees att ON att.session_id = a.session_id
     ORDER BY a.created_at DESC
   `;
-  const cfgRows = await sql`SELECT text_colors FROM canvas_config LIMIT 1`;
+  const cfgRows = await sql`SELECT text_colors, brand_logo, brand_name FROM canvas_config LIMIT 1`;
   const colors = cfgRows.length ? cfgRows[0].text_colors : ["#ffffff","#000000","#00aae8","#cccccc"];
+  const brandLogo = cfgRows.length ? cfgRows[0].brand_logo : null;
+  const brandName = cfgRows.length ? cfgRows[0].brand_name : null;
   const events = await sql`
     SELECT e.*, COUNT(k.id) as kiosk_count
     FROM canvas_events e LEFT JOIN canvas_kiosks k ON k.event_id = e.id
@@ -387,7 +442,7 @@ app.get("/admin", adminSession, requireAdmin, async (req, res) => {
     FROM canvas_kiosks k JOIN canvas_events e ON e.id = k.event_id
     ORDER BY e.created_at DESC, k.kiosk_number ASC
   `;
-  res.send(renderAdmin(stickers, artworks, colors, req, events, kiosks));
+  res.send(renderAdmin(stickers, artworks, colors, req, events, kiosks, brandLogo, brandName));
 });
 
 // Sticker upload
@@ -1422,7 +1477,7 @@ const tick = setInterval(() => {
 </html>`;
 }
 
-function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
+function renderAdmin(stickers, artworks, colors, req, events, kiosks, brandLogo, brandName) {
   const adminToken = req.query.token || "";
   const host = req.protocol + "://" + req.get("host");
   return `<!DOCTYPE html>
@@ -1528,6 +1583,7 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
 <div class="tabs">
   <div class="tab active" onclick="showTab('events',this)">Events & Kiosks</div>
   <div class="tab" onclick="showTab('stickers',this)">Stickers</div>
+  <div class="tab" onclick="showTab('brand',this)">Brand</div>
   <div class="tab" onclick="showTab('colors',this)">Text Colors</div>
   <div class="tab" onclick="showTab('gallery',this)">Gallery</div>
 </div>
@@ -1597,6 +1653,52 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
           </form>
         </div>`).join("") || "<p style='color:var(--muted);font-size:0.85rem'>No stickers yet.</p>"}
     </div>
+  </div>
+
+  <div class="panel" id="tab-brand">
+    <div class="section-title">Brand Identity</div>
+    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem">Upload a brand logo to use as a visual reference when generating AI backgrounds. The model uses it as subtle conditioning — the logo won't appear literally but guides the visual style and color palette.</p>
+
+    ${brandLogo ? `
+    <div style="margin-bottom:1.25rem">
+      <div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem">Current Logo${brandName ? ' — ' + brandName : ''}</div>
+      <div style="display:flex;align-items:center;gap:1rem">
+        <img src="${brandLogo}" style="height:64px;max-width:180px;object-fit:contain;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;padding:0.5rem">
+        <button onclick="clearBrand()" class="btn danger" style="font-size:0.8rem;padding:0.4rem 0.9rem">Remove Logo</button>
+      </div>
+    </div>` : '<p style="color:var(--muted);font-size:0.82rem;margin-bottom:1rem">No brand logo uploaded yet.</p>'}
+
+    <div class="section-title" style="margin-top:0.5rem">Upload New Logo</div>
+    <form id="brandForm" enctype="multipart/form-data">
+      <div style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px">
+        <div class="form-field"><label>Brand Name (optional)</label><input type="text" name="brand_name" placeholder="e.g. Intel" value="${brandName || ''}"></div>
+        <div class="form-field"><label>Logo File (PNG/JPG, max 2MB)</label><input type="file" name="brand_logo" accept="image/png,image/jpeg,image/webp" required></div>
+        <button type="submit" class="btn">Upload Logo</button>
+      </div>
+    </form>
+    <script>
+    document.getElementById('brandForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const btn = this.querySelector('button[type=submit]');
+      btn.disabled = true; btn.textContent = 'Uploading…';
+      const token = localStorage.getItem('canvas_admin_token');
+      const res = await fetch('/admin/config/brand', {
+        method: 'POST',
+        headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+        body: new FormData(this)
+      });
+      if (res.ok) { window.location.reload(); }
+      else { btn.disabled = false; btn.textContent = 'Upload Logo'; alert('Upload failed'); }
+    });
+    function clearBrand() {
+      if (!confirm('Remove brand logo?')) return;
+      const token = localStorage.getItem('canvas_admin_token');
+      fetch('/admin/config/brand/clear', {
+        method: 'POST',
+        headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+      }).then(() => window.location.reload());
+    }
+    </script>
   </div>
 
   <div class="panel" id="tab-colors">
