@@ -424,7 +424,7 @@ export default function PromptColumn({
     };
   }, [onRunBuild]);
 
-  const stages = deriveStages(runData);
+  // stages removed — pipeline visualization removed
   const isRunning = runData?.status === "running";
   const isAwaitingApproval = runData?.status === "awaiting-approval";
   const isViewingHistory = !!viewingIterationRunId;
