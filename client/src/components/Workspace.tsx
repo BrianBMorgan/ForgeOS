@@ -894,43 +894,31 @@ interface WorkspaceProps {
   onRefreshRunData?: () => void;
 }
 
-function renderField(label: string, value: unknown) {
-  if (value === null || value === undefined) return null;
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) return null;
-    return (
-      <div className="plan-field">
-        <div className="plan-field-label">{label}</div>
-        <div className="plan-field-list">
-          {value.map((item, i) => (
-            <div key={i} className="plan-field-item">
-              {typeof item === "object" ? (
-                <pre>{JSON.stringify(item, null, 2)}</pre>
-              ) : (
-                String(item)
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (typeof value === "object") {
-    return (
-      <div className="plan-field">
-        <div className="plan-field-label">{label}</div>
-        <pre className="plan-field-json">{JSON.stringify(value, null, 2)}</pre>
-      </div>
-    );
-  }
-
+function WorkspaceStatusBadge({ status }: { status: string }) {
+  const labels: Record<string, string> = {
+    "writing-files": "Writing files...",
+    "files-written": "Files written",
+    "installing": "Installing...",
+    "installed": "Installed",
+    "install-failed": "Install failed",
+    "starting": "Starting...",
+    "running": "Running",
+    "start-failed": "Failed to start",
+    "stopped": "Stopped",
+    "build-failed": "Build failed",
+  };
+  const colors: Record<string, string> = {
+    "writing-files": "#3b82f6", "files-written": "#3b82f6",
+    "installing": "#f59e0b", "installed": "#f59e0b",
+    "install-failed": "#f87171", "starting": "#f59e0b",
+    "running": "#4ade80", "start-failed": "#f87171",
+    "stopped": "#64748b", "build-failed": "#f87171",
+  };
   return (
-    <div className="plan-field">
-      <div className="plan-field-label">{label}</div>
-      <div className="plan-field-value">{String(value)}</div>
-    </div>
+    <span className="workspace-status-badge" style={{ color: colors[status] || "#64748b" }}>
+      <span className="workspace-status-dot" style={{ background: colors[status] || "#64748b" }} />
+      {labels[status] || status}
+    </span>
   );
 }
 

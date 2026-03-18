@@ -103,24 +103,11 @@ function App() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const startProject = useCallback(async (prompt: string) => {
-    const res = await fetch(`${API_BASE}/projects`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
-    });
-    const data = await res.json();
-    if (data.id) {
-      setCurrentProjectId(data.id);
-      setCurrentRunId(data.runId || null);
-      setViewingIterationRunId(null);
-      setActiveNav("projects");
-    }
-  }, [setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
+
 
   const sendChat = useCallback(async (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => {
     if (!currentProjectId) return;
-    const userMsg: ChatMessage = { role: "user", content: message, suggestBuild: false, buildSuggestion: null, createdAt: Date.now() };
+    const userMsg: ChatMessage = { role: "user", content: message, createdAt: Date.now() };
     setChatMessages((prev) => [...prev, userMsg]);
     setChatLoading(true);
 
@@ -129,8 +116,6 @@ function App() {
     const thinkingMsg: ChatMessage = {
       role: "assistant",
       content: "Working...",
-      suggestBuild: false,
-      buildSuggestion: null,
       isLive: true,
       createdAt: thinkingId,
     };
@@ -140,12 +125,12 @@ function App() {
       const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, skillContext: activeSkillContext || "", attachments: attachments || [] }),
+        body: JSON.stringify({ message, skillContext: "", attachments: attachments || [] }),
       });
 
       if (!res.ok || !res.body) {
         setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
-        setChatMessages((prev) => [...prev, { role: "assistant", content: "Something went wrong. Please try again.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
+        setChatMessages((prev) => [...prev, { role: "assistant", content: "Something went wrong. Please try again.", createdAt: Date.now() }]);
         return;
       }
 
@@ -196,8 +181,6 @@ function App() {
             const finalMsg: ChatMessage = {
               role: "assistant",
               content: evt.content || "Done.",
-              suggestBuild: false,
-              buildSuggestion: null,
               createdAt: evt.createdAt || Date.now(),
             };
             setChatMessages((prev) => [...prev, finalMsg]);
@@ -208,17 +191,17 @@ function App() {
             }
           } else if (evt.type === "error") {
             setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
-            setChatMessages((prev) => [...prev, { role: "assistant", content: evt.error || "Something went wrong.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
+            setChatMessages((prev) => [...prev, { role: "assistant", content: evt.error || "Something went wrong.", createdAt: Date.now() }]);
           }
         }
       }
     } catch {
       setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
-      setChatMessages((prev) => [...prev, { role: "assistant", content: "Connection error. Please try again.", suggestBuild: false, buildSuggestion: null, createdAt: Date.now() }]);
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "Connection error. Please try again.", createdAt: Date.now() }]);
     } finally {
       setChatLoading(false);
     }
-  }, [currentProjectId, activeSkillContext, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
+  }, [currentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
 
   const openProject = useCallback((projectId: string) => {
     setCurrentProjectId(projectId);
