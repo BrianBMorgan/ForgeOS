@@ -346,7 +346,12 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       var text = textBlocks.map(function(b) { return b.text; }).join("\n").trim();
       if (text) {
         finalMessage = text;
-        if (onMessage) onMessage({ type: "thinking", content: text });
+        // Only emit thinking events mid-loop when the agent is actively using tools.
+        // Round 0 with end_turn = pure chat response, goes out as done not thinking.
+        // Round > 0 or stop_reason = tool_use = agent working, show progress.
+        if (round > 0 || response.stop_reason === "tool_use") {
+          if (onMessage) onMessage({ type: "thinking", content: text });
+        }
       }
     }
 

@@ -355,12 +355,17 @@ function App() {
           try { evt = JSON.parse(line.slice(6)); } catch { continue; }
 
           if (evt.type === "thinking") {
-            // Update the live thinking message with latest agent status
-            thinkingLines.push(evt.content);
-            const preview = thinkingLines[thinkingLines.length - 1].slice(0, 120);
-            setChatMessages((prev) => prev.map(m =>
-              m.createdAt === thinkingId ? { ...m, content: preview, isLive: true } : m
-            ));
+            // Only show agent reasoning — skip if it's just echoing the user's message
+            const evtText = (evt.content || "").trim();
+            const userText = message.trim();
+            const isEcho = evtText.slice(0, 60) === userText.slice(0, 60);
+            if (!isEcho && evtText.length > 0) {
+              thinkingLines.push(evtText);
+              const preview = thinkingLines[thinkingLines.length - 1].slice(0, 140);
+              setChatMessages((prev) => prev.map(m =>
+                m.createdAt === thinkingId ? { ...m, content: preview, isLive: true } : m
+              ));
+            }
           } else if (evt.type === "file_written") {
             setChatMessages((prev) => prev.map(m =>
               m.createdAt === thinkingId ? { ...m, content: "Writing " + evt.path + "...", isLive: true } : m
