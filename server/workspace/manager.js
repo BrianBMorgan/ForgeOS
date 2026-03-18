@@ -9,7 +9,7 @@ const PORT_RANGE_START = 4000;
 const PORT_RANGE_END = 4099;
 
 const workspaces = new Map();
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes — agent builds can take a while
 
 const LOG_LEVEL_PATTERNS = [
   { pattern: /\b(error|ERR!|Error:|FATAL|fatal|ENOENT|EACCES|ECONNREFUSED|uncaught|unhandled|throw|TypeError|ReferenceError|SyntaxError)\b/i, level: "error" },

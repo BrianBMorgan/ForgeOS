@@ -1235,6 +1235,9 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     ? require("path").join(process.env.DATA_DIR || require("path").join(__dirname, ".."), "workspaces", lastRunId)
     : null;
 
+  // Reset idle clock — agent activity should never trigger workspace shutdown
+  if (lastRunId) workspace.touchActivity(lastRunId);
+
   let history = [];
   try {
     const rows = await brain.getConversation(project.id, 10);
