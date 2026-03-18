@@ -186,10 +186,10 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
 
     // Build prompt — append a brand logo suffix when a brand name is configured.
     // Text-based logo injection is the most reliable method with flux models.
-    // The logo suffix describes the 2020-rebrand Intel wordmark accurately.
+    // Hard-locked to the 2025 wordmark: plain lowercase, no oval, no swoosh, no legacy marks.
     let finalPrompt = prompt;
     if (brandName) {
-      finalPrompt = prompt + `. The scene features the current 2020-rebrand ${brandName} logo — the plain lowercase word "${brandName.toLowerCase()}" in bold condensed white sans-serif, no swoosh, no oval, displayed on a sign, billboard, screen or wall in the scene.`;
+      finalPrompt = prompt + `. The scene features the ${brandName} logo as it appears in 2025 — the plain lowercase word "${brandName.toLowerCase()}" in bold condensed sans-serif, no oval shape, no swoosh, no circle, no arc, no legacy emblem, no vintage mark, displayed on a sign, billboard, screen or wall in the scene.`;
     }
 
     const falBody = {
