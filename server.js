@@ -157,9 +157,10 @@ async function serveCanvas(req, res, sessionId) {
     if (!rows.length) return res.redirect("/");
     const attendee = rows[0];
     const stickers = await sql`SELECT id, name, image_data, mime_type FROM canvas_stickers ORDER BY created_at ASC`;
-    const cfgRows = await sql`SELECT text_colors FROM canvas_config LIMIT 1`;
+    const cfgRows = await sql`SELECT text_colors, brand_logo FROM canvas_config LIMIT 1`;
     const textColors = cfgRows.length ? cfgRows[0].text_colors : ["#ffffff","#000000","#00aae8","#cccccc"];
-    res.send(renderCanvas(attendee, stickers, textColors));
+    const brandLogo = cfgRows.length ? cfgRows[0].brand_logo : null;
+    res.send(renderCanvas(attendee, stickers, textColors, brandLogo));
   } catch (err) {
     console.error("[canvas] /canvas error:", err.message);
     res.status(500).send("<pre>Canvas error: " + err.message + "</pre>");
@@ -184,13 +185,9 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
     // Serve the logo via our own public /brand-logo endpoint so fal can fetch it
     const brandLogoUrl = brandLogo ? (req.protocol + "://" + req.get("host") + "/brand-logo") : null;
 
-    // Text-only prompt with hard logo constraints.
-    // Do NOT use image conditioning — that path was removed because it did not work.
-    // All logo control is via prompt text only.
-    let finalPrompt = prompt;
-    if (brandName) {
-      finalPrompt = prompt + `. If the ${brandName} logo appears in this scene it MUST be the version from intel.com as of 2025: the flat lowercase word "${brandName.toLowerCase()}" in bold sans-serif only. STRICTLY FORBIDDEN — do not render any of these under any circumstances: oval shape, swoosh, circular emblem, arc, ring, italic letterform, legacy badge, any logo that predates 2025, any logo that is not the flat 2025 wordmark.`;
-    }
+    // No logo injection in the prompt — brand identity is handled via the
+    // watermark overlay composited at save time. Keep the scene clean.
+    const finalPrompt = prompt;
 
     const endpoint = "https://fal.run/fal-ai/flux-pro";
     const falBody = {
@@ -658,7 +655,7 @@ function renderRegistration(kiosk) {
 </html>`;
 }
 
-function renderCanvas(attendee, stickers, textColors) {
+function renderCanvas(attendee, stickers, textColors, brandLogo) {
   const stickersJson = JSON.stringify(stickers.map(s => ({
     id: s.id,
     name: s.name,
@@ -930,6 +927,9 @@ function renderCanvas(attendee, stickers, textColors) {
       <div class="canvas-bg" id="canvasBg"></div>
       <div class="canvas-grid" id="canvasGrid"></div>
       <div class="sticker-overlay" id="stickerOverlay"></div>
+
+      <!-- Brand watermark — hidden during editing, shown only during html2canvas capture -->
+      ${brandLogo ? `<img id="brandWatermark" src="${brandLogo}" alt="brand" style="display:none;position:absolute;bottom:14px;right:14px;width:72px;height:auto;opacity:0.85;pointer-events:none;z-index:50;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5));">` : ''}
 
       <div class="generating-overlay" id="genOverlay">
         <div class="spinner"></div>
@@ -1307,9 +1307,11 @@ async function saveArtwork() {
   btn.disabled = true;
   btn.textContent = "Saving…";
 
-  // Hide delete buttons before capture
+  // Hide delete buttons before capture, show watermark
   document.querySelectorAll(".delete-btn").forEach(b => b.style.display = "none");
   document.querySelectorAll(".sticker-el").forEach(s => s.classList.remove("selected"));
+  const watermark = document.getElementById("brandWatermark");
+  if (watermark) watermark.style.display = "block";
 
   try {
     const wrap = document.getElementById("canvasWrap");
@@ -1354,6 +1356,7 @@ async function saveArtwork() {
     btn.disabled = false;
     btn.textContent = "Save & Get QR Code ✦";
     document.querySelectorAll(".delete-btn").forEach(b => b.style.display = "");
+    if (watermark) watermark.style.display = "none";
   }
 }
 
