@@ -609,70 +609,64 @@ async function buildAndDeploy(run) {
 
   run.status = "running";
   run.currentStage = "building";
-  run.stages.builder = { status: "running", output: null };
   run.workspace = { status: "calling-claude", port: null, error: null };
 
-  if (run.projectId) {
-    brain.appendConversation(run.projectId, "user", run.prompt).catch(() => {});
-  }
-
   let builderOutput;
-  const MAX_RETRIES = 2;
-  for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
-    try {
-      // Multi-pass build — when the approved plan has a passes array
-      if (run.approvedPlan?.multiPass && Array.isArray(run.approvedPlan?.passes) && run.approvedPlan.passes.length > 1) {
-        console.log(`[builder] Multi-pass build detected — ${run.approvedPlan.passes.length} passes`);
-        builderOutput = await buildWorkspaceMultiPass(
-          run.prompt,
-          run.existingFiles,
-          run.approvedPlan.passes,
-          run.projectId,
-          run.approvedPlan,
-          run,
-        );
-      } else {
-        builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null, run.isSuggestion || false, run.skillContext || "");
-      }
-      // If this was a suggestion build, store the parsed target file on the run
-      // so the Plan tab can display "Surgical edit targeting: <file>".
-      if (builderOutput._suggestionTarget !== undefined) {
-        run.suggestionTarget = builderOutput._suggestionTarget;
-        delete builderOutput._suggestionTarget;
-      }
-      break;
-    } catch (err) {
-      if (attempt <= MAX_RETRIES) {
-        console.error(`[builder] Attempt ${attempt} failed (${err.message}), retrying...`);
-        continue;
-      }
-      run.stages.builder = {
-        status: "failed",
-        output: null,
-        error: err.message,
-        rawOutput: err.rawOutput || null,
-      };
-      run.status = "failed";
-      run.error = `Builder failed: ${err.message}`;
-      run.workspace.status = "build-failed";
-      run.workspace.error = err.message;
 
-      brain.extractFailureMemory({
-        projectId: run.projectId,
-        prompt: run.prompt,
-        errorMessage: err.message,
-        failureStage: "build",
-      }).catch(() => {});
-      saveRunSnapshot(run).catch(() => {});
-      // Auto-diagnose and post analysis to chat so user sees root cause immediately
-      if (run.projectId) {
-        const chatMgr = require("./chat/manager");
-        chatMgr.postBuildAnalysis(run.projectId, run).catch(() => {});
-      }
-      return;
+  if (run.agentBuild && run.stages.builder && run.stages.builder.status === "passed") {
+    // Unified agent already wrote files to disk and pre-populated run.stages.builder.
+    // Skip the Claude builder call — go straight to install + start.
+    console.log("[builder] Agent build — skipping Claude builder, using agent output directly");
+    builderOutput = run.stages.builder.output;
+  } else {
+    // Standard Claude builder path
+    run.stages.builder = { status: "running", output: null };
+
+    if (run.projectId) {
+      brain.appendConversation(run.projectId, "user", run.prompt).catch(() => {});
     }
-  }
 
+    const MAX_RETRIES = 2;
+    for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+      try {
+        if (run.approvedPlan?.multiPass && Array.isArray(run.approvedPlan?.passes) && run.approvedPlan.passes.length > 1) {
+          console.log(`[builder] Multi-pass build detected — ${run.approvedPlan.passes.length} passes`);
+          builderOutput = await buildWorkspaceMultiPass(
+            run.prompt,
+            run.existingFiles,
+            run.approvedPlan.passes,
+            run.projectId,
+            run.approvedPlan,
+            run,
+          );
+        } else {
+          builderOutput = await buildWorkspace(run.prompt, run.existingFiles, run.projectId, run.approvedPlan || null, run.isSuggestion || false, run.skillContext || "");
+        }
+        if (builderOutput._suggestionTarget !== undefined) {
+          run.suggestionTarget = builderOutput._suggestionTarget;
+          delete builderOutput._suggestionTarget;
+        }
+        break;
+      } catch (err) {
+        if (attempt <= MAX_RETRIES) {
+          console.error(`[builder] Attempt ${attempt} failed (${err.message}), retrying...`);
+          continue;
+        }
+        run.stages.builder = { status: "failed", output: null, error: err.message, rawOutput: err.rawOutput || null };
+        run.status = "failed";
+        run.error = `Builder failed: ${err.message}`;
+        run.workspace.status = "build-failed";
+        run.workspace.error = err.message;
+        brain.extractFailureMemory({ projectId: run.projectId, prompt: run.prompt, errorMessage: err.message, failureStage: "build" }).catch(() => {});
+        saveRunSnapshot(run).catch(() => {});
+        if (run.projectId) {
+          const chatMgr = require("./chat/manager");
+          chatMgr.postBuildAnalysis(run.projectId, run).catch(() => {});
+        }
+        return;
+      }
+    }
+  } // end standard builder path
   run.stages.builder = {
     status: "passed",
     output: {
@@ -711,13 +705,17 @@ async function buildAndDeploy(run) {
     run.workspace.status = "writing-files";
     await workspace.stopAllApps();
 
-    workspace.createWorkspace(run.id);
-
-    // ALWAYS seed workspace with existingFiles first — not just for surgical builds.
-    // Builder output then overwrites on top. This means no file can silently disappear
-    // just because the builder didn't include it in its output.
-    if (run.existingFiles && run.existingFiles.length > 0) {
-      workspace.writeFiles(run.id, run.existingFiles);
+    if (run.agentBuild) {
+      // Agent wrote files directly to disk — just register the workspace, don't wipe it.
+      // The agent's collectWorkspaceFiles() already captured everything into builderOutput.files.
+      workspace.createWorkspace(run.id);
+      workspace.writeFiles(run.id, builderOutput.files);
+    } else {
+      // Standard builder path — wipe, seed existingFiles, overwrite with builder output.
+      workspace.createWorkspace(run.id);
+      if (run.existingFiles && run.existingFiles.length > 0) {
+        workspace.writeFiles(run.id, run.existingFiles);
+      }
     }
 
     // Post-build file integrity check — detect and log dropped files to Brain.

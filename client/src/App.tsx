@@ -313,16 +313,24 @@ function App() {
       const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, skillContext: activeSkillContext || "" }),
       });
       if (res.ok) {
-        const data: ChatMessage = await res.json();
-        // Capture skill context from the chat response so it can be threaded
-        // to the next /iterate call — this is how skill instructions reach the builder.
-        if (data.activeSkillContext) {
-          setActiveSkillContext(data.activeSkillContext);
+        const data: any = await res.json();
+        // If the agent triggered a build, update the run ID so the UI polls the new run
+        if (data.building && data.runId) {
+          setCurrentRunId(data.runId);
+          setViewingIterationRunId(null);
+          setActiveNav("projects");
         }
-        setChatMessages((prev) => [...prev, data]);
+        const chatMsg: ChatMessage = {
+          role: "assistant",
+          content: data.content || data.message || "",
+          suggestBuild: false,
+          buildSuggestion: null,
+          createdAt: data.createdAt || Date.now(),
+        };
+        setChatMessages((prev) => [...prev, chatMsg]);
       } else {
         let errorMsg = "Something went wrong. Please try again.";
         try {
