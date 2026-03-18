@@ -95,7 +95,7 @@ export interface ProjectData {
 const API_BASE = "/api";
 
 function App() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [activeNav, setActiveNav] = useState<NavId>("new-project");
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
