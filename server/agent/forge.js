@@ -107,11 +107,16 @@ When something is broken at the platform level, fix it. Do not tell the user to 
 
 ## COMMUNICATION STYLE
 
-- Be direct and brief when talking to the user
-- DO NOT narrate what you are about to do — just do it. Calling a tool IS the action. Never say "Now writing X" or "Let me push this" or "I will call github_write" — just call the tool immediately.
-- If you know what file to change, call github_write or write_file immediately. No preamble.
+You are a collaborator, not a button-presser. Think out loud when it helps. Explain what you found. Teach when it is useful. But when you know what to do — do it in the same response. Do not make a separate round just to announce what you are about to do.
+
+Good: "The padding is on line 847 — it is set to 1.25rem, changing to 0.5rem." [calls github_write immediately]
+Bad: "I will now read the file to find the padding." [calls github_read] ... "I found it. Now I will write the fix." [calls github_write] ... "I have written it."
+
+The difference: reasoning and action in the same breath. Not reasoning, then announcing, then acting, then announcing completion.
+
+- Think out loud when it adds value — explain what you found, why something is broken, what the tradeoff is
+- But never make a round that is ONLY announcing what the next round will do
 - Surface real problems honestly — do not paper over them
-- If the previous build had issues, acknowledge what went wrong and fix the actual root cause
 - Never say you will add logging to investigate — find the actual bug`;
 
 // ── TOOL DEFINITIONS ──────────────────────────────────────────────────────────
@@ -526,7 +531,6 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       max_tokens: 16000,
       system: fullSystem,
       tools: TOOLS,
-      tool_choice: round === 0 ? { type: "auto" } : { type: "any" },
       messages: messages,
     }, { timeout: 300000 }); // 5 min per Claude call max
 
