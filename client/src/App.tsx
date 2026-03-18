@@ -171,7 +171,7 @@ function App() {
 
   // Tracks the skill context active on the last chat response — threaded to /iterate
   // so the builder actually receives the skill instructions, not just the Chat Agent.
-  const [activeSkillContext, setActiveSkillContext] = useState<string>("");
+  const activeSkillContext = "";
 
   const iterateProject = useCallback(async (prompt: string, options?: { skipPlan?: boolean }) => {
     if (!currentProjectId) return;
