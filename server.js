@@ -1457,15 +1457,7 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
   </div>
 </div>
 <script>
-// Load actual thumbnails after render
-document.querySelectorAll(".artwork-card").forEach((card, i) => {
-  const img = card.querySelector(".artwork-thumb");
-  const placeholder = card.querySelector("[id^='thumb-']");
-  if (img && img.src.includes("...")) {
-    img.style.display = "none";
-    if (placeholder) placeholder.style.display = "flex";
-  }
-});
+// Thumbnails rendered server-side
 
 function showTab(name, el) {
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
