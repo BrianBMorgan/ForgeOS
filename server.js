@@ -184,32 +184,24 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
     // Serve the logo via our own public /brand-logo endpoint so fal can fetch it
     const brandLogoUrl = brandLogo ? (req.protocol + "://" + req.get("host") + "/brand-logo") : null;
 
-    // Build request:
-    //   - With brand logo: use Kontext to place the logo into the generated scene
-    //   - Without logo: plain flux-pro text-to-image
-    let falBody;
-    let endpoint;
-    if (brandLogoUrl) {
-      const kontextPrompt = prompt + ". Incorporate the brand logo from the reference image visibly into the scene — place it on a surface, wall, screen, or as part of the environment. Keep the logo clearly recognizable.";
-      falBody = {
-        prompt: kontextPrompt,
-        image_url: brandLogoUrl,
-        num_images: 1,
-        output_format: "jpeg",
-        safety_tolerance: "5",
-      };
-      endpoint = "https://fal.run/fal-ai/flux-pro/kontext";
-    } else {
-      falBody = {
-        prompt,
-        image_size: { width: 1024, height: 1024 },
-        num_inference_steps: 28,
-        guidance_scale: 3.5,
-        num_images: 1,
-        output_format: "jpeg",
-      };
-      endpoint = "https://fal.run/fal-ai/flux-pro";
+    // Build prompt — append a brand logo suffix when a brand name is configured.
+    // Text-based logo injection is the most reliable method with flux models.
+    // The logo suffix describes the 2020-rebrand Intel wordmark accurately.
+    let finalPrompt = prompt;
+    if (brandName) {
+      finalPrompt = prompt + \`. The scene features a prominent \${brandName} logo: the word "\${brandName.toLowerCase()}" in large bold white condensed sans-serif lettering on a dark background, displayed on a sign, billboard, screen or wall in the scene.\`;
     }
+
+    const falBody = {
+      prompt: finalPrompt,
+      image_size: { width: 1024, height: 1024 },
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
+      num_images: 1,
+      output_format: "jpeg",
+      safety_tolerance: "5",
+    };
+    const endpoint = "https://fal.run/fal-ai/flux-pro";
     const falRes = await fetch(endpoint, {
       method: "POST",
       headers: { "Authorization": `Key ${falKey}`, "Content-Type": "application/json" },
