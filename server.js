@@ -189,7 +189,7 @@ app.post("/canvas/:sessionId/generate", async (req, res) => {
     // The logo suffix describes the 2020-rebrand Intel wordmark accurately.
     let finalPrompt = prompt;
     if (brandName) {
-      finalPrompt = prompt + \`. The scene features a prominent \${brandName} logo: the word "\${brandName.toLowerCase()}" in large bold white condensed sans-serif lettering on a dark background, displayed on a sign, billboard, screen or wall in the scene.\`;
+      finalPrompt = prompt + `. The scene features the current 2020-rebrand ${brandName} logo — the plain lowercase word "${brandName.toLowerCase()}" in bold condensed white sans-serif, no swoosh, no oval, displayed on a sign, billboard, screen or wall in the scene.`;
     }
 
     const falBody = {
