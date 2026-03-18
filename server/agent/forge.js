@@ -548,7 +548,16 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
     }
 
     if (response.stop_reason === "end_turn") break;
-    if (response.stop_reason !== "tool_use") break;
+
+    // If Claude returned text but no tool call, nudge it to actually use a tool
+    // instead of burning another round narrating what it plans to do.
+    if (response.stop_reason !== "tool_use") {
+      if (round < MAX_AGENT_ROUNDS - 1) {
+        messages.push({ role: "user", content: [{ type: "text", text: "Use a tool now. Do not describe what you are going to do — call the tool immediately." }] });
+        continue;
+      }
+      break;
+    }
 
     // Execute tools
     var toolUseBlocks = response.content.filter(function(b) { return b.type === "tool_use"; });
