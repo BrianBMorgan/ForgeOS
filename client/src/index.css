@@ -2376,9 +2376,6 @@ body {
     margin-left: 0;
   }
 
-  elevenlabs-convai {
-    display: none !important;
-  }
 
   .log-toolbar {
     padding: 0.4rem 0.5rem;
