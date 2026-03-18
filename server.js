@@ -1342,7 +1342,9 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
   .upload-form { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
   .form-field { display: flex; flex-direction: column; gap: 0.4rem; }
   .form-field label { font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-  input[type=text], input[type=file], input[type=number] { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: inherit; font-size: 0.85rem; padding: 0.55rem 0.75rem; outline: none; min-width: 180px; }
+  input[type=text], input[type=file], input[type=number] { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: inherit; font-size: 0.85rem; padding: 0.55rem 0.75rem; outline: none; }
+  input[type=text], input[type=file] { min-width: 180px; }
+  input[type=number] { min-width: 0; width: 72px; text-align: center; }
   input[type=number]::-webkit-inner-spin-button,
   input[type=number]::-webkit-outer-spin-button { opacity: 1; cursor: pointer; }
   input[type=text]:focus { border-color: var(--accent); }
@@ -1388,7 +1390,7 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
       <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:flex-end">
         <div class="form-field" style="flex:2;min-width:160px"><label>Event Name</label><input type="text" name="name" placeholder="Intel Summit 2026" required></div>
         <div class="form-field" style="width:72px"><label>Kiosks</label><input type="number" name="kiosk_count" value="1" min="1" max="10"></div>
-        <button type="submit" class="btn" style="align-self:flex-end;height:38px;padding-top:0;padding-bottom:0">Create Event</button>
+        <button type="submit" class="btn" style="align-self:flex-end;padding: 0.55rem 1.25rem;">Create Event</button>
       </div>
     </form>
 
