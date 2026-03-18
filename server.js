@@ -516,7 +516,7 @@ function renderRegistration(kiosk) {
     <button class="btn" onclick="submitRegistration()">Start Creating →</button>
   </div>
   <script>
-  const KIOSK_TOKEN = \${JSON.stringify(kiosk ? kiosk.token : null)};
+  const KIOSK_TOKEN = ${JSON.stringify(kiosk ? kiosk.token : null)};
   async function submitRegistration() {
     const first_name = document.getElementById("first_name").value.trim();
     const last_name = document.getElementById("last_name").value.trim();
