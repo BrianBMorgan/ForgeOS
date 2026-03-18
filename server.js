@@ -85,6 +85,8 @@ async function ensureSchema() {
   await sql`ALTER TABLE canvas_attendees ADD COLUMN IF NOT EXISTS kiosk_id INTEGER REFERENCES canvas_kiosks(id)`;
   // Add event_id to attendees if not exists  
   await sql`ALTER TABLE canvas_attendees ADD COLUMN IF NOT EXISTS event_id INTEGER REFERENCES canvas_events(id)`;
+  // Add printed_at to artworks if not exists
+  await sql`ALTER TABLE canvas_artworks ADD COLUMN IF NOT EXISTS printed_at BIGINT`;
   console.log("[canvas] Schema ready");
 }
 
@@ -301,7 +303,47 @@ app.post("/admin/config/colors", adminSession, requireAdmin, async (req, res) =>
   res.redirect("/admin?token=" + (req.query.token || ""));
 });
 
-// ── Admin login ───────────────────────────────────────────────────────────────
+// ── Operator print queue ──────────────────────────────────────────────────────
+app.get("/operator/:token", async (req, res) => {
+  try {
+    const krows = await sql`
+      SELECT k.id, k.kiosk_number, k.token, e.name as event_name, e.id as event_id
+      FROM canvas_kiosks k JOIN canvas_events e ON e.id = k.event_id
+      WHERE k.token = ${req.params.token}
+    `;
+    if (!krows.length) return res.status(404).send("<h2>Kiosk not found.</h2>");
+    const kiosk = krows[0];
+    const artworks = await sql`
+      SELECT a.id, a.session_id, a.png_data, a.created_at, a.printed_at,
+             att.first_name, att.last_name
+      FROM canvas_artworks a
+      JOIN canvas_attendees att ON att.session_id = a.session_id
+      WHERE att.kiosk_id = ${kiosk.id}
+      ORDER BY a.printed_at NULLS FIRST, a.created_at ASC
+    `;
+    res.send(renderOperator(kiosk, artworks));
+  } catch(err) {
+    res.status(500).send("<pre>Operator error: " + err.message + "</pre>");
+  }
+});
+
+app.post("/operator/:token/printed/:artworkId", async (req, res) => {
+  try {
+    // Verify kiosk token is valid
+    const krows = await sql`SELECT id FROM canvas_kiosks WHERE token = ${req.params.token}`;
+    if (!krows.length) return res.status(404).json({ error: "Kiosk not found" });
+    // Toggle: if already printed, unmark; if not printed, mark now
+    const artwork = await sql`SELECT printed_at FROM canvas_artworks WHERE id = ${req.params.artworkId}`;
+    if (!artwork.length) return res.status(404).json({ error: "Artwork not found" });
+    const newVal = artwork[0].printed_at ? null : Date.now();
+    await sql`UPDATE canvas_artworks SET printed_at = ${newVal} WHERE id = ${req.params.artworkId}`;
+    res.json({ ok: true, printed: !!newVal });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin login ─────────────────────────────────────────────────────────────────
 app.get("/admin/login", adminSession, (req, res) => res.send(renderAdminLogin()));
 
 app.post("/admin/login", adminSession, (req, res) => {
@@ -1274,6 +1316,112 @@ resetInactivityTimer();
 </html>`;
 }
 
+function renderOperator(kiosk, artworks) {
+  const unprinted = artworks.filter(a => !a.printed_at);
+  const printed = artworks.filter(a => a.printed_at);
+  const rows = (list, isPrinted) => list.map(a => `
+    <div class="artwork-card ${isPrinted ? 'is-printed' : ''}" id="card-${a.id}">
+      <div class="artwork-img-wrap">
+        <img class="artwork-img" src="data:image/png;base64,${a.png_data}" alt="${a.first_name}">
+      </div>
+      <div class="artwork-info">
+        <div class="artwork-name">${a.first_name} ${a.last_name || ''}</div>
+        <div class="artwork-time">${new Date(Number(a.created_at)).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+        <button class="print-btn ${isPrinted ? 'printed' : ''}" onclick="togglePrinted(${a.id}, this)">
+          ${isPrinted ? '✓ Printed' : 'Mark Printed'}
+        </button>
+      </div>
+    </div>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operator — Kiosk ${kiosk.kiosk_number}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0a0a0f; --surface: #111118; --border: rgba(255,255,255,0.08); --accent: #00aae8; --text: #f1f5f9; --muted: #64748b; --green: #22c55e; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; min-height: 100vh; }
+  .header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .header-left { display: flex; flex-direction: column; gap: 0.2rem; }
+  .kiosk-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); }
+  .kiosk-title { font-size: 1.25rem; font-weight: 700; }
+  .header-stats { display: flex; gap: 1rem; align-items: center; }
+  .stat-badge { font-size: 0.8rem; padding: 0.3rem 0.75rem; border-radius: 20px; font-weight: 600; }
+  .stat-pending { background: rgba(0,170,232,0.15); color: var(--accent); }
+  .stat-done { background: rgba(34,197,94,0.12); color: var(--green); }
+  .section-header { padding: 1rem 1.5rem 0.5rem; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; padding: 0.75rem 1.5rem 1.5rem; }
+  .artwork-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: opacity 0.3s, border-color 0.3s; }
+  .artwork-card:not(.is-printed) { border-color: rgba(0,170,232,0.3); }
+  .artwork-card.is-printed { opacity: 0.45; }
+  .artwork-img-wrap { aspect-ratio: 1; overflow: hidden; }
+  .artwork-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .artwork-info { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .artwork-name { font-size: 0.9rem; font-weight: 700; }
+  .artwork-time { font-size: 0.72rem; color: var(--muted); }
+  .print-btn { width: 100%; padding: 0.55rem; border: none; border-radius: 8px; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: background 0.2s, color 0.2s; background: var(--accent); color: #fff; margin-top: 0.25rem; }
+  .print-btn.printed { background: rgba(34,197,94,0.15); color: var(--green); }
+  .print-btn:active { transform: scale(0.97); }
+  .empty { padding: 2rem 1.5rem; color: var(--muted); font-size: 0.85rem; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; }
+  .auto-refresh { font-size: 0.7rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <div class="kiosk-label">${kiosk.event_name}</div>
+    <div class="kiosk-title">Kiosk ${kiosk.kiosk_number} — Print Queue</div>
+  </div>
+  <div class="header-stats">
+    <span class="stat-badge stat-pending" id="pendingBadge">${unprinted.length} pending</span>
+    <span class="stat-badge stat-done" id="doneBadge">${printed.length} printed</span>
+    <span class="auto-refresh" id="refreshTimer">Refreshing in 15s</span>
+  </div>
+</div>
+
+${unprinted.length === 0 && printed.length === 0
+  ? '<div class="empty">No artwork yet. Waiting for kiosk submissions…</div>'
+  : ''}
+
+${unprinted.length > 0 ? `
+  <div class="section-header">Pending — ${unprinted.length}</div>
+  <div class="grid">${rows(unprinted, false)}</div>` : ''}
+
+${printed.length > 0 ? `
+  <hr class="divider">
+  <div class="section-header">Printed — ${printed.length}</div>
+  <div class="grid">${rows(printed, true)}</div>` : ''}
+
+<script>
+const KIOSK_TOKEN = "${kiosk.token}";
+let countdown = 15;
+const timerEl = document.getElementById("refreshTimer");
+
+function togglePrinted(artworkId, btn) {
+  btn.disabled = true;
+  fetch("/operator/" + KIOSK_TOKEN + "/printed/" + artworkId, { method: "POST" })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) { window.location.reload(); }
+      else { btn.disabled = false; alert("Error: " + data.error); }
+    })
+    .catch(() => { btn.disabled = false; });
+}
+
+// Auto-refresh countdown
+const tick = setInterval(() => {
+  countdown--;
+  timerEl.textContent = "Refreshing in " + countdown + "s";
+  if (countdown <= 0) { clearInterval(tick); window.location.reload(); }
+}, 1000);
+</script>
+</body>
+</html>`;
+}
+
 function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
   const adminToken = req.query.token || "";
   const host = req.protocol + "://" + req.get("host");
@@ -1413,8 +1561,18 @@ function renderAdmin(stickers, artworks, colors, req, events, kiosks) {
             ${(kiosks || []).filter(k => k.event_id === e.id).map(k => `
               <div style="display:flex;align-items:center;gap:0.75rem;background:rgba(255,255,255,0.03);border-radius:6px;padding:0.5rem 0.75rem">
                 <span style="font-size:0.8rem;color:var(--muted);width:60px">Kiosk ${k.kiosk_number}</span>
-                <code style="flex:1;font-size:0.78rem;color:var(--text);background:rgba(0,0,0,0.3);padding:0.25rem 0.5rem;border-radius:4px">${host}/k/${k.token}</code>
-                <button onclick="navigator.clipboard.writeText('${host}/k/${k.token}').then(()=>this.textContent='Copied!').catch(()=>{})" class="btn secondary" style="font-size:0.72rem;padding:0.25rem 0.6rem;white-space:nowrap">Copy URL</button>
+                <div style="display:flex;flex-direction:column;gap:0.3rem;flex:1">
+                  <div style="display:flex;align-items:center;gap:0.5rem">
+                    <span style="font-size:0.65rem;color:var(--muted);width:52px">Kiosk</span>
+                    <code style="flex:1;font-size:0.78rem;color:var(--text);background:rgba(0,0,0,0.3);padding:0.25rem 0.5rem;border-radius:4px">${host}/k/${k.token}</code>
+                    <button onclick="navigator.clipboard.writeText('${host}/k/${k.token}').then(()=>this.textContent='Copied!').catch(()=>{})" class="btn secondary" style="font-size:0.72rem;padding:0.25rem 0.6rem;white-space:nowrap">Copy</button>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:0.5rem">
+                    <span style="font-size:0.65rem;color:var(--muted);width:52px">Operator</span>
+                    <code style="flex:1;font-size:0.78rem;color:rgba(0,170,232,0.8);background:rgba(0,0,0,0.3);padding:0.25rem 0.5rem;border-radius:4px">${host}/operator/${k.token}</code>
+                    <button onclick="navigator.clipboard.writeText('${host}/operator/${k.token}').then(()=>this.textContent='Copied!').catch(()=>{})" class="btn secondary" style="font-size:0.72rem;padding:0.25rem 0.6rem;white-space:nowrap">Copy</button>
+                  </div>
+                </div>
               </div>`).join('')}
           </div>
         </div>`).join('')
