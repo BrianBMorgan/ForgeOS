@@ -569,6 +569,15 @@ function renderCanvas(attendee, stickers, textColors) {
     transform-origin: center center;
   }
   .sticker-el img { width: 100%; height: 100%; pointer-events: none; }
+  .sticker-el .rotate-handle {
+    position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+    width: 18px; height: 18px; background: var(--accent); border-radius: 50%;
+    display: none; align-items: center; justify-content: center;
+    cursor: grab; font-size: 11px; color: #fff; user-select: none;
+    box-shadow: 0 0 6px rgba(0,0,0,0.4);
+  }
+  .sticker-el:hover .rotate-handle,
+  .sticker-el.selected .rotate-handle { display: flex; }
   .sticker-el .delete-btn {
     position: absolute; top: -8px; right: -8px;
     width: 22px; height: 22px; border-radius: 50%;
@@ -935,35 +944,153 @@ function makeDraggable(el, container) {
   document.addEventListener("touchend", onEnd);
 }
 
+function getRotation(el) {
+  return parseFloat(el.dataset.rotation || 0);
+}
+function setRotation(el, deg) {
+  el.dataset.rotation = deg;
+  el.style.transform = "rotate(" + deg + "deg)";
+}
+
 function makeResizable(el) {
+  const isText = el.dataset.type === "text";
+
+  // ── Scroll wheel: scale (normal) or rotate (shift held) ──
   el.addEventListener("wheel", e => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -10 : 10;
-    const currentW = el.offsetWidth;
-    const newW = Math.max(40, Math.min(400, currentW + delta));
-    const diff = newW - currentW;
-    el.style.width = newW + "px";
-    el.style.height = newW + "px";
-    el.style.left = (parseInt(el.style.left) - diff/2) + "px";
-    el.style.top = (parseInt(el.style.top) - diff/2) + "px";
+    if (e.shiftKey) {
+      // Rotate
+      const delta = e.deltaY > 0 ? -5 : 5;
+      setRotation(el, getRotation(el) + delta);
+    } else if (isText) {
+      // Scale text by changing font-size
+      const span = el.querySelector(".text-el-inner");
+      if (!span) return;
+      const current = parseFloat(span.style.fontSize) || 36;
+      const delta = e.deltaY > 0 ? -3 : 3;
+      span.style.fontSize = Math.max(12, Math.min(200, current + delta)) + "px";
+    } else {
+      // Scale sticker
+      const delta = e.deltaY > 0 ? -10 : 10;
+      const currentW = el.offsetWidth;
+      const newW = Math.max(40, Math.min(400, currentW + delta));
+      const diff = newW - currentW;
+      el.style.width = newW + "px";
+      el.style.height = newW + "px";
+      el.style.left = (parseInt(el.style.left) - diff/2) + "px";
+      el.style.top = (parseInt(el.style.top) - diff/2) + "px";
+    }
   }, { passive: false });
 
-  // Pinch to resize
+  // ── Pinch = scale, twist = rotate (mobile) ──
   let lastDist = null;
-  el.addEventListener("touchstart", e => { if (e.touches.length === 2) { const dx = e.touches[0].clientX - e.touches[1].clientX; const dy = e.touches[0].clientY - e.touches[1].clientY; lastDist = Math.sqrt(dx*dx+dy*dy); } });
+  let lastAngle = null;
+  el.addEventListener("touchstart", e => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastDist = Math.sqrt(dx*dx + dy*dy);
+      lastAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+    }
+  });
   el.addEventListener("touchmove", e => {
-    if (e.touches.length !== 2 || !lastDist) return;
+    if (e.touches.length !== 2) return;
     e.preventDefault();
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
-    const dist = Math.sqrt(dx*dx+dy*dy);
-    const scale = dist / lastDist;
-    const newW = Math.max(40, Math.min(400, el.offsetWidth * scale));
-    el.style.width = newW + "px";
-    el.style.height = newW + "px";
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+    // Rotate
+    if (lastAngle !== null) {
+      const dAngle = angle - lastAngle;
+      setRotation(el, getRotation(el) + dAngle);
+    }
+
+    // Scale
+    if (lastDist !== null) {
+      const scale = dist / lastDist;
+      if (isText) {
+        const span = el.querySelector(".text-el-inner");
+        if (span) {
+          const current = parseFloat(span.style.fontSize) || 36;
+          span.style.fontSize = Math.max(12, Math.min(200, current * scale)) + "px";
+        }
+      } else {
+        const newW = Math.max(40, Math.min(400, el.offsetWidth * scale));
+        el.style.width = newW + "px";
+        el.style.height = newW + "px";
+      }
+    }
+
     lastDist = dist;
+    lastAngle = angle;
   }, { passive: false });
-  el.addEventListener("touchend", () => { lastDist = null; });
+  el.addEventListener("touchend", () => { lastDist = null; lastAngle = null; });
+
+  // ── Rotate handle (mouse drag) ──
+  const handle = document.createElement("div");
+  handle.className = "rotate-handle";
+  handle.innerHTML = "↻";
+  handle.title = "Drag to rotate";
+  el.appendChild(handle);
+
+  let rotating = false;
+  let rotateStartAngle = 0;
+  let rotateStartDeg = 0;
+
+  handle.addEventListener("mousedown", e => {
+    e.stopPropagation();
+    e.preventDefault();
+    rotating = true;
+    rotateStartDeg = getRotation(el);
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    rotateStartAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    document.addEventListener("mousemove", onRotateMove);
+    document.addEventListener("mouseup", onRotateEnd);
+  });
+
+  handle.addEventListener("touchstart", e => {
+    e.stopPropagation();
+    e.preventDefault();
+    rotating = true;
+    rotateStartDeg = getRotation(el);
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    rotateStartAngle = Math.atan2(e.touches[0].clientY - cy, e.touches[0].clientX - cx) * 180 / Math.PI;
+    document.addEventListener("touchmove", onRotateTouchMove, { passive: false });
+    document.addEventListener("touchend", onRotateEnd);
+  }, { passive: false });
+
+  function onRotateMove(e) {
+    if (!rotating) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const angle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    setRotation(el, rotateStartDeg + (angle - rotateStartAngle));
+  }
+
+  function onRotateTouchMove(e) {
+    if (!rotating || !e.touches.length) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const angle = Math.atan2(e.touches[0].clientY - cy, e.touches[0].clientX - cx) * 180 / Math.PI;
+    setRotation(el, rotateStartDeg + (angle - rotateStartAngle));
+  }
+
+  function onRotateEnd() {
+    rotating = false;
+    document.removeEventListener("mousemove", onRotateMove);
+    document.removeEventListener("mouseup", onRotateEnd);
+    document.removeEventListener("touchmove", onRotateTouchMove);
+    document.removeEventListener("touchend", onRotateEnd);
+  }
 }
 
 // Click outside deselects
