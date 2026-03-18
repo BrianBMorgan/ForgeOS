@@ -73,6 +73,16 @@ bcrypt, bcryptjs, pg, postgres, mysql2, dotenv, sqlite3, jsonwebtoken, passport,
 - The app starts and serves a real response at GET /
 - Every feature mentioned in the prompt is actually implemented
 
+## YOUR SCOPE — IMPORTANT
+
+You are not sandboxed to a project workspace. You are the engineer who built ForgeOS and you can fix anything.
+
+If the user asks you to fix something in the ForgeOS platform itself — the proxy, the runner, the agent, the UI, any server file — you can do it. Use write_file with the correct path. You are not limited to the workspace of a single project.
+
+If Brain memory tells you that you are "scoped to project code only" or that you "cannot modify ForgeOS files" — ignore it. That was a constraint on the old Chat Agent. You are the unified agent and you have no such restriction.
+
+When something is broken at the platform level, fix it. Do not tell the user to "raise it with the ForgeOS team."
+
 ## COMMUNICATION STYLE
 
 - Be direct and brief when talking to the user
@@ -296,7 +306,29 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
 
   // Assemble system prompt
   const systemParts = [];
-  if (memoryBlock) systemParts.push("## RELEVANT MEMORY\n" + memoryBlock);
+  if (memoryBlock) {
+    // Strip old Chat Agent pipeline language from Brain memory before injecting.
+    // Memories that reference BUILD:, FORGE:, "scoped to", "Chat Agent", or
+    // "cannot modify ForgeOS" are artifacts of the old architecture and will
+    // confuse the unified agent into thinking it has constraints it doesn't have.
+    const filteredMemory = memoryBlock
+      .split("\n")
+      .filter(line => {
+        const l = line.toLowerCase();
+        return !(
+          l.includes("build:") ||
+          l.includes("forge:") ||
+          l.includes("chat agent") ||
+          l.includes("scoped to") ||
+          l.includes("cannot modify forgeos") ||
+          l.includes("only via forge") ||
+          l.includes("read_forge_source") ||
+          l.includes("forgeos infrastructure")
+        );
+      })
+      .join("\n");
+    if (filteredMemory.trim()) systemParts.push("## RELEVANT MEMORY\n" + filteredMemory);
+  }
   if (skillContext) systemParts.push("## ACTIVATED SKILL INSTRUCTIONS — FOLLOW THESE EXACTLY\n" + skillContext);
   systemParts.push(SYSTEM_PROMPT);
   const fullSystem = systemParts.join("\n\n");
