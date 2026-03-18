@@ -148,8 +148,7 @@ function App() {
       });
 
       if (!res.ok || !res.body) {
-        setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
-        setChatMessages((prev) => [...prev, { role: "assistant", content: "Something went wrong. Please try again.", createdAt: Date.now() }]);
+        setChatMessages((prev) => [...prev.filter(m => m.createdAt !== thinkingId), { role: "assistant", content: "Something went wrong. Please try again.", createdAt: Date.now() }]);
         return;
       }
 
@@ -215,28 +214,25 @@ function App() {
               m.createdAt === thinkingId ? { ...m, content: "Installing dependencies and starting app...", isLive: true } : m
             ));
           } else if (evt.type === "done") {
-            // Replace thinking message with final response
-            setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
+            // Replace thinking message with final response — single setState to avoid flash
             const finalMsg: ChatMessage = {
               role: "assistant",
               content: evt.content || "Done.",
               createdAt: evt.createdAt || Date.now(),
             };
-            setChatMessages((prev) => [...prev, finalMsg]);
+            setChatMessages((prev) => [...prev.filter(m => m.createdAt !== thinkingId), finalMsg]);
             if (evt.building && evt.runId) {
               setCurrentRunId(evt.runId);
               setViewingIterationRunId(null);
               setActiveNav("projects");
             }
           } else if (evt.type === "error") {
-            setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
-            setChatMessages((prev) => [...prev, { role: "assistant", content: evt.error || "Something went wrong.", createdAt: Date.now() }]);
+            setChatMessages((prev) => [...prev.filter(m => m.createdAt !== thinkingId), { role: "assistant", content: evt.error || "Something went wrong.", createdAt: Date.now() }]);
           }
         }
       }
     } catch {
-      setChatMessages((prev) => prev.filter(m => m.createdAt !== thinkingId));
-      setChatMessages((prev) => [...prev, { role: "assistant", content: "Connection error. Please try again.", createdAt: Date.now() }]);
+      setChatMessages((prev) => [...prev.filter(m => m.createdAt !== thinkingId), { role: "assistant", content: "Connection error. Please try again.", createdAt: Date.now() }]);
     } finally {
       setChatLoading(false);
     }
@@ -263,10 +259,19 @@ function App() {
         const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`);
         if (res.ok) {
           const data: ChatMessage[] = await res.json();
-          setChatMessages(data);
+          // Only set history if we have no live messages — never overwrite a live session
+          setChatMessages((prev) => {
+            const hasLive = prev.some(m => m.isLive);
+            if (hasLive) return prev;
+            // Map server history to ChatMessage format
+            return data.map((m: any) => ({
+              role: m.role as "user" | "assistant",
+              content: m.content || "",
+              createdAt: m.created_at || Date.now(),
+            }));
+          });
         }
-      } catch {
-      }
+      } catch {}
     };
     loadChat();
 

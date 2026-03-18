@@ -129,6 +129,59 @@ export default function PromptColumn({
   const isRunning = runData?.status === "running";
   const isViewingHistory = !!viewingIterationRunId;
 
+  function renderInline(text: string): React.ReactNode {
+    const parts: React.ReactNode[] = [];
+    const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(text)) !== null) {
+      if (m.index > last) parts.push(text.slice(last, m.index));
+      if (m[2]) parts.push(<strong key={m.index}>{m[2]}</strong>);
+      else if (m[3]) parts.push(<em key={m.index}>{m[3]}</em>);
+      else if (m[4]) parts.push(<code key={m.index} className="md-inline-code">{m[4]}</code>);
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) parts.push(text.slice(last));
+    return <>{parts}</>;
+  }
+
+  function renderMarkdown(text: string): React.ReactNode {
+    if (!text) return null;
+    const lines = text.split("
+");
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (line.startsWith("### ")) {
+        elements.push(<div key={i} className="md-h3">{line.slice(4)}</div>);
+      } else if (line.startsWith("## ")) {
+        elements.push(<div key={i} className="md-h2">{line.slice(3)}</div>);
+      } else if (line.startsWith("# ")) {
+        elements.push(<div key={i} className="md-h1">{line.slice(2)}</div>);
+      } else if (line.startsWith("- ") || line.startsWith("* ")) {
+        elements.push(<div key={i} className="md-li">• {renderInline(line.slice(2))}</div>);
+      } else if (/^\d+\. /.test(line)) {
+        elements.push(<div key={i} className="md-li">{renderInline(line)}</div>);
+      } else if (line.startsWith("```")) {
+        const codeLines: string[] = [];
+        i++;
+        while (i < lines.length && !lines[i].startsWith("```")) {
+          codeLines.push(lines[i]);
+          i++;
+        }
+        elements.push(<pre key={i} className="md-code">{codeLines.join("
+")}</pre>);
+      } else if (line.trim() === "") {
+        elements.push(<div key={i} className="md-br" />);
+      } else {
+        elements.push(<div key={i} className="md-p">{renderInline(line)}</div>);
+      }
+      i++;
+    }
+    return <>{elements}</>;
+  }
+
   const isProjectView = !isNewProject && projectData;
   const hasIterations = projectData && projectData.iterations.length > 0;
   const hasChatHistory = chatMessages.length > 0;
@@ -406,12 +459,15 @@ export default function PromptColumn({
                 {msg.role === "user" ? "You" : msg.isLive ? "Forge is working…" : "Forge"}
               </div>
               <div className={`chat-content${msg.isLive ? " chat-live-content" : ""}`}>
-                {msg.role === "assistant" ? stripMarkdown(msg.content) : msg.content}
+                {msg.role === "assistant" && !msg.isLive
+                  ? renderMarkdown(msg.content)
+                  : msg.content}
               </div>
-
+              {msg.toolStatus && (
+                <div className="chat-tool-status">⚙ {msg.toolStatus}</div>
+              )}
             </div>
           ))}
-          {/* Live in-progress bubble is injected via chatMessages with isLive:true — no static fallback needed */}
           <div ref={chatEndRef} />
         </div>
       )}
