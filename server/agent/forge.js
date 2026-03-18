@@ -434,7 +434,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
     }
     var response = await client.messages.create({
       model: FORGE_MODEL,
-      max_tokens: 8096,
+      max_tokens: 16000,
       system: fullSystem,
       tools: TOOLS,
       messages: messages,
