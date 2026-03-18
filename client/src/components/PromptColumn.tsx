@@ -1,15 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { RunData, ProjectData, ChatMessage } from "../App";
 
-type StageStatus = "pending" | "running" | "passed" | "blocked" | "failed";
-
-interface Stage {
-  id: string;
-  label: string;
-  short: string;
-  status: StageStatus;
-}
-
 interface PromptColumnProps {
   runData: RunData | null;
   projectData: ProjectData | null;
@@ -26,59 +17,6 @@ interface PromptColumnProps {
   chatLoading: boolean;
   onClearBuildSuggestions?: () => void;
   onGenerateForgePlan?: (forgeSuggestion: string) => void;
-}
-
-const STAGE_MAP: { id: string; keys: string[]; label: string; short: string; icon: string }[] = [
-  { id: "prompt",  keys: [],          label: "Prompt",  short: "In",    icon: "❯" },
-  { id: "brain",   keys: [],          label: "Brain",   short: "Mem",   icon: "◉" },
-  { id: "builder", keys: ["builder"], label: "Builder", short: "Build", icon: "⚡" },
-  { id: "render",  keys: [],          label: "Render",  short: "Live",  icon: "◼" },
-  { id: "publish", keys: [],          label: "Publish", short: "Ship",  icon: "▲" },
-];
-
-interface PipelineStage extends Stage {
-  icon: string;
-}
-
-function deriveStages(runData: RunData | null): PipelineStage[] {
-  if (!runData) {
-    return STAGE_MAP.map((s) => ({ id: s.id, label: s.label, short: s.short, icon: s.icon, status: "pending" as StageStatus }));
-  }
-
-  const builderStage = runData.stages?.builder;
-  const builderStatus = builderStage?.status as string | undefined;
-  const isRunning = runData.status === "running";
-  const isCompleted = runData.status === "completed";
-  const isFailed = runData.status === "failed";
-
-  return STAGE_MAP.map((s) => {
-    let status: StageStatus = "pending";
-
-    switch (s.id) {
-      case "prompt":
-        status = runData ? "passed" : "pending";
-        break;
-      case "brain":
-        if (builderStatus === "running" || builderStatus === "passed") status = "passed";
-        else if (isRunning) status = "running";
-        break;
-      case "builder":
-        if (builderStatus === "passed") status = "passed";
-        else if (builderStatus === "running") status = "running";
-        else if (builderStatus === "failed") status = "failed";
-        break;
-      case "render":
-        if (isCompleted) status = "passed";
-        else if (builderStatus === "passed" && isRunning) status = "running";
-        else if (isFailed && builderStatus === "passed") status = "failed";
-        break;
-      case "publish":
-        status = "pending";
-        break;
-    }
-
-    return { id: s.id, label: s.label, short: s.short, icon: s.icon, status };
-  });
 }
 
 function getLatestStageOutput(runData: RunData | null, keys: string[]): Record<string, unknown> | null {
