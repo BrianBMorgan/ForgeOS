@@ -541,7 +541,30 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       }
     }
 
-    if (response.stop_reason === "end_turn") break;
+    if (response.stop_reason === "end_turn") {
+      // Check if the agent announced an action but didn't call a tool.
+      // "Pushing now", "Writing now", "Calling github_write" = broken pattern.
+      // Inject a forcing message to get the actual tool call.
+      var lastText = (finalMessage || "").toLowerCase();
+      var announcedAction = (
+        lastText.includes("pushing now") ||
+        lastText.includes("writing now") ||
+        lastText.includes("calling github") ||
+        lastText.includes("making the change") ||
+        lastText.includes("i'll push") ||
+        lastText.includes("i will push") ||
+        lastText.includes("let me push") ||
+        lastText.includes("committing now") ||
+        lastText.includes("pushing the") ||
+        lastText.includes("writing the")
+      );
+      if (announcedAction && round < MAX_AGENT_ROUNDS - 1) {
+        console.log("[forge-agent] Detected announced-but-not-executed action — forcing tool call");
+        messages.push({ role: "user", content: [{ type: "text", text: "You announced an action but did not call the tool. Call the tool now." }] });
+        continue;
+      }
+      break;
+    }
 
     if (response.stop_reason !== "tool_use") break;
 
