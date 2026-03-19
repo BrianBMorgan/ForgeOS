@@ -8,10 +8,9 @@ import ProjectsList from "./components/ProjectsList";
 import Settings from "./components/Settings";
 import Assets from "./components/Assets";
 
-type NavId = "new-project" | "projects" | "assets" | "settings";
+type NavId = "projects" | "assets" | "settings";
 
 const navItems: { id: NavId; label: string; icon: string }[] = [
-  { id: "new-project", label: "New Project", icon: "+" },
   { id: "projects", label: "Projects", icon: "▶" },
   { id: "assets", label: "Assets", icon: "◈" },
   { id: "settings", label: "Settings", icon: "⚙" },
@@ -92,7 +91,7 @@ const API_BASE = "/api";
 function App() {
   const [collapsed, setCollapsed] = useState(true);
   const [chatCollapsed, setChatCollapsed] = useState(false);
-  const [activeNav, setActiveNav] = useState<NavId>("new-project");
+  const [activeNav, setActiveNav] = useState<NavId>("projects");
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -317,9 +316,18 @@ function App() {
     } catch {}
   }, [currentRunId, viewingIterationRunId]);
 
+  const handleNewProject = () => {
+    setActiveNav("projects");
+    setCurrentProjectId(null);
+    setCurrentRunId(null);
+    setRunData(null);
+    setProjectData(null);
+    setViewingIterationRunId(null);
+  };
+
   const handleNavClick = (navId: NavId) => {
     setActiveNav(navId);
-    if (navId === "new-project" || navId === "projects") {
+    if (navId === "projects") {
       setCurrentProjectId(null);
       setCurrentRunId(null);
       setRunData(null);
@@ -356,7 +364,7 @@ function App() {
     }
 
     if (activeNav === "projects" && !currentProjectId) {
-      return <ProjectsList onSelectProject={openProject} />;
+      return <ProjectsList onSelectProject={openProject} onNewProject={handleNewProject} />;
     }
 
     return (
@@ -370,7 +378,7 @@ function App() {
           <PromptColumn
             runData={runData}
             projectData={projectData}
-            isNewProject={activeNav === "new-project"}
+            isNewProject={!currentProjectId}
             onViewIteration={viewIteration}
             viewingIterationRunId={viewingIterationRunId}
             onViewLatest={viewLatest}
@@ -437,15 +445,12 @@ function App() {
           </button>
           <div className="status">
             {projectData ? (
-              <>
-                <span className="topbar-project-name">{projectData.name}</span>
-                <span className="topbar-separator">|</span>
-              </>
+              <span className="topbar-project-name">{projectData.name}</span>
             ) : null}
           </div>
         </header>
 
-        <div className={`content-split ${activeNav === "new-project" || (activeNav === "projects" && currentProjectId) ? "has-mobile-toggle" : ""}`}>
+        <div className={`content-split ${activeNav === "projects" && currentProjectId ? "has-mobile-toggle" : ""}`}>
           {renderMainContent()}
         </div>
       </div>
