@@ -246,6 +246,7 @@ body {
 
 .prompt-textarea-wrap {
   position: relative;
+  display: block;
 }
 
 .prompt-textarea {
