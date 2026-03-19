@@ -388,7 +388,7 @@ export default function PromptColumn({
       )}
 
       {isProjectView && !isViewingHistory && hasChatHistory && (
-        <div className="chat-thread">
+        <div className="chat-thread" ref={chatThreadRef}>
           {chatMessages.map((msg) => (
             <div key={msg.id} className={`chat-message chat-${msg.role}${msg.pending ? " chat-live" : ""}`}>
               <div className="chat-role">
