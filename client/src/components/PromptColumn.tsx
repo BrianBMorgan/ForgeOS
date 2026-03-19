@@ -522,12 +522,7 @@ export default function PromptColumn({
               : "Idle"}
           </span>
         </div>
-        {runData?.iterationNumber && (
-          <div className="meta-row">
-            <span className="meta-label">Iteration</span>
-            <span className="meta-value">v{runData.iterationNumber}</span>
-          </div>
-        )}
+
         {runData?.tokenUsage && (
           <div className="token-usage-section">
             <div className="meta-row token-usage-header">
