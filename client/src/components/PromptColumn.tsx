@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { RunData, ProjectData, ChatMessage } from "../App";
+import "./PromptColumn.css";
 
 interface PromptColumnProps {
   runData: RunData | null;
