@@ -264,6 +264,10 @@ body {
   transition: border-color 0.15s;
 }
 
+.prompt-textarea-with-attach {
+  padding-bottom: 2.25rem;
+}
+
 .slash-dropdown {
   position: absolute;
   bottom: 100%;
@@ -5482,6 +5486,13 @@ body {
 
 .attach-wrap {
   position: relative;
+}
+
+.attach-wrap-inline {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 0.625rem;
+  z-index: 10;
 }
 
 .attach-btn {
