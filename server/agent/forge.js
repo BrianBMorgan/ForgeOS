@@ -619,25 +619,15 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
     }
 
     if (response.stop_reason === "end_turn") {
-      // Check if the agent announced an action but didn't call a tool.
-      // "Pushing now", "Writing now", "Calling github_write" = broken pattern.
-      // Inject a forcing message to get the actual tool call.
-      var lastText = (finalMessage || "").toLowerCase();
-      var announcedAction = (
-        lastText.includes("pushing now") ||
-        lastText.includes("writing now") ||
-        lastText.includes("calling github") ||
-        lastText.includes("making the change") ||
-        lastText.includes("i'll push") ||
-        lastText.includes("i will push") ||
-        lastText.includes("let me push") ||
-        lastText.includes("committing now") ||
-        lastText.includes("pushing the") ||
-        lastText.includes("writing the")
-      );
-      if (announcedAction && round < MAX_AGENT_ROUNDS - 1) {
-        console.log("[forge-agent] Detected announced-but-not-executed action — forcing tool call");
-        messages.push({ role: "user", content: [{ type: "text", text: "You announced an action but did not call the tool. Call the tool now." }] });
+      // If no tools have been called yet and the message sounds like work
+      // was intended, Claude ended its turn prematurely. Push it to act.
+      var toolsCalledSoFar = messages.filter(function(m) {
+        return m.role === "assistant" && Array.isArray(m.content) &&
+          m.content.some(function(b) { return b.type === "tool_use"; });
+      }).length;
+      var looksLikeWork = (finalMessage || "").match(/push|write|fix|change|update|patch|commit|edit|read|grep|search/i);
+      if (toolsCalledSoFar === 0 && looksLikeWork && round < MAX_AGENT_ROUNDS - 1) {
+        messages.push({ role: "user", content: [{ type: "text", text: "Use a tool to do that." }] });
         continue;
       }
       break;
