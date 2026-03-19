@@ -580,6 +580,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
 
   var taskCompleteInput = null;
   var finalMessage = "";
+  var allThinking = [];
   var buildTriggered = false;
   var agentStartTime = Date.now();
 
