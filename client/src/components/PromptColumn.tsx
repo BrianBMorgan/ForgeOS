@@ -342,7 +342,6 @@ export default function PromptColumn({
 
       {hasIterations && (
         <div className="iteration-dropdown-bar">
-          <div className="iteration-dropdown-label">ITERATION</div>
           <select
             className="iteration-dropdown-select"
             value={viewingIterationRunId || projectData.currentRunId || ""}
@@ -502,27 +501,6 @@ export default function PromptColumn({
 
 
       <div className="prompt-meta">
-        <div className="meta-row">
-          <span className="meta-label">Last run</span>
-          <span className="meta-value">
-            {runData ? new Date(runData.createdAt).toLocaleTimeString() : "--"}
-          </span>
-        </div>
-        <div className="meta-row">
-          <span className="meta-label">Status</span>
-          <span className={`meta-value meta-${runData?.status || "idle"}`}>
-            {runData
-              ? runData.status === "completed"
-                ? "Completed"
-                : runData.status === "failed"
-                  ? "Failed"
-                  : runData.status === "awaiting-approval"
-                    ? "Awaiting Approval"
-                    : "Running"
-              : "Idle"}
-          </span>
-        </div>
-
         {runData?.tokenUsage && (
           <div className="token-usage-section">
             <div className="meta-row token-usage-header">
