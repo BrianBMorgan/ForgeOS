@@ -2677,32 +2677,34 @@ body {
 .iteration-dropdown-bar {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
   border-bottom: 1px solid #1e293b;
 }
 
 .iteration-dropdown-label {
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #64748b;
-  flex-shrink: 0;
+  display: none;
 }
 
 .iteration-dropdown-select {
   flex: 1;
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #1e293b;
   border-radius: 4px;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.72rem;
   font-family: inherit;
   outline: none;
   cursor: pointer;
   appearance: auto;
   min-width: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.iteration-dropdown-select:hover {
+  border-color: #334155;
+  color: #94a3b8;
 }
 
 .iteration-dropdown-select:hover {
