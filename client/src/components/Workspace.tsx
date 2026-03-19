@@ -1026,7 +1026,7 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
                 {ws && <WorkspaceStatusBadge status={ws.status} />}
                 {ws?.error && <span className="workspace-error-inline">{ws.error}</span>}
               </div>
-              <span>Live Preview</span>
+              <span className="render-label-right">Live Preview</span>
             </div>
             <div className="mode-b-preview-notice">
               <div className="mode-b-icon">⚡</div>
@@ -1048,7 +1048,6 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
                 {ws?.error && <span className="workspace-error-inline">{ws.error}</span>}
               </div>
               <div className="render-label-right">
-                Live Preview
                 <button
                   className={`preview-open-btn inspect-toggle-btn ${inspectMode ? "active" : ""}`}
                   onClick={toggleInspect}
@@ -2202,7 +2201,7 @@ case "publish":
           </button>
         ))}
       </div>
-      <div className="tab-panel">{renderTabContent()}</div>
+      <div className={`tab-panel${activeTab === 'render' ? ' tab-panel-render' : ''}`}>{renderTabContent()}</div>
     </div>
   );
 }
