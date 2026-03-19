@@ -68,10 +68,11 @@ export interface IterationData {
 }
 
 export interface ChatMessage {
+  id: string;              // stable unique id — never used for filtering logic
   role: "user" | "assistant";
   content: string;
   toolStatus?: string;
-  isLive?: boolean;
+  pending?: boolean;       // true while streaming — replaces isLive
   createdAt: number;
 }
 
@@ -107,8 +108,7 @@ function App() {
 
 
   const sendChat = useCallback(async (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => {
-    // New project flow — create the project first, then send the message as the first chat turn.
-    // The agent receives the prompt and builds immediately.
+    // New project flow — create project first, then send as first chat turn
     let projectId = currentProjectId;
     if (!projectId) {
       try {
@@ -126,19 +126,20 @@ function App() {
         setActiveNav("projects");
       } catch { return; }
     }
-    const userMsg: ChatMessage = { role: "user", content: message, createdAt: Date.now() };
-    setChatMessages((prev) => [...prev, userMsg]);
+
+    const now = Date.now();
+    const userMsg: ChatMessage = { id: `u-${now}`, role: "user", content: message, createdAt: now };
+    const pendingId = `a-${now}`;
+    const pendingMsg: ChatMessage = { id: pendingId, role: "assistant", content: "", pending: true, createdAt: now + 1 };
+
+    // Append user message and pending assistant bubble — they never get deleted
+    setChatMessages((prev) => [...prev, userMsg, pendingMsg]);
     setChatLoading(true);
 
-    // Live thinking state shown while agent works
-    const thinkingId = Date.now();
-    const thinkingMsg: ChatMessage = {
-      role: "assistant",
-      content: "Working...",
-      isLive: true,
-      createdAt: thinkingId,
+    // Helper: update the pending bubble in place by id
+    const updatePending = (patch: Partial<ChatMessage>) => {
+      setChatMessages((prev) => prev.map(m => m.id === pendingId ? { ...m, ...patch } : m));
     };
-    setChatMessages((prev) => [...prev, thinkingMsg]);
 
     try {
       const res = await fetch(`${API_BASE}/projects/${projectId}/chat`, {
@@ -148,91 +149,53 @@ function App() {
       });
 
       if (!res.ok || !res.body) {
-        setChatMessages((prev) => [...prev.filter(m => m.createdAt !== thinkingId), { role: "assistant", content: "Something went wrong. Please try again.", createdAt: Date.now() }]);
+        updatePending({ content: "Something went wrong. Please try again.", pending: false });
         return;
       }
 
-      // Consume SSE stream
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let thinkingLines: string[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
+        for (const part of parts) {
+          if (!part.startsWith("data: ")) continue;
           let evt: any;
-          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+          try { evt = JSON.parse(part.slice(6)); } catch { continue; }
 
           if (evt.type === "thinking") {
-            const evtText = (evt.content || "").trim();
-            const userText = message.trim();
-            // Skip if content is a near-verbatim echo of the user message.
-            // Normalize both to lowercase words and check overlap ratio.
-            const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
-            const evtWords = normalize(evtText);
-            const userWords = new Set(normalize(userText));
-            const overlap = evtWords.length > 0
-              ? evtWords.filter(w => userWords.has(w)).length / evtWords.length
-              : 0;
-            const isEcho = overlap > 0.7;
-            if (!isEcho && evtText.length > 10) {
-              thinkingLines.push(evtText);
-              const preview = thinkingLines[thinkingLines.length - 1].slice(0, 140);
-              setChatMessages((prev) => prev.map(m =>
-                m.createdAt === thinkingId ? { ...m, content: preview, isLive: true } : m
-              ));
-            }
+            const text = (evt.content || "").trim();
+            if (text.length > 10) updatePending({ content: text });
           } else if (evt.type === "tool_status") {
-            // Tool call status — update the live bubble with what the agent is doing right now
-            setChatMessages((prev) => prev.map(m =>
-              m.createdAt === thinkingId ? { ...m, toolStatus: evt.content, isLive: true } : m
-            ));
+            updatePending({ toolStatus: evt.content });
           } else if (evt.type === "agent_message") {
-            // Direct message from agent via ask_user tool — always show, never echo-filter
-            setChatMessages((prev) => prev.map(m =>
-              m.createdAt === thinkingId ? { ...m, content: evt.content, isLive: true } : m
-            ));
-          } else if (evt.type === "file_written") {
-            setChatMessages((prev) => prev.map(m =>
-              m.createdAt === thinkingId ? { ...m, content: "Writing " + evt.path + "...", isLive: true } : m
-            ));
+            updatePending({ content: evt.content });
           } else if (evt.type === "run_created") {
-            // Run exists — start polling the workspace immediately so the
-            // install/start progress shows up while the agent message streams.
             setCurrentRunId(evt.runId);
             setViewingIterationRunId(null);
             setActiveNav("projects");
-            // Update the live bubble to show we are now in the install/start phase
-            setChatMessages((prev) => prev.map(m =>
-              m.createdAt === thinkingId ? { ...m, content: "Installing dependencies and starting app...", isLive: true } : m
-            ));
+            updatePending({ content: "Installing and starting app..." });
           } else if (evt.type === "done") {
-            // Replace thinking message with final response — single setState to avoid flash
-            const finalMsg: ChatMessage = {
-              role: "assistant",
-              content: evt.content || "Done.",
-              createdAt: evt.createdAt || Date.now(),
-            };
-            setChatMessages((prev) => [...prev.filter(m => m.createdAt !== thinkingId), finalMsg]);
+            // Finalize the pending bubble — mark it done, set final content
+            updatePending({ content: evt.content || "Done.", pending: false, toolStatus: undefined });
             if (evt.building && evt.runId) {
               setCurrentRunId(evt.runId);
               setViewingIterationRunId(null);
               setActiveNav("projects");
             }
           } else if (evt.type === "error") {
-            setChatMessages((prev) => [...prev.filter(m => m.createdAt !== thinkingId), { role: "assistant", content: evt.error || "Something went wrong.", createdAt: Date.now() }]);
+            updatePending({ content: evt.error || "Something went wrong.", pending: false });
           }
         }
       }
     } catch {
-      setChatMessages((prev) => [...prev.filter(m => m.createdAt !== thinkingId), { role: "assistant", content: "Connection error. Please try again.", createdAt: Date.now() }]);
+      updatePending({ content: "Connection error. Please try again.", pending: false });
     } finally {
       setChatLoading(false);
     }
@@ -259,13 +222,13 @@ function App() {
         const res = await fetch(`${API_BASE}/projects/${currentProjectId}/chat`);
         if (res.ok) {
           const data: ChatMessage[] = await res.json();
-          // Only set history if we have no live messages — never overwrite a live session
           setChatMessages((prev) => {
-            const hasLive = prev.some(m => m.isLive);
-            if (hasLive) return prev;
-            // Assign unique timestamps so history messages never collide with thinkingId
+            // Never overwrite a live session
+            if (prev.some(m => m.pending)) return prev;
+            // Stable unique ids for history — never collide with pending bubble ids
             const base = Date.now() - data.length * 1000;
             return data.map((m: any, idx: number) => ({
+              id: `h-${base + idx}`,
               role: m.role as "user" | "assistant",
               content: m.content || "",
               createdAt: base + idx,

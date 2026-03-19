@@ -398,15 +398,17 @@ export default function PromptColumn({
 
       {isProjectView && !isViewingHistory && hasChatHistory && (
         <div className="chat-thread">
-          {chatMessages.map((msg, i) => (
-            <div key={i} className={`chat-message chat-${msg.role}${msg.isLive ? " chat-live" : ""}`}>
+          {chatMessages.map((msg) => (
+            <div key={msg.id} className={`chat-message chat-${msg.role}${msg.pending ? " chat-live" : ""}`}>
               <div className="chat-role">
-                {msg.role === "user" ? "You" : msg.isLive ? "Forge is working…" : "Forge"}
+                {msg.role === "user" ? "You" : msg.pending ? "Forge is working…" : "Forge"}
               </div>
-              <div className={`chat-content${msg.isLive ? " chat-live-content" : ""}`}>
-                {msg.role === "assistant" && !msg.isLive
-                  ? renderMarkdown(msg.content)
-                  : msg.content}
+              <div className={`chat-content${msg.pending ? " chat-live-content" : ""}`}>
+                {msg.pending
+                  ? (msg.content || "Working…")
+                  : msg.role === "assistant"
+                    ? renderMarkdown(msg.content)
+                    : msg.content}
               </div>
               {msg.toolStatus && (
                 <div className="chat-tool-status">⚙ {msg.toolStatus}</div>
