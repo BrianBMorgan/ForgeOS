@@ -338,25 +338,7 @@ export default function PromptColumn({
 
   return (
     <div className="prompt-column">
-      {isProjectView && (
-        <div className="project-header-bar">
-          <div className="project-header-name">{projectData.name}</div>
-          <div className="project-header-status">
-            <span
-              className="project-status-dot"
-              style={{
-                background:
-                  projectData.status === "active" ? "#4ade80" :
-                  projectData.status === "building" ? "#3b82f6" :
-                  projectData.status === "failed" ? "#f87171" : "#64748b"
-              }}
-            />
-            {projectData.status === "active" ? "Running" :
-             projectData.status === "building" ? "Building" :
-             projectData.status === "failed" ? "Failed" : "Stopped"}
-          </div>
-        </div>
-      )}
+
 
       {hasIterations && (
         <div className="iteration-dropdown-bar">
