@@ -2417,6 +2417,32 @@ body {
   color: #e2e8f0;
 }
 
+.projects-list-footer {
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.projects-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  background: rgba(233, 69, 96, 0.12);
+  border: 1px solid rgba(233, 69, 96, 0.35);
+  color: #E94560;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+
+.projects-new-btn:hover {
+  background: rgba(233, 69, 96, 0.22);
+  border-color: rgba(233, 69, 96, 0.6);
+}
+
 .projects-count {
   background: #334155;
   color: #94a3b8;
