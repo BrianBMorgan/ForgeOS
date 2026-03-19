@@ -449,10 +449,29 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
   systemParts.push(SYSTEM_PROMPT);
   const fullSystem = systemParts.join("\n\n");
 
-  // Build message history
+  // Build message history — scrub any orphaned tool_use blocks that have no
+  // corresponding tool_result. These happen when the agent loop breaks mid-call
+  // (timeout, error) and cause a 400 on the next API call.
   const messages = [];
   for (var i = 0; i < history.length; i++) {
-    messages.push({ role: history[i].role, content: history[i].content });
+    var msg = history[i];
+    // If this is an assistant message with tool_use blocks, check the next message
+    // has tool_results. If not, skip both this message and inject nothing — the
+    // orphaned tool call gets dropped from history entirely.
+    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      var hasToolUse = msg.content.some(function(b) { return b.type === "tool_use"; });
+      if (hasToolUse) {
+        var next = history[i + 1];
+        var nextHasResult = next && Array.isArray(next.content) &&
+          next.content.some(function(b) { return b.type === "tool_result"; });
+        if (!nextHasResult) {
+          // Orphaned tool_use — drop it and skip to next
+          console.log("[forge-agent] Dropped orphaned tool_use from history at index", i);
+          continue;
+        }
+      }
+    }
+    messages.push({ role: msg.role, content: msg.content });
   }
   // Build user message — include image attachments as vision blocks if present
   var userContent;
