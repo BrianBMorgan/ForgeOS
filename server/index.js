@@ -1242,9 +1242,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
   try {
     const rows = await brain.getConversation(project.id, 10);
     // Cap total history size to prevent context blowout on long sessions
-    history = rows
-      .map(function(r) { return { role: r.role, content: r.content }; })
-      .map(function(m) { return { role: m.role, content: typeof m.content === "string" && m.content.length > 2000 ? m.content.slice(0, 2000) + "...[trimmed]" : m.content }; });
+    history = rows.map(function(r) { return { role: r.role, content: r.content }; });
   } catch {}
 
   brain.appendConversation(project.id, "user", message.trim()).catch(function() {});

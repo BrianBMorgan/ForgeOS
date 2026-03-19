@@ -609,9 +609,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       var text = textBlocks.map(function(b) { return b.text; }).join("\n").trim();
       if (text) {
         finalMessage = text;
-        // Emit thinking events only when agent is mid-loop (past round 0).
-        // Round 0 text before tool_use is usually just restating the problem — skip it.
-        // Round > 0 = agent is actively working through the problem, show progress.
+        allThinking.push(text);
         if (round > 0) {
           if (onMessage) onMessage({ type: "thinking", content: text });
         }
@@ -706,10 +704,12 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
     };
   }
 
-  // Pure chat
+  // Pure chat — return full reasoning so it gets saved to conversation history
+  // This is critical: without the full reasoning, Forge has amnesia every turn.
+  var fullMessage = allThinking.length > 0 ? allThinking.join("\n\n") : (finalMessage || "Done.");
   return {
     type: "message",
-    message: finalMessage || "Done.",
+    message: fullMessage,
   };
 }
 
