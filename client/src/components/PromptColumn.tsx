@@ -376,11 +376,11 @@ export default function PromptColumn({
             {projectData.iterations.map((iter) => {
               const isCurrent = iter.runId === projectData.currentRunId;
               const statusLabel = iter.status === "completed"
-                ? (isCurrent && iter.workspaceStatus === "running" ? "live" : "done")
-                : iter.status === "running" ? "running" : iter.status === "failed" ? "failed" : "";
+                ? (isCurrent && iter.workspaceStatus === "running" ? " · live" : "")
+                : iter.status === "running" ? " · building" : iter.status === "failed" ? " · failed" : "";
               return (
                 <option key={iter.runId} value={iter.runId}>
-                  v{iter.iterationNumber}{isCurrent ? " (latest)" : ""} — {iter.prompt.slice(0, 50)}{iter.prompt.length > 50 ? "..." : ""} [{statusLabel}]
+                  v{iter.iterationNumber}{isCurrent ? " ★" : ""}{statusLabel}
                 </option>
               );
             })}
