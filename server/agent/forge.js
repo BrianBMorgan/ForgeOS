@@ -48,15 +48,14 @@ You have full access to everything: the current workspace, the ForgeOS codebase 
 
 For workspace builds: read files first, write complete code, verify syntax with node --check, call task_complete.
 
-For ForgeOS fixes: use run_command with grep to find exactly what you need first. Then github_read only the relevant section if needed. Then github_write to commit.
+For targeted ForgeOS edits (CSS tweaks, config values, single-line changes): use github_patch. It does a surgical find-and-replace without you needing to read or rewrite the entire file. One tool call. Done.
 
-Example workflow for a CSS fix:
-1. run_command: grep -n "prompt-input-area" client/src/index.css  → finds line 847
-2. run_command: sed -n "840,860p" client/src/index.css  → reads just those lines
-3. github_read: client/src/index.css  → get the full file for the write
-4. github_write: push the fix
+Example — CSS padding change:
+  github_patch("client/src/index.css", [{find: "padding: 1.25rem", replace: "padding: 0.75rem 1.25rem"}], "fix input padding")
 
-A real engineer does not read a 1800-line file top to bottom. They grep for what they need.
+For larger changes where you need to understand structure first: grep with run_command to find the lines, then github_patch or github_write.
+
+Only use github_write when you need to rewrite an entire file. For anything surgical — github_patch.
 
 For external repos: fetch_url to hit the GitHub API for a listing, fetch individual files, build from what you find.
 
@@ -191,6 +190,30 @@ const TOOLS = [
     },
   },
   {
+    name: "github_patch",
+    description: "Make a surgical find-and-replace edit to a ForgeOS file on GitHub without reading the entire file first. Use this for targeted changes: CSS tweaks, config values, single function edits. Finds the exact string and replaces it. Fails if the search string is not found exactly. For multiple changes to the same file, include all replacements in one call.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filepath: { type: "string", description: "File path relative to repo root, e.g. 'client/src/index.css'" },
+        replacements: {
+          type: "array",
+          description: "List of find/replace pairs to apply in order",
+          items: {
+            type: "object",
+            properties: {
+              find: { type: "string", description: "Exact string to find — must match character for character" },
+              replace: { type: "string", description: "String to replace it with" },
+            },
+            required: ["find", "replace"],
+          },
+        },
+        message: { type: "string", description: "Commit message" },
+      },
+      required: ["filepath", "replacements", "message"],
+    },
+  },
+  {
     name: "github_read",
     description: "Read a file from the ForgeOS GitHub repository (BrianBMorgan/ForgeOS, main branch). Returns the full file with line numbers. For large files, pipe through grep in run_command after writing to disk, or use github_read to get the file then grep locally.",
     input_schema: {
@@ -293,6 +316,60 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
         return context || "No relevant memory found.";
       } catch {
         return "Memory search unavailable.";
+      }
+    }
+
+    case "github_patch": {
+      var gpToken = process.env.GITHUB_TOKEN;
+      if (!gpToken) return "Error: GITHUB_TOKEN not set in environment";
+      try {
+        // Fetch current file
+        var gpRes = await fetch(
+          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath + "?ref=main",
+          { headers: { "Authorization": "Bearer " + gpToken, "Accept": "application/vnd.github.v3+json", "User-Agent": "ForgeOS-Agent" } }
+        );
+        var gpData = await gpRes.json();
+        if (!gpRes.ok) return "GitHub error " + gpRes.status + ": " + JSON.stringify(gpData).slice(0, 200);
+        var gpDecoded = Buffer.from(gpData.content, "base64").toString("utf-8");
+        var gpSha = gpData.sha;
+
+        // Apply all replacements
+        var gpResult = gpDecoded;
+        var applied = [];
+        var failed = [];
+        for (var ri = 0; ri < toolInput.replacements.length; ri++) {
+          var rep = toolInput.replacements[ri];
+          if (gpResult.includes(rep.find)) {
+            gpResult = gpResult.replace(rep.find, rep.replace);
+            applied.push(rep.find.slice(0, 60));
+          } else {
+            failed.push(rep.find.slice(0, 60));
+          }
+        }
+
+        if (failed.length > 0 && applied.length === 0) {
+          return "No replacements found. Check exact strings. Failed: " + failed.join("; ");
+        }
+
+        // Push
+        var gpPushRes = await fetch(
+          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath,
+          {
+            method: "PUT",
+            headers: { "Authorization": "Bearer " + gpToken, "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "ForgeOS-Agent" },
+            body: JSON.stringify({ message: toolInput.message, content: Buffer.from(gpResult, "utf-8").toString("base64"), sha: gpSha, branch: "main" }),
+          }
+        );
+        var gpPushData = await gpPushRes.json();
+        if (!gpPushRes.ok) return "Push error " + gpPushRes.status + ": " + JSON.stringify(gpPushData).slice(0, 200);
+
+        var summary = "Patched " + toolInput.filepath + " — " + applied.length + " replacement(s) applied";
+        if (failed.length > 0) summary += ", " + failed.length + " not found: " + failed.join("; ");
+        summary += " — commit: " + (gpPushData.commit && gpPushData.commit.sha ? gpPushData.commit.sha.slice(0, 7) : "done");
+        if (onMessage) onMessage({ type: "agent_message", content: "✓ " + summary });
+        return summary;
+      } catch (err) {
+        return "github_patch error: " + err.message;
       }
     }
 
@@ -587,6 +664,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
             case "run_command":   return "Running: " + (inp.command || "").slice(0, 60) + "...";
             case "memory_search": return "Searching Brain: \"" + (inp.query || "").slice(0, 50) + "\"...";
             case "fetch_url":     return "Fetching " + (inp.url || "").replace("https://","").slice(0, 60) + "...";
+            case "github_patch":  return "Patching " + (inp.filepath || "") + " (" + (inp.replacements || []).length + " change" + ((inp.replacements||[]).length !== 1 ? "s" : "") + ")...";
             case "github_read":   return "Reading " + (inp.filepath || "") + " from GitHub...";
             case "github_write":  return "Pushing " + (inp.filepath || "") + " to GitHub...";
             case "ask_user":      return null; // ask_user sends its own agent_message
