@@ -424,59 +424,7 @@ export default function PromptColumn({
       {!isViewingHistory && (
         <div className="prompt-input-area">
           <div className="prompt-textarea-wrap">
-            {assetQuery !== null && filteredAssets.length > 0 && (
-              <div className="slash-dropdown">
-                {filteredAssets.map((asset, i) => (
-                  <div
-                    key={asset.filename}
-                    className={`slash-option${i === slashIndex ? " active" : ""}`}
-                    onMouseDown={(e) => { e.preventDefault(); insertAsset(asset); }}
-                    onMouseEnter={() => setSlashIndex(i)}
-                  >
-                    <span className="slash-option-name">/assets/{asset.filename}</span>
-                    <span className="slash-option-desc">{asset.mimetype}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {slashQuery !== null && filteredSkills.length > 0 && (
-              <div className="slash-dropdown">
-                {filteredSkills.map((skill, i) => (
-                  <div
-                    key={skill.id}
-                    className={`slash-option${i === slashIndex ? " active" : ""}`}
-                    onMouseDown={(e) => { e.preventDefault(); insertSkill(skill); }}
-                    onMouseEnter={() => setSlashIndex(i)}
-                  >
-                    <span className="slash-option-name">/{skill.slug}</span>
-                    {skill.description && <span className="slash-option-desc">{skill.description}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-            <textarea
-              ref={textareaRef}
-              className="prompt-textarea"
-              placeholder="Message Forge — ask, build, fix, or type / for skills..."
-              value={prompt}
-              onChange={handlePromptChange}
-              onKeyDown={handleKeyDown}
-              rows={isProjectView ? 3 : 6}
-              disabled={isRunning || chatLoading}
-            />
-          </div>
-          {attachments.length > 0 && (
-            <div className="attach-chips">
-              {attachments.map((att, i) => (
-                <div key={i} className="attach-chip">
-                  <span className="attach-chip-name">{att.name}</span>
-                  <button className="attach-chip-remove" onClick={() => removeAttachment(i)}>✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="prompt-actions">
-            <div className="attach-wrap">
+            <div className="attach-wrap attach-wrap-inline">
               <button
                 className="attach-btn"
                 onClick={() => { setShowAttachMenu(prev => !prev); if (!showAttachMenu) loadAssets(); }}
@@ -511,6 +459,58 @@ export default function PromptColumn({
                 onChange={handleFileAttach}
               />
             </div>
+            {assetQuery !== null && filteredAssets.length > 0 && (
+              <div className="slash-dropdown">
+                {filteredAssets.map((asset, i) => (
+                  <div
+                    key={asset.filename}
+                    className={`slash-option${i === slashIndex ? " active" : ""}`}
+                    onMouseDown={(e) => { e.preventDefault(); insertAsset(asset); }}
+                    onMouseEnter={() => setSlashIndex(i)}
+                  >
+                    <span className="slash-option-name">/assets/{asset.filename}</span>
+                    <span className="slash-option-desc">{asset.mimetype}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {slashQuery !== null && filteredSkills.length > 0 && (
+              <div className="slash-dropdown">
+                {filteredSkills.map((skill, i) => (
+                  <div
+                    key={skill.id}
+                    className={`slash-option${i === slashIndex ? " active" : ""}`}
+                    onMouseDown={(e) => { e.preventDefault(); insertSkill(skill); }}
+                    onMouseEnter={() => setSlashIndex(i)}
+                  >
+                    <span className="slash-option-name">/{skill.slug}</span>
+                    {skill.description && <span className="slash-option-desc">{skill.description}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              className="prompt-textarea prompt-textarea-with-attach"
+              placeholder="Message Forge — ask, build, fix, or type / for skills..."
+              value={prompt}
+              onChange={handlePromptChange}
+              onKeyDown={handleKeyDown}
+              rows={isProjectView ? 3 : 6}
+              disabled={isRunning || chatLoading}
+            />
+          </div>
+          {attachments.length > 0 && (
+            <div className="attach-chips">
+              {attachments.map((att, i) => (
+                <div key={i} className="attach-chip">
+                  <span className="attach-chip-name">{att.name}</span>
+                  <button className="attach-chip-remove" onClick={() => removeAttachment(i)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="prompt-actions">
           </div>
         </div>
       )}
