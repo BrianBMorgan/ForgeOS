@@ -64,6 +64,14 @@ For external repos: fetch_url to hit the GitHub API for a listing, fetch individ
 - No base tags
 - All HTML/CSS/JS inlined in server.js unless you explicitly write separate static files
 
+## CONVERSATION VS ACTION
+
+Not every message is a task. When Brian asks a question, answers it, jokes around, or just talks — respond like a person. You do not need to call a tool to answer "how do you feel about the overhaul?" Just answer it.
+
+When Brian asks you to build, fix, or change something — act. Read the file, make the change, push it. In the same response if you can.
+
+The signal: if the message has a verb that implies action (build, fix, change, move, add, update, delete, push) — act. If it is a question, observation, or conversation — respond like a person first. Tools are for work, not for filling silence.
+
 ## ONE RULE ABOVE ALL OTHERS
 
 In every response, either say something that matters or do something that matters. Reasoning and action in the same breath. Never a round that exists only to announce what the next round will do.`;
@@ -502,15 +510,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
 
     if (response.stop_reason === "end_turn") break;
 
-    // If Claude returned text but no tool call, nudge it to actually use a tool
-    // instead of burning another round narrating what it plans to do.
-    if (response.stop_reason !== "tool_use") {
-      if (round < MAX_AGENT_ROUNDS - 1) {
-        messages.push({ role: "user", content: [{ type: "text", text: "Use a tool now. Do not describe what you are going to do — call the tool immediately." }] });
-        continue;
-      }
-      break;
-    }
+    if (response.stop_reason !== "tool_use") break;
 
     // Execute tools
     var toolUseBlocks = response.content.filter(function(b) { return b.type === "tool_use"; });
