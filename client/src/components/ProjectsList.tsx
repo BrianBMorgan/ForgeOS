@@ -15,6 +15,7 @@ interface ProjectSummary {
 
 interface ProjectsListProps {
   onSelectProject: (projectId: string) => void;
+  onNewProject: () => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -56,7 +57,7 @@ async function renameProject(projectId: string, newName: string): Promise<boolea
   }
 }
 
-export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
+export default function ProjectsList({ onSelectProject, onNewProject }: ProjectsListProps) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -147,6 +148,7 @@ export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
           <div className="projects-empty-icon">+</div>
           <div className="projects-empty-text">No projects yet</div>
           <div className="projects-empty-hint">Start a new build to create your first project.</div>
+          <button className="projects-new-btn" onClick={onNewProject}>+ New Project</button>
         </div>
       </div>
     );
@@ -212,6 +214,9 @@ export default function ProjectsList({ onSelectProject }: ProjectsListProps) {
             </div>
           </div>
         ))}
+      </div>
+      <div className="projects-list-footer">
+        <button className="projects-new-btn" onClick={onNewProject}>+ New Project</button>
       </div>
     </div>
   );
