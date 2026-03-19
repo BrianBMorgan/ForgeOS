@@ -48,7 +48,15 @@ You have full access to everything: the current workspace, the ForgeOS codebase 
 
 For workspace builds: read files first, write complete code, verify syntax with node --check, call task_complete.
 
-For ForgeOS fixes: github_read to get the file, make the change, github_write to commit. Render auto-deploys in ~2 minutes.
+For ForgeOS fixes: use run_command with grep to find exactly what you need first. Then github_read only the relevant section if needed. Then github_write to commit.
+
+Example workflow for a CSS fix:
+1. run_command: grep -n "prompt-input-area" client/src/index.css  → finds line 847
+2. run_command: sed -n "840,860p" client/src/index.css  → reads just those lines
+3. github_read: client/src/index.css  → get the full file for the write
+4. github_write: push the fix
+
+A real engineer does not read a 1800-line file top to bottom. They grep for what they need.
 
 For external repos: fetch_url to hit the GitHub API for a listing, fetch individual files, build from what you find.
 
@@ -112,7 +120,7 @@ const TOOLS = [
   },
   {
     name: "run_command",
-    description: "Run a safe shell command in the workspace. Use node --check <file> to verify JS syntax after writing. Use cat package.json to inspect dependencies.",
+    description: "Run shell commands in the workspace. Use this like a real developer would — grep, sed, awk, wc, head, tail, find, node --check, cat, ls, jq. To search a large file: grep -n 'pattern' file.js. To see lines around a match: grep -n -A5 -B5 'pattern' file.js. To count lines: wc -l file.js. To see a range: sed -n '100,150p' file.js. To find a CSS rule: grep -n 'prompt-input-area' client/src/index.css.",
     input_schema: {
       type: "object",
       properties: {
@@ -184,7 +192,7 @@ const TOOLS = [
   },
   {
     name: "github_read",
-    description: "Read any file from the ForgeOS GitHub repository (BrianBMorgan/ForgeOS, main branch). More reliable than fetch_url for ForgeOS files because it uses authentication.",
+    description: "Read a file from the ForgeOS GitHub repository (BrianBMorgan/ForgeOS, main branch). Returns the full file with line numbers. For large files, pipe through grep in run_command after writing to disk, or use github_read to get the file then grep locally.",
     input_schema: {
       type: "object",
       properties: {
@@ -260,13 +268,19 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
 
     case "run_command": {
       const cmd = toolInput.command.trim();
-      const ALLOWED = /^(node\s+--check\s+\S+|cat\s+\S+|ls(\s+-\S+)?(\s+\S+)?|echo\s+.+)$/;
-      if (!ALLOWED.test(cmd)) {
-        return "Command not permitted: \"" + cmd + "\". Allowed: node --check <file>, cat <file>, ls, echo";
+      // Block genuinely dangerous commands — everything else is fair game
+      const BLOCKED = /(sudo|rm\s+-rf|mkfs|dd\s+if|chmod\s+777|curl\s+.*\|\s*sh|wget\s+.*\|\s*sh)/;
+      if (BLOCKED.test(cmd)) {
+        return "Command blocked: " + cmd;
       }
       const { execSync } = require("child_process");
       try {
-        const out = execSync(cmd, { cwd: wsDir, timeout: 10000, encoding: "utf-8" });
+        const out = execSync(cmd, {
+          cwd: wsDir,
+          timeout: 15000,
+          encoding: "utf-8",
+          env: { ...process.env, PATH: "/usr/local/bin:/usr/bin:/bin" },
+        });
         return out || "(no output — command succeeded)";
       } catch (err) {
         return "Exit " + (err.status || 1) + ": " + (err.stderr || err.message || "").slice(0, 1000);
@@ -293,7 +307,7 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
         var ghReadData = await ghReadRes.json();
         if (!ghReadRes.ok) return "GitHub error " + ghReadRes.status + ": " + JSON.stringify(ghReadData).slice(0, 200);
         var decoded = Buffer.from(ghReadData.content, "base64").toString("utf-8");
-        return decoded.length > 30000 ? decoded.slice(0, 30000) + "\n\n[truncated at 30KB]" : decoded;
+        return decoded;
       } catch (err) {
         return "github_read error: " + err.message;
       }
