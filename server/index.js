@@ -1240,7 +1240,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
   let history = [];
   try {
-    const rows = await brain.getConversation(project.id, 10);
+    const rows = await brain.getConversation(project.id, 30);
     // Cap total history size to prevent context blowout on long sessions
     history = rows.map(function(r) { return { role: r.role, content: r.content }; });
   } catch {}

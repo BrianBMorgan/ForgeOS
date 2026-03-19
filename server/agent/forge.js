@@ -18,8 +18,8 @@ const fs = require("fs");
 const brain = require("../memory/brain");
 
 const FORGE_MODEL = "claude-sonnet-4-6";
-const MAX_AGENT_ROUNDS = 30;
-const MAX_AGENT_MS = 8 * 60 * 1000; // 8 minute hard ceiling
+const MAX_AGENT_ROUNDS = 50;
+const MAX_AGENT_MS = 20 * 60 * 1000; // 20 minute ceiling
 
 // ── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 
@@ -269,7 +269,7 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
       if (!fs.existsSync(filePath)) return "File not found: " + toolInput.path;
       try {
         const content = fs.readFileSync(filePath, "utf-8");
-        return content.length > 80000 ? content.slice(0, 80000) + "\n\n[file truncated at 80KB]" : content;
+        return content;
       } catch (err) {
         return "Error reading file: " + err.message;
       }
@@ -444,11 +444,7 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
           return "HTTP " + fetchRes.status + " fetching " + fetchUrl;
         }
         var fetchText = await fetchRes.text();
-        // Hard cap at 30KB per fetch — large files (embedded JSON, minified bundles)
-        // blow the context window and cause the agent to loop
-        if (fetchText.length > 30000) {
-          fetchText = fetchText.slice(0, 30000) + "\n\n[truncated at 30KB — file too large, focus on key sections only]";
-        }
+        // No fetch cap — let the agent decide what to do with the content
         if (onMessage) onMessage({ type: "thinking", content: "Fetched: " + fetchUrl.slice(0, 80) });
         return fetchText;
       } catch (err) {

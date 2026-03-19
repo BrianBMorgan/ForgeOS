@@ -245,7 +245,7 @@ async function buildContext(userRequest, projectId = null) {
     const patterns = memories.filter(m => m.type === "pattern" || m.type === "solution");
     if (patterns.length > 0) {
       lines.push("### Patterns That Worked");
-      for (const m of patterns.slice(0, 10)) {
+      for (const m of patterns.slice(0, 20)) {
         const sim = m.similarity > 0 ? ` (relevance: ${(m.similarity * 100).toFixed(0)}%)` : "";
         lines.push(`- [${m.category || "general"}] ${m.content}${sim}`);
       }
@@ -255,7 +255,7 @@ async function buildContext(userRequest, projectId = null) {
     const mistakes = memories.filter(m => m.type === "mistake");
     if (mistakes.length > 0) {
       lines.push("### Mistakes to Avoid (learned from failed iterations)");
-      for (const m of mistakes.slice(0, 8)) {
+      for (const m of mistakes.slice(0, 15)) {
         lines.push(`- ${m.content}`);
       }
       lines.push("");
@@ -264,7 +264,7 @@ async function buildContext(userRequest, projectId = null) {
     const snippets = memories.filter(m => m.type === "snippet");
     if (snippets.length > 0) {
       lines.push("### Reusable Code Patterns");
-      for (const m of snippets.slice(0, 5)) {
+      for (const m of snippets.slice(0, 10)) {
         lines.push(`- [${m.category || "general"}] ${m.content}`);
       }
       lines.push("");
@@ -310,7 +310,7 @@ async function extractMemory({ projectId, projectName, userRequest, buildSummary
 
   try {
     const fileList = files.map(f => f.path).join(", ");
-    const serverContent = files.find(f => f.path === "server.js")?.content?.slice(0, 3000) || "";
+    const serverContent = files.find(f => f.path === "server.js")?.content || "";
 
     const response = await ai.messages.create({
       model: "claude-haiku-4-5-20251001",
