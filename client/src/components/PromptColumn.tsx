@@ -131,15 +131,6 @@ export default function PromptColumn({
   const hasIterations = projectData && projectData.iterations.length > 0;
   const hasChatHistory = chatMessages.length > 0;
 
-  const chatThreadRef = useRef<HTMLDivElement>(null);
-
-  // Snap to bottom instantly on project load
-  useEffect(() => {
-    if (chatThreadRef.current) {
-      chatThreadRef.current.scrollTop = chatThreadRef.current.scrollHeight;
-    }
-  }, [projectData?.id]);
-
   // Smooth scroll to bottom when new messages arrive
   useEffect(() => {
     if (chatEndRef.current) {
