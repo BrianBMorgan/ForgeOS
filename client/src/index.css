@@ -379,6 +379,25 @@ body {
   gap: 0.4rem;
   min-height: 0;
   border-top: 1px solid #1e293b;
+  scrollbar-width: thin;
+  scrollbar-color: #1e293b transparent;
+}
+
+.chat-thread::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-thread::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-thread::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 2px;
+}
+
+.chat-thread::-webkit-scrollbar-thumb:hover {
+  background: #1e293b;
 }
 
 .chat-message {
