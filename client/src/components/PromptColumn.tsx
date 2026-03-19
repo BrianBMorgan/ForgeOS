@@ -47,6 +47,7 @@ export default function PromptColumn({
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatThreadRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [skillOptions, setSkillOptions] = useState<SkillOption[]>([]);
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
