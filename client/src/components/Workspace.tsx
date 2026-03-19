@@ -1016,24 +1016,18 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
 
   return (
     <div className="render-content">
-      {ws && (
-        <div className="render-section">
-          <div className="render-section-label">
-            Build Status
-            <WorkspaceStatusBadge status={ws.status} />
-          </div>
-          {ws.error && (
-            <div className="workspace-error">{ws.error}</div>
-          )}
-        </div>
-      )}
-
       {previewWs?.status === "running" && previewWs.port && previewRunData?.id && (() => {
         const startCmd = (exec.startCommand as string) || "";
         const isModeB = startCmd.includes("npm run dev") || startCmd.includes("vite");
         return isModeB ? (
           <div className="render-section preview-section">
-            <div className="render-section-label">Live Preview</div>
+            <div className="render-section-label">
+              <div className="render-label-left">
+                {ws && <WorkspaceStatusBadge status={ws.status} />}
+                {ws?.error && <span className="workspace-error-inline">{ws.error}</span>}
+              </div>
+              <span>Live Preview</span>
+            </div>
             <div className="mode-b-preview-notice">
               <div className="mode-b-icon">⚡</div>
               <div className="mode-b-message">
@@ -1049,17 +1043,23 @@ function RenderTab({ runData, liveRunData }: { runData: RunData | null; liveRunD
         ) : (
           <div className="render-section preview-section">
             <div className="render-section-label">
-              Live Preview
-              <button
-                className={`preview-open-btn inspect-toggle-btn ${inspectMode ? "active" : ""}`}
-                onClick={toggleInspect}
-                title={inspectMode ? "Cancel inspect" : "Inspect element"}
-              >{inspectMode ? "✕ Cancel" : "⊹ Inspect"}</button>
-              <button
-                className="preview-open-btn"
-                onClick={() => window.open(`/preview/${previewRunData.id}/`, "_blank")}
-                title="Open in new tab"
-              >↗</button>
+              <div className="render-label-left">
+                {ws && <WorkspaceStatusBadge status={ws.status} />}
+                {ws?.error && <span className="workspace-error-inline">{ws.error}</span>}
+              </div>
+              <div className="render-label-right">
+                Live Preview
+                <button
+                  className={`preview-open-btn inspect-toggle-btn ${inspectMode ? "active" : ""}`}
+                  onClick={toggleInspect}
+                  title={inspectMode ? "Cancel inspect" : "Inspect element"}
+                >{inspectMode ? "✕ Cancel" : "⊹ Inspect"}</button>
+                <button
+                  className="preview-open-btn"
+                  onClick={() => window.open(`/preview/${previewRunData.id}/`, "_blank")}
+                  title="Open in new tab"
+                >↗</button>
+              </div>
             </div>
             {selection && (
               <div className="inspect-selection-badge">
