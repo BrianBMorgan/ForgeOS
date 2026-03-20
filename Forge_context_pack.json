@@ -475,5 +475,7 @@
     "Schema migration \u2014 remove run_snapshots, simplify projects table",
     "Replace chat agent loop (Hedwig) with direct Anthropic API streaming",
     "Intel Event Content Review \u2014 build it clean as Phase 5 test"
-  ]
+  ],
+  "version": "5.0.0",
+  "updated": "2026-03-20"
 }
