@@ -186,13 +186,8 @@ async function _doPublish(projectId) {
   const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
 
-  const { currentRunId } = project;
-  console.log(`[publish] currentRunId=${currentRunId}`);
-  if (!currentRunId) throw new Error("No build to publish — run a build first");
-
-  const workspaceDir = path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "workspaces", currentRunId);
-  console.log(`[publish] workspaceDir=${workspaceDir} exists=${fs.existsSync(workspaceDir)}`);
-  if (!fs.existsSync(workspaceDir)) throw new Error("Workspace files not found");
+  // v2: branch already exists — Claude pushed files to apps/<slug> directly.
+  // No workspace. No currentRunId. Just resolve the slug and wire up Render.
 
   // ---- Slug resolution ----
   const sql = await getDb();
@@ -214,49 +209,13 @@ async function _doPublish(projectId) {
     }
   }
 
-  // ---- Resolve commands ----
-  let startCommand = "npm start";
-  let installCommand = "npm install";
-  let buildCommand = null;
-
-  try {
-    const { getRun } = require("../pipeline/runner");
-    const run = await getRun(currentRunId);
-    const out = run?.stages?.builder?.output || run?.stages?.executor?.output;
-    if (out?.startCommand)   startCommand   = out.startCommand;
-    if (out?.installCommand) installCommand = out.installCommand;
-    if (out?.buildCommand)   buildCommand   = out.buildCommand;
-  } catch {}
-
-  try {
-    const pkgPath = path.join(workspaceDir, "package.json");
-    if (fs.existsSync(pkgPath)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-      if (!buildCommand && pkg.scripts?.build) buildCommand = "npm run build";
-      if (pkg.scripts?.start) startCommand = "npm start";
-    }
-  } catch {}
-
-  // ---- Get GitHub settings ----
-  const settingsManager = require("../settings/manager");
-  const githubSettings = await settingsManager.getSetting("github");
-  if (!githubSettings?.repo) throw new Error("GitHub repo not configured in Settings — required for Render deployment");
-
-  // ---- Push app files to dedicated GitHub branch ----
-  const { pushToAppBranch } = require("./github");
-  let branchResult;
-  console.log(`[publish] pushing to GitHub branch apps/${slug} from ${workspaceDir}`);
-  try {
-    branchResult = await pushToAppBranch(githubSettings.repo, slug, workspaceDir);
-    console.log(`[publish] GitHub push success — ${branchResult.filesCount} files, commit ${branchResult.commitSha}`);
-  } catch (err) {
-    console.error(`[publish] GitHub push failed:`, err.message);
-    throw new Error(`GitHub push failed: ${err.message}`);
-  }
+  const startCommand = "npm start";
+  const installCommand = "npm install";
+  const buildCommand = null;
 
   const mergedEnv = await getMergedEnv(projectId);
 
-// Ensure Global Secrets are included (getMergedEnv may miss them if settings DB init fails)
+// Ensure Global Secrets are included
 try {
   const settingsManager = require("../settings/manager");
   const secrets = await settingsManager.getSecretsAsObject();
@@ -403,7 +362,7 @@ async function renameSlug(projectId, newSlug) {
     const workspaceDir = app?.dir || path.join(
       process.env.DATA_DIR || path.join(__dirname, "..", ".."),
       "workspaces",
-      (await require("../projects/manager").getProject(projectId))?.currentRunId
+      null /* v2: no currentRunId */
     );
 
     const renameBranchResult = await pushToAppBranch(githubSettings.repo, newSlug, workspaceDir);
@@ -566,10 +525,9 @@ async function exportProject(projectId) {
   const project = await projectManager.getProject(projectId);
   if (!project) throw new Error("Project not found");
 
-  const { currentRunId } = project;
-  if (!currentRunId) throw new Error("No build to export");
-
-  const workspaceDir = path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "workspaces", currentRunId);
+  // v2: export not supported without local workspace
+  throw new Error("Export is not supported in v2 — download files directly from GitHub.");
+  const workspaceDir = null; // unreachable
   if (!fs.existsSync(workspaceDir)) throw new Error("Workspace files not found");
 
   const slug = generateSlug(project.name);
