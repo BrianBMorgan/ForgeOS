@@ -1,8 +1,11 @@
 "use strict";
 /**
- * ForgeOS v2 Chat Engine -- Direct Anthropic Streaming
- * Replaces Hedwig. Claude streams tokens to client in real time.
- * Tool calls intercepted server-side, executed, results injected back.
+ * ForgeOS Chat Engine -- Claude Code architecture
+ *
+ * Claude streams tokens to the client in real time.
+ * When Claude calls a tool, server executes it and returns the result.
+ * No agent loop. No nudges. No guards. No fake user messages.
+ * Claude decides when it is done. Period.
  */
 const Anthropic = require("@anthropic-ai/sdk");
 const brain = require("../memory/brain");
@@ -15,6 +18,7 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  // Fetch memory context
   let memoryBlock = "";
   try {
     memoryBlock = await Promise.race([
@@ -41,7 +45,7 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
     messages.push({ role: msg.role, content: msg.content });
   }
 
-  // Build user message with optional attachments
+  // Build user message
   var userContent;
   if (attachments && attachments.length > 0) {
     userContent = [{ type: "text", text: userMessage }];
@@ -56,29 +60,23 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
   messages.push({ role: "user", content: userContent });
 
   var fullAssistantMessage = "";
-  var MAX_ROUNDS = 50;
+  var MAX_TOOL_ROUNDS = 50;
   var START_TIME = Date.now();
   var MAX_MS = 20 * 60 * 1000;
 
-  var totalReads = 0;
-  var totalWrites = 0;
-
-  for (var round = 0; round < MAX_ROUNDS; round++) {
-    if (Date.now() - START_TIME > MAX_MS) { console.log("[stream] Hard timeout"); break; }
-
-    // Read-loop detection: if Claude has read 2+ times with zero writes, force it to write
-    if (totalReads >= 2 && totalWrites === 0 && round > 0) {
-      messages.push({ role: "user", content: [{ type: "text", text: "STOP READING. You have read enough. Call github_write NOW and write the complete file. Do not read anything else first." }] });
-    }
-    // Ongoing: if reads are outpacing writes by 3+, nudge
-    if (totalReads > totalWrites + 3 && totalWrites > 0) {
-      messages.push({ role: "user", content: [{ type: "text", text: "Stop reading. Write the next file now." }] });
+  // ── Main loop — Claude drives, we execute ────────────────────────────────────
+  for (var round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    if (Date.now() - START_TIME > MAX_MS) {
+      console.log("[stream] Hard timeout at round", round);
+      break;
     }
 
     var currentText = "";
+    var toolBlocks = [];
     var currentToolBlock = null;
     var currentToolJson = "";
 
+    // Stream tokens directly to client as they arrive
     const stream = client.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 16000,
@@ -92,11 +90,13 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
         if (event.content_block.type === "tool_use") {
           currentToolBlock = { id: event.content_block.id, name: event.content_block.name };
           currentToolJson = "";
-          var sm = toolStatus(event.content_block.name, {});
+          // Emit tool start status immediately
+          var sm = toolStatusLabel(event.content_block.name, {});
           if (sm) onEvent({ type: "tool_status", content: sm });
         }
       } else if (event.type === "content_block_delta") {
         if (event.delta.type === "text_delta" && event.delta.text) {
+          // Stream each token to client as it arrives — word by word
           currentText += event.delta.text;
           onEvent({ type: "thinking", content: currentText });
         } else if (event.delta.type === "input_json_delta") {
@@ -107,9 +107,10 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
           var inp = {};
           try { inp = JSON.parse(currentToolJson || "{}"); } catch {}
           currentToolBlock.input = inp;
-          // Emit refined status now that we have full input
-          var sm2 = toolStatus(currentToolBlock.name, inp);
+          // Emit refined status with full input now available
+          var sm2 = toolStatusLabel(currentToolBlock.name, inp);
           if (sm2) onEvent({ type: "tool_status", content: sm2 });
+          toolBlocks.push(currentToolBlock);
           currentToolBlock = null;
           currentToolJson = "";
         }
@@ -119,29 +120,24 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
     const response = await stream.finalMessage();
     messages.push({ role: "assistant", content: response.content });
 
+    // Capture text for return value
     var textBlocks = response.content.filter(function(b) { return b.type === "text"; });
     if (textBlocks.length > 0) {
       var text = textBlocks.map(function(b) { return b.text; }).join("\n").trim();
-      if (text) {
-        fullAssistantMessage = text;
-        if (round > 0) onEvent({ type: "agent_message", content: text });
-      }
+      if (text) fullAssistantMessage = text;
     }
 
+    // Claude is done — no tool calls
     if (response.stop_reason === "end_turn") break;
     if (response.stop_reason !== "tool_use") break;
 
-    // Execute tool calls
+    // Execute every tool Claude called, collect results
     var toolResults = [];
-    var toolCalls = response.content.filter(function(b) { return b.type === "tool_use"; });
+    var toolCallBlocks = response.content.filter(function(b) { return b.type === "tool_use"; });
 
-    for (var t = 0; t < toolCalls.length; t++) {
-      var toolUse = toolCalls[t];
-      console.log("[stream] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 100));
-
-      // Track reads vs writes
-      if (toolUse.name === "github_read" || toolUse.name === "github_ls") totalReads++;
-      if (toolUse.name === "github_write" || toolUse.name === "github_patch") totalWrites++;
+    for (var t = 0; t < toolCallBlocks.length; t++) {
+      var toolUse = toolCallBlocks[t];
+      console.log("[stream] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 120));
 
       var result = await executeTool(toolUse.name, toolUse.input, function(evt) {
         if (evt.type === "file_written") {
@@ -157,8 +153,10 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
     }
 
     messages.push({ role: "user", content: toolResults });
+    // Continue — Claude will decide what to do next
   }
 
+  // Store to Brain
   if (projectId && fullAssistantMessage) {
     brain.extractMemory({
       projectId: projectId,
@@ -171,7 +169,7 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
   return fullAssistantMessage || "Done.";
 }
 
-function toolStatus(name, inp) {
+function toolStatusLabel(name, inp) {
   switch (name) {
     case "github_create_branch": return "Creating branch " + (inp.branch || "") + "...";
     case "github_ls":            return "Listing " + (inp.branch || "main") + "/" + (inp.path || "") + "...";
