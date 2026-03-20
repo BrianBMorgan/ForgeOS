@@ -109,7 +109,7 @@ Write the first file. Then the next. Then task_complete. That is the job.`;
 const TOOLS = [
   {
     name: "list_files",
-    description: "List all files in the current workspace. Call this first before making any changes so you know exactly what exists.",
+    description: "List all files in the current workspace. Only useful when iterating on an existing project. For new projects with an empty workspace, skip this and call write_file immediately.",
     input_schema: {
       type: "object",
       properties: {},
@@ -129,7 +129,7 @@ const TOOLS = [
   },
   {
     name: "write_file",
-    description: "Write or overwrite a file in the workspace. Always write the complete file content — never truncated.",
+    description: "Write or overwrite a file in the workspace. This is your primary action. When asked to build something, call this immediately. Always write complete file content — never truncated, never placeholder comments.",
     input_schema: {
       type: "object",
       properties: {
