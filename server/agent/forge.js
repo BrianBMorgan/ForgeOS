@@ -474,8 +474,23 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
       }
     }
 
-    case "task_complete":
+    case "task_complete": {
+      // Guard: refuse if workspace is missing required files or server.js is a stub
+      var fs = require("fs");
+      var path = require("path");
+      var wsFiles = wsDir ? collectWorkspaceFiles(wsDir) : [];
+      var hasServerJs = wsFiles.some(function(f) { return f === "server.js"; });
+      var hasPkgJson = wsFiles.some(function(f) { return f === "package.json"; });
+      if (!hasServerJs || !hasPkgJson) {
+        return "REJECTED: Cannot complete — missing " + (!hasServerJs ? "server.js" : "package.json") + ". Current files: " + (wsFiles.length ? wsFiles.join(", ") : "none") + ". Write all required files first.";
+      }
+      var serverSize = 0;
+      try { serverSize = fs.readFileSync(path.join(wsDir, "server.js"), "utf-8").length; } catch(e) {}
+      if (serverSize < 1000) {
+        return "REJECTED: server.js is only " + serverSize + " characters — this is a stub. The user prompt describes a full application. Write the complete implementation before calling task_complete.";
+      }
       return "__TASK_COMPLETE__";
+    }
 
     case "ask_user":
       // Use distinct type "agent_message" so client never echo-filters it
