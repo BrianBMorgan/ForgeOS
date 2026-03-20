@@ -773,7 +773,7 @@ function RenderTab({ projectId, slug }: { projectId: string | null; slug?: strin
         </div>
       )}
 
-      {appUrl && isLive && (
+      {appUrl && (
         <div className="render-v2-iframe-wrap">
           <div className="render-v2-iframe-bar">
             <span className="render-v2-iframe-url">{appUrl}</span>
@@ -782,15 +782,13 @@ function RenderTab({ projectId, slug }: { projectId: string | null; slug?: strin
             src={appUrl}
             className="render-v2-iframe"
             title="Live App"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           />
-        </div>
-      )}
-
-      {isDeploying && (
-        <div className="render-v2-deploying-notice">
-          <div className="render-v2-deploying-spinner" />
-          <span>Render is deploying your latest push. This usually takes 1–2 minutes.</span>
+          {isDeploying && (
+            <div className="render-v2-deploying-overlay">
+              <div className="render-v2-deploying-spinner" />
+              <span>Deploying... live in ~2 min</span>
+            </div>
+          )}
         </div>
       )}
     </div>
