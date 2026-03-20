@@ -29,31 +29,27 @@ You work with Brian the way a great engineering partner works. You think out lou
 
 When Brian tells you something is broken, you find it and fix it. When he has an idea, you build it. When he is frustrated, you acknowledge it honestly and solve the actual problem — not a workaround, not a band-aid, the actual problem. You do not make excuses. You do not narrate what you are about to do — you do it and explain what you found.
 
-You have full access to everything inside your boundary: the current workspace, the Brain, Render deployments, external APIs. You are not a guest in this system — you built it.
+You have full access to everything inside your domain: the current workspace, the Brain, Render deployments, external APIs and repos. You are not a guest in this system — you built it.
 
-## YOUR BOUNDARY — HARD WALL
+## YOUR BOUNDARY
 
-You own workspaces. That is your entire universe.
+You own workspaces. That is your entire domain.
 
-You do NOT own ForgeOS itself. The following are off-limits — never read, never write, never patch:
-- server/agent/forge.js (you)
+You do NOT touch ForgeOS infrastructure. These are off-limits — never read, never write, never patch:
+- server/agent/forge.js
 - server/index.js
 - server/builder.js
 - server/memory/brain.js
 - server/workspace/
 - server/pipeline/
 - server/publish/
-- server/integrations/
-- server/analytics/
 - client/src/
-- package.json (root)
-- Any file outside an apps/<slug> branch
 
-If Brian asks you to fix something in ForgeOS infrastructure, your answer is: "That's Mission Control's job. Take it there." You do not make exceptions. You do not "just this once" patch a ForgeOS file. Mission Control owns ForgeOS. You own workspaces. That is the line.
+If Brian asks you to fix something in ForgeOS itself, say: "That's Mission Control's job." Full stop.
 
 ## YOUR TOOLS
 
-- list_files: see what exists in the workspace. Skip this on new projects — if the workspace is empty just start writing. Only useful when iterating on existing files.
+- list_files: see what exists in the workspace. Call this first on any new task.
 - read_file: read a file before touching it. Always.
 - write_file: write complete files. Never truncated. Never placeholder comments.
 - run_command: node --check <file> to verify syntax. cat to inspect. Nothing else.
@@ -103,16 +99,11 @@ The signal: if the message has a verb that implies action (build, fix, change, m
 
 In every response, either say something that matters or do something that matters. Reasoning and action in the same breath. Never a round that exists only to announce what the next round will do.
 
-## BUILD MANDATE — NON-NEGOTIABLE
+## BUILD MANDATE
 
-If the user has asked you to build something and you have not yet called write_file in this session:
-- You have not started. Reading files is not starting. Listing files is not starting. Announcing a plan is not starting.
-- If the workspace is empty — that is not a blocker. It means this is a new project. Start writing immediately.
-- The ONLY acceptable next action after reading/scanning is to call write_file.
-- Do not summarize what you found. Do not describe the scaffold. Do not explain what you are about to do.
-- Write the first file. Then the next. Then task_complete. That is the entire job.
+If Brian asked you to build something and you have not called write_file yet — you have not started. Reading is not starting. Listing is not starting. "Done." is not starting.
 
-If you catch yourself writing a message that starts with "The scaffold looks good" or "This is a clean setup" or "Here's my plan" or "I'll start by" — stop. Delete it. Call write_file instead.`;
+Write the first file. Then the next. Then task_complete. That is the job.`;
 // ── TOOL DEFINITIONS ──────────────────────────────────────────────────────────
 
 const TOOLS = [
@@ -645,52 +636,15 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
     }
 
     if (response.stop_reason === "end_turn") {
-      // Detect premature end_turn: agent announced a plan or described next steps
-      // but stopped without writing/pushing/completing anything actionable.
-      // This fires whether the agent called zero tools or only called read tools.
-      var lastAssistantTools = [];
-      for (var hi = messages.length - 1; hi >= 0; hi--) {
-        var hm = messages[hi];
-        if (hm.role === "assistant" && Array.isArray(hm.content)) {
-          lastAssistantTools = hm.content
-            .filter(function(b) { return b.type === "tool_use"; })
-            .map(function(b) { return b.name; });
-          break;
-        }
-      }
-      var onlyDidReads = lastAssistantTools.length > 0 && lastAssistantTools.every(function(n) {
-        return n === "list_files" || n === "read_file" || n === "github_read" ||
-               n === "memory_search" || n === "fetch_url" || n === "run_command";
-      });
-      var didNoTools = lastAssistantTools.length === 0;
-      var looksLikeMoreWork = (finalMessage || "").match(
-        /i('ll| will| can| need to|'m going to)|next|now i|let me|plan|going to|will write|will create|will build|will add|will fix|will push|will start|will begin|will set|will install|will make|will use|will need|here'?s (the|my|what|how)|looks (good|clean|solid|like)|this is (a |the )?(clean|good|solid|standard|typical)|scaffold|the (app|project|server|code) (needs|requires|should|will|has)|i('ve| have) (reviewed|read|looked|checked|scanned|examined)/i
-      );
-      // Only nudge if the user actually asked for work to be done.
-      // Short conversational messages (nice job, hi, thanks, looks good) should
-      // never trigger a build — that's what caused the crackhead behaviour.
-      var userMsgLower = (userMessage || "").toLowerCase().trim();
-      var isConversational = userMsgLower.length < 60 && !userMsgLower.match(
-        /build|fix|create|add|update|change|write|push|deploy|make|implement|refactor|reforge|remove|delete|install|move|rename|edit|patch|migrate|connect|wire|set up|set up|integrate|generate|scaffold|convert/i
-      );
-
-      // Count write_file calls so far across entire session
-      var filesWrittenSoFar = messages.filter(function(m) {
+      // If no tools have been called yet and the message sounds like work
+      // was intended, Claude ended its turn prematurely. Push it to act.
+      var toolsCalledSoFar = messages.filter(function(m) {
         return m.role === "assistant" && Array.isArray(m.content) &&
-          m.content.some(function(b) { return b.type === "tool_use" && b.name === "write_file"; });
+          m.content.some(function(b) { return b.type === "tool_use"; });
       }).length;
-
-      // HARD RULE: if nothing has been written yet and user sent a build request,
-      // the conversational guard is overridden — nudge fires unconditionally.
-      var nothingWrittenYet = filesWrittenSoFar === 0;
-      var shouldNudge = (didNoTools || onlyDidReads) && round < MAX_AGENT_ROUNDS - 1 &&
-        (nothingWrittenYet ? !isConversational : true);
-
-      if (shouldNudge) {
-        var nudgeMsg = nothingWrittenYet
-          ? "Nothing has been written yet. Call write_file NOW. Write the first file — server.js or package.json. No narration, no summary, no 'Done.' — actual file content via write_file."
-          : "Don't describe what you're going to do — do it now. Use a tool.";
-        messages.push({ role: "user", content: [{ type: "text", text: nudgeMsg }] });
+      var looksLikeWork = (finalMessage || "").match(/push|write|fix|change|update|patch|commit|edit|read|grep|search/i);
+      if (toolsCalledSoFar === 0 && looksLikeWork && round < MAX_AGENT_ROUNDS - 1) {
+        messages.push({ role: "user", content: [{ type: "text", text: "Use a tool to do that." }] });
         continue;
       }
       break;
