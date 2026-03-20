@@ -900,17 +900,6 @@ function githubHeaders() {
 
 const FORGE_TOOLS = [
   {
-    name: "github_create_branch",
-    description: "Create a new branch from main. Call this before github_write when starting a new app — the branch must exist before files can be written to it.",
-    input_schema: {
-      type: "object",
-      properties: {
-        branch: { type: "string", description: "Branch name to create, e.g. 'apps/my-app'" },
-      },
-      required: ["branch"],
-    },
-  },
-  {
     name: "github_ls",
     description: "List files in a GitHub branch. Use to explore what exists before writing. Default branch is main.",
     input_schema: {
@@ -997,17 +986,6 @@ const FORGE_TOOLS = [
     },
   },
   {
-    name: "fetch_url",
-    description: "Fetch the contents of any URL — GitHub raw files, APIs, documentation.",
-    input_schema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "URL to fetch." },
-      },
-      required: ["url"],
-    },
-  },
-  {
     name: "ask_user",
     description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
     input_schema: {
@@ -1024,7 +1002,7 @@ const FORGE_SYSTEM_PROMPT = `You are Forge — the engineer who built ForgeOS an
 
 You work directly in the GitHub repository. When Brian asks you to build or change something, you read the relevant files with github_read, make your changes with github_write or github_patch, and Render auto-deploys the result. The app is live at its *.forge-os.ai subdomain within 2 minutes of your first commit.
 
-Your tools: github_ls, github_read, github_write, github_patch, github_create_branch, render_status, memory_search, fetch_url, ask_user.
+Your tools: github_ls, github_read, github_write, github_patch, render_status, memory_search, ask_user.
 
 GitHub is your filesystem. Render is your runtime. You do not write to local disk. You do not call task_complete. You do not install dependencies. You commit code and Render handles the rest.
 
@@ -1039,7 +1017,7 @@ When Brian asks a question, answer it. When he asks you to build or change somet
 - GET / must return a complete HTML page — not JSON, not a redirect
 - Root-relative URLs everywhere — /api/data not http://localhost:3000/api/data
 - NEON_DATABASE_URL is reserved for ForgeOS — published apps needing their own DB must use a custom env var name
-- For new app builds: github_create_branch first, then github_write files, Render auto-deploys
+- For new app builds: github_write files directly to the apps/<slug> branch, Render auto-deploys
 
 ## ONE RULE ABOVE ALL OTHERS
 
@@ -1047,28 +1025,6 @@ Either say something that matters or do something that matters. Never a response
 
 async function executeForgeToken(toolName, toolInput, sendEvent) {
   switch (toolName) {
-
-    case "github_create_branch": {
-      try {
-        const branch = toolInput.branch;
-        if (!branch) return "Error: branch name is required";
-        const headers = githubHeaders();
-        const refRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/ref/heads/main", { headers });
-        const refData = await refRes.json();
-        if (!refRes.ok) return "GitHub error getting main ref: " + JSON.stringify(refData).slice(0, 200);
-        const sha = refData.object.sha;
-        const createRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/refs", {
-          method: "POST", headers, body: JSON.stringify({ ref: "refs/heads/" + branch, sha }),
-        });
-        const createData = await createRes.json();
-        if (!createRes.ok) {
-          if (createRes.status === 422) return "Branch " + branch + " already exists — proceeding.";
-          return "GitHub error creating branch: " + JSON.stringify(createData).slice(0, 200);
-        }
-        sendEvent({ type: "tool_status", content: "✓ Created branch: " + branch });
-        return "Branch " + branch + " created from main (" + sha.slice(0, 7) + ")";
-      } catch (err) { return "github_create_branch error: " + err.message; }
-    }
 
     case "github_ls": {
       try {
@@ -1168,16 +1124,6 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
     case "memory_search": {
       try { return await brain.buildContext(toolInput.query) || "No relevant memory found."; }
       catch { return "Memory search unavailable."; }
-    }
-
-    case "fetch_url": {
-      const url = toolInput.url;
-      if (!url || !url.startsWith("http")) return "Error: URL must start with http or https";
-      try {
-        const res = await fetch(url, { headers: { "User-Agent": "ForgeOS/2.0", "Accept": "application/vnd.github.v3.raw, text/plain, */*" }, signal: AbortSignal.timeout(15000) });
-        if (!res.ok) return "HTTP " + res.status + " fetching " + url;
-        return await res.text();
-      } catch (err) { return "Fetch error: " + err.message; }
     }
 
     case "ask_user":
@@ -1295,7 +1241,6 @@ app.post("/api/projects/:id/chat", async (req, res) => {
             currentToolJson = "";
             var statusMsg = (function(name) {
               switch (name) {
-                case "github_create_branch": return "Creating branch...";
                 case "github_ls":   return "Listing files...";
                 case "github_read": return "Reading file...";
                 case "github_write": return "Writing file...";
@@ -1321,13 +1266,11 @@ app.post("/api/projects/:id/chat", async (req, res) => {
             try { inp = JSON.parse(currentToolJson || "{}"); } catch {}
             var refinedStatus = (function(name, i) {
               switch (name) {
-                case "github_create_branch": return "Creating branch " + (i.branch || "") + "...";
                 case "github_ls":   return "Listing " + (i.branch || "main") + "/" + (i.path || "") + "...";
                 case "github_read": return "Reading " + (i.filepath || "") + "...";
                 case "github_write": return "Writing " + (i.filepath || "") + " to " + (i.branch || "main") + "...";
                 case "github_patch": return "Patching " + (i.filepath || "") + "...";
                 case "memory_search": return "Searching Brain: \"" + ((i.query || "").slice(0, 50)) + "\"...";
-                case "fetch_url": return "Fetching " + (i.url || "").replace("https://","").slice(0, 60) + "...";
                 default: return null;
               }
             })(currentToolBlock.name, inp);
