@@ -63,7 +63,6 @@ export default function PromptColumn({
     };
   }, []);
 
-  const isRunning = false; // v2: no local workspace, no running state
 
   function renderInline(text: string): React.ReactNode {
     const parts: React.ReactNode[] = [];
