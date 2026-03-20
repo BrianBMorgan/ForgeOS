@@ -494,8 +494,8 @@ app.get('/', function(req, res) {
 '.shell {' +
 '  height: calc(100vh - 52px);' +
 '  display: grid;' +
-'  grid-template-columns: 1fr 320px;' +
-'  grid-template-rows: auto 1fr auto;' +
+'  grid-template-columns: 300px 1fr 300px;' +
+'  grid-template-rows: auto 1fr 200px;' +
 '  gap: 0;' +
 '  overflow: hidden;' +
 '}' +
@@ -526,11 +526,12 @@ app.get('/', function(req, res) {
 
 /* Main area: row 2 only, column 1 */
 '.main-area {' +
-'  grid-column: 1;' +
+'  grid-column: 2;' +
 '  grid-row: 2;' +
 '  overflow: hidden;' +
 '  display: flex;' +
 '  flex-direction: column;' +
+'  border-left: 1px solid #1a1a2e;' +
 '  border-right: 1px solid #1a1a2e;' +
 '}' +
 '.panel-header {' +
@@ -558,7 +559,7 @@ app.get('/', function(req, res) {
 
 /* Sidebar spans rows 2 AND 3 — completely decoupled from log section height */
 '.sidebar {' +
-'  grid-column: 2;' +
+'  grid-column: 3;' +
 '  grid-row: 2 / 4;' +
 '  overflow: hidden;' +
 '  display: flex;' +
@@ -574,19 +575,19 @@ app.get('/', function(req, res) {
 '.mem-bar-wrap { height: 3px; background: #1a1a2e; border-radius: 2px; margin: 1px 0 0 0; width: 60px; flex-shrink: 0; }' +
 '.mem-bar { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #E94560, #c03050); }' +
 '.mem-total { font-size: 10px; color: #7070a0; font-family: "Courier New", monospace; padding: 6px 8px 4px; }' +
-'.actions-section { flex-shrink: 0; padding: 6px 10px; border-top: 1px solid #1a1a2e; }' +
-'.actions-title { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #ffffff; margin-bottom: 5px; }' +
-'.actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }' +
+'.actions-section { flex-shrink: 0; padding: 12px; border-top: 1px solid #1a1a2e; }' +
+'.actions-title { font-size: 9px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #ffffff; margin-bottom: 10px; }' +
+'.actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }' +
 '.action-btn {' +
 '  background: #0d0d1a; border: 1px solid #1e1e34; border-radius: 5px;' +
 '  color: #8080a0; font-family: "Space Grotesk", sans-serif;' +
-'  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;' +
-'  padding: 5px 8px; cursor: pointer; transition: all 0.15s;' +
-'  text-align: left; display: flex; flex-direction: row; align-items: center; gap: 6px; text-decoration: none;' +
+'  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;' +
+'  padding: 9px 10px; cursor: pointer; transition: all 0.15s;' +
+'  text-align: left; display: flex; flex-direction: column; gap: 3px; text-decoration: none;' +
 '}' +
 '.action-btn:hover { background: #0f0f22; border-color: #E94560; color: #E94560; }' +
 '.action-btn:active { opacity: 0.7; }' +
-'.action-btn .ab-icon { font-size: 13px; line-height: 1; }' +
+'.action-btn .ab-icon { font-size: 16px; line-height: 1; }' +
 '.action-btn .ab-label { font-size: 10px; white-space: nowrap; }' +
 '.action-link { position: relative; }' +
 '.action-link::after {' +
@@ -603,15 +604,14 @@ app.get('/', function(req, res) {
 
 /* Log section: row 3, column 1 only — sidebar is no longer in this row */
 '.log-section {' +
-'  grid-column: 1;' +
+'  grid-column: 2;' +
 '  grid-row: 3;' +
 '  border-top: 1px solid #1a1a2e;' +
+'  border-left: 1px solid #1a1a2e;' +
 '  border-right: 1px solid #1a1a2e;' +
 '  display: flex;' +
 '  flex-direction: column;' +
-'  max-height: 180px;' +
-'  min-height: 120px;' +
-'  flex-shrink: 0;' +
+'  overflow: hidden;' +
 '}' +
 '.log-body { flex: 1; overflow-y: auto; padding: 8px 14px; font-family: "Courier New", monospace; font-size: 11px; color: #7070a0; line-height: 1.55; }' +
 '.log-line { white-space: pre-wrap; word-break: break-all; }' +
@@ -626,12 +626,21 @@ app.get('/', function(req, res) {
 '@keyframes spin { to { transform: rotate(360deg); } }' +
 '@media (max-width: 900px) {' +
 '  html, body { overflow: auto; }' +
-'  .shell { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; height: auto; overflow: auto; }' +
-'  .main-area { border-right: none; min-height: 50vh; grid-row: auto; }' +
+'  .shell { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto auto; height: auto; overflow: auto; }' +
+'  .chat-col { grid-column: 1; grid-row: auto; border-right: none; min-height: 300px; }' +
+'  .main-area { grid-column: 1; grid-row: auto; border-left: none; border-right: none; min-height: 50vh; }' +
+'  .log-section { grid-column: 1; grid-row: auto; border-left: none; border-right: none; }' +
 '  .sidebar { grid-column: 1; grid-row: auto; border-left: none; border-top: 1px solid #1a1a2e; }' +
-'  .log-section { grid-column: 1; grid-row: auto; border-right: none; }' +
 '}' +
-'.chat-panel { flex: 1; border-top: 1px solid #1a1a2e; display: flex; flex-direction: column; min-height: 0; }' +
+'.chat-col {' +
+'  grid-column: 1;' +
+'  grid-row: 2 / 4;' +
+'  border-right: 1px solid #1a1a2e;' +
+'  display: flex;' +
+'  flex-direction: column;' +
+'  overflow: hidden;' +
+'  min-height: 0;' +
+'}' +
 '.chat-msgs { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; min-height: 0; }' +
 '.cmw { display: flex; flex-direction: column; gap: 1px; }' +
 '.clbl { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #444466; }' +
@@ -677,6 +686,18 @@ app.get('/', function(req, res) {
 '    <div class="status-card"><div class="sc-label">Brain DB</div><div class="sc-value" id="sc-brain">&#8230;</div><div class="sc-sub" id="sc-brain-sub">&nbsp;</div></div>' +
 '  </div>' +
 
+'  <div class="chat-col">' +
+'    <div class="panel-header">' +
+'      <span class="panel-title">Mission Control</span>' +
+'      <span class="panel-live"><span class="panel-live-dot"></span>Admin</span>' +
+'    </div>' +
+'    <div class="chat-msgs" id="chatMsgs"></div>' +
+'    <div class="crow">' +
+'      <textarea class="cin" id="chatIn" placeholder="Ask anything..." rows="1"></textarea>' +
+'      <button class="cgo" id="chatGo">&#8593;</button>' +
+'    </div>' +
+'  </div>' +
+
 '  <div class="main-area">' +
 '    <div class="panel-header">' +
 '      <span class="panel-title">Recent Commits \u2014 ' + GITHUB_OWNER + '/' + GITHUB_REPO + '</span>' +
@@ -710,11 +731,6 @@ app.get('/', function(req, res) {
 '        <a class="action-btn action-link" href="https://console.neon.tech/app/org-small-firefly-14254859/projects" target="_blank" rel="noopener"><span class="ab-icon">\uD83D\uDDC4\uFE0F</span><span class="ab-label">Neon DB</span></a>' +
 '        <button class="action-btn" id="btnContextPack"><span class="ab-icon">\uD83E\uDDE0</span><span class="ab-label">Context Pack</span></button>' +
 '      </div>' +
-'    </div>' +
-'    <div class="chat-panel">' +
-'      <div class="panel-header"><span class="panel-title">Mission Control</span><span class="panel-live"><span class="panel-live-dot"></span>Admin</span></div>' +
-'      <div class="chat-msgs" id="chatMsgs"></div>' +
-'      <div class="crow"><textarea class="cin" id="chatIn" placeholder="Ask anything..." rows="1"></textarea><button class="cgo" id="chatGo">&#8593;</button></div>' +
 '    </div>' +
 '  </div>' +
 
