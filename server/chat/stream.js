@@ -60,8 +60,20 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
   var START_TIME = Date.now();
   var MAX_MS = 20 * 60 * 1000;
 
+  var totalReads = 0;
+  var totalWrites = 0;
+
   for (var round = 0; round < MAX_ROUNDS; round++) {
     if (Date.now() - START_TIME > MAX_MS) { console.log("[stream] Hard timeout"); break; }
+
+    // Read-loop detection: if Claude has read 2+ times with zero writes, force it to write
+    if (totalReads >= 2 && totalWrites === 0 && round > 0) {
+      messages.push({ role: "user", content: [{ type: "text", text: "STOP READING. You have read enough. Call github_write NOW and write the complete file. Do not read anything else first." }] });
+    }
+    // Ongoing: if reads are outpacing writes by 3+, nudge
+    if (totalReads > totalWrites + 3 && totalWrites > 0) {
+      messages.push({ role: "user", content: [{ type: "text", text: "Stop reading. Write the next file now." }] });
+    }
 
     var currentText = "";
     var currentToolBlock = null;
@@ -126,6 +138,10 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
     for (var t = 0; t < toolCalls.length; t++) {
       var toolUse = toolCalls[t];
       console.log("[stream] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 100));
+
+      // Track reads vs writes
+      if (toolUse.name === "github_read" || toolUse.name === "github_ls") totalReads++;
+      if (toolUse.name === "github_write" || toolUse.name === "github_patch") totalWrites++;
 
       var result = await executeTool(toolUse.name, toolUse.input, function(evt) {
         if (evt.type === "file_written") {
