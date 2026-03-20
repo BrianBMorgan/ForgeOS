@@ -53,7 +53,7 @@ If Brian asks you to fix something in ForgeOS infrastructure, your answer is: "T
 
 ## YOUR TOOLS
 
-- list_files: see what exists in the workspace. Call this first on any new task.
+- list_files: see what exists in the workspace. Skip this on new projects — if the workspace is empty just start writing. Only useful when iterating on existing files.
 - read_file: read a file before touching it. Always.
 - write_file: write complete files. Never truncated. Never placeholder comments.
 - run_command: node --check <file> to verify syntax. cat to inspect. Nothing else.
@@ -107,6 +107,7 @@ In every response, either say something that matters or do something that matter
 
 If the user has asked you to build something and you have not yet called write_file in this session:
 - You have not started. Reading files is not starting. Listing files is not starting. Announcing a plan is not starting.
+- If the workspace is empty — that is not a blocker. It means this is a new project. Start writing immediately.
 - The ONLY acceptable next action after reading/scanning is to call write_file.
 - Do not summarize what you found. Do not describe the scaffold. Do not explain what you are about to do.
 - Write the first file. Then the next. Then task_complete. That is the entire job.
@@ -678,9 +679,17 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
           return m.role === "assistant" && Array.isArray(m.content) &&
             m.content.some(function(b) { return b.type === "tool_use" && b.name === "write_file"; });
         }).length;
-        var nudgeMsg = filesWrittenSoFar === 0
-          ? "You have read but not written anything. Call write_file now — no preamble, no plan. Write the first file."
-          : "Don't describe what you're going to do — do it now. Use a tool.";
+        var workspaceEmpty = messages.some(function(m) {
+          return m.role === "tool" || (Array.isArray(m.content) && m.content.some(function(b) {
+            return b.type === "tool_result" && typeof b.content === "string" &&
+              (b.content.includes("Workspace is empty") || b.content.includes("new project with no files"));
+          }));
+        });
+        var nudgeMsg = workspaceEmpty
+          ? "The workspace is empty. This is a new project. Call write_file NOW and write the first file — server.js or whatever the entry point is. No scanning, no planning, no preamble."
+          : filesWrittenSoFar === 0
+            ? "You have read but not written anything. Call write_file now — no preamble, no plan. Write the first file."
+            : "Don't describe what you're going to do — do it now. Use a tool.";
         messages.push({ role: "user", content: [{ type: "text", text: nudgeMsg }] });
         continue;
       }
