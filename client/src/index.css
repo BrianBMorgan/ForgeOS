@@ -6199,3 +6199,24 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Render tab — deploying overlay (sits over iframe, doesn't hide it) */
+.render-v2-iframe-wrap {
+  position: relative;
+}
+
+.render-v2-deploying-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(13, 13, 26, 0.75);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--warning);
+  font-size: 13px;
+  z-index: 10;
+  pointer-events: none;
+}
