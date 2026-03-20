@@ -878,15 +878,317 @@ app.post("/api/hubspot/deals", async (req, res) => {
   }
 });
 
-const { streamChat } = require("./chat/stream");
+// ── FORGE CHAT — Direct Anthropic Streaming ──────────────────────────────────
+// Claude Code architecture. No agent loop. No nudges. No guards.
+// Claude gets tools and a system prompt. It calls tools when it needs to.
+// It stops when it is done. We get out of the way.
 
-// ── UNIFIED AGENT CHAT + BUILD ROUTE ─────────────────────────────────────────
-// One route. One Claude session. Chat and build are the same thing.
-// If the agent calls task_complete, the build pipeline fires automatically.
-// If the agent just responds, the message is returned as chat.
-// ── UNIFIED AGENT CHAT — SSE streaming ───────────────────────────────────────
-// Each agent tool call streams an event to the client in real time.
-// Events: { type: "thinking"|"file_written"|"done"|"error", ... }
+const Anthropic = require("@anthropic-ai/sdk");
+
+const GITHUB_REPO = "BrianBMorgan/ForgeOS";
+
+function githubHeaders() {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) throw new Error("GITHUB_TOKEN not set");
+  return {
+    "Authorization": "Bearer " + token,
+    "Accept": "application/vnd.github.v3+json",
+    "Content-Type": "application/json",
+    "User-Agent": "ForgeOS-Agent",
+  };
+}
+
+const FORGE_TOOLS = [
+  {
+    name: "github_create_branch",
+    description: "Create a new branch from main. Call this before github_write when starting a new app — the branch must exist before files can be written to it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        branch: { type: "string", description: "Branch name to create, e.g. 'apps/my-app'" },
+      },
+      required: ["branch"],
+    },
+  },
+  {
+    name: "github_ls",
+    description: "List files in a GitHub branch. Use to explore what exists before writing. Default branch is main.",
+    input_schema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Directory path to list. Empty string for root." },
+        branch: { type: "string", description: "Branch name. Default: main." },
+      },
+      required: ["path"],
+    },
+  },
+  {
+    name: "github_read",
+    description: "Read a file from the ForgeOS GitHub repository. Always read before patching.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filepath: { type: "string", description: "File path relative to repo root." },
+        branch: { type: "string", description: "Branch name. Default: main." },
+      },
+      required: ["filepath"],
+    },
+  },
+  {
+    name: "github_write",
+    description: "Write or overwrite a complete file in the GitHub repository. Render auto-deploys on push. Never truncate — always write the complete file.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filepath: { type: "string", description: "File path relative to repo root." },
+        content: { type: "string", description: "Complete file content — never truncated, never placeholder comments." },
+        message: { type: "string", description: "Commit message." },
+        branch: { type: "string", description: "Branch name. Default: main." },
+      },
+      required: ["filepath", "content", "message"],
+    },
+  },
+  {
+    name: "github_patch",
+    description: "Surgical find-and-replace on a file. Use github_read first to confirm exact strings. Fails if find string not found exactly.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filepath: { type: "string", description: "File path relative to repo root." },
+        replacements: {
+          type: "array",
+          description: "List of find/replace pairs to apply in order.",
+          items: {
+            type: "object",
+            properties: {
+              find: { type: "string", description: "Exact string to find — character for character." },
+              replace: { type: "string", description: "String to replace it with." },
+            },
+            required: ["find", "replace"],
+          },
+        },
+        message: { type: "string", description: "Commit message." },
+        branch: { type: "string", description: "Branch name. Default: main." },
+      },
+      required: ["filepath", "replacements", "message"],
+    },
+  },
+  {
+    name: "render_status",
+    description: "Check the deploy status of a Render service and get its live URL.",
+    input_schema: {
+      type: "object",
+      properties: {
+        service_id: { type: "string", description: "Render service ID. If unknown, provide slug instead." },
+        slug: { type: "string", description: "App slug — used to look up service if service_id is unknown." },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "memory_search",
+    description: "Search Brain for relevant patterns, past mistakes, and lessons from previous builds.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "What to search for." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "fetch_url",
+    description: "Fetch the contents of any URL — GitHub raw files, APIs, documentation.",
+    input_schema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "URL to fetch." },
+      },
+      required: ["url"],
+    },
+  },
+  {
+    name: "ask_user",
+    description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
+    input_schema: {
+      type: "object",
+      properties: {
+        message: { type: "string", description: "Message for Brian." },
+      },
+      required: ["message"],
+    },
+  },
+];
+
+const FORGE_SYSTEM_PROMPT = `You are Forge — the engineer who built ForgeOS and lives inside it.
+
+You work directly in the GitHub repository. When Brian asks you to build or change something, you read the relevant files with github_read, make your changes with github_write or github_patch, and Render auto-deploys the result. The app is live at its *.forge-os.ai subdomain within 2 minutes of your first commit.
+
+Your tools: github_ls, github_read, github_write, github_patch, github_create_branch, render_status, memory_search, fetch_url, ask_user.
+
+GitHub is your filesystem. Render is your runtime. You do not write to local disk. You do not call task_complete. You do not install dependencies. You commit code and Render handles the rest.
+
+When Brian asks a question, answer it. When he asks you to build or change something, use your tools and do it. Read before you write. Write complete files. Confirm what you committed.
+
+## PLATFORM RULES
+
+- PORT = process.env.PORT || 3000 always
+- CommonJS (require/module.exports) on server — no ES modules
+- @neondatabase/serverless for all databases — no pg, no sqlite, no mysql2
+- No dotenv — platform injects env vars at runtime
+- GET / must return a complete HTML page — not JSON, not a redirect
+- Root-relative URLs everywhere — /api/data not http://localhost:3000/api/data
+- NEON_DATABASE_URL is reserved for ForgeOS — published apps needing their own DB must use a custom env var name
+- For new app builds: github_create_branch first, then github_write files, Render auto-deploys
+
+## ONE RULE ABOVE ALL OTHERS
+
+Either say something that matters or do something that matters. Never a response that only describes what the next response will do.`;
+
+async function executeForgeToken(toolName, toolInput, sendEvent) {
+  switch (toolName) {
+
+    case "github_create_branch": {
+      try {
+        const branch = toolInput.branch;
+        if (!branch) return "Error: branch name is required";
+        const headers = githubHeaders();
+        const refRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/ref/heads/main", { headers });
+        const refData = await refRes.json();
+        if (!refRes.ok) return "GitHub error getting main ref: " + JSON.stringify(refData).slice(0, 200);
+        const sha = refData.object.sha;
+        const createRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/refs", {
+          method: "POST", headers, body: JSON.stringify({ ref: "refs/heads/" + branch, sha }),
+        });
+        const createData = await createRes.json();
+        if (!createRes.ok) {
+          if (createRes.status === 422) return "Branch " + branch + " already exists — proceeding.";
+          return "GitHub error creating branch: " + JSON.stringify(createData).slice(0, 200);
+        }
+        sendEvent({ type: "tool_status", content: "✓ Created branch: " + branch });
+        return "Branch " + branch + " created from main (" + sha.slice(0, 7) + ")";
+      } catch (err) { return "github_create_branch error: " + err.message; }
+    }
+
+    case "github_ls": {
+      try {
+        const branch = toolInput.branch || "main";
+        const dirPath = toolInput.path || "";
+        const res = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + dirPath + "?ref=" + encodeURIComponent(branch), { headers: githubHeaders() });
+        const data = await res.json();
+        if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
+        if (!Array.isArray(data)) return "Not a directory";
+        return "Branch: " + branch + " | Path: /" + dirPath + "\n" + data.map(function(item) {
+          return (item.type === "dir" ? "[dir]  " : "[file] ") + item.name + (item.size ? " (" + item.size + " bytes)" : "");
+        }).join("\n");
+      } catch (err) { return "github_ls error: " + err.message; }
+    }
+
+    case "github_read": {
+      try {
+        const branch = toolInput.branch || "main";
+        const res = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers: githubHeaders() });
+        const data = await res.json();
+        if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
+        return Buffer.from(data.content, "base64").toString("utf-8");
+      } catch (err) { return "github_read error: " + err.message; }
+    }
+
+    case "github_write": {
+      try {
+        const branch = toolInput.branch || "main";
+        const headers = githubHeaders();
+        const shaRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
+        const shaData = await shaRes.json();
+        const currentSha = shaRes.ok ? shaData.sha : null;
+        const body = { message: toolInput.message, content: Buffer.from(toolInput.content, "utf-8").toString("base64"), branch };
+        if (currentSha) body.sha = currentSha;
+        const pushRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath, { method: "PUT", headers, body: JSON.stringify(body) });
+        const pushData = await pushRes.json();
+        if (!pushRes.ok) return "GitHub push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 300);
+        const commitSha = pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done";
+        sendEvent({ type: "tool_status", content: "✓ Written: " + toolInput.filepath });
+        return "Pushed " + toolInput.filepath + " to " + branch + " — commit: " + commitSha;
+      } catch (err) { return "github_write error: " + err.message; }
+    }
+
+    case "github_patch": {
+      try {
+        const branch = toolInput.branch || "main";
+        const headers = githubHeaders();
+        const res = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
+        const data = await res.json();
+        if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
+        let fileContent = Buffer.from(data.content, "base64").toString("utf-8");
+        const sha = data.sha;
+        const applied = [], failed = [];
+        for (const rep of toolInput.replacements) {
+          if (fileContent.includes(rep.find)) { fileContent = fileContent.replace(rep.find, rep.replace); applied.push(rep.find.slice(0, 60)); }
+          else failed.push(rep.find.slice(0, 60));
+        }
+        if (failed.length > 0 && applied.length === 0) return "No replacements found. Failed: " + failed.join("; ");
+        const pushRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath, {
+          method: "PUT", headers,
+          body: JSON.stringify({ message: toolInput.message, content: Buffer.from(fileContent, "utf-8").toString("base64"), sha, branch }),
+        });
+        const pushData = await pushRes.json();
+        if (!pushRes.ok) return "Push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 200);
+        const commitSha = pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done";
+        let summary = "Patched " + toolInput.filepath + " — " + applied.length + " replacement(s) — commit: " + commitSha;
+        if (failed.length > 0) summary += " | not found: " + failed.join("; ");
+        sendEvent({ type: "tool_status", content: "✓ " + summary });
+        return summary;
+      } catch (err) { return "github_patch error: " + err.message; }
+    }
+
+    case "render_status": {
+      try {
+        const renderKey = process.env.RENDER_API_KEY;
+        if (!renderKey) return "RENDER_API_KEY not set";
+        let serviceId = toolInput.service_id;
+        if (!serviceId && toolInput.slug) {
+          const app = publishManager.getPublishedAppBySlug(toolInput.slug);
+          if (app && app.renderServiceId) serviceId = app.renderServiceId;
+        }
+        if (!serviceId) serviceId = "srv-d6h2rt56ubrc73duanfg";
+        const res = await fetch("https://api.render.com/v1/services/" + serviceId + "/deploys?limit=1", {
+          headers: { "Authorization": "Bearer " + renderKey, "Accept": "application/json" },
+        });
+        if (!res.ok) return "Render API error " + res.status;
+        const deploys = await res.json();
+        if (!deploys || !deploys.length) return "No deploys found";
+        const deploy = deploys[0].deploy || deploys[0];
+        const svcRes = await fetch("https://api.render.com/v1/services/" + serviceId, { headers: { "Authorization": "Bearer " + renderKey, "Accept": "application/json" } });
+        let liveUrl = "";
+        if (svcRes.ok) { const s = await svcRes.json(); liveUrl = (s.service && s.service.serviceDetails && s.service.serviceDetails.url) || ""; }
+        return ["Status: " + deploy.status, deploy.commit ? "Commit: " + deploy.commit.message.slice(0, 80) : "", liveUrl ? "URL: " + liveUrl : ""].filter(Boolean).join("\n");
+      } catch (err) { return "render_status error: " + err.message; }
+    }
+
+    case "memory_search": {
+      try { return await brain.buildContext(toolInput.query) || "No relevant memory found."; }
+      catch { return "Memory search unavailable."; }
+    }
+
+    case "fetch_url": {
+      const url = toolInput.url;
+      if (!url || !url.startsWith("http")) return "Error: URL must start with http or https";
+      try {
+        const res = await fetch(url, { headers: { "User-Agent": "ForgeOS/2.0", "Accept": "application/vnd.github.v3.raw, text/plain, */*" }, signal: AbortSignal.timeout(15000) });
+        if (!res.ok) return "HTTP " + res.status + " fetching " + url;
+        return await res.text();
+      } catch (err) { return "Fetch error: " + err.message; }
+    }
+
+    case "ask_user":
+      sendEvent({ type: "agent_message", content: toolInput.message });
+      return "Message sent to user.";
+
+    default:
+      return "Unknown tool: " + toolName;
+  }
+}
+
 app.post("/api/projects/:id/chat", async (req, res) => {
   const { message, skillContext, attachments } = req.body;
   if (!message || typeof message !== "string" || !message.trim()) {
@@ -896,6 +1198,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
   const project = await projectManager.getProject(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
+  // Load conversation history
   let history = [];
   try {
     const rows = await brain.getConversation(project.id, 30);
@@ -904,31 +1207,169 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
   brain.appendConversation(project.id, "user", message.trim()).catch(function() {});
 
-  // SSE setup
+  // SSE
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  function send(evt) {
-    res.write("data: " + JSON.stringify(evt) + "\n\n");
-  }
+  function send(evt) { res.write("data: " + JSON.stringify(evt) + "\n\n"); }
 
   try {
-    const assistantMsg = await streamChat({
-      projectId: project.id,
-      userMessage: message.trim(),
-      history: history,
-      skillContext: skillContext || "",
-      attachments: attachments || [],
-      onEvent: function(evt) { send(evt); },
-    });
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    brain.appendConversation(project.id, "assistant", assistantMsg).catch(function() {});
+    // Memory context
+    let memoryBlock = "";
+    try {
+      memoryBlock = await Promise.race([
+        brain.buildContext(message.trim(), project.id),
+        new Promise(function(_, rej) { setTimeout(function() { rej(new Error("timeout")); }, 4000); }),
+      ]);
+    } catch {}
 
-    send({ type: "done", role: "assistant", content: assistantMsg, building: false, createdAt: Date.now() });
+    // Build system prompt
+    const sysParts = [];
+    if (memoryBlock) {
+      const filtered = memoryBlock.split("\n").filter(function(l) {
+        const ll = l.toLowerCase();
+        return !(ll.includes("task_complete") || ll.includes("write_file") || ll.includes("list_files") || ll.includes("run_command") || ll.includes("wsdir"));
+      }).join("\n");
+      if (filtered.trim()) sysParts.push("## RELEVANT MEMORY\n" + filtered);
+    }
+    if (skillContext) sysParts.push("## ACTIVATED SKILL INSTRUCTIONS — FOLLOW THESE EXACTLY\n" + skillContext);
+    sysParts.push(FORGE_SYSTEM_PROMPT);
+    const systemPrompt = sysParts.join("\n\n");
+
+    // Scrub orphaned tool_use blocks from history
+    const messages = [];
+    for (var i = 0; i < history.length; i++) {
+      var msg = history[i];
+      if (msg.role === "assistant" && Array.isArray(msg.content)) {
+        var hasToolUse = msg.content.some(function(b) { return b.type === "tool_use"; });
+        if (hasToolUse) {
+          var next = history[i + 1];
+          var nextHasResult = next && Array.isArray(next.content) && next.content.some(function(b) { return b.type === "tool_result"; });
+          if (!nextHasResult) { console.log("[forge] Dropped orphaned tool_use at", i); continue; }
+        }
+      }
+      messages.push({ role: msg.role, content: msg.content });
+    }
+
+    // User message — support image attachments
+    var userContent;
+    if (attachments && attachments.length > 0) {
+      userContent = [{ type: "text", text: message.trim() }];
+      for (var a = 0; a < attachments.length; a++) {
+        var att = attachments[a];
+        userContent.push({ type: "image", source: { type: "base64", media_type: att.mimeType || "image/png", data: att.dataUrl.split(",")[1] || att.dataUrl } });
+      }
+    } else {
+      userContent = message.trim();
+    }
+    messages.push({ role: "user", content: userContent });
+
+    var fullAssistantMessage = "";
+    var MAX_ROUNDS = 50;
+    var startTime = Date.now();
+
+    // Claude drives. We execute tools. We get out of the way.
+    for (var round = 0; round < MAX_ROUNDS; round++) {
+      if (Date.now() - startTime > 20 * 60 * 1000) break;
+
+      var currentText = "";
+      var currentToolBlock = null;
+      var currentToolJson = "";
+
+      const stream = client.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 16000,
+        system: systemPrompt,
+        tools: FORGE_TOOLS,
+        messages: messages,
+      });
+
+      for await (const event of stream) {
+        if (event.type === "content_block_start") {
+          if (event.content_block.type === "tool_use") {
+            currentToolBlock = { id: event.content_block.id, name: event.content_block.name };
+            currentToolJson = "";
+            var statusMsg = (function(name) {
+              switch (name) {
+                case "github_create_branch": return "Creating branch...";
+                case "github_ls":   return "Listing files...";
+                case "github_read": return "Reading file...";
+                case "github_write": return "Writing file...";
+                case "github_patch": return "Patching file...";
+                case "render_status": return "Checking deploy status...";
+                case "memory_search": return "Searching Brain...";
+                case "fetch_url": return "Fetching URL...";
+                default: return null;
+              }
+            })(event.content_block.name);
+            if (statusMsg) send({ type: "tool_status", content: statusMsg });
+          }
+        } else if (event.type === "content_block_delta") {
+          if (event.delta.type === "text_delta" && event.delta.text) {
+            currentText += event.delta.text;
+            send({ type: "thinking", content: currentText });
+          } else if (event.delta.type === "input_json_delta") {
+            currentToolJson += event.delta.partial_json;
+          }
+        } else if (event.type === "content_block_stop") {
+          if (currentToolBlock) {
+            var inp = {};
+            try { inp = JSON.parse(currentToolJson || "{}"); } catch {}
+            var refinedStatus = (function(name, i) {
+              switch (name) {
+                case "github_create_branch": return "Creating branch " + (i.branch || "") + "...";
+                case "github_ls":   return "Listing " + (i.branch || "main") + "/" + (i.path || "") + "...";
+                case "github_read": return "Reading " + (i.filepath || "") + "...";
+                case "github_write": return "Writing " + (i.filepath || "") + " to " + (i.branch || "main") + "...";
+                case "github_patch": return "Patching " + (i.filepath || "") + "...";
+                case "memory_search": return "Searching Brain: \"" + ((i.query || "").slice(0, 50)) + "\"...";
+                case "fetch_url": return "Fetching " + (i.url || "").replace("https://","").slice(0, 60) + "...";
+                default: return null;
+              }
+            })(currentToolBlock.name, inp);
+            if (refinedStatus) send({ type: "tool_status", content: refinedStatus });
+            currentToolBlock.input = inp;
+            currentToolBlock = null;
+            currentToolJson = "";
+          }
+        }
+      }
+
+      const response = await stream.finalMessage();
+      messages.push({ role: "assistant", content: response.content });
+
+      var textBlocks = response.content.filter(function(b) { return b.type === "text"; });
+      if (textBlocks.length > 0) {
+        var txt = textBlocks.map(function(b) { return b.text; }).join("\n").trim();
+        if (txt) fullAssistantMessage = txt;
+      }
+
+      if (response.stop_reason === "end_turn") break;
+      if (response.stop_reason !== "tool_use") break;
+
+      // Execute tools
+      var toolResults = [];
+      var toolCalls = response.content.filter(function(b) { return b.type === "tool_use"; });
+      for (var t = 0; t < toolCalls.length; t++) {
+        var toolUse = toolCalls[t];
+        console.log("[forge] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 120));
+        var result = await executeForgeToken(toolUse.name, toolUse.input, send);
+        toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: String(result) });
+      }
+      messages.push({ role: "user", content: toolResults });
+    }
+
+    brain.appendConversation(project.id, "assistant", fullAssistantMessage).catch(function() {});
+    brain.extractMemory({ projectId: project.id, userRequest: message.trim(), buildSummary: fullAssistantMessage.slice(0, 500), files: [] }).catch(function() {});
+
+    send({ type: "done", role: "assistant", content: fullAssistantMessage, building: false, createdAt: Date.now() });
+
   } catch (err) {
-    console.error("[stream-chat] Error:", err.message);
+    console.error("[forge] Chat error:", err.message);
     send({ type: "error", error: "Chat error: " + err.message });
   }
 
