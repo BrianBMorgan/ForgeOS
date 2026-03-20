@@ -100,6 +100,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [mobileView, setMobileView] = useState<"chat" | "workspace">("chat");
+  const [isNewProjectMode, setIsNewProjectMode] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -122,6 +123,7 @@ function App() {
         setCurrentProjectId(data.id);
         setCurrentRunId(null);
         setViewingIterationRunId(null);
+        setIsNewProjectMode(false);
         setActiveNav("projects");
       } catch { return; }
     }
@@ -204,6 +206,7 @@ function App() {
     setCurrentProjectId(projectId);
     setViewingIterationRunId(null);
     setChatMessages([]);
+    setIsNewProjectMode(false);
     setActiveNav("projects");
   }, []);
 
@@ -323,6 +326,8 @@ function App() {
     setRunData(null);
     setProjectData(null);
     setViewingIterationRunId(null);
+    setChatMessages([]);
+    setIsNewProjectMode(true);
   };
 
   const handleNavClick = (navId: NavId) => {
@@ -333,6 +338,7 @@ function App() {
       setRunData(null);
       setProjectData(null);
       setViewingIterationRunId(null);
+      setIsNewProjectMode(false);
     }
   };
 
@@ -363,7 +369,7 @@ function App() {
       return <Assets />;
     }
 
-    if (activeNav === "projects" && !currentProjectId) {
+    if (activeNav === "projects" && !currentProjectId && !isNewProjectMode) {
       return <ProjectsList onSelectProject={openProject} onNewProject={handleNewProject} />;
     }
 
