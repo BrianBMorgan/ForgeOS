@@ -1,15 +1,5 @@
 const express = require("express");
 const path = require("path");
-// ARCHIVED: Multi-stage pipeline (Planner→Reviewer→PolicyGate→Approval→Executor→Auditor)
-// Original code preserved in server/pipeline_archive/
-const {
-  getRun,
-  getRunSync,
-  getAllRuns,
-  createRun,
-} = require("./pipeline/runner");
-const { buildAndDeploy } = require("./builder");
-const workspace = require("./workspace/manager");
 const brain = require("./memory/brain");
 const publishManager = require("./publish/manager");
 
@@ -133,137 +123,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.post("/api/runs", (req, res) => {
-  const { prompt } = req.body;
-  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-    return res.status(400).json({ error: "Prompt is required" });
-  }
 
-  const run = createRun(prompt.trim());
-
-  buildAndDeploy(run).catch((err) => {
-    console.error(`[builder] Error for run ${run.id}:`, err);
-  });
-
-  res.status(201).json({ id: run.id, status: run.status });
-});
-
-app.get("/api/runs", (_req, res) => {
-  const runs = getAllRuns();
-  res.json(runs);
-});
-
-app.get("/api/runs/:id", async (req, res) => {
-  const run = await getRun(req.params.id);
-  if (!run) {
-    return res.status(404).json({ error: "Run not found" });
-  }
-  const liveWs = workspace.getWorkspaceStatus(run.id);
-  if (liveWs) {
-    run.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
-    workspace.touchActivity(run.id);
-  }
-  res.json(run);
-});
-
-app.get("/api/runs/:id/logs", (req, res) => {
-  const opts = {};
-  if (req.query.since) opts.since = parseInt(req.query.since);
-  if (req.query.level) opts.level = req.query.level.split(",");
-  if (req.query.source) opts.source = req.query.source;
-  if (req.query.search) opts.search = req.query.search;
-  if (req.query.limit) opts.limit = parseInt(req.query.limit);
-  const logs = workspace.getWorkspaceLogs(req.params.id, opts);
-  const status = workspace.getWorkspaceStatus(req.params.id);
-  if (status) workspace.touchActivity(req.params.id);
-  res.json({ logs, status });
-});
-
-app.get("/api/runs/:id/files", (req, res) => {
-  try {
-    const files = workspace.listWorkspaceFiles(req.params.id);
-    res.json({ files });
-  } catch (err) {
-    res.status(404).json({ error: err.message });
-  }
-});
-
-app.get("/api/runs/:id/file", (req, res) => {
-  const { path: filePath } = req.query;
-  if (!filePath) return res.status(400).json({ error: "path query param required" });
-  try {
-    const content = workspace.readWorkspaceFile(req.params.id, filePath);
-    res.json({ content });
-  } catch (err) {
-    res.status(404).json({ error: err.message });
-  }
-});
-
-app.get("/api/runs/:id/file/search", (req, res) => {
-  const { text } = req.query;
-  if (!text || text.trim().length < 2) return res.json({ results: [] });
-  try {
-    const results = workspace.searchWorkspaceFiles(req.params.id, text);
-    res.json({ results });
-  } catch (err) {
-    res.status(404).json({ error: err.message });
-  }
-});
-
-app.patch("/api/runs/:id/file", async (req, res) => {
-  const { path: filePath, content } = req.body;
-  if (!filePath || content === undefined) {
-    return res.status(400).json({ error: "path and content required" });
-  }
-  try {
-    workspace.writeWorkspaceFile(req.params.id, filePath, content);
-    // Restart app so changes take effect
-    const wsStatus = workspace.getWorkspaceStatus(req.params.id);
-    if (wsStatus?.status === "running") {
-      workspace.restartApp(req.params.id).catch(() => {});
-    }
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-app.post("/api/runs/:id/exec", async (req, res) => {
-  const { command } = req.body;
-  if (!command || typeof command !== "string") {
-    return res.status(400).json({ error: "Command is required" });
-  }
-  const runId = req.params.id;
-  let ws = workspace.getWorkspaceStatus(runId);
-  if (!ws || ws.status !== "running") {
-    const run = await getRun(runId);
-    const execOutput = run?.stages?.executor?.output || run?.stages?.builder?.output;
-    if (run && run.status === "completed" && execOutput?.startCommand) {
-      let wakeEnv = {};
-      try {
-        const ds = await settingsManager.getSetting("default_env_vars");
-        if (ds?.vars && Array.isArray(ds.vars)) for (const v of ds.vars) { if (v.key) wakeEnv[v.key] = v.value || ""; }
-        wakeEnv = { ...wakeEnv, ...(await settingsManager.getSecretsAsObject()) };
-      } catch {}
-      const allProjects = await projectManager.getAllProjects();
-      const proj = allProjects.find(p => p.currentRunId === runId);
-      if (proj) try { wakeEnv = { ...wakeEnv, ...(await projectManager.getEnvVarsAsObject(proj.id)) }; } catch {}
-      const wakeResult = await workspace.restoreWorkspace(runId, execOutput.startCommand, execOutput.port || 4000, wakeEnv);
-      if (wakeResult.success) {
-        run.workspace = { status: "running", port: wakeResult.port, error: null };
-        if (proj) await projectManager.updateProjectStatus(proj.id, "active");
-        console.log(`Auto-woke workspace ${runId} for shell command`);
-      } else {
-        return res.json({ exitCode: 1, stdout: "", stderr: "Failed to wake workspace: " + wakeResult.error });
-      }
-    } else {
-      return res.json({ exitCode: 1, stdout: "", stderr: "Workspace not found" });
-    }
-  }
-  workspace.touchActivity(runId);
-  const result = await workspace.execCommand(runId, command.trim());
-  res.json(result);
-});
 
 const projectManager = require("./projects/manager");
 
@@ -293,18 +153,6 @@ app.delete("/api/projects/:id", async (req, res) => {
   res.json({ success: true });
 });
 
-app.delete("/api/projects/:id/runs/:runId", async (req, res) => {
-  const result = await projectManager.deleteIteration(req.params.id, req.params.runId);
-  if (!result.ok) return res.status(404).json({ error: result.error });
-  res.json(result);
-});
-
-app.post("/api/projects/:id/restore/:runId", async (req, res) => {
-  const result = await projectManager.restoreIteration(req.params.id, req.params.runId);
-  if (!result.ok) return res.status(400).json({ error: result.error });
-  res.json(result);
-});
-
 app.patch("/api/projects/:id", async (req, res) => {
   const { name } = req.body;
   if (!name || typeof name !== "string" || !name.trim()) {
@@ -320,189 +168,7 @@ app.get("/api/projects/:id", async (req, res) => {
   if (!project) {
     return res.status(404).json({ error: "Project not found" });
   }
-
-  let currentRun = project.currentRunId ? await getRun(project.currentRunId) : null;
-  const liveWs = project.currentRunId ? workspace.getWorkspaceStatus(project.currentRunId) : null;
-  if (!currentRun && liveWs) {
-    const { createRun, saveRunSnapshot } = require("./pipeline/runner");
-    currentRun = createRun(project.name || "Restored", { projectId: project.id });
-    currentRun.id = project.currentRunId;
-    currentRun.status = "completed";
-    currentRun.stages.executor = { status: "passed", output: { startCommand: liveWs.lastStartCommand || "npm start", port: liveWs.port || 4000 } };
-    currentRun.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
-    saveRunSnapshot(currentRun).catch(() => {});
-  } else if (currentRun) {
-    if (liveWs) {
-      currentRun.workspace = { status: liveWs.status, port: liveWs.port, error: liveWs.error };
-    } else if (currentRun.status === "completed" && currentRun.workspace?.status === "running") {
-      currentRun.workspace = { status: "stopped", port: null, error: null };
-    }
-    if (currentRun.status === "running" || currentRun.status === "awaiting-approval") {
-      await projectManager.updateProjectStatus(project.id, "building");
-    } else if (currentRun.status === "failed") {
-      await projectManager.updateProjectStatus(project.id, "failed");
-    } else if (currentRun.status === "completed") {
-      if (currentRun.workspace?.status === "running") {
-        await projectManager.updateProjectStatus(project.id, "active");
-      } else if (currentRun.workspace?.status === "install-failed" || currentRun.workspace?.status === "start-failed" || currentRun.workspace?.status === "build-failed") {
-        await projectManager.updateProjectStatus(project.id, "failed");
-      } else {
-        await projectManager.updateProjectStatus(project.id, "stopped");
-      }
-    }
-  }
-
-  const iterations = await Promise.all(project.iterations.map(async (iter) => {
-    const iterRun = await getRun(iter.runId);
-    return {
-      ...iter,
-      status: iterRun?.status || "unknown",
-      workspaceStatus: iterRun?.workspace?.status || null,
-    };
-  }));
-
-  res.json({ ...project, iterations, currentRun });
-});
-
-app.post("/api/projects/:id/iterate", async (req, res) => {
-  const { prompt, approvedPlan, isSuggestion, skillContext } = req.body;
-  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-    return res.status(400).json({ error: "Prompt is required" });
-  }
-
-  const project = await projectManager.getProject(req.params.id);
-  if (!project) {
-    return res.status(404).json({ error: "Project not found" });
-  }
-
-  // Large prompt guard — if the prompt is above the complexity threshold and there is
-  // no approvedPlan and this is not a surgical suggestion build, block the direct build
-  // and return a signal telling the client to route through the plan gate instead.
-  // This prevents context overflow in the builder pipeline on large multi-feature builds.
-  const LARGE_PROMPT_THRESHOLD = 3000; // characters — matches planner truncation threshold
-  if (
-    !approvedPlan &&
-    !isSuggestion &&
-    prompt.trim().length > LARGE_PROMPT_THRESHOLD
-  ) {
-    return res.status(400).json({
-      error: "large_prompt",
-      message: "This prompt is too large for a direct build and requires a plan first.",
-      requiresPlan: true,
-    });
-  }
-
-  const lastRunId = project.currentRunId;
-  const existingFiles = lastRunId ? projectManager.captureCurrentFiles(lastRunId) : [];
-
-  // Stop existing workspace before starting new build — prevents EADDRINUSE on iteration
-  if (lastRunId) {
-    const wsStatus = workspace.getWorkspaceStatus(lastRunId);
-    if (wsStatus && (wsStatus.status === "running" || wsStatus.status === "starting")) {
-      await workspace.stopApp(lastRunId);
-    }
-  }
-
-  const iterationNumber = project.iterations.length + 1;
-
-  const run = createRun(prompt.trim(), {
-    projectId: project.id,
-    iterationNumber,
-    existingFiles,
-    approvedPlan: approvedPlan || null,
-    isSuggestion: isSuggestion || false,
-    skillContext: skillContext || "",
-  });
-  await projectManager.addIteration(project.id, run.id, prompt.trim(), iterationNumber);
-
-  buildAndDeploy(run).catch((err) => {
-    console.error(`[builder] Error for project ${project.id}, iteration ${iterationNumber}:`, err);
-    projectManager.updateProjectStatus(project.id, "failed");
-  });
-
-  res.status(201).json({ runId: run.id, iterationNumber });
-});
-
-app.post("/api/projects/:id/stop", async (req, res) => {
-  const project = await projectManager.getProject(req.params.id);
-  if (!project) {
-    return res.status(404).json({ error: "Project not found" });
-  }
-
-  if (project.currentRunId) {
-    await workspace.stopApp(project.currentRunId);
-    const run = await getRun(project.currentRunId);
-    if (run && run.workspace) {
-      run.workspace.status = "stopped";
-    }
-  }
-  await projectManager.stopProject(req.params.id);
-  res.json({ status: "stopped" });
-});
-
-app.post("/api/projects/:id/restart", async (req, res) => {
-  const project = await projectManager.getProject(req.params.id);
-  if (!project) {
-    return res.status(404).json({ error: "Project not found" });
-  }
-  if (!project.currentRunId) {
-    return res.status(400).json({ error: "No active run to restart" });
-  }
-
-  try {
-    let globalDefaults = {};
-    let globalSecrets = {};
-    try {
-      const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
-      if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
-        for (const v of defaultEnvSetting.vars) {
-          if (v.key) globalDefaults[v.key] = v.value || "";
-        }
-      }
-      globalSecrets = await settingsManager.getSecretsAsObject();
-    } catch {}
-    const projectEnv = await projectManager.getEnvVarsAsObject(req.params.id);
-    const customEnv = { ...globalDefaults, ...globalSecrets, ...projectEnv };
-    let run = await getRun(project.currentRunId);
-    const wsStatus = workspace.getWorkspaceStatus(project.currentRunId);
-
-    const startCmd = run?.stages?.executor?.output?.startCommand
-      || run?.stages?.builder?.output?.startCommand
-      || "npm start";
-    const port = run?.stages?.executor?.output?.port
-      || run?.stages?.builder?.output?.port
-      || 4000;
-
-    let result;
-    if (!wsStatus || !wsStatus.lastStartCommand) {
-      result = await workspace.restoreWorkspace(project.currentRunId, startCmd, port, customEnv);
-    } else {
-      result = await workspace.restartApp(project.currentRunId, customEnv);
-    }
-    if (result.success) {
-      if (!run) {
-        const { createRun, saveRunSnapshot } = require("./pipeline/runner");
-        run = createRun(project.name || "Restarted", { projectId: project.id });
-        run.id = project.currentRunId;
-        run.status = "completed";
-        run.stages.executor = { status: "passed", output: { startCommand: startCmd, port: result.port } };
-        run.workspace = { status: "running", port: result.port, error: null };
-        saveRunSnapshot(run).catch(() => {});
-      } else {
-        run.workspace = { status: "running", port: result.port, error: null };
-      }
-      await projectManager.updateProjectStatus(req.params.id, "active");
-      res.json({ status: "restarted", port: result.port });
-    } else {
-      if (run && run.workspace) {
-        run.workspace.status = "start-failed";
-        run.workspace.error = result.error;
-      }
-      res.status(500).json({ error: result.error });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.json({ ...project, iterations: [], currentRun: null });
 });
 
 app.get("/api/projects/:id/env", async (req, res) => {
@@ -1230,13 +896,6 @@ app.post("/api/projects/:id/chat", async (req, res) => {
   const project = await projectManager.getProject(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
-  const lastRunId = project.currentRunId;
-  const wsDir = lastRunId
-    ? require("path").join(process.env.DATA_DIR || require("path").join(__dirname, ".."), "workspaces", lastRunId)
-    : null;
-
-  // Reset idle clock — agent activity should never trigger workspace shutdown
-  if (lastRunId) workspace.touchActivity(lastRunId);
 
   let history = [];
   try {
@@ -1274,7 +933,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     const result = await runForgeAgent({
       projectId: project.id,
       userMessage: message.trim(),
-      wsDir: wsDir,
+      wsDir: null,
       history: history,
       skillContext: skillContext || "",
       attachments: attachments || [],
@@ -1284,57 +943,13 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     const assistantMsg = result.message || "Done.";
     brain.appendConversation(project.id, "assistant", assistantMsg).catch(function() {});
 
-    if (result.type === "build") {
-      const iterationNumber = project.iterations.length + 1;
-      const run = createRun(message.trim(), {
-        projectId: project.id,
-        iterationNumber: iterationNumber,
-        existingFiles: [],
-      });
-
-      await projectManager.addIteration(project.id, run.id, message.trim(), iterationNumber);
-
-      run.stages.builder = {
-        status: "passed",
-        output: {
-          files: result.files,
-          startCommand: result.startCommand,
-          installCommand: result.installCommand,
-          envVars: result.envVars || [],
-          summary: result.summary,
-        },
-      };
-      run.agentBuild = true;
-
-      // Send runId to client BEFORE buildAndDeploy fires so the workspace
-      // panel can start polling immediately during install + start.
-      send({
-        type: "run_created",
-        runId: run.id,
-      });
-
-      buildAndDeploy(run).catch(function(err) {
-        console.error("[forge-agent] buildAndDeploy error:", err.message);
-      });
-
-      send({
-        type: "done",
-        role: "assistant",
-        content: assistantMsg,
-        building: true,
-        runId: run.id,
-        filesWritten: filesWritten,
-        createdAt: Date.now(),
-      });
-    } else {
-      send({
+    send({
         type: "done",
         role: "assistant",
         content: assistantMsg,
         building: false,
         createdAt: Date.now(),
       });
-    }
   } catch (err) {
     console.error("[forge-agent] Error:", err.message);
     send({ type: "error", error: "Agent error: " + err.message });
@@ -1430,192 +1045,6 @@ app.post("/api/db/query", async (req, res) => {
   }
 });
 
-const http = require("http");
-
-function rewriteLocationHeader(headers, basePath) {
-  if (headers.location && typeof headers.location === "string") {
-    const loc = headers.location;
-    if (loc.startsWith("/") && !loc.startsWith(basePath)) {
-      headers.location = basePath + loc;
-    }
-  }
-  return headers;
-}
-
-function rewriteHtmlForProxy(html, basePath) {
-  html = html.replace(/(href|src|action|formaction)=(["'])\/((?!\/)[^"']*)\2/gi, (match, attr, quote, path) => {
-    if (path.startsWith(basePath.slice(1))) return match;
-    return `${attr}=${quote}${basePath}/${path}${quote}`;
-  });
-  html = html.replace(/(srcset)=(["'])([^"']+)\2/gi, (match, attr, quote, value) => {
-    const rewritten = value.replace(/(^|,\s*)\/((?!\/)[^\s,]+)/g, (m, prefix, p) => {
-      if (p.startsWith(basePath.slice(1))) return m;
-      return `${prefix}${basePath}/${p}`;
-    });
-    return `${attr}=${quote}${rewritten}${quote}`;
-  });
-
-  html = html.replace(/<style([^>]*)>([\s\S]*?)<\/style>/gi, (match, attrs, cssBody) => {
-    const rewritten = rewriteCssForProxy(cssBody, basePath);
-    return `<style${attrs}>${rewritten}</style>`;
-  });
-
-  const fetchPatch = `<script>(function(){var B="${basePath}";function rw(u){return typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B)?B+u:u}var _f=window.fetch;window.fetch=function(u,o){if(typeof u==="string"){u=rw(u)}else if(u instanceof Request){var nu=rw(u.url);if(nu!==u.url)u=new Request(nu,u)}return _f.call(this,u,o)};var _o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==="string")u=rw(u);return _o.apply(this,arguments)};var _h=window.history;if(_h&&_h.pushState){var _ps=_h.pushState.bind(_h);_h.pushState=function(s,t,u){if(typeof u==="string")u=rw(u);return _ps(s,t,u)};var _rs=_h.replaceState.bind(_h);_h.replaceState=function(s,t,u){if(typeof u==="string")u=rw(u);return _rs(s,t,u)}}})();</script>`;
-
-  const inspectorScript = "<script>(function(){\n  var active=false;\n  var overlay=null;\n  var lastEl=null;\n  function sel(el){\n    var parts=[];var e=el;\n    for(var i=0;i<4&&e&&e!==document.body;i++){\n      var s=e.tagName.toLowerCase();\n      if(e.id)s+='#'+e.id;\n      else if(e.className&&typeof e.className==='string')s+='.'+e.className.trim().split(/\\s+/).join('.');\n      parts.unshift(s);e=e.parentElement;\n    }\n    return parts.join(' > ');\n  }\n  function trim(s,n){return s&&s.length>n?s.slice(0,n)+'…':s||'';}\n  function show(el){\n    if(!overlay){overlay=document.createElement('div');overlay.style.cssText='position:fixed;pointer-events:none;outline:2px solid #3b82f6;outline-offset:1px;background:rgba(59,130,246,0.08);z-index:2147483647;transition:all 0.05s';document.body.appendChild(overlay);}\n    var r=el.getBoundingClientRect();\n    overlay.style.top=r.top+'px';overlay.style.left=r.left+'px';\n    overlay.style.width=r.width+'px';overlay.style.height=r.height+'px';\n    overlay.style.display='block';\n  }\n  function hide(){if(overlay)overlay.style.display='none';}\n  function onMove(e){if(!active)return;var el=document.elementFromPoint(e.clientX,e.clientY);if(el&&el!==overlay){lastEl=el;show(el);}}\n  function onClick(e){\n    if(!active)return;\n    e.preventDefault();e.stopPropagation();\n    var el=lastEl||e.target;\n    var oh=el.outerHTML||'';\n    var tc=(el.textContent||'').trim();\n    window.parent.postMessage({type:'forge:inspect:selection',outerHTML:trim(oh,600),textContent:trim(tc,200),selector:sel(el)},'*');\n  }\n  window.addEventListener('message',function(e){\n    if(e.data&&e.data.type==='forge:inspect:activate'){active=true;document.body.style.cursor='crosshair';}\n    if(e.data&&e.data.type==='forge:inspect:deactivate'){active=false;hide();document.body.style.cursor='';}\n  });\n  document.addEventListener('mousemove',onMove,true);\n  document.addEventListener('click',onClick,true);\n})();</script>";
-  if (html.includes("<head")) {
-    html = html.replace(/<head([^>]*)>/i, `<head$1>${fetchPatch}${inspectorScript}`);
-  } else if (html.includes("<html")) {
-    html = html.replace(/<html([^>]*)>/i, `<html$1>${fetchPatch}${inspectorScript}`);
-  } else {
-    html = fetchPatch + inspectorScript + html;
-  }
-
-  return html;
-}
-
-function rewriteCssForProxy(css, basePath) {
-  return css.replace(/url\(\s*(["']?)\/((?!\/|data:)[^"')]+)\1\s*\)/gi, (match, quote, urlPath) => {
-    if (urlPath.startsWith(basePath.slice(1))) return match;
-    return `url(${quote}${basePath}/${urlPath}${quote})`;
-  });
-}
-
-app.use("/preview/:runId", async (req, res) => {
-  // Pass ForgeOS global API routes through — don't forward to workspace app
-  if (req.path.startsWith("/api/assets")) {
-    req.url = req.path;
-    return app._router.handle(req, res, () => res.status(404).json({ error: "Not found" }));
-  }
-
-  const runId = req.params.runId;
-
-  let status = workspace.getWorkspaceStatus(runId);
-
-  if (!status || status.status !== "running" || !status.port) {
-    const run = await getRun(runId);
-    const execOutput = run?.stages?.executor?.output || run?.stages?.builder?.output;
-    if (run && run.status === "completed" && execOutput?.startCommand) {
-      let wakeEnv = {};
-      try {
-        const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
-        if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
-          for (const v of defaultEnvSetting.vars) {
-            if (v.key) wakeEnv[v.key] = v.value || "";
-          }
-        }
-        const secrets = await settingsManager.getSecretsAsObject();
-        wakeEnv = { ...wakeEnv, ...secrets };
-      } catch {}
-      const allProjects = await projectManager.getAllProjects();
-      const project = allProjects.find(p => p.currentRunId === runId);
-      if (project) {
-        try {
-          const projEnv = await projectManager.getEnvVarsAsObject(project.id);
-          wakeEnv = { ...wakeEnv, ...projEnv };
-        } catch {}
-      }
-      const result = await workspace.restoreWorkspace(
-        runId, execOutput.startCommand, execOutput.port || 4000, wakeEnv
-      );
-      if (result.success) {
-        run.workspace = { status: "running", port: result.port, error: null };
-        if (project) await projectManager.updateProjectStatus(project.id, "active");
-        console.log(`Auto-woke workspace ${runId} on port ${result.port}`);
-        status = workspace.getWorkspaceStatus(runId);
-      } else {
-        return res.status(503).json({ error: "Failed to wake workspace: " + result.error });
-      }
-    } else {
-      return res.status(503).json({ error: "App not running" });
-    }
-  }
-
-  workspace.touchActivity(runId);
-
-  const basePath = `/preview/${runId}`;
-  let targetPath = req.originalUrl;
-  if (targetPath.startsWith(basePath)) {
-    targetPath = targetPath.slice(basePath.length) || "/";
-  }
-  if (!targetPath.startsWith("/")) targetPath = "/" + targetPath;
-
-  const reqContentType = (req.headers["content-type"] || "").toLowerCase();
-  const isMultipart = reqContentType.includes("multipart/form-data");
-
-  let bodyBuffer = null;
-  if (!isMultipart && req.body !== undefined && req.body !== null) {
-    if (reqContentType.includes("application/x-www-form-urlencoded")) {
-      bodyBuffer = Buffer.from(new URLSearchParams(req.body).toString());
-    } else {
-      bodyBuffer = Buffer.from(JSON.stringify(req.body));
-    }
-  }
-
-  const fwdHeaders = { ...req.headers, host: `127.0.0.1:${status.port}` };
-  delete fwdHeaders["accept-encoding"];
-  delete fwdHeaders["content-length"]; // recalculated from bodyBuffer
-  if (bodyBuffer) {
-    fwdHeaders["content-length"] = String(bodyBuffer.length);
-    if (reqContentType.includes("application/x-www-form-urlencoded")) {
-      fwdHeaders["content-type"] = "application/x-www-form-urlencoded";
-    }
-  }
-
-  const options = {
-    hostname: "127.0.0.1",
-    port: status.port,
-    path: targetPath,
-    method: req.method,
-    headers: fwdHeaders,
-  };
-
-  const proxyReq = http.request(options, (proxyRes) => {
-    const contentType = (proxyRes.headers["content-type"] || "").toLowerCase();
-    const isHtml = contentType.includes("text/html");
-    const isCss = contentType.includes("text/css");
-
-    if (isHtml || isCss) {
-      const chunks = [];
-      proxyRes.on("data", (chunk) => chunks.push(chunk));
-      proxyRes.on("end", () => {
-        let body = Buffer.concat(chunks).toString("utf-8");
-        if (isHtml) {
-          body = rewriteHtmlForProxy(body, basePath);
-        } else {
-          body = rewriteCssForProxy(body, basePath);
-        }
-        const headers = { ...proxyRes.headers };
-        rewriteLocationHeader(headers, basePath);
-        headers["cache-control"] = "no-cache, no-store, must-revalidate";
-        headers["pragma"] = "no-cache";
-        headers["expires"] = "0";
-        headers["content-length"] = String(Buffer.byteLength(body, "utf-8"));
-        delete headers["content-encoding"];
-        res.writeHead(proxyRes.statusCode, headers);
-        res.end(body);
-      });
-    } else {
-      const headers = { ...proxyRes.headers };
-      rewriteLocationHeader(headers, basePath);
-      headers["cache-control"] = "no-cache, no-store, must-revalidate";
-      headers["pragma"] = "no-cache";
-      headers["expires"] = "0";
-      res.writeHead(proxyRes.statusCode, headers);
-      proxyRes.pipe(res);
-    }
-  });
-
-  proxyReq.on("error", () => {
-    if (!res.headersSent) res.status(502).json({ error: "Preview app not reachable" });
-  });
-
-  if (bodyBuffer) {
-    proxyReq.end(bodyBuffer);
-  } else {
-    req.pipe(proxyReq);
-  }
-});
 
 const clientDist = path.join(__dirname, "..", "client", "dist");
 try {
@@ -1629,72 +1058,8 @@ try {
   }
 } catch {}
 
-const fs_startup = require("fs");
-const DATA_ROOT = process.env.DATA_DIR || path.join(__dirname, "..");
-const dirs_to_ensure = [
-  path.join(DATA_ROOT, "workspaces"),
-  path.join(DATA_ROOT, "published"),
-];
-for (const d of dirs_to_ensure) {
-  if (!fs_startup.existsSync(d)) {
-    fs_startup.mkdirSync(d, { recursive: true });
-    console.log(`[startup] Created directory: ${d}`);
-  }
-}
-
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`ForgeOS server running on port ${PORT}`);
-
-  try {
-    const allProjects = await projectManager.getAllProjects();
-    const activeProjects = allProjects.filter(
-      (p) => (p.status === "active" || p.status === "building") && p.currentRunId
-    );
-    if (activeProjects.length > 0) {
-      console.log(`Auto-restoring ${activeProjects.length} workspace(s) from database...`);
-      for (const project of activeProjects) {
-        try {
-          const run = await getRun(project.currentRunId);
-          const startCmd = run?.stages?.executor?.output?.startCommand
-            || run?.stages?.builder?.output?.startCommand || null;
-          const port = run?.stages?.executor?.output?.port
-            || run?.stages?.builder?.output?.port || 4000;
-
-          let globalDefaults = {};
-          let globalSecrets = {};
-          try {
-            const defaultEnvSetting = await settingsManager.getSetting("default_env_vars");
-            if (defaultEnvSetting?.vars && Array.isArray(defaultEnvSetting.vars)) {
-              for (const v of defaultEnvSetting.vars) {
-                if (v.key) globalDefaults[v.key] = v.value || "";
-              }
-            }
-            globalSecrets = await settingsManager.getSecretsAsObject();
-          } catch {}
-          const projectEnv = await projectManager.getEnvVarsAsObject(project.id);
-          const customEnv = { ...globalDefaults, ...globalSecrets, ...projectEnv };
-
-          const result = await workspace.restoreWorkspace(project.currentRunId, startCmd, port, customEnv);
-          if (result.success) {
-            await projectManager.updateProjectStatus(project.id, "active");
-            if (run && run.workspace) {
-              run.workspace.status = "running";
-              run.workspace.port = result.port;
-            }
-            console.log(`  "${project.name}" restored and running on port ${result.port}`);
-          } else {
-            await projectManager.updateProjectStatus(project.id, "stopped");
-            console.log(`  "${project.name}" restore failed: ${result.error} — marked stopped`);
-          }
-        } catch (err) {
-          await projectManager.updateProjectStatus(project.id, "stopped");
-          console.log(`  "${project.name}" restore error: ${err.message} — marked stopped`);
-        }
-      }
-    }
-  } catch (err) {
-    console.error("Workspace restoration error:", err.message);
-  }
 
   try {
     await publishManager.ensureSchema();
@@ -1766,6 +1131,7 @@ app.listen(PORT, "0.0.0.0", async () => {
   }
 
 });
+
 
 
 
