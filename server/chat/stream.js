@@ -1,21 +1,21 @@
 "use strict";
+
 /**
- * ForgeOS Chat Engine -- Claude Code architecture
+ * ForgeOS Chat Engine — Claude Code architecture
  *
- * Claude streams tokens to the client in real time.
- * When Claude calls a tool, server executes it and returns the result.
- * No agent loop. No nudges. No guards. No fake user messages.
- * Claude decides when it is done. Period.
+ * Direct Anthropic API streaming. No agent loop. No nudges. No guards.
+ * No fake user messages. No rounds counter. No task_complete.
+ *
+ * Claude gets a system prompt, conversation history, and tools.
+ * It calls tools when it needs to. It stops when it is done.
+ * The application layer gets out of the way.
  */
+
 const Anthropic = require("@anthropic-ai/sdk");
 const brain = require("../memory/brain");
-const { executeTool, TOOLS, buildSystemPrompt } = require("../agent/forge");
+const { TOOLS, executeTool, buildSystemPrompt } = require("../agent/forge");
 
 async function streamChat({ projectId, userMessage, history, skillContext, attachments, onEvent }) {
-  history = history || [];
-  skillContext = skillContext || "";
-  attachments = attachments || [];
-
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   // Fetch memory context
@@ -27,11 +27,11 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
     ]);
   } catch {}
 
-  const systemPrompt = buildSystemPrompt(memoryBlock, skillContext);
+  const systemPrompt = buildSystemPrompt(memoryBlock, skillContext || "");
 
-  // Scrub orphaned tool_use blocks from history
+  // Build message history — scrub orphaned tool_use blocks
   const messages = [];
-  for (var i = 0; i < history.length; i++) {
+  for (var i = 0; i < (history || []).length; i++) {
     var msg = history[i];
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
       var hasToolUse = msg.content.some(function(b) { return b.type === "tool_use"; });
@@ -39,13 +39,16 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
         var next = history[i + 1];
         var nextHasResult = next && Array.isArray(next.content) &&
           next.content.some(function(b) { return b.type === "tool_result"; });
-        if (!nextHasResult) { console.log("[stream] Dropped orphaned tool_use at", i); continue; }
+        if (!nextHasResult) {
+          console.log("[stream] Dropped orphaned tool_use at index", i);
+          continue;
+        }
       }
     }
     messages.push({ role: msg.role, content: msg.content });
   }
 
-  // Build user message
+  // Build user message — support image attachments
   var userContent;
   if (attachments && attachments.length > 0) {
     userContent = [{ type: "text", text: userMessage }];
@@ -64,15 +67,14 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
   var START_TIME = Date.now();
   var MAX_MS = 20 * 60 * 1000;
 
-  // ── Main loop — Claude drives, we execute ────────────────────────────────────
+  // ── Claude drives. We execute. ────────────────────────────────────────────────
   for (var round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (Date.now() - START_TIME > MAX_MS) {
-      console.log("[stream] Hard timeout at round", round);
+      console.log("[stream] 20-minute timeout at round", round);
       break;
     }
 
     var currentText = "";
-    var toolBlocks = [];
     var currentToolBlock = null;
     var currentToolJson = "";
 
@@ -90,27 +92,26 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
         if (event.content_block.type === "tool_use") {
           currentToolBlock = { id: event.content_block.id, name: event.content_block.name };
           currentToolJson = "";
-          // Emit tool start status immediately
-          var sm = toolStatusLabel(event.content_block.name, {});
+          var sm = toolLabel(event.content_block.name, {});
           if (sm) onEvent({ type: "tool_status", content: sm });
         }
+
       } else if (event.type === "content_block_delta") {
         if (event.delta.type === "text_delta" && event.delta.text) {
-          // Stream each token to client as it arrives — word by word
+          // Every token streams to client immediately — word by word
           currentText += event.delta.text;
           onEvent({ type: "thinking", content: currentText });
         } else if (event.delta.type === "input_json_delta") {
           currentToolJson += event.delta.partial_json;
         }
+
       } else if (event.type === "content_block_stop") {
         if (currentToolBlock) {
           var inp = {};
           try { inp = JSON.parse(currentToolJson || "{}"); } catch {}
           currentToolBlock.input = inp;
-          // Emit refined status with full input now available
-          var sm2 = toolStatusLabel(currentToolBlock.name, inp);
+          var sm2 = toolLabel(currentToolBlock.name, inp);
           if (sm2) onEvent({ type: "tool_status", content: sm2 });
-          toolBlocks.push(currentToolBlock);
           currentToolBlock = null;
           currentToolJson = "";
         }
@@ -120,28 +121,28 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
     const response = await stream.finalMessage();
     messages.push({ role: "assistant", content: response.content });
 
-    // Capture text for return value
+    // Capture text for Brain storage
     var textBlocks = response.content.filter(function(b) { return b.type === "text"; });
     if (textBlocks.length > 0) {
       var text = textBlocks.map(function(b) { return b.text; }).join("\n").trim();
       if (text) fullAssistantMessage = text;
     }
 
-    // Claude is done — no tool calls
+    // Claude is done — no more tool calls
     if (response.stop_reason === "end_turn") break;
     if (response.stop_reason !== "tool_use") break;
 
-    // Execute every tool Claude called, collect results
+    // Execute every tool Claude called
     var toolResults = [];
-    var toolCallBlocks = response.content.filter(function(b) { return b.type === "tool_use"; });
+    var toolCalls = response.content.filter(function(b) { return b.type === "tool_use"; });
 
-    for (var t = 0; t < toolCallBlocks.length; t++) {
-      var toolUse = toolCallBlocks[t];
+    for (var t = 0; t < toolCalls.length; t++) {
+      var toolUse = toolCalls[t];
       console.log("[stream] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 120));
 
       var result = await executeTool(toolUse.name, toolUse.input, function(evt) {
         if (evt.type === "file_written") {
-          onEvent({ type: "tool_status", content: "\u2713 Written: " + evt.path });
+          onEvent({ type: "tool_status", content: "✓ Written: " + evt.path });
         } else if (evt.type === "agent_message") {
           onEvent({ type: "agent_message", content: evt.content });
         } else if (evt.type === "tool_status") {
@@ -153,10 +154,10 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
     }
 
     messages.push({ role: "user", content: toolResults });
-    // Continue — Claude will decide what to do next
+    // Loop — Claude sees results and decides what to do next
   }
 
-  // Store to Brain
+  // Save to Brain
   if (projectId && fullAssistantMessage) {
     brain.extractMemory({
       projectId: projectId,
@@ -169,7 +170,7 @@ async function streamChat({ projectId, userMessage, history, skillContext, attac
   return fullAssistantMessage || "Done.";
 }
 
-function toolStatusLabel(name, inp) {
+function toolLabel(name, inp) {
   switch (name) {
     case "github_create_branch": return "Creating branch " + (inp.branch || "") + "...";
     case "github_ls":            return "Listing " + (inp.branch || "main") + "/" + (inp.path || "") + "...";
