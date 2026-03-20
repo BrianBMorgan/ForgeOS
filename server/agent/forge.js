@@ -645,15 +645,21 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       var looksLikeMoreWork = (finalMessage || "").match(
         /i('ll| will| can| need to|'m going to)|next|now i|let me|plan|going to|will write|will create|will build|will add|will fix|will push|will start|will begin|will set|will install|will make|will use|will need|here'?s (the|my|what|how)|looks (good|clean|solid|like)|this is (a |the )?(clean|good|solid|standard|typical)|scaffold|the (app|project|server|code) (needs|requires|should|will|has)|i('ve| have) (reviewed|read|looked|checked|scanned|examined)/i
       );
-      if ((didNoTools || onlyDidReads) && round < MAX_AGENT_ROUNDS - 1) {
-        // Fire the nudge on ANY read-only or no-tool round, regardless of message content.
-        // The agent has read but not written — that is never an acceptable stopping point on a build.
+      // Only nudge if the user actually asked for work to be done.
+      // Short conversational messages (nice job, hi, thanks, looks good) should
+      // never trigger a build — that's what caused the crackhead behaviour.
+      var userMsgLower = (userMessage || "").toLowerCase().trim();
+      var isConversational = userMsgLower.length < 60 && !userMsgLower.match(
+        /build|fix|create|add|update|change|write|push|deploy|make|implement|refactor|reforge|remove|delete|install|move|rename|edit|patch|migrate|connect|wire|set up|set up|integrate|generate|scaffold|convert/i
+      );
+
+      if ((didNoTools || onlyDidReads) && !isConversational && round < MAX_AGENT_ROUNDS - 1) {
         var filesWrittenSoFar = messages.filter(function(m) {
           return m.role === "assistant" && Array.isArray(m.content) &&
             m.content.some(function(b) { return b.type === "tool_use" && b.name === "write_file"; });
         }).length;
         var nudgeMsg = filesWrittenSoFar === 0
-          ? "You have read but not written anything. That means you have not started. Call write_file now — no preamble, no summary, no plan. Write the first file."
+          ? "You have read but not written anything. Call write_file now — no preamble, no plan. Write the first file."
           : "Don't describe what you're going to do — do it now. Use a tool.";
         messages.push({ role: "user", content: [{ type: "text", text: nudgeMsg }] });
         continue;
