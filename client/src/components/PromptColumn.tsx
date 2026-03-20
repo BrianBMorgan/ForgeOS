@@ -1,15 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { RunData, ProjectData, ChatMessage } from "../App";
+import type { ProjectData, ChatMessage } from "../App";
 import "./PromptColumn.css";
 
 interface PromptColumnProps {
-  runData: RunData | null;
   projectData: ProjectData | null;
   isNewProject: boolean;
-  onViewIteration: (runId: string) => void;
-  viewingIterationRunId: string | null;
-  onViewLatest: () => void;
-  onRestoreIteration: (runId: string) => void;
   chatMessages: ChatMessage[];
   onSendChat: (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => void;
   chatLoading: boolean;
@@ -34,13 +29,8 @@ interface AssetOption {
  */
 
 export default function PromptColumn({
-  runData,
   projectData,
   isNewProject,
-  onViewIteration,
-  viewingIterationRunId,
-  onViewLatest,
-  onRestoreIteration,
   chatMessages,
   onSendChat,
   chatLoading,
@@ -73,9 +63,7 @@ export default function PromptColumn({
     };
   }, []);
 
-  // stages removed — pipeline visualization removed
-  const isRunning = runData?.status === "running";
-  const isViewingHistory = !!viewingIterationRunId;
+  const isRunning = false; // v2: no local workspace, no running state
 
   function renderInline(text: string): React.ReactNode {
     const parts: React.ReactNode[] = [];
@@ -129,7 +117,6 @@ export default function PromptColumn({
   }
 
   const isProjectView = !isNewProject && projectData;
-  const hasIterations = projectData && projectData.iterations.length > 0;
   const hasChatHistory = chatMessages.length > 0;
 
   // Smooth scroll to bottom when new messages arrive
@@ -238,7 +225,7 @@ export default function PromptColumn({
   };
 
   const handleSubmit = () => {
-    if ((!prompt.trim() && attachments.length === 0) || isRunning || chatLoading) return;
+    if ((!prompt.trim() && attachments.length === 0) || chatLoading) return;
     onSendChat(prompt, attachments);
     setPrompt("");
     setAttachments([]);
@@ -342,44 +329,11 @@ export default function PromptColumn({
     <div className="prompt-column">
 
 
-      {hasIterations && (
-        <div className="iteration-dropdown-bar">
-          <select
-            className="iteration-dropdown-select"
-            value={viewingIterationRunId || projectData.currentRunId || ""}
-            onChange={(e) => {
-              const selected = e.target.value;
-              if (selected === projectData.currentRunId) {
-                onViewLatest();
-              } else {
-                onViewIteration(selected);
-              }
-            }}
-          >
-            {projectData.iterations.map((iter) => {
-              const isCurrent = iter.runId === projectData.currentRunId;
-              const statusLabel = iter.status === "completed"
-                ? (isCurrent && iter.workspaceStatus === "running" ? " · live" : "")
-                : iter.status === "running" ? " · building" : iter.status === "failed" ? " · failed" : "";
-              return (
-                <option key={iter.runId} value={iter.runId}>
-                  v{iter.iterationNumber}{isCurrent ? " ★" : ""}{statusLabel}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      )}
 
-      {isViewingHistory && (
-        <div className="viewing-history-banner">
-          Viewing past iteration
-          <button className="viewing-history-btn" onClick={() => onRestoreIteration(viewingIterationRunId!)}>Restore this version</button>
-          <button className="viewing-history-btn" onClick={onViewLatest}>Back to latest</button>
-        </div>
-      )}
 
-      {isProjectView && !isViewingHistory && hasChatHistory && (
+
+
+      {isProjectView && hasChatHistory && (
         <div className="chat-thread" ref={chatThreadRef}>
           {chatMessages.map((msg) => (
             <div key={msg.id} className={`chat-message chat-${msg.role}${msg.pending ? " chat-live" : ""}`}>
@@ -402,16 +356,16 @@ export default function PromptColumn({
         </div>
       )}
 
-      {!(isProjectView && !isViewingHistory && hasChatHistory) && <div className="prompt-column-spacer" />}
+      {!(isProjectView && hasChatHistory) && <div className="prompt-column-spacer" />}
 
-      {!isViewingHistory && (
+      {(
         <div className="prompt-input-area">
           <div className="prompt-textarea-wrap">
             <div className="attach-wrap attach-wrap-inline">
               <button
                 className="attach-btn"
                 onClick={() => { setShowAttachMenu(prev => !prev); if (!showAttachMenu) loadAssets(); }}
-                disabled={isRunning || chatLoading}
+                disabled={chatLoading}
                 title="Attach file or asset"
               >+</button>
               {showAttachMenu && (
@@ -480,7 +434,7 @@ export default function PromptColumn({
               onChange={handlePromptChange}
               onKeyDown={handleKeyDown}
               rows={isProjectView ? 3 : 6}
-              disabled={isRunning || chatLoading}
+              disabled={chatLoading}
             />
           </div>
           {attachments.length > 0 && (
@@ -506,3 +460,4 @@ export default function PromptColumn({
     </div>
   );
 }
+
