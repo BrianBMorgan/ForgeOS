@@ -611,9 +611,10 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       console.error("[forge-agent] Hard timeout after " + MAX_AGENT_ROUNDS + " rounds or 3 minutes");
       break;
     }
-    // Round 0: force a tool call — no narration allowed on first response
-    var callOptions = round === 0
-      ? { tool_choice: { type: "any" } }
+    // Round 0 on a build: force write_file immediately — no memory search, no narration
+    var isBuildRound0 = round === 0 && (userMessage || "").length > 200;
+    var callOptions = isBuildRound0
+      ? { tool_choice: { type: "tool", name: "write_file" } }
       : {};
 
     var response = await client.messages.create(Object.assign({
