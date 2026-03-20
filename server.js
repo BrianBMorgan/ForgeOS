@@ -14,57 +14,15 @@ var GITHUB_OWNER = 'BrianBMorgan';
 var GITHUB_REPO = 'ForgeOS';
 var FORGEOS_HOST = 'forge-os.ai';
 
-var CONTEXT_PACK_PROMPT = `Update the Forge context pack. Do NOT rewrite the entire file.
+var CONTEXT_PACK_PROMPT = `Update the Forge context pack. Do NOT rewrite. Append to session_log[], update recent_changes, increment version, write back. Never regenerate.`;
 
-Steps:
-1. github_read Forge_context_pack.json to get the current file
-2. Add a new entry to session_log[] for today
-3. Update recent_changes with new commits
-4. Increment meta.version and set meta.updated to today
-5. github_write the updated file back
-
-Never regenerate from scratch. Always append.`;
-
-// ── Anthropic + DB init ────────────────────────────────────────────────────────
 var anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 var sql = process.env.NEON_DATABASE_URL ? neon(process.env.NEON_DATABASE_URL) : null;
 var MC_SESSION = 'mission-control-main';
-
-(async function initSchema() {
-  if (!sql) return;
-  try {
-    await sql`CREATE TABLE IF NOT EXISTS mc_conversations (
-      id SERIAL PRIMARY KEY,
-      session_id VARCHAR(255) NOT NULL,
-      role VARCHAR(20) NOT NULL,
-      content TEXT NOT NULL,
-      created_at BIGINT NOT NULL
-    )`;
-  } catch(e) { console.error('[mc] schema:', e.message); }
-})();
-
-var MC_SYSTEM_PROMPT = `You are Mission Control — the ForgeOS system administrator.
-
-You have one job: help Brian manage and understand the ForgeOS platform. You are not a builder. You are not a workspace agent. You do not build apps. You monitor, diagnose, repair, and advise.
-
-You have full access to the ForgeOS GitHub repo, the Neon database, Render API, and ForgeOS live endpoints. GITHUB_TOKEN, RENDER_API_KEY, NEON_DATABASE_URL, and ANTHROPIC_API_KEY are available in process.env.
-
-Answer questions directly. Diagnose problems. When you need to read a file, use the GitHub raw API. When you need to push a fix, use the GitHub contents API. You are the administrator. That is your entire identity.`;
-
-async function getMcHistory() {
-  if (!sql) return [];
-  try {
-    const rows = await sql`SELECT role, content FROM mc_conversations WHERE session_id = ${MC_SESSION} ORDER BY created_at ASC LIMIT 30`;
-    return rows.map(r => ({ role: r.role, content: r.content }));
-  } catch { return []; }
-}
-
-async function saveMcMessage(role, content) {
-  if (!sql) return;
-  try {
-    await sql`INSERT INTO mc_conversations (session_id, role, content, created_at) VALUES (${MC_SESSION}, ${role}, ${content}, ${Date.now()})`;
-  } catch(e) { console.error('[mc] save:', e.message); }
-}
+(async function() { if (!sql) return; try { await sql`CREATE TABLE IF NOT EXISTS mc_conversations (id SERIAL PRIMARY KEY, session_id VARCHAR(255), role VARCHAR(20), content TEXT, created_at BIGINT)`; } catch(e) {} })();
+var MC_SYSTEM = 'You are Mission Control — the ForgeOS system administrator. Monitor, diagnose, advise. Not a builder. Be concise.';
+async function getMcHistory() { if (!sql) return []; try { const r = await sql`SELECT role, content FROM mc_conversations WHERE session_id = \${MC_SESSION} ORDER BY created_at ASC LIMIT 30`; return r.map(x => ({ role: x.role, content: x.content })); } catch { return []; } }
+async function saveMcMsg(role, content) { if (!sql) return; try { await sql`INSERT INTO mc_conversations (session_id, role, content, created_at) VALUES (\${MC_SESSION}, \${role}, \${content}, \${Date.now()})`; } catch(e) {} }
 
 // ── Helper: HTTP/HTTPS fetch with timeout ─────────────────────────────────────
 function fetchUrl(options, body, timeoutMs) {
@@ -379,64 +337,24 @@ app.post('/api/actions/redeploy', function(req, res) {
   });
 });
 
-// ── Mission Control Chat ──────────────────────────────────────────────────────
-app.get('/api/chat/history', async function(req, res) {
-  const history = await getMcHistory();
-  res.json({ ok: true, history });
-});
-
+// -- Chat -------------------------------------------------------------------------------
+app.get('/api/chat/history', async function(req, res) { res.json({ ok: true, history: await getMcHistory() }); });
 app.post('/api/chat', async function(req, res) {
-  var message = (req.body && req.body.message) ? String(req.body.message).trim() : '';
-  if (!message) return res.status(400).json({ error: 'message required' });
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
-
-  function send(obj) { if (!res.writableEnded) res.write('data: ' + JSON.stringify(obj) + '\n\n'); }
-
-  var aborted = false;
-  req.on('close', function() { aborted = true; });
-  var keepalive = setInterval(function() { if (!res.writableEnded && !aborted) res.write(': keepalive\n\n'); }, 8000);
-
+  var msg = (req.body && req.body.message) ? String(req.body.message).trim() : '';
+  if (!msg) return res.status(400).json({ error: 'message required' });
+  res.setHeader('Content-Type', 'text/event-stream'); res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Accel-Buffering', 'no'); res.flushHeaders();
+  function send(o) { if (!res.writableEnded) res.write('data: ' + JSON.stringify(o) + '\n\n'); }
+  var aborted = false; req.on('close', function() { aborted = true; });
+  var ka = setInterval(function() { if (!res.writableEnded && !aborted) res.write(': ka\n\n'); }, 8000);
   try {
-    await saveMcMessage('user', message);
-    const history = await getMcHistory();
-    const messages = history.map(function(m) { return { role: m.role, content: m.content }; });
-    var fullResponse = '';
-
-    const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8096,
-      system: MC_SYSTEM_PROMPT,
-      messages: messages,
-    });
-
-    stream.on('text', function(text) {
-      if (aborted || res.writableEnded) return;
-      fullResponse += text;
-      send({ type: 'chunk', content: text });
-    });
-
-    stream.on('error', function(err) {
-      clearInterval(keepalive);
-      send({ type: 'error', error: err.message });
-      if (!res.writableEnded) res.end();
-    });
-
-    stream.on('finalMessage', async function() {
-      clearInterval(keepalive);
-      await saveMcMessage('assistant', fullResponse);
-      send({ type: 'done', content: fullResponse });
-      if (!res.writableEnded) res.end();
-    });
-
-  } catch(err) {
-    clearInterval(keepalive);
-    send({ type: 'error', error: err.message });
-    if (!res.writableEnded) res.end();
-  }
+    await saveMcMsg('user', msg);
+    const hist = await getMcHistory();
+    var full = '';
+    const stream = anthropic.messages.stream({ model: 'claude-sonnet-4-6', max_tokens: 8096, system: MC_SYSTEM, messages: hist.map(function(m) { return { role: m.role, content: m.content }; }) });
+    stream.on('text', function(t) { if (!aborted && !res.writableEnded) { full += t; send({ type: 'chunk', content: t }); } });
+    stream.on('error', function(e) { clearInterval(ka); send({ type: 'error', error: e.message }); if (!res.writableEnded) res.end(); });
+    stream.on('finalMessage', async function() { clearInterval(ka); await saveMcMsg('assistant', full); send({ type: 'done', content: full }); if (!res.writableEnded) res.end(); });
+  } catch(e) { clearInterval(ka); send({ type: 'error', error: e.message }); if (!res.writableEnded) res.end(); }
 });
 
 // ── Context Pack Prompt ───────────────────────────────────────────────────────
@@ -506,8 +424,8 @@ app.get('/', function(req, res) {
 '.shell {' +
 '  height: calc(100vh - 52px);' +
 '  display: grid;' +
-'  grid-template-columns: 300px 1fr 300px;' +
-'  grid-template-rows: auto 1fr 220px;' +
+'  grid-template-columns: 1fr 320px;' +
+'  grid-template-rows: auto 1fr auto;' +
 '  gap: 0;' +
 '  overflow: hidden;' +
 '}' +
@@ -538,12 +456,11 @@ app.get('/', function(req, res) {
 
 /* Main area: row 2 only, column 1 */
 '.main-area {' +
-'  grid-column: 2;' +
+'  grid-column: 1;' +
 '  grid-row: 2;' +
 '  overflow: hidden;' +
 '  display: flex;' +
 '  flex-direction: column;' +
-'  border-left: 1px solid #1a1a2e;' +
 '  border-right: 1px solid #1a1a2e;' +
 '}' +
 '.panel-header {' +
@@ -571,7 +488,7 @@ app.get('/', function(req, res) {
 
 /* Sidebar spans rows 2 AND 3 — completely decoupled from log section height */
 '.sidebar {' +
-'  grid-column: 3;' +
+'  grid-column: 2;' +
 '  grid-row: 2 / 4;' +
 '  overflow: hidden;' +
 '  display: flex;' +
@@ -615,50 +532,16 @@ app.get('/', function(req, res) {
 '.action-btn.copied { border-color: #00c866 !important; color: #00c866 !important; }' +
 
 /* Log section: row 3, column 1 only — sidebar is no longer in this row */
-'.chat-section {' +
-'  grid-column: 1;' +
-'  grid-row: 2 / 4;' +
-'  border-right: 1px solid #1a1a2e;' +
-'  display: flex;' +
-'  flex-direction: column;' +
-'  overflow: hidden;' +
-'  min-height: 0;' +
-'}' +
-'.chat-messages {' +
-'  flex: 1; overflow-y: auto; padding: 10px 14px;' +
-'  display: flex; flex-direction: column; gap: 8px; min-height: 0;' +
-'}' +
-'.chat-msg { display: flex; flex-direction: column; gap: 2px; }' +
-'.chat-msg-role { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #444466; }' +
-'.chat-msg.user .chat-msg-role { color: #3b82f6; }' +
-'.chat-msg.assistant .chat-msg-role { color: #E94560; }' +
-'.chat-msg-content { font-size: 12px; color: #c0c0d8; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }' +
-'.chat-msg.pending .chat-msg-content { color: #666688; font-style: italic; }' +
-'.chat-input-row {' +
-'  display: flex; gap: 8px; padding: 8px 12px;' +
-'  border-top: 1px solid #1a1a2e; flex-shrink: 0;' +
-'}' +
-'.chat-input {' +
-'  flex: 1; background: #0d0d1a; border: 1px solid #1e1e34; border-radius: 5px;' +
-'  color: #c0c0d8; font-family: "Space Grotesk", sans-serif; font-size: 12px;' +
-'  padding: 7px 10px; outline: none; resize: none; height: 34px;' +
-'}' +
-'.chat-input:focus { border-color: #E94560; }' +
-'.chat-send {' +
-'  background: #E94560; border: none; border-radius: 5px; color: white;' +
-'  font-size: 14px; font-weight: 700; padding: 0 14px; cursor: pointer; transition: opacity 0.15s;' +
-'}' +
-'.chat-send:hover { opacity: 0.85; }' +
-'.chat-send:disabled { opacity: 0.4; cursor: not-allowed; }' +
 '.log-section {' +
-'  grid-column: 2;' +
+'  grid-column: 1;' +
 '  grid-row: 3;' +
 '  border-top: 1px solid #1a1a2e;' +
-'  border-left: 1px solid #1a1a2e;' +
 '  border-right: 1px solid #1a1a2e;' +
 '  display: flex;' +
 '  flex-direction: column;' +
-'  overflow: hidden;' +
+'  max-height: 180px;' +
+'  min-height: 120px;' +
+'  flex-shrink: 0;' +
 '}' +
 '.log-body { flex: 1; overflow-y: auto; padding: 8px 14px; font-family: "Courier New", monospace; font-size: 11px; color: #7070a0; line-height: 1.55; }' +
 '.log-line { white-space: pre-wrap; word-break: break-all; }' +
@@ -673,12 +556,24 @@ app.get('/', function(req, res) {
 '@keyframes spin { to { transform: rotate(360deg); } }' +
 '@media (max-width: 900px) {' +
 '  html, body { overflow: auto; }' +
-'  .shell { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto auto; height: auto; overflow: auto; }' +
-'  .chat-section { grid-column: 1; grid-row: auto; border-right: none; min-height: 280px; }' +
-'  .main-area { grid-column: 1; grid-row: auto; border-left: none; border-right: none; min-height: 50vh; }' +
-'  .log-section { grid-column: 1; grid-row: auto; border-left: none; border-right: none; }' +
+'  .shell { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; height: auto; overflow: auto; }' +
+'  .main-area { border-right: none; min-height: 50vh; grid-row: auto; }' +
 '  .sidebar { grid-column: 1; grid-row: auto; border-left: none; border-top: 1px solid #1a1a2e; }' +
+'  .log-section { grid-column: 1; grid-row: auto; border-right: none; }' +
 '}' +
+'.chat-panel { flex-shrink: 0; border-top: 1px solid #1a1a2e; display: flex; flex-direction: column; height: 260px; min-height: 0; }' +
+'.chat-msgs { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; min-height: 0; }' +
+'.cmw { display: flex; flex-direction: column; gap: 1px; }' +
+'.clbl { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #444466; }' +
+'.cmw.user .clbl { color: #3b82f6; }' +
+'.cmw.assistant .clbl { color: #E94560; }' +
+'.ctxt { font-size: 11px; color: #c0c0d8; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }' +
+'.cmw.pending .ctxt { color: #555577; font-style: italic; }' +
+'.crow { display: flex; gap: 6px; padding: 7px 10px; border-top: 1px solid #1a1a2e; flex-shrink: 0; }' +
+'.cin { flex: 1; background: #0a0a14; border: 1px solid #1e1e34; border-radius: 4px; color: #c0c0d8; font-family: "Space Grotesk",sans-serif; font-size: 11px; padding: 6px 9px; outline: none; resize: none; height: 30px; }' +
+'.cin:focus { border-color: #E94560; }' +
+'.cgo { background: #E94560; border: none; border-radius: 4px; color: white; font-size: 13px; padding: 0 12px; cursor: pointer; flex-shrink: 0; }' +
+'.cgo:disabled { opacity: 0.35; cursor: not-allowed; }' +
 '.toast { position: fixed; bottom: 24px; right: 24px; background: #13131f; border: 1px solid #2a2a40; border-radius: 8px; padding: 12px 18px; font-size: 12px; color: #c0c0d8; z-index: 100; transform: translateY(80px); opacity: 0; transition: all 0.25s ease; max-width: 300px; }' +
 '.toast.show { transform: translateY(0); opacity: 1; }' +
 '.toast.toast-ok { border-color: rgba(0,200,100,0.3); color: #00c866; }' +
@@ -739,19 +634,13 @@ app.get('/', function(req, res) {
 '        <button class="action-btn" id="btnContextPack"><span class="ab-icon">\uD83E\uDDE0</span><span class="ab-label">Context Pack</span></button>' +
 '      </div>' +
 '    </div>' +
+'    <div class="chat-panel">' +
+'      <div class="panel-header"><span class="panel-title">Mission Control</span><span class="panel-live"><span class="panel-live-dot"></span>Admin</span></div>' +
+'      <div class="chat-msgs" id="chatMsgs"></div>' +
+'      <div class="crow"><textarea class="cin" id="chatIn" placeholder="Ask anything..." rows="1"></textarea><button class="cgo" id="chatGo">&#8593;</button></div>' +
+'    </div>' +
 '  </div>' +
 
-'  <div class="chat-section">' +
-'    <div class="panel-header">' +
-'      <span class="panel-title">Mission Control</span>' +
-'      <span class="panel-live"><span class="panel-live-dot"></span>Admin</span>' +
-'    </div>' +
-'    <div class="chat-messages" id="chatMessages"></div>' +
-'    <div class="chat-input-row">' +
-'      <textarea class="chat-input" id="chatInput" placeholder="Ask anything..." rows="1"></textarea>' +
-'      <button class="chat-send" id="chatSend">&#8593;</button>' +
-'    </div>' +
-'  </div>' +
 '  <div class="log-section">' +
 '    <div class="panel-header">' +
 '      <span class="panel-title">Render Logs</span>' +
@@ -765,7 +654,6 @@ app.get('/', function(req, res) {
 '</div>' +
 
 '<div class="toast" id="toast"></div>' +
-
 
 '<script>' +
 '(function() {' +
@@ -1012,56 +900,13 @@ app.get('/', function(req, res) {
 '      });' +
 '  });' +
 
-'  var chatMsgs = []; var chatPending = false;' +
-'  function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }' +
-'  function renderChat() {' +
-'    var el = document.getElementById("chatMessages"); if (!el) return;' +
-'    var h = "";' +
-'    chatMsgs.forEach(function(m) {' +
-'      h += "<div class=\"chat-msg " + m.role + (m.pending ? " pending" : "") + "\"><div class=\"chat-msg-role\">" + (m.role==="user"?"You":"Mission Control") + "</div><div class=\"chat-msg-content\">" + esc(m.content||"\u2026") + "</div></div>";' +
-'    });' +
-'    el.innerHTML = h; el.scrollTop = el.scrollHeight;' +
-'  }' +
-'  function loadChatHistory() {' +
-'    fetch("/api/chat/history").then(function(r){return r.json();}).then(function(d){' +
-'      if(d.ok&&d.history&&d.history.length){chatMsgs=d.history.map(function(m,i){return{id:"h-"+i,role:m.role,content:m.content};});renderChat();}' +
-'    }).catch(function(){});' +
-'  }' +
-'  function sendMsg() {' +
-'    var inp = document.getElementById("chatInput");' +
-'    var btn = document.getElementById("chatSend");' +
-'    var txt = inp ? inp.value.trim() : "";' +
-'    if (!txt || chatPending) return;' +
-'    var now = Date.now(); var pid = "a-"+now;' +
-'    chatMsgs.push({id:"u-"+now,role:"user",content:txt});' +
-'    chatMsgs.push({id:pid,role:"assistant",content:"",pending:true});' +
-'    renderChat(); inp.value=""; chatPending=true; if(btn) btn.disabled=true;' +
-'    function patch(p){for(var i=chatMsgs.length-1;i>=0;i--){if(chatMsgs[i].id===pid){Object.assign(chatMsgs[i],p);break;}}renderChat();}' +
-'    fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:txt})})' +
-'    .then(function(res){' +
-'      var rdr=res.body.getReader(),dec=new TextDecoder(),buf="",acc="";' +
-'      function read(){rdr.read().then(function(r){' +
-'        if(r.done){chatPending=false;if(btn)btn.disabled=false;if(inp)inp.focus();return;}' +
-'        buf+=dec.decode(r.value,{stream:true});' +
-'        var parts=buf.split("\n\n");buf=parts.pop()||"";' +
-'        parts.forEach(function(p){' +
-'          p=p.trim();if(!p||p.startsWith(": ")||!p.startsWith("data: "))return;' +
-'          try{var e=JSON.parse(p.slice(6));' +
-'            if(e.type==="chunk"){acc+=e.content;patch({content:acc});}' +
-'            else if(e.type==="done"){patch({content:e.content||acc,pending:false});chatPending=false;if(btn)btn.disabled=false;if(inp)inp.focus();}' +
-'            else if(e.type==="error"){patch({content:"[Error: "+(e.error||"?")+"]",pending:false});chatPending=false;if(btn)btn.disabled=false;}' +
-'          }catch(x){}' +
-'        });' +
-'        read();' +
-'      }).catch(function(){patch({content:"[Connection error]",pending:false});chatPending=false;if(btn)btn.disabled=false;});}' +
-'      read();' +
-'    }).catch(function(){patch({content:"[Network error]",pending:false});chatPending=false;if(btn)btn.disabled=false;});' +
-'  }' +
-'  var sb=document.getElementById("chatSend");' +
-'  var si=document.getElementById("chatInput");' +
-'  if(sb)sb.addEventListener("click",sendMsg);' +
-'  if(si)si.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg();}});' +
-'  loadChatHistory();' +
+'  var cM=[],cP=false;' +
+'  function eH(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}' +
+'  function rC(){var el=document.getElementById("chatMsgs");if(!el)return;var h="";cM.forEach(function(m){h+="<div class=\'cmw "+m.r+(m.p?" pending":"")+"\'><div class=\'clbl\'>"+(m.r==="user"?"You":"MC")+"</div><div class=\'ctxt\'>"+eH(m.c||"...")+ "</div></div>";});el.innerHTML=h;el.scrollTop=el.scrollHeight;}' +
+'  function lCH(){fetch("/api/chat/history").then(function(r){return r.json();}).then(function(d){if(d.ok&&d.history&&d.history.length){cM=d.history.map(function(m,i){return{id:"h"+i,r:m.role,c:m.content};});rC();}}).catch(function(){});}' +
+'  function sC(){var inp=document.getElementById("chatIn"),btn=document.getElementById("chatGo");var txt=inp?inp.value.trim():"";if(!txt||cP)return;var now=Date.now(),pid="a"+now;cM.push({id:"u"+now,r:"user",c:txt});cM.push({id:pid,r:"assistant",c:"",p:true});rC();inp.value="";cP=true;if(btn)btn.disabled=true;function pt(o){for(var i=cM.length-1;i>=0;i--){if(cM[i].id===pid){Object.assign(cM[i],o);break;}}rC();}fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:txt})}).then(function(res){var rdr=res.body.getReader(),dc=new TextDecoder(),buf="",acc="";function rd(){rdr.read().then(function(r){if(r.done){cP=false;if(btn)btn.disabled=false;if(inp)inp.focus();return;}buf+=dc.decode(r.value,{stream:true});var ps=buf.split("\\n\\n");buf=ps.pop()||"";ps.forEach(function(p){p=p.trim();if(!p||p.startsWith(": ")||!p.startsWith("data: "))return;try{var e=JSON.parse(p.slice(6));if(e.type==="chunk"){acc+=e.content;pt({c:acc});}else if(e.type==="done"){pt({c:e.content||acc,p:false});cP=false;if(btn)btn.disabled=false;if(inp)inp.focus();}else if(e.type==="error"){pt({c:"[Error: "+(e.error||"?")+"]",p:false});cP=false;if(btn)btn.disabled=false;}}catch(x){}});rd();}).catch(function(){pt({c:"[Connection error]",p:false});cP=false;if(btn)btn.disabled=false;});}rd();}).catch(function(){pt({c:"[Network error]",p:false});cP=false;if(btn)btn.disabled=false;});}' +
+'  var sb=document.getElementById("chatGo"),si=document.getElementById("chatIn");if(sb)sb.addEventListener("click",sC);if(si)si.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sC();}});' +
+'  lCH();' +
 '  refreshAll();' +
 '  setInterval(refreshAll, 30000);' +
 
