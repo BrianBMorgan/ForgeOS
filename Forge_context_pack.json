@@ -1,15 +1,14 @@
 {
-  "version": "6.0.0",
+  "version": "6.1.0",
   "updated": "2026-03-20",
-  "current_state": "ForgeOS v2 architecture decided. Phase 1 demolition underway.\n\nCOMPLETED:\n- server/builder.js deleted\n- server/workspace/manager.js deleted\n- server/pipeline/runner.js deleted\n- server/index.js surgically cleaned locally (1774\u21921451 lines, zero workspace/createRun/buildAndDeploy refs)\n  *** THIS FILE IS STAGED BUT NOT YET PUSHED TO GITHUB ***\n  Staged file contains: all workspace routes removed (/iterate, /stop, /restart, /runs/:id/*, /exec),\n  buildAndDeploy removed from chat result handler, startup workspace restore removed, wsDir=null\n\nIN PROGRESS / NEXT SESSION START HERE:\n1. Re-derive and push the staged index.js (read current from GitHub, apply the same cuts, push)\n2. Update server/agent/forge.js \u2014 new v2 tool set, new system prompt\n3. Rebuild client UI \u2014 Files tab, Commits tab, remove dead tabs\n4. Project model schema migration\n5. Replace Hedwig with direct Anthropic API streaming\n6. Intel Event Content Review build \u2014 the Phase 5 test",
+  "current_state": "ForgeOS v2 \u2014 Phase 3 COMPLETE. Deployed and live.\n\nCOMPLETED THIS SESSION:\n- Phase 1 (Demolition): Already done, confirmed pushed\n- Phase 2 (New Tools): Already done, confirmed pushed  \n- Phase 3 (UI Rebuild): COMPLETE and live\n  * Workspace.tsx rewritten: 2210 \u2192 1136 lines\n  * Tabs: Files (GitHub tree), Commits (git history + rollback), Render (live app iframe), Env, Publish, Brain\n  * Deleted tabs: Shell, Diff, Edit/EditTab, Plan, Analytics, DB\n  * App.tsx cleaned: 471 \u2192 293 lines \u2014 RunData, IterationData, iteration polling, both poll loops gone\n  * PromptColumn.tsx cleaned: iteration props removed, interface tightened\n  * server/index.js: added /api/github/ls, /api/github/read, /api/github/commits routes\n  * client/src/index.css: +498 lines of CSS for new tabs\n  * TypeScript strict errors fixed (noUnusedLocals, noUnusedParameters)\n  * Deployed and confirmed live: commit cb04eee / fix commit 24db8a9\n\nSTABLE COMMITS:\n- cb04eee \u2014 Workspace v2 final (slug resolver hook)\n- 24db8a9 \u2014 PromptColumn v2 (iteration props removed)\n- f0a57ef \u2014 App.tsx v2 (iteration model removed)\n- 48eff8c \u2014 /api/github/* routes\n\nNEXT: Phase 4 \u2014 Schema migration (run_snapshots drop, projects table cleanup)\nThen: Phase 5 \u2014 Intel Event Content Review build",
   "next_steps": [
-    "FIRST \u2014 Push cleaned index.js: read current from GitHub, remove workspace/pipeline/builder requires and all workspace routes, push to main",
-    "Update server/agent/forge.js: remove write_file/task_complete/run_command/list_files/read_file tools; add github_ls and render_status; update system prompt (GitHub is the workspace, no task_complete)",
-    "Rebuild Workspace.tsx: Files tab (live GitHub tree via github_ls/github_read), Commits tab (git history + one-click rollback), remove Shell/DB/Diff/Plan/Analytics tabs",
-    "Update App.tsx: remove iteration model state, remove currentRunId polling, simplify project state",
-    "Schema migration: remove run_snapshots table, simplify projects table (drop currentRunId/iterations, add branch column)",
-    "Replace Hedwig: rewrite chat route in index.js to use direct Anthropic API streaming \u2014 no agent loop, no nudges, no guards, Claude outputs structured commands, server executes",
-    "Intel Event Content Review: build it as the definitive Phase 5 test of the new architecture"
+    "Phase 4 \u2014 Schema migration: DROP TABLE run_snapshots; remove currentRunId/iterations columns from forge_projects; verify projects manager loads cleanly without iteration rows",
+    "Phase 4 \u2014 ProjectsList.tsx: remove local ProjectSummary interface's iterations/currentRunId fields, remove iteration display from project cards",
+    "Phase 4 \u2014 Project deletion: verify cleanup removes GitHub branch + Render service",
+    "Phase 5 \u2014 Intel Event Content Review: build it as the definitive v2 test",
+    "Phase 5 \u2014 End-to-end test: new project \u2192 Forge writes to GitHub \u2192 Render deploys \u2192 live URL",
+    "Ongoing: update context pack at end of each session"
   ],
   "architecture": {
     "model": "ForgeOS v2 \u2014 Claude writes directly to GitHub, Render deploys, ForgeOS is the GUI layer",
@@ -236,27 +235,28 @@
     "forge_analytics": "id, project_id, session_id, visitor_id, event_type, url, referrer, properties JSONB, created_at"
   },
   "known_issues_and_gotchas": {
-    "index_js_not_pushed": "CRITICAL: The v2-cleaned index.js is staged locally but NOT yet on GitHub. First action in next session: re-derive and push.",
-    "forge_agent_still_v1": "server/agent/forge.js still has write_file/task_complete/run_command/list_files/read_file tools. These will crash on next build attempt since workspace is gone. Must update before testing.",
+    "index_js_not_pushed": "RESOLVED \u2014 index.js is clean and deployed",
+    "forge_agent_still_v1": "RESOLVED \u2014 forge.js fully v2, all v1 tools removed",
     "github_patch_exactness": "find string must be character-for-character exact including whitespace and newlines. Use github_read first.",
     "orphaned_tool_use": "If agent loop breaks mid-call, history may have assistant tool_use with no following tool_result. Brain conversation scrubber drops these on next load.",
     "render_branch_reset": "Render resets service branch to main on republish unless updateServiceBranch is called first.",
     "proxy_encoding": "Always set accept-encoding: identity in proxy fetch headers to prevent ERR_CONTENT_DECODING_FAILED.",
     "neon_database_url_reserved": "Cannot be overridden per published service. Apps needing isolated DBs must use custom env var names.",
-    "admin_auth_proxy": "Cookie-session Set-Cookie headers unreliable through ForgeOS proxy. Use bearer token stored in localStorage + passed as query param on first authenticated load."
+    "admin_auth_proxy": "Cookie-session Set-Cookie headers unreliable through ForgeOS proxy. Use bearer token stored in localStorage + passed as query param on first authenticated load.",
+    "workspace_tsx_dead_tabs": "RESOLVED \u2014 Shell/Diff/Edit/Plan/Analytics removed, Files/Commits/Render added",
+    "projects_table_has_iteration_columns": "PENDING Phase 4 \u2014 iterations table and currentRunId column still exist in DB, ProjectsList.tsx still has local iteration interface",
+    "slug_not_in_projects_table": "KNOWN \u2014 slug lives in published_apps table, not projects. Workspace fetches it via /api/projects/:id/publish on mount. Works correctly."
   },
   "recent_changes": {
-    "version": "6.0.0",
-    "summary": "ForgeOS v2 architecture decision. Phase 1 demolition. Hedwig condemned. Full rebuild plan documented.",
+    "version": "6.1.0",
+    "summary": "Phase 3 complete. UI rebuilt. TypeScript clean. Deployed live. ~1200 lines of dead code removed from client.",
     "key_commits": {
-      "forge_beast_mode": "98dcbb7 \u2014 Forge beast mode + clean wall + build mandate",
-      "mc_beast_mode": "7f041ec \u2014 MC beast mode restored",
-      "mc_no_markdown": "bf04617 \u2014 MC plain text responses",
-      "mc_contrast_fix": "ff6897e \u2014 MC readable text color",
-      "builder_deleted": "24e37d5 \u2014 server/builder.js deleted",
-      "workspace_deleted": "1714393 \u2014 server/workspace/manager.js deleted",
-      "pipeline_deleted": "e145e1a \u2014 server/pipeline/runner.js deleted",
-      "forge_canvas_stable": "7948b78 on apps/forge-canvas \u2014 brand watermark, full feature set"
+      "workspace_v2": "cb04eee \u2014 Workspace v2 final, slug resolver",
+      "app_v2": "f0a57ef \u2014 App.tsx v2, iteration model removed",
+      "promptcolumn_v2": "24db8a9 \u2014 PromptColumn v2, iteration props removed",
+      "github_routes": "48eff8c \u2014 /api/github/ls, /api/github/read, /api/github/commits",
+      "css_new_tabs": "3573bfa \u2014 CSS for Files/Commits/Render v2 tabs",
+      "index_js_github_routes": "48eff8c \u2014 server routes for workspace tabs"
     }
   },
   "session_log": [
@@ -317,6 +317,37 @@
         "builder_deleted": "24e37d5",
         "workspace_deleted": "1714393",
         "pipeline_deleted": "e145e1a"
+      }
+    },
+    {
+      "date": "2026-03-20",
+      "session_title": "Phase 3 Complete \u2014 Workspace UI Rebuilt, TypeScript Clean",
+      "shipped": [
+        "server/index.js: added /api/github/ls, /api/github/read, /api/github/commits proxy routes (48eff8c)",
+        "client/src/components/Workspace.tsx: full v2 rewrite \u2014 2210 \u2192 1136 lines. Files tab (GitHub tree), Commits tab (git history + rollback), Render tab (live iframe), Env, Publish, Brain. Shell/Diff/Edit/Plan/Analytics/DB deleted. Slug resolver hook added. (cb04eee)",
+        "client/src/App.tsx: 471 \u2192 293 lines. RunData, IterationData, WorkspaceStatus, TokenUsage interfaces gone. currentRunId state gone. Both poll loops (runData poll + project poll) simplified. Iteration callbacks (viewIteration, viewLatest, restoreIteration) gone. (f0a57ef)",
+        "client/src/components/PromptColumn.tsx: iteration props removed from interface and destructure. isRunning/isViewingHistory/hasIterations gone. Interface tightened to 5 props. (095f5ec \u2192 24db8a9)",
+        "client/src/index.css: +498 lines CSS for files-tab, commits-tab, render-v2-* components (3573bfa)",
+        "TypeScript strict errors fixed \u2014 noUnusedLocals violations (isRunning, useRef, message param) resolved (24db8a9, cb04eee)",
+        "Rebuild plan docx updated to v2.1 with accurate COMPLETE/PENDING status across all phases"
+      ],
+      "decisions": [
+        "Slug lives in published_apps table not projects \u2014 Workspace fetches it via publish endpoint on mount. Clean separation of concerns, no schema change needed for this.",
+        "ProjectsList.tsx has its own local ProjectSummary interface \u2014 does not import from App.tsx, so no TS error, but still shows iterations in card UI. Phase 4 will clean this.",
+        "DbTab.tsx left as orphaned file \u2014 not imported anywhere, Vite tree-shakes it. Will delete in Phase 4 cleanup."
+      ],
+      "pending": [
+        "Phase 4: DROP TABLE run_snapshots, remove iterations table, remove currentRunId from projects schema, update projects/manager.js loadFromDb, clean ProjectsList.tsx",
+        "Phase 4: Delete DbTab.tsx from repo",
+        "Phase 5: Intel Event Content Review \u2014 the definitive v2 build test"
+      ],
+      "key_commits": {
+        "workspace_v2": "cb04eee",
+        "app_v2": "f0a57ef",
+        "promptcolumn_v2": "24db8a9",
+        "github_routes": "48eff8c",
+        "css_new_tabs": "3573bfa",
+        "ts_fix": "24db8a9"
       }
     }
   ],
