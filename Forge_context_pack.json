@@ -5,16 +5,17 @@
     "description": "ForgeOS live architecture snapshot. Authoritative reference for all builds and ForgeOS modifications. Updated by Claude + Brian session 2026-03-18/19."
   },
   "architecture": {
-    "model": "Unified Agent \u2014 single Claude session handles chat, code generation, and ForgeOS self-modification",
-    "deployment": "Render (web service) \u2192 forge-os.ai via Cloudflare",
-    "deploy_chain": "Forge agent \u2192 GitHub (BrianBMorgan/ForgeOS, main) \u2192 Render auto-deploy \u2192 forge-os.ai",
+    "model": "ForgeOS v2 \u2014 Claude writes directly to GitHub, Render deploys, ForgeOS is the GUI layer",
+    "deployment": "Render (web service) \u2192 forge-os.ai",
+    "deploy_chain": "Claude (via chat) \u2192 GitHub (BrianBMorgan/ForgeOS, apps/<slug> branch) \u2192 Render auto-deploy \u2192 *.forge-os.ai",
     "runtime": "Node.js + Express (CommonJS) on server; React + Vite (TypeScript) on client",
     "database": "Neon PostgreSQL via @neondatabase/serverless (NEON_DATABASE_URL)",
-    "port": "process.env.PORT || 3001 (server); workspaces start on port 4000+",
+    "port": "process.env.PORT || 3001 (ForgeOS server)",
     "binding": "0.0.0.0 for all interfaces",
-    "subdomain_proxy": "Wildcard *.forge-os.ai requests proxied to published Render services \u2014 SSE streaming preserved via pipe, non-SSE via arrayBuffer",
-    "workspace_isolation": "Each build run gets its own directory under DATA_DIR/workspaces/{runId}",
-    "static_files": "client/dist served via express.static with SPA fallback"
+    "subdomain_proxy": "Wildcard *.forge-os.ai requests proxied to published Render services",
+    "workspace_isolation": "REMOVED IN V2 \u2014 no local workspaces. Each project = one GitHub branch (apps/<slug>). GitHub is the filesystem.",
+    "static_files": "client/dist served via express.static with SPA fallback",
+    "v2_note": "Local workspace model eliminated entirely. server/builder.js, server/workspace/, server/pipeline/runner.js all deleted. /iterate, /stop, /restart routes removed from index.js."
   },
   "agent": {
     "file": "server/agent/forge.js",
@@ -22,38 +23,30 @@
     "max_rounds": 50,
     "max_ms": 1200000,
     "entry": "runForgeAgent({ projectId, userMessage, wsDir, history, skillContext, attachments, onMessage })",
+    "wsDir": "null in v2 \u2014 no local workspace",
     "return_types": [
-      "{ type: 'message', message }  \u2014 pure chat, no build triggered",
-      "{ type: 'build', message, startCommand, installCommand, summary, envVars, files }  \u2014 task_complete called",
+      "{ type: 'message', message } \u2014 pure chat, no build triggered",
       "{ type: 'error', message }"
     ],
-    "tools": [
-      "list_files",
-      "read_file",
-      "write_file",
-      "run_command",
-      "memory_search",
-      "task_complete",
-      "ask_user",
-      "github_read",
-      "github_write",
-      "github_patch",
-      "fetch_url"
+    "tools_v2": [
+      "github_ls \u2014 list files in project branch (NEW)",
+      "github_read \u2014 read any file from GitHub branch",
+      "github_write \u2014 write complete file to GitHub branch",
+      "github_patch \u2014 surgical find/replace on GitHub file",
+      "render_status \u2014 check deploy status, get live URL (NEW)",
+      "memory_search \u2014 search Brain for patterns and lessons",
+      "ask_user \u2014 send message or question to Brian"
     ],
-    "tool_notes": {
-      "github_patch": "Surgical find-and-replace on GitHub files. Multiple replacements in one call. Fails if string not found exactly.",
-      "github_write": "Full file rewrite + commit. Auto-fetches current SHA. Use for complete file replacements.",
-      "github_read": "Read any ForgeOS file from GitHub with auth. Preferred over fetch_url for ForgeOS files.",
-      "task_complete": "Returns __TASK_COMPLETE__ sentinel \u2014 triggers collectWorkspaceFiles() then buildAndDeploy()",
-      "run_command": "Executes in wsDir with 15s timeout. Blocks: sudo, rm -rf, mkfs, dd, chmod 777, pipe-to-shell",
-      "memory_search": "Calls brain.buildContext(query, projectId). 4s timeout before skipping.",
-      "write_file": "Emits file_written event to onMessage callback. Creates parent dirs automatically."
-    },
-    "memory_filtering": "Before injection, strips lines containing: build:, forge:, chat agent, scoped to, cannot modify forgeos, only via forge, read_forge_source, forgeos infrastructure",
-    "history_scrubbing": "Orphaned tool_use blocks (assistant turns with no following tool_result) are dropped before API call",
-    "vision_support": "Image attachments sent as base64 vision blocks in user message content array",
-    "workspace_creation": "New projects get a temp workspace dir (new-{projectId}-{timestamp}) created before first tool call",
-    "premature_end_turn_guard": "If stop_reason=end_turn with no tools called and message looks like work, pushes 'Use a tool to do that.' to continue"
+    "tools_removed": [
+      "list_files \u2014 replaced by github_ls",
+      "read_file \u2014 replaced by github_read",
+      "write_file \u2014 replaced by github_write",
+      "run_command \u2014 no local workspace to run in",
+      "task_complete \u2014 no local build pipeline to trigger",
+      "fetch_url \u2014 removed"
+    ],
+    "hedwig_status": "SCHEDULED FOR REPLACEMENT \u2014 custom agent loop (nudges, guards, forced tool calls) to be replaced with direct Anthropic API streaming. Claude Code architecture.",
+    "build_flow": "Forge reads files via github_ls/github_read \u2192 writes via github_write/github_patch \u2192 Render auto-deploys \u2192 render_status confirms live URL"
   },
   "builder": {
     "file": "server/builder.js",
