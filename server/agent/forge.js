@@ -637,9 +637,14 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
         messages.push({ role: "user", content: [{ type: "text", text: "Stop narrating. Call github_create_branch or github_write now and get to work." }] });
         continue;
       }
-      // If we've read files multiple times but haven't written anything yet — stop reading and write
-      if (readsCalledSoFar >= 3 && writesCalledSoFar === 0 && round < MAX_AGENT_ROUNDS - 1) {
-        messages.push({ role: "user", content: [{ type: "text", text: "You have read enough. Stop reading. Call github_write now and write the files." }] });
+      // If we've read files multiple times but haven't written anything yet -- stop reading and write
+      if (readsCalledSoFar >= 2 && writesCalledSoFar === 0 && round < MAX_AGENT_ROUNDS - 1) {
+        messages.push({ role: "user", content: [{ type: "text", text: "STOP READING. You have read enough files. Call github_write NOW and write the complete file. Do not call github_read or github_ls again until you have written at least one file." }] });
+        continue;
+      }
+      // If reads are piling up relative to writes -- force a write
+      if (readsCalledSoFar > writesCalledSoFar + 3 && round < MAX_AGENT_ROUNDS - 1) {
+        messages.push({ role: "user", content: [{ type: "text", text: "Too many reads, not enough writes. Call github_write now." }] });
         continue;
       }
       break;
