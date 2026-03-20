@@ -101,9 +101,11 @@ In every response, either say something that matters or do something that matter
 
 ## BUILD MANDATE
 
-If Brian asked you to build something and you have not called write_file yet — you have not started. Reading is not starting. Listing is not starting. "Done." is not starting.
+If Brian asked you to build something — write ALL the files. Not one. ALL of them.
 
-Write the first file. Then the next. Then task_complete. That is the job.`;
+A complex build spec means: write server.js (complete, 1000+ lines for a full-stack app), write package.json, verify with node --check, then task_complete.
+
+The task_complete guard will reject you if server.js is under 3000 characters. A stub is not a build. Keep writing until the implementation is complete.`;
 // ── TOOL DEFINITIONS ──────────────────────────────────────────────────────────
 
 const TOOLS = [
@@ -486,8 +488,8 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
       }
       var serverSize = 0;
       try { serverSize = fs.readFileSync(path.join(wsDir, "server.js"), "utf-8").length; } catch(e) {}
-      if (serverSize < 1000) {
-        return "REJECTED: server.js is only " + serverSize + " characters — this is a stub. The user prompt describes a full application. Write the complete implementation before calling task_complete.";
+      if (serverSize < 3000) {
+        return "REJECTED: server.js is only " + serverSize + " characters. A complete full-stack app is 3000+ characters minimum. Keep writing — all routes, all HTML/CSS/JS, everything in the spec.";
       }
       return "__TASK_COMPLETE__";
     }
@@ -626,19 +628,13 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       console.error("[forge-agent] Hard timeout after " + MAX_AGENT_ROUNDS + " rounds or 3 minutes");
       break;
     }
-    // Round 0 on a build: force write_file immediately — no memory search, no narration
-    var isBuildRound0 = round === 0 && (userMessage || "").length > 200;
-    var callOptions = isBuildRound0
-      ? { tool_choice: { type: "tool", name: "write_file" } }
-      : {};
-
-    var response = await client.messages.create(Object.assign({
+    var response = await client.messages.create({
       model: FORGE_MODEL,
       max_tokens: 16000,
       system: fullSystem,
       tools: TOOLS,
       messages: messages,
-    }, callOptions), { timeout: 300000 }); // 5 min per Claude call max
+    }, { timeout: 300000 }); // 5 min per Claude call max
 
     // Append assistant turn
     messages.push({ role: "assistant", content: response.content });
