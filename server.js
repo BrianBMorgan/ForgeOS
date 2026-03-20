@@ -341,23 +341,73 @@ app.post('/api/actions/redeploy', function(req, res) {
 app.get('/api/chat/history', async function(req, res) { res.json({ ok: true, history: await getMcHistory() }); });
 app.post('/api/chat', async function(req, res) {
   var msg = (req.body && req.body.message) ? String(req.body.message).trim() : '';
-  if (!msg) return res.status(400).json({ error: 'message required' });
-  res.setHeader('Content-Type', 'text/event-stream'); res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Accel-Buffering', 'no'); res.flushHeaders();
-  function send(o) { if (!res.writableEnded) res.write('data: ' + JSON.stringify(o) + '\n\n'); }
-  var aborted = false; req.on('close', function() { aborted = true; });
-  var ka = setInterval(function() { if (!res.writableEnded && !aborted) res.write(': ka\n\n'); }, 8000);
+  if (!msg) return res.status(400).json({ error: 'Message is required' });
+
+  // Load history — same pattern as ForgeOS brain.getConversation
+  var history = [];
   try {
-    await saveMcMsg('user', msg);
-    const hist = await getMcHistory();
-    // Always include at least the current message — never send empty array to Claude
-    var histMsgs = hist.map(function(m) { return { role: m.role, content: m.content }; });
-    if (histMsgs.length === 0) histMsgs = [{ role: 'user', content: msg }];
-    var full = '';
-    const stream = anthropic.messages.stream({ model: 'claude-sonnet-4-6', max_tokens: 8096, system: MC_SYSTEM, messages: histMsgs });
-    stream.on('text', function(t) { if (!aborted && !res.writableEnded) { full += t; send({ type: 'chunk', content: t }); } });
-    stream.on('error', function(e) { clearInterval(ka); send({ type: 'error', error: e.message }); if (!res.writableEnded) res.end(); });
-    stream.on('finalMessage', async function() { clearInterval(ka); await saveMcMsg('assistant', full); send({ type: 'done', content: full }); if (!res.writableEnded) res.end(); });
-  } catch(e) { clearInterval(ka); send({ type: 'error', error: e.message }); if (!res.writableEnded) res.end(); }
+    var histRows = await getMcHistory();
+    history = histRows.map(function(r) { return { role: r.role, content: r.content }; });
+  } catch(e) {}
+
+  // Save user message — same as ForgeOS brain.appendConversation
+  saveMcMsg('user', msg).catch(function() {});
+
+  // Set up SSE — exact copy of ForgeOS pattern
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  function send(evt) {
+    res.write('data: ' + JSON.stringify(evt) + '\n\n');
+  }
+
+  // Always include current message — never send empty array to Claude
+  if (history.length === 0) {
+    history = [{ role: 'user', content: msg }];
+  }
+
+  try {
+    var fullResponse = '';
+    var stream = anthropic.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 16000,
+      system: MC_SYSTEM,
+      messages: history,
+    });
+
+    // Emit thinking events as text streams in — same event type as ForgeOS
+    stream.on('text', function(text) {
+      fullResponse += text;
+      send({ type: 'thinking', content: fullResponse });
+    });
+
+    stream.on('error', function(err) {
+      console.error('[mc-chat] stream error:', err.message);
+      send({ type: 'error', error: err.message });
+      if (!res.writableEnded) res.end();
+    });
+
+    stream.on('finalMessage', async function() {
+      // Save assistant response
+      saveMcMsg('assistant', fullResponse).catch(function() {});
+      // Send done — exact same shape as ForgeOS
+      send({
+        type: 'done',
+        role: 'assistant',
+        content: fullResponse,
+        building: false,
+        createdAt: Date.now(),
+      });
+      if (!res.writableEnded) res.end();
+    });
+
+  } catch(err) {
+    console.error('[mc-chat] error:', err.message);
+    send({ type: 'error', error: 'Chat error: ' + err.message });
+    if (!res.writableEnded) res.end();
+  }
 });
 
 // ── Context Pack Prompt ───────────────────────────────────────────────────────
