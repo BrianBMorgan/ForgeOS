@@ -1,14 +1,14 @@
 {
-  "version": "6.1.0",
+  "version": "6.2.0",
   "updated": "2026-03-20",
-  "current_state": "ForgeOS v2 \u2014 Phase 3 COMPLETE. Deployed and live.\n\nCOMPLETED THIS SESSION:\n- Phase 1 (Demolition): Already done, confirmed pushed\n- Phase 2 (New Tools): Already done, confirmed pushed  \n- Phase 3 (UI Rebuild): COMPLETE and live\n  * Workspace.tsx rewritten: 2210 \u2192 1136 lines\n  * Tabs: Files (GitHub tree), Commits (git history + rollback), Render (live app iframe), Env, Publish, Brain\n  * Deleted tabs: Shell, Diff, Edit/EditTab, Plan, Analytics, DB\n  * App.tsx cleaned: 471 \u2192 293 lines \u2014 RunData, IterationData, iteration polling, both poll loops gone\n  * PromptColumn.tsx cleaned: iteration props removed, interface tightened\n  * server/index.js: added /api/github/ls, /api/github/read, /api/github/commits routes\n  * client/src/index.css: +498 lines of CSS for new tabs\n  * TypeScript strict errors fixed (noUnusedLocals, noUnusedParameters)\n  * Deployed and confirmed live: commit cb04eee / fix commit 24db8a9\n\nSTABLE COMMITS:\n- cb04eee \u2014 Workspace v2 final (slug resolver hook)\n- 24db8a9 \u2014 PromptColumn v2 (iteration props removed)\n- f0a57ef \u2014 App.tsx v2 (iteration model removed)\n- 48eff8c \u2014 /api/github/* routes\n\nNEXT: Phase 4 \u2014 Schema migration (run_snapshots drop, projects table cleanup)\nThen: Phase 5 \u2014 Intel Event Content Review build",
+  "current_state": "ForgeOS v2 -- Engine fixed. No apps until engine is proven.\n\nCOMPLETED THIS SESSION:\n- Phase 4 (Schema): COMPLETE. run_snapshots and iterations tables dropped. currentRunId gone. projects/manager.js 470->197 lines. ProjectsList.tsx cleaned. DbTab.tsx deleted.\n- github_create_branch tool added to forge.js (POST to GitHub refs API)\n- stream.js is the ACTIVE chat engine (not runForgeAgent). streamChat() wired in index.js.\n- Read-loop detection added to stream.js: after 2 reads with 0 writes, forced write nudge injected. After reads>writes+3, ongoing nudge.\n- forge.js buildSystemPrompt exports WRITING RULE: max 2 reads before first write.\n\nCRITICAL DISCOVERY:\n- The nudges built into forge.js (runForgeAgent) were NEVER firing -- stream.js is the active engine and had NO nudge logic.\n- The read loop during Intel build was caused by zero guard rails in stream.js.\n- Both files now have the read-loop guard. Deploy pending.\n\nWHAT HAPPENED WITH INTEL BUILD:\n- Branch creation gap found and fixed (github_create_branch tool)\n- Read loop exposed the missing nudge in stream.js\n- No app was successfully built -- Phase 5 is blocked until engine is proven with a simple test first\n\nNEXT: Test the engine with something small before Intel. One route, GET /, returns HTML. If that ships clean, Intel goes next.",
   "next_steps": [
-    "Phase 4 \u2014 Schema migration: DROP TABLE run_snapshots; remove currentRunId/iterations columns from forge_projects; verify projects manager loads cleanly without iteration rows",
-    "Phase 4 \u2014 ProjectsList.tsx: remove local ProjectSummary interface's iterations/currentRunId fields, remove iteration display from project cards",
-    "Phase 4 \u2014 Project deletion: verify cleanup removes GitHub branch + Render service",
-    "Phase 5 \u2014 Intel Event Content Review: build it as the definitive v2 test",
-    "Phase 5 \u2014 End-to-end test: new project \u2192 Forge writes to GitHub \u2192 Render deploys \u2192 live URL",
-    "Ongoing: update context pack at end of each session"
+    "FIRST -- Verify stream.js read-loop fix is working: test with a simple single-file app (GET / returns HTML page). No seed data, no DB, no AI. Just proof the write happens.",
+    "If simple test passes -- run Intel build. One prompt, watch it write without looping.",
+    "If Intel passes -- update context pack, update rebuild plan doc, declare v2 complete.",
+    "Phase 6 (post-v2): Replace Anthropic SDK agent loop in stream.js with true token streaming to client (tokens appear in real time, not after full response). This is the UX upgrade, not a correctness fix.",
+    "Sandbox-ERP migration: initiate Replit export and dependency audit (Clerk for auth)",
+    "BYO custom domain support for ForgeOS published apps"
   ],
   "architecture": {
     "model": "ForgeOS v2 \u2014 Claude writes directly to GitHub, Render deploys, ForgeOS is the GUI layer",
@@ -245,18 +245,18 @@
     "admin_auth_proxy": "Cookie-session Set-Cookie headers unreliable through ForgeOS proxy. Use bearer token stored in localStorage + passed as query param on first authenticated load.",
     "workspace_tsx_dead_tabs": "RESOLVED \u2014 Shell/Diff/Edit/Plan/Analytics removed, Files/Commits/Render added",
     "projects_table_has_iteration_columns": "PENDING Phase 4 \u2014 iterations table and currentRunId column still exist in DB, ProjectsList.tsx still has local iteration interface",
-    "slug_not_in_projects_table": "KNOWN \u2014 slug lives in published_apps table, not projects. Workspace fetches it via /api/projects/:id/publish on mount. Works correctly."
+    "slug_not_in_projects_table": "KNOWN \u2014 slug lives in published_apps table, not projects. Workspace fetches it via /api/projects/:id/publish on mount. Works correctly.",
+    "stream_js_was_missing_nudges": "RESOLVED -- read-loop detection added to stream.js (b2c0164). Nudges in forge.js were dead code since stream.js is the active engine.",
+    "github_create_branch_missing": "RESOLVED -- github_create_branch tool added to forge.js (dd69081). Creates branch from main HEAD via refs API before first write.",
+    "intel_build_incomplete": "PENDING -- Intel Event Content Review not yet built. Engine must be proven with simple test first."
   },
   "recent_changes": {
-    "version": "6.1.0",
-    "summary": "Phase 3 complete. UI rebuilt. TypeScript clean. Deployed live. ~1200 lines of dead code removed from client.",
+    "version": "6.2.0",
+    "summary": "Phase 4 complete. Critical engine bug found: stream.js had no nudge logic. Read-loop detection added. No apps until engine proven.",
     "key_commits": {
-      "workspace_v2": "cb04eee \u2014 Workspace v2 final, slug resolver",
-      "app_v2": "f0a57ef \u2014 App.tsx v2, iteration model removed",
-      "promptcolumn_v2": "24db8a9 \u2014 PromptColumn v2, iteration props removed",
-      "github_routes": "48eff8c \u2014 /api/github/ls, /api/github/read, /api/github/commits",
-      "css_new_tabs": "3573bfa \u2014 CSS for Files/Commits/Render v2 tabs",
-      "index_js_github_routes": "48eff8c \u2014 server routes for workspace tabs"
+      "stream_read_loop_fix": "b2c0164 -- read-loop detection in stream.js (the active engine)",
+      "github_create_branch": "dd69081 -- branch creation tool",
+      "phase4_complete": "0bb9aa4 / 525fc34 / 7cec4f0 -- schema migration, ProjectsList, DbTab deleted"
     }
   },
   "session_log": [
@@ -348,6 +348,36 @@
         "github_routes": "48eff8c",
         "css_new_tabs": "3573bfa",
         "ts_fix": "24db8a9"
+      }
+    },
+    {
+      "date": "2026-03-20",
+      "session_title": "Phase 4 Complete + Engine Bug Found and Fixed",
+      "shipped": [
+        "Phase 4 complete: run_snapshots/iterations tables dropped, currentRunId removed, projects/manager.js 470->197 lines, ProjectsList.tsx cleaned, DbTab.tsx deleted (0bb9aa4, 525fc34, 7cec4f0)",
+        "github_create_branch tool added to forge.js -- POST to GitHub refs API, creates branch from main HEAD (dd69081)",
+        "Read-loop detection added to stream.js -- the ACTUAL active engine. After 2 reads/0 writes: forced write nudge. After reads>writes+3: ongoing nudge. (b2c0164)",
+        "WRITING RULE added to forge.js system prompt: max 2 reads before first write (e98fd53)",
+        "Render tab always-on iframe confirmed working in production (sandbox-xm.forge-os.ai)"
+      ],
+      "decisions": [
+        "CRITICAL: stream.js is the active chat engine. runForgeAgent in forge.js is exported but NOT called from index.js. All nudge logic must live in stream.js.",
+        "No app builds until engine is proven with a simple test. Intel is not the test. A blank HTML page is the test.",
+        "The Intel reading loop was caused by zero guard rails in the active engine path -- not by Claude's behavior. This was a ForgeOS bug.",
+        "Phase 5 (Intel build) is blocked until simple build test passes cleanly."
+      ],
+      "pending": [
+        "Verify stream.js fix with simple single-file app build",
+        "Intel Event Content Review build -- Phase 5 proper",
+        "True token streaming to client (tokens visible in real time) -- Phase 6 UX upgrade"
+      ],
+      "key_commits": {
+        "phase4_schema": "0bb9aa4",
+        "projectslist_clean": "525fc34",
+        "dbtab_deleted": "7cec4f0",
+        "github_create_branch": "dd69081",
+        "stream_read_loop_fix": "b2c0164",
+        "writing_rule_system_prompt": "e98fd53"
       }
     }
   ],
