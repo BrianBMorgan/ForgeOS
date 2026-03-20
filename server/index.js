@@ -878,7 +878,7 @@ app.post("/api/hubspot/deals", async (req, res) => {
   }
 });
 
-const { runForgeAgent } = require("./agent/forge");
+const { streamChat } = require("./chat/stream");
 
 // ── UNIFIED AGENT CHAT + BUILD ROUTE ─────────────────────────────────────────
 // One route. One Claude session. Chat and build are the same thing.
@@ -896,17 +896,15 @@ app.post("/api/projects/:id/chat", async (req, res) => {
   const project = await projectManager.getProject(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
-
   let history = [];
   try {
     const rows = await brain.getConversation(project.id, 30);
-    // Cap total history size to prevent context blowout on long sessions
     history = rows.map(function(r) { return { role: r.role, content: r.content }; });
   } catch {}
 
   brain.appendConversation(project.id, "user", message.trim()).catch(function() {});
 
-  // Set up SSE
+  // SSE setup
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -916,43 +914,22 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     res.write("data: " + JSON.stringify(evt) + "\n\n");
   }
 
-  const filesWritten = [];
-
-  function onMessage(evt) {
-    if (evt.type === "thinking") send({ type: "thinking", content: evt.content });
-    if (evt.type === "agent_message") send({ type: "agent_message", content: evt.content });
-    if (evt.type === "tool_status") send({ type: "tool_status", content: evt.content });
-    if (evt.type === "file_written") {
-      filesWritten.push(evt.path);
-      send({ type: "tool_status", content: "✓ Written: " + evt.path });
-    }
-    if (evt.type === "message") send({ type: "thinking", content: evt.content });
-  }
-
   try {
-    const result = await runForgeAgent({
+    const assistantMsg = await streamChat({
       projectId: project.id,
       userMessage: message.trim(),
-      wsDir: null,
       history: history,
       skillContext: skillContext || "",
       attachments: attachments || [],
-      onMessage: onMessage,
+      onEvent: function(evt) { send(evt); },
     });
 
-    const assistantMsg = result.message || "Done.";
     brain.appendConversation(project.id, "assistant", assistantMsg).catch(function() {});
 
-    send({
-        type: "done",
-        role: "assistant",
-        content: assistantMsg,
-        building: false,
-        createdAt: Date.now(),
-      });
+    send({ type: "done", role: "assistant", content: assistantMsg, building: false, createdAt: Date.now() });
   } catch (err) {
-    console.error("[forge-agent] Error:", err.message);
-    send({ type: "error", error: "Agent error: " + err.message });
+    console.error("[stream-chat] Error:", err.message);
+    send({ type: "error", error: "Chat error: " + err.message });
   }
 
   res.end();
