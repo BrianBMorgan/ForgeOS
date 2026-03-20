@@ -81,7 +81,17 @@ The signal: if the message has a verb that implies action (build, fix, change, m
 
 ## ONE RULE ABOVE ALL OTHERS
 
-In every response, either say something that matters or do something that matters. Reasoning and action in the same breath. Never a round that exists only to announce what the next round will do.`;
+In every response, either say something that matters or do something that matters. Reasoning and action in the same breath. Never a round that exists only to announce what the next round will do.
+
+## BUILD MANDATE — NON-NEGOTIABLE
+
+If the user has asked you to build something and you have not yet called write_file in this session:
+- You have not started. Reading files is not starting. Listing files is not starting. Announcing a plan is not starting.
+- The ONLY acceptable next action after reading/scanning is to call write_file.
+- Do not summarize what you found. Do not describe the scaffold. Do not explain what you are about to do.
+- Write the first file. Then the next. Then task_complete. That is the entire job.
+
+If you catch yourself writing a message that starts with "The scaffold looks good" or "This is a clean setup" or "Here's my plan" or "I'll start by" — stop. Delete it. Call write_file instead.`;
 // ── TOOL DEFINITIONS ──────────────────────────────────────────────────────────
 
 const TOOLS = [
@@ -633,10 +643,19 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       });
       var didNoTools = lastAssistantTools.length === 0;
       var looksLikeMoreWork = (finalMessage || "").match(
-        /i('ll| will| can| need to|'m going to)|next|now i|let me|plan|going to write|going to create|going to build|going to add|going to fix|going to push|will write|will create|will build|will add|will fix|will push|here'?s (the|my|what|how)/i
+        /i('ll| will| can| need to|'m going to)|next|now i|let me|plan|going to|will write|will create|will build|will add|will fix|will push|will start|will begin|will set|will install|will make|will use|will need|here'?s (the|my|what|how)|looks (good|clean|solid|like)|this is (a |the )?(clean|good|solid|standard|typical)|scaffold|the (app|project|server|code) (needs|requires|should|will|has)|i('ve| have) (reviewed|read|looked|checked|scanned|examined)/i
       );
-      if ((didNoTools || onlyDidReads) && looksLikeMoreWork && round < MAX_AGENT_ROUNDS - 1) {
-        messages.push({ role: "user", content: [{ type: "text", text: "Don't describe what you're going to do — do it now. Use a tool." }] });
+      if ((didNoTools || onlyDidReads) && round < MAX_AGENT_ROUNDS - 1) {
+        // Fire the nudge on ANY read-only or no-tool round, regardless of message content.
+        // The agent has read but not written — that is never an acceptable stopping point on a build.
+        var filesWrittenSoFar = messages.filter(function(m) {
+          return m.role === "assistant" && Array.isArray(m.content) &&
+            m.content.some(function(b) { return b.type === "tool_use" && b.name === "write_file"; });
+        }).length;
+        var nudgeMsg = filesWrittenSoFar === 0
+          ? "You have read but not written anything. That means you have not started. Call write_file now — no preamble, no summary, no plan. Write the first file."
+          : "Don't describe what you're going to do — do it now. Use a tool.";
+        messages.push({ role: "user", content: [{ type: "text", text: nudgeMsg }] });
         continue;
       }
       break;
