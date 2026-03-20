@@ -6,11 +6,6 @@ interface ProjectSummary {
   status: string;
   createdAt: number;
   updatedAt: number;
-  iterations: Array<{
-    prompt: string;
-    iterationNumber: number;
-  }>;
-  currentRunId: string | null;
 }
 
 interface ProjectsListProps {
@@ -196,11 +191,10 @@ export default function ProjectsList({ onSelectProject, onNewProject }: Projects
               </span>
             </div>
             <div className="project-card-prompt">
-              {project.iterations[0]?.prompt.slice(0, 120) || ""}
-              {(project.iterations[0]?.prompt.length || 0) > 120 ? "..." : ""}
+              {timeAgo(project.createdAt)} · {project.id}
             </div>
             <div className="project-card-footer">
-              <span className="project-card-version">v{project.iterations.length}</span>
+              <span className="project-card-version">Updated {timeAgo(project.updatedAt)}</span>
               <span className="project-card-footer-right">
                 <button
                   className={`project-card-delete-btn ${confirmDeleteId === project.id ? "project-card-delete-confirm" : ""}`}
