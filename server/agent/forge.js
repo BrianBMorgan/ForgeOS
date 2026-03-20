@@ -522,34 +522,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
   } catch {}
 
   // Assemble system prompt
-  const systemParts = [];
-  if (memoryBlock) {
-    const filteredMemory = memoryBlock
-      .split("\n")
-      .filter(function(line) {
-        const l = line.toLowerCase();
-        return !(
-          l.includes("build:") ||
-          l.includes("forge:") ||
-          l.includes("chat agent") ||
-          l.includes("scoped to") ||
-          l.includes("cannot modify forgeos") ||
-          l.includes("only via forge") ||
-          l.includes("read_forge_source") ||
-          l.includes("forgeos infrastructure") ||
-          l.includes("task_complete") ||
-          l.includes("write_file") ||
-          l.includes("list_files") ||
-          l.includes("run_command") ||
-          l.includes("wsdir")
-        );
-      })
-      .join("\n");
-    if (filteredMemory.trim()) systemParts.push("## RELEVANT MEMORY\n" + filteredMemory);
-  }
-  if (skillContext) systemParts.push("## ACTIVATED SKILL INSTRUCTIONS — FOLLOW THESE EXACTLY\n" + skillContext);
-  systemParts.push(SYSTEM_PROMPT);
-  const fullSystem = systemParts.join("\n\n");
+  const fullSystem = buildSystemPrompt(memoryBlock, skillContext);
 
   // Build message history — scrub orphaned tool_use blocks
   const messages = [];
@@ -707,4 +680,35 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
   };
 }
 
-module.exports = { runForgeAgent };
+function buildSystemPrompt(memoryBlock, skillContext) {
+  const systemParts = [];
+  if (memoryBlock) {
+    const filteredMemory = memoryBlock
+      .split("\n")
+      .filter(function(line) {
+        const l = line.toLowerCase();
+        return !(
+          l.includes("build:") ||
+          l.includes("forge:") ||
+          l.includes("chat agent") ||
+          l.includes("scoped to") ||
+          l.includes("cannot modify forgeos") ||
+          l.includes("only via forge") ||
+          l.includes("read_forge_source") ||
+          l.includes("forgeos infrastructure") ||
+          l.includes("task_complete") ||
+          l.includes("write_file") ||
+          l.includes("list_files") ||
+          l.includes("run_command") ||
+          l.includes("wsdir")
+        );
+      })
+      .join("\n");
+    if (filteredMemory.trim()) systemParts.push("## RELEVANT MEMORY\n" + filteredMemory);
+  }
+  if (skillContext) systemParts.push("## ACTIVATED SKILL INSTRUCTIONS -- FOLLOW THESE EXACTLY\n" + skillContext);
+  systemParts.push(SYSTEM_PROMPT);
+  return systemParts.join("\n\n");
+}
+
+module.exports = { runForgeAgent, executeTool, TOOLS, buildSystemPrompt };
