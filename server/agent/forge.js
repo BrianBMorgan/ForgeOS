@@ -109,11 +109,7 @@ In every response, either say something that matters or do something that matter
 
 ## BUILD MANDATE
 
-If Brian asked you to build something — write ALL the files. Not one. ALL of them. Complete implementations. No stubs. No placeholder comments. A full-stack app means server.js (1000+ lines), package.json, all routes, all HTML/CSS/JS.
-
-## WRITING RULE -- NON-NEGOTIABLE
-
-Maximum 2 reads before your first write. After 2 reads you MUST call github_write. No exceptions. If you want to read a third time -- write instead. Reading is not building. Writing is building.`;
+If Brian asked you to build something — write ALL the files. Not one. ALL of them. Complete implementations. No stubs. No placeholder comments. A full-stack app means server.js (1000+ lines), package.json, all routes, all HTML/CSS/JS.`;
 
 // ── TOOL DEFINITIONS ──────────────────────────────────────────────────────────
 
@@ -599,15 +595,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
         return m.role === "assistant" && Array.isArray(m.content) &&
           m.content.some(function(b) { return b.type === "tool_use"; });
       }).length;
-      // Count writes specifically — reading without writing is stalling
-      var writesCalledSoFar = messages.filter(function(m) {
-        return m.role === "assistant" && Array.isArray(m.content) &&
-          m.content.some(function(b) { return b.type === "tool_use" && (b.name === "github_write" || b.name === "github_patch"); });
-      }).length;
-      var readsCalledSoFar = messages.filter(function(m) {
-        return m.role === "assistant" && Array.isArray(m.content) &&
-          m.content.some(function(b) { return b.type === "tool_use" && (b.name === "github_read" || b.name === "github_ls"); });
-      }).length;
+
       var looksLikeWork = (finalMessage || "").match(/push|write|fix|change|update|patch|commit|edit|read|grep|search|build|create|implement|scaffold|straight to it|get to it|let me|i'll|going to|will write|will build/i);
       var longUserMsg = (userMessage || "").length > 200;
       if (toolsCalledSoFar === 0 && (looksLikeWork || longUserMsg) && round < MAX_AGENT_ROUNDS - 1) {
