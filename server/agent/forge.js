@@ -611,13 +611,18 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       console.error("[forge-agent] Hard timeout after " + MAX_AGENT_ROUNDS + " rounds or 3 minutes");
       break;
     }
-    var response = await client.messages.create({
+    // Round 0: force a tool call — no narration allowed on first response
+    var callOptions = round === 0
+      ? { tool_choice: { type: "any" } }
+      : {};
+
+    var response = await client.messages.create(Object.assign({
       model: FORGE_MODEL,
       max_tokens: 16000,
       system: fullSystem,
       tools: TOOLS,
       messages: messages,
-    }, { timeout: 300000 }); // 5 min per Claude call max
+    }, callOptions), { timeout: 300000 }); // 5 min per Claude call max
 
     // Append assistant turn
     messages.push({ role: "assistant", content: response.content });
