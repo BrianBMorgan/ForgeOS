@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { ProjectData } from "../App";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -571,7 +571,7 @@ function CommitsTab({ projectId, slug }: { projectId: string | null; slug?: stri
     if (branch) fetchCommits();
   }, [branch, fetchCommits]);
 
-  const handleRollback = async (sha: string, message: string) => {
+  const handleRollback = async (sha: string, _message: string) => {
     if (!projectId) return;
     setRollingBack(sha);
     setRollbackMsg(null);
