@@ -1071,6 +1071,7 @@ function BrainTab() {
 
 export default function Workspace({ projectData }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("files");
+  const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: CustomEvent) => setActiveTab(e.detail);
@@ -1079,7 +1080,17 @@ export default function Workspace({ projectData }: WorkspaceProps) {
   }, []);
 
   const projectId = projectData?.id || null;
-  const slug = (projectData as any)?.slug || null;
+
+  // Fetch slug from publish status — slug lives in published_apps, not projects table
+  useEffect(() => {
+    if (!projectId) { setResolvedSlug(null); return; }
+    fetch(`/api/projects/${projectId}/publish`)
+      .then(r => r.json())
+      .then(d => setResolvedSlug(d.slug || null))
+      .catch(() => setResolvedSlug(null));
+  }, [projectId]);
+
+  const slug = resolvedSlug;
 
   const renderTabContent = () => {
     switch (activeTab) {
