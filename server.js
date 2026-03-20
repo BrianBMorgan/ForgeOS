@@ -397,77 +397,368 @@ app.post('/api/actions/redeploy', function(req, res) {
   });
 });
 
-// -- Chat -------------------------------------------------------------------------------
+// ── MC Agent Loop — God Mode ───────────────────────────────────────────────────
+var MC_TOOLS = [
+  {
+    name: "forge_status",
+    description: "Get live ForgeOS system status — health, Render service state, credentials, Brain memory counts, recent commits, deploy logs. Call this whenever Brian asks about system state, uptime, or current status.",
+    input_schema: {
+      type: "object",
+      properties: {
+        checks: {
+          type: "array",
+          items: { type: "string", enum: ["status", "memory", "builds", "logs"] },
+          description: "Which checks to run. Omit or pass all four for a full status check."
+        }
+      }
+    }
+  },
+  {
+    name: "github_read",
+    description: "Read any file from the BrianBMorgan/ForgeOS repository on the main branch. Use this to inspect ForgeOS source files before making changes.",
+    input_schema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "File path relative to repo root, e.g. 'server/agent/forge.js'" },
+        branch: { type: "string", description: "Branch name. Defaults to 'main'." }
+      },
+      required: ["path"]
+    }
+  },
+  {
+    name: "github_patch",
+    description: "Make a surgical find-and-replace edit to any ForgeOS file on GitHub. Fetches the file, applies all replacements, commits in one call. Use this for targeted changes — config values, prompt updates, single function edits. NEVER use on workspace files or apps/<slug> branches.",
+    input_schema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "File path, e.g. 'server/agent/forge.js'" },
+        branch: { type: "string", description: "Branch. Defaults to 'main'." },
+        replacements: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              find: { type: "string" },
+              replace: { type: "string" }
+            },
+            required: ["find", "replace"]
+          }
+        },
+        message: { type: "string", description: "Commit message" }
+      },
+      required: ["path", "replacements", "message"]
+    }
+  },
+  {
+    name: "github_write",
+    description: "Write or overwrite a complete ForgeOS file on GitHub. Use for large rewrites. For surgical changes, prefer github_patch. NEVER use on workspace files or apps/<slug> branches.",
+    input_schema: {
+      type: "object",
+      properties: {
+        path: { type: "string" },
+        branch: { type: "string", description: "Defaults to 'main'" },
+        content: { type: "string", description: "Complete file content" },
+        message: { type: "string" }
+      },
+      required: ["path", "content", "message"]
+    }
+  },
+  {
+    name: "db_query",
+    description: "Run a read-only SQL query directly against the ForgeOS Neon database. SELECT only — no mutations. Use to inspect Brain memories, conversations, projects, or any ForgeOS data.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "SQL SELECT query" }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "render_action",
+    description: "Interact with the ForgeOS Render service — trigger redeploy, get service info, get deploy logs.",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["redeploy", "status", "logs"],
+          description: "Action to perform"
+        }
+      },
+      required: ["action"]
+    }
+  },
+  {
+    name: "brain_query",
+    description: "Search the ForgeOS Brain for memories, patterns, preferences, mistakes, or snippets. Use when Brian asks what Forge knows or remembers about something.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query" },
+        category: { type: "string", enum: ["pattern", "preference", "mistake", "snippet", "project"], description: "Optional category filter" }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "respond",
+    description: "Send a final response to Brian. Call this when you have completed all actions and are ready to report back.",
+    input_schema: {
+      type: "object",
+      properties: {
+        message: { type: "string", description: "Your complete response to Brian" }
+      },
+      required: ["message"]
+    }
+  }
+];
+
+async function runMcTool(toolName, toolInput, env) {
+  var GITHUB_TOKEN = env.GITHUB_TOKEN || '';
+  var RENDER_API_KEY = env.RENDER_API_KEY || '';
+  var RENDER_SERVICE_ID = 'srv-d6h2rt56ubrc73duanfg';
+  var FORGEOS_HOST = 'forge-os.ai';
+
+  switch (toolName) {
+
+    case 'forge_status': {
+      var checks = toolInput.checks || ['status', 'memory', 'builds', 'logs'];
+      var results = {};
+
+      if (checks.includes('status')) {
+        try {
+          var sr = await fetchUrl({ hostname: FORGEOS_HOST, path: '/api/dashboard/status', method: 'GET', headers: { 'Accept': 'application/json', 'User-Agent': 'MC-Agent' } }, null, 8000);
+          results.status = JSON.parse(sr.body);
+        } catch(e) { results.status = { error: e.message }; }
+      }
+      if (checks.includes('memory')) {
+        try {
+          var mr = await fetchUrl({ hostname: FORGEOS_HOST, path: '/api/dashboard/memory', method: 'GET', headers: { 'Accept': 'application/json', 'User-Agent': 'MC-Agent' } }, null, 8000);
+          results.memory = JSON.parse(mr.body);
+        } catch(e) { results.memory = { error: e.message }; }
+      }
+      if (checks.includes('builds')) {
+        try {
+          var br = await fetchUrl({ hostname: 'api.github.com', path: '/repos/BrianBMorgan/ForgeOS/commits?per_page=5', method: 'GET', headers: { 'Authorization': 'token ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'MC-Agent' } }, null, 10000);
+          var commits = JSON.parse(br.body);
+          results.builds = Array.isArray(commits) ? commits.map(function(c) { return { sha: c.sha.slice(0,7), message: c.commit.message.split('\n')[0].slice(0,80), date: c.commit.author.date }; }) : { error: 'unexpected response' };
+        } catch(e) { results.builds = { error: e.message }; }
+      }
+      if (checks.includes('logs')) {
+        try {
+          var lsr = await fetchUrl({ hostname: 'api.render.com', path: '/v1/services/' + RENDER_SERVICE_ID, method: 'GET', headers: { 'Authorization': 'Bearer ' + RENDER_API_KEY, 'Accept': 'application/json' } }, null, 10000);
+          var svc = JSON.parse(lsr.body);
+          var ownerId = svc.ownerId || '';
+          if (ownerId) {
+            var lr = await fetchUrl({ hostname: 'api.render.com', path: '/v1/logs?ownerId=' + encodeURIComponent(ownerId) + '&resource=' + encodeURIComponent(RENDER_SERVICE_ID) + '&limit=20&direction=backward', method: 'GET', headers: { 'Authorization': 'Bearer ' + RENDER_API_KEY, 'Accept': 'application/json' } }, null, 15000);
+            var ld = JSON.parse(lr.body);
+            results.logs = (ld.logs || []).map(function(l) { return l.message; }).filter(Boolean).slice(0, 20);
+          }
+        } catch(e) { results.logs = { error: e.message }; }
+      }
+      return JSON.stringify(results, null, 2);
+    }
+
+    case 'github_read': {
+      var branch = toolInput.branch || 'main';
+      try {
+        var gr = await fetchUrl({ hostname: 'api.github.com', path: '/repos/BrianBMorgan/ForgeOS/contents/' + toolInput.path + '?ref=' + branch, method: 'GET', headers: { 'Authorization': 'token ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'MC-Agent' } }, null, 15000);
+        var gd = JSON.parse(gr.body);
+        if (!gr.body || gr.status !== 200) return 'Error ' + gr.status + ': ' + gr.body.slice(0, 200);
+        var decoded = Buffer.from(gd.content, 'base64').toString('utf-8');
+        return '// FILE: ' + toolInput.path + ' (branch: ' + branch + ', sha: ' + gd.sha.slice(0,7) + ')\n' + decoded;
+      } catch(e) { return 'github_read error: ' + e.message; }
+    }
+
+    case 'github_patch': {
+      var branch = toolInput.branch || 'main';
+      try {
+        var pr = await fetchUrl({ hostname: 'api.github.com', path: '/repos/BrianBMorgan/ForgeOS/contents/' + toolInput.path + '?ref=' + branch, method: 'GET', headers: { 'Authorization': 'token ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'MC-Agent' } }, null, 15000);
+        var pd = JSON.parse(pr.body);
+        if (pr.status !== 200) return 'Read error ' + pr.status;
+        var pContent = Buffer.from(pd.content, 'base64').toString('utf-8');
+        var pSha = pd.sha;
+        var applied = [], failed = [];
+        for (var ri = 0; ri < toolInput.replacements.length; ri++) {
+          var rep = toolInput.replacements[ri];
+          if (pContent.includes(rep.find)) {
+            pContent = pContent.replace(rep.find, rep.replace);
+            applied.push(rep.find.slice(0, 50));
+          } else {
+            failed.push(rep.find.slice(0, 50));
+          }
+        }
+        if (failed.length > 0 && applied.length === 0) return 'No replacements matched. Failed: ' + failed.join('; ');
+        var pushBody = JSON.stringify({ message: toolInput.message, content: Buffer.from(pContent).toString('base64'), sha: pSha, branch: branch });
+        var pushBuf = Buffer.from(pushBody, 'utf-8');
+        var wr = await fetchUrl({ hostname: 'api.github.com', path: '/repos/BrianBMorgan/ForgeOS/contents/' + toolInput.path, method: 'PUT', headers: { 'Authorization': 'token ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json', 'Content-Length': pushBuf.length, 'User-Agent': 'MC-Agent' } }, pushBuf, 20000);
+        var wd = JSON.parse(wr.body);
+        if (wr.status !== 200 && wr.status !== 201) return 'Push error ' + wr.status + ': ' + wr.body.slice(0, 200);
+        return 'Patched ' + toolInput.path + ' — ' + applied.length + ' replacement(s) applied. Commit: ' + (wd.commit && wd.commit.sha ? wd.commit.sha.slice(0,7) : 'done') + (failed.length ? '. Not found: ' + failed.join('; ') : '');
+      } catch(e) { return 'github_patch error: ' + e.message; }
+    }
+
+    case 'github_write': {
+      var branch = toolInput.branch || 'main';
+      try {
+        var wr2 = await fetchUrl({ hostname: 'api.github.com', path: '/repos/BrianBMorgan/ForgeOS/contents/' + toolInput.path + '?ref=' + branch, method: 'GET', headers: { 'Authorization': 'token ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'MC-Agent' } }, null, 15000);
+        var wsha = wr2.status === 200 ? JSON.parse(wr2.body).sha : null;
+        var wBody = JSON.stringify({ message: toolInput.message, content: Buffer.from(toolInput.content).toString('base64'), sha: wsha, branch: branch });
+        var wBuf = Buffer.from(wBody, 'utf-8');
+        var wr3 = await fetchUrl({ hostname: 'api.github.com', path: '/repos/BrianBMorgan/ForgeOS/contents/' + toolInput.path, method: 'PUT', headers: { 'Authorization': 'token ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json', 'Content-Length': wBuf.length, 'User-Agent': 'MC-Agent' } }, wBuf, 20000);
+        var wd2 = JSON.parse(wr3.body);
+        if (wr3.status !== 200 && wr3.status !== 201) return 'Write error ' + wr3.status + ': ' + wr3.body.slice(0, 200);
+        return 'Written ' + toolInput.path + ' — commit: ' + (wd2.commit && wd2.commit.sha ? wd2.commit.sha.slice(0,7) : 'done');
+      } catch(e) { return 'github_write error: ' + e.message; }
+    }
+
+    case 'db_query': {
+      if (!sql) return 'No database connection';
+      var q = (toolInput.query || '').trim().toLowerCase();
+      if (q.startsWith('drop') || q.startsWith('delete') || q.startsWith('truncate') || q.startsWith('update') || q.startsWith('insert') || q.startsWith('alter')) {
+        return 'Error: db_query is read-only. SELECT queries only.';
+      }
+      try {
+        var rows = await sql.unsafe(toolInput.query);
+        return JSON.stringify(rows.slice(0, 50), null, 2);
+      } catch(e) { return 'Query error: ' + e.message; }
+    }
+
+    case 'render_action': {
+      if (!RENDER_API_KEY) return 'RENDER_API_KEY not set';
+      try {
+        if (toolInput.action === 'redeploy') {
+          var rb = Buffer.from(JSON.stringify({ clearCache: false }), 'utf-8');
+          var rr = await fetchUrl({ hostname: 'api.render.com', path: '/v1/services/' + RENDER_SERVICE_ID + '/deploys', method: 'POST', headers: { 'Authorization': 'Bearer ' + RENDER_API_KEY, 'Content-Type': 'application/json', 'Content-Length': rb.length, 'Accept': 'application/json' } }, rb, 15000);
+          var rd = JSON.parse(rr.body);
+          return rr.status === 200 || rr.status === 201 ? 'Redeploy triggered — deploy ID: ' + (rd.id || rd.deploy && rd.deploy.id || 'ok') : 'Redeploy error ' + rr.status + ': ' + rr.body.slice(0,200);
+        }
+        if (toolInput.action === 'status') {
+          var sr2 = await fetchUrl({ hostname: 'api.render.com', path: '/v1/services/' + RENDER_SERVICE_ID, method: 'GET', headers: { 'Authorization': 'Bearer ' + RENDER_API_KEY, 'Accept': 'application/json' } }, null, 10000);
+          return sr2.body.slice(0, 2000);
+        }
+        if (toolInput.action === 'logs') {
+          var sr3 = await fetchUrl({ hostname: 'api.render.com', path: '/v1/services/' + RENDER_SERVICE_ID, method: 'GET', headers: { 'Authorization': 'Bearer ' + RENDER_API_KEY, 'Accept': 'application/json' } }, null, 10000);
+          var svc2 = JSON.parse(sr3.body);
+          var lr2 = await fetchUrl({ hostname: 'api.render.com', path: '/v1/logs?ownerId=' + encodeURIComponent(svc2.ownerId || '') + '&resource=' + encodeURIComponent(RENDER_SERVICE_ID) + '&limit=40&direction=backward', method: 'GET', headers: { 'Authorization': 'Bearer ' + RENDER_API_KEY, 'Accept': 'application/json' } }, null, 15000);
+          var ld2 = JSON.parse(lr2.body);
+          return (ld2.logs || []).map(function(l) { return l.message; }).filter(Boolean).join('\n');
+        }
+      } catch(e) { return 'render_action error: ' + e.message; }
+      return 'Unknown action';
+    }
+
+    case 'brain_query': {
+      try {
+        var bqRes = await fetchUrl({ hostname: FORGEOS_HOST, path: '/api/brain/search?q=' + encodeURIComponent(toolInput.query) + (toolInput.category ? '&category=' + toolInput.category : ''), method: 'GET', headers: { 'Accept': 'application/json', 'User-Agent': 'MC-Agent' } }, null, 8000);
+        return bqRes.body.slice(0, 3000);
+      } catch(e) { return 'brain_query error: ' + e.message; }
+    }
+
+    default:
+      return 'Unknown tool: ' + toolName;
+  }
+}
+
+async function runMcAgent(userMessage, history, onChunk, env) {
+  var MAX_ROUNDS = 20;
+  var messages = history.map(function(m) { return { role: m.role, content: m.content }; });
+
+  // Ensure messages array ends with user turn
+  if (messages.length === 0 || messages[messages.length - 1].role !== 'user') {
+    messages.push({ role: 'user', content: userMessage });
+  }
+
+  var finalResponse = '';
+
+  for (var round = 0; round < MAX_ROUNDS; round++) {
+    var response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 16000,
+      system: MC_SYSTEM,
+      tools: MC_TOOLS,
+      messages: messages,
+    });
+
+    messages.push({ role: 'assistant', content: response.content });
+
+    // Extract text blocks
+    var textBlocks = response.content.filter(function(b) { return b.type === 'text'; });
+    if (textBlocks.length > 0) {
+      var text = textBlocks.map(function(b) { return b.text; }).join('\n').trim();
+      if (text) {
+        finalResponse = text;
+        if (onChunk) onChunk({ type: 'thinking', content: text });
+      }
+    }
+
+    // Check for respond tool — agent is done
+    var respondBlock = response.content.find(function(b) { return b.type === 'tool_use' && b.name === 'respond'; });
+    if (respondBlock) {
+      finalResponse = respondBlock.input.message || finalResponse;
+      break;
+    }
+
+    if (response.stop_reason === 'end_turn') break;
+    if (response.stop_reason !== 'tool_use') break;
+
+    // Execute tools
+    var toolUseBlocks = response.content.filter(function(b) { return b.type === 'tool_use'; });
+    var toolResults = [];
+
+    for (var t = 0; t < toolUseBlocks.length; t++) {
+      var toolUse = toolUseBlocks[t];
+      if (onChunk) onChunk({ type: 'tool_status', content: 'Running ' + toolUse.name + '...' });
+      var result = await runMcTool(toolUse.name, toolUse.input || {}, env);
+      toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: String(result) });
+    }
+
+    messages.push({ role: 'user', content: toolResults });
+  }
+
+  return finalResponse || 'Done.';
+}
+
+// -- Chat history + Agent endpoint -----------------------------------------------
 app.get('/api/chat/history', async function(req, res) { res.json({ ok: true, history: await getMcHistory() }); });
+
 app.post('/api/chat', async function(req, res) {
   var msg = (req.body && req.body.message) ? String(req.body.message).trim() : '';
   if (!msg) return res.status(400).json({ error: 'Message is required' });
 
-  // Load history — same pattern as ForgeOS brain.getConversation
   var history = [];
   try {
     var histRows = await getMcHistory();
     history = histRows.map(function(r) { return { role: r.role, content: r.content }; });
   } catch(e) {}
 
-  // Save user message — same as ForgeOS brain.appendConversation
   saveMcMsg('user', msg).catch(function() {});
 
-  // Set up SSE — exact copy of ForgeOS pattern
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
   function send(evt) {
-    res.write('data: ' + JSON.stringify(evt) + '\n\n');
+    if (!res.writableEnded) res.write('data: ' + JSON.stringify(evt) + '\n\n');
   }
 
-  // Always include current message — never send empty array to Claude
-  if (history.length === 0) {
-    history = [{ role: 'user', content: msg }];
-  }
+  var env = {
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN || '',
+    RENDER_API_KEY: process.env.RENDER_API_KEY || '',
+  };
 
   try {
-    var fullResponse = '';
-    var stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 16000,
-      system: MC_SYSTEM,
-      messages: history,
-    });
-
-    // Emit thinking events as text streams in — same event type as ForgeOS
-    stream.on('text', function(text) {
-      fullResponse += text;
-      send({ type: 'thinking', content: fullResponse });
-    });
-
-    stream.on('error', function(err) {
-      console.error('[mc-chat] stream error:', err.message);
-      send({ type: 'error', error: err.message });
-      if (!res.writableEnded) res.end();
-    });
-
-    stream.on('finalMessage', async function() {
-      // Save assistant response
-      saveMcMsg('assistant', fullResponse).catch(function() {});
-      // Send done — exact same shape as ForgeOS
-      send({
-        type: 'done',
-        role: 'assistant',
-        content: fullResponse,
-        building: false,
-        createdAt: Date.now(),
-      });
-      if (!res.writableEnded) res.end();
-    });
-
+    var finalMsg = await runMcAgent(msg, history, function(evt) { send(evt); }, env);
+    saveMcMsg('assistant', finalMsg).catch(function() {});
+    send({ type: 'done', role: 'assistant', content: finalMsg, building: false, createdAt: Date.now() });
   } catch(err) {
-    console.error('[mc-chat] error:', err.message);
-    send({ type: 'error', error: 'Chat error: ' + err.message });
-    if (!res.writableEnded) res.end();
+    console.error('[mc-agent] error:', err.message);
+    send({ type: 'error', error: 'Agent error: ' + err.message });
   }
+
+  if (!res.writableEnded) res.end();
 });
 
 // ── Context Pack Prompt ───────────────────────────────────────────────────────
