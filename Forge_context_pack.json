@@ -1,389 +1,263 @@
 {
-  "meta": {
-    "version": "4.2.0",
-    "updated": "2026-03-19",
-    "description": "ForgeOS live architecture snapshot. Authoritative reference for all builds and ForgeOS modifications. Updated by Claude + Brian session 2026-03-18/19."
-  },
+  "version": "6.0.0",
+  "updated": "2026-03-20",
+  "current_state": "ForgeOS v2 architecture decided. Phase 1 demolition underway.\n\nCOMPLETED:\n- server/builder.js deleted\n- server/workspace/manager.js deleted\n- server/pipeline/runner.js deleted\n- server/index.js surgically cleaned locally (1774\u21921451 lines, zero workspace/createRun/buildAndDeploy refs)\n  *** THIS FILE IS STAGED BUT NOT YET PUSHED TO GITHUB ***\n  Staged file contains: all workspace routes removed (/iterate, /stop, /restart, /runs/:id/*, /exec),\n  buildAndDeploy removed from chat result handler, startup workspace restore removed, wsDir=null\n\nIN PROGRESS / NEXT SESSION START HERE:\n1. Re-derive and push the staged index.js (read current from GitHub, apply the same cuts, push)\n2. Update server/agent/forge.js \u2014 new v2 tool set, new system prompt\n3. Rebuild client UI \u2014 Files tab, Commits tab, remove dead tabs\n4. Project model schema migration\n5. Replace Hedwig with direct Anthropic API streaming\n6. Intel Event Content Review build \u2014 the Phase 5 test",
+  "next_steps": [
+    "FIRST \u2014 Push cleaned index.js: read current from GitHub, remove workspace/pipeline/builder requires and all workspace routes, push to main",
+    "Update server/agent/forge.js: remove write_file/task_complete/run_command/list_files/read_file tools; add github_ls and render_status; update system prompt (GitHub is the workspace, no task_complete)",
+    "Rebuild Workspace.tsx: Files tab (live GitHub tree via github_ls/github_read), Commits tab (git history + one-click rollback), remove Shell/DB/Diff/Plan/Analytics tabs",
+    "Update App.tsx: remove iteration model state, remove currentRunId polling, simplify project state",
+    "Schema migration: remove run_snapshots table, simplify projects table (drop currentRunId/iterations, add branch column)",
+    "Replace Hedwig: rewrite chat route in index.js to use direct Anthropic API streaming \u2014 no agent loop, no nudges, no guards, Claude outputs structured commands, server executes",
+    "Intel Event Content Review: build it as the definitive Phase 5 test of the new architecture"
+  ],
   "architecture": {
     "model": "ForgeOS v2 \u2014 Claude writes directly to GitHub, Render deploys, ForgeOS is the GUI layer",
-    "deployment": "Render (web service) \u2192 forge-os.ai",
     "deploy_chain": "Claude (via chat) \u2192 GitHub (BrianBMorgan/ForgeOS, apps/<slug> branch) \u2192 Render auto-deploy \u2192 *.forge-os.ai",
     "runtime": "Node.js + Express (CommonJS) on server; React + Vite (TypeScript) on client",
     "database": "Neon PostgreSQL via @neondatabase/serverless (NEON_DATABASE_URL)",
     "port": "process.env.PORT || 3001 (ForgeOS server)",
     "binding": "0.0.0.0 for all interfaces",
-    "subdomain_proxy": "Wildcard *.forge-os.ai requests proxied to published Render services",
-    "workspace_isolation": "REMOVED IN V2 \u2014 no local workspaces. Each project = one GitHub branch (apps/<slug>). GitHub is the filesystem.",
-    "static_files": "client/dist served via express.static with SPA fallback",
-    "v2_note": "Local workspace model eliminated entirely. server/builder.js, server/workspace/, server/pipeline/runner.js all deleted. /iterate, /stop, /restart routes removed from index.js."
+    "subdomain_proxy": "Wildcard *.forge-os.ai \u2192 Render services. CNAME + A record at Namecheap.",
+    "no_local_workspace": "CRITICAL: There is no local workspace in v2. No /data/workspaces/. No child processes. No install loop. GitHub is the filesystem. Render is the runtime.",
+    "what_died": [
+      "server/builder.js \u2014 DELETED",
+      "server/workspace/manager.js \u2014 DELETED",
+      "server/pipeline/runner.js \u2014 DELETED",
+      "write_file tool \u2014 GONE",
+      "task_complete tool \u2014 GONE",
+      "run_command tool \u2014 GONE",
+      "list_files tool \u2014 GONE",
+      "read_file tool \u2014 GONE",
+      "POST /api/projects/:id/iterate \u2014 GONE",
+      "POST /api/projects/:id/stop \u2014 GONE",
+      "POST /api/projects/:id/restart \u2014 GONE",
+      "GET /api/runs/:id/* routes \u2014 ALL GONE",
+      "Iteration model / run_snapshots \u2014 GONE",
+      "Hedwig (custom agent loop with nudges/guards) \u2014 BEING REPLACED"
+    ],
+    "what_survives": [
+      "Chat column CSS/layout/streaming UI \u2014 unchanged",
+      "Brain memory system (Neon + forge_memory) \u2014 unchanged",
+      "Assets tab \u2014 global file uploads to Neon as base64",
+      "Wildcard subdomain proxy (*.forge-os.ai)",
+      "Render API integration (deploy, redeploy, status, logs)",
+      "GitHub API integration (github_read/write/patch)",
+      "Mission Control \u2014 sovereign ForgeOS administrator",
+      "Settings \u2014 env vars / Global Secrets Vault",
+      "server/publish/manager.js \u2014 subdomain + Render service management",
+      "server/projects/manager.js \u2014 project CRUD (simplified)",
+      "server/memory/brain.js \u2014 Brain interface",
+      "server/assets/manager.js \u2014 asset storage",
+      "server/integrations/hubspot.js \u2014 HubSpot CRM",
+      "server/analytics/ \u2014 analytics pipeline"
+    ]
   },
   "agent": {
     "file": "server/agent/forge.js",
     "model": "claude-sonnet-4-6",
     "max_rounds": 50,
     "max_ms": 1200000,
-    "entry": "runForgeAgent({ projectId, userMessage, wsDir, history, skillContext, attachments, onMessage })",
-    "wsDir": "null in v2 \u2014 no local workspace",
-    "return_types": [
-      "{ type: 'message', message } \u2014 pure chat, no build triggered",
-      "{ type: 'error', message }"
+    "current_state": "Beast mode restored (commit 98dcbb7). Wall in place. v2 tool updates PENDING.",
+    "entry": "runForgeAgent({ projectId, userMessage, wsDir: null, history, skillContext, attachments, onMessage })",
+    "tools_current_v1_pending_removal": [
+      "list_files \u2014 reads local workspace dir (REMOVE)",
+      "read_file \u2014 reads local workspace file (REMOVE)",
+      "write_file \u2014 writes local workspace file (REMOVE)",
+      "task_complete \u2014 triggers local install/start (REMOVE)",
+      "run_command \u2014 runs shell in local workspace (REMOVE)"
     ],
-    "tools_v2": [
-      "github_ls \u2014 list files in project branch (NEW)",
-      "github_read \u2014 read any file from GitHub branch",
-      "github_write \u2014 write complete file to GitHub branch",
-      "github_patch \u2014 surgical find/replace on GitHub file",
-      "render_status \u2014 check deploy status, get live URL (NEW)",
-      "memory_search \u2014 search Brain for patterns and lessons",
-      "ask_user \u2014 send message or question to Brian"
+    "tools_keep": [
+      "github_read \u2014 read any file from GitHub branch (KEEP)",
+      "github_write \u2014 write complete file to GitHub branch (KEEP)",
+      "github_patch \u2014 surgical find/replace on GitHub file (KEEP)",
+      "memory_search \u2014 search Brain for patterns (KEEP)",
+      "ask_user \u2014 send message to Brian (KEEP)"
     ],
-    "tools_removed": [
-      "list_files \u2014 replaced by github_ls",
-      "read_file \u2014 replaced by github_read",
-      "write_file \u2014 replaced by github_write",
-      "run_command \u2014 no local workspace to run in",
-      "task_complete \u2014 no local build pipeline to trigger",
-      "fetch_url \u2014 removed"
+    "tools_add": [
+      "github_ls \u2014 list files in project branch via GitHub tree API (NEW)",
+      "render_status \u2014 check latest deploy status, return live URL (NEW)"
     ],
-    "hedwig_status": "SCHEDULED FOR REPLACEMENT \u2014 custom agent loop (nudges, guards, forced tool calls) to be replaced with direct Anthropic API streaming. Claude Code architecture.",
-    "build_flow": "Forge reads files via github_ls/github_read \u2192 writes via github_write/github_patch \u2192 Render auto-deploys \u2192 render_status confirms live URL"
+    "system_prompt_update_needed": "Remove all references to write_file/task_complete/run_command/list_files. Add: GitHub IS the workspace. Write files with github_write/github_patch. Render auto-deploys on push. No task_complete \u2014 deploy is automatic."
   },
-  "builder": {
-    "file": "server/builder.js",
-    "role": "Install + start pipeline only \u2014 no code generation (agent handles that)",
-    "entry": "buildAndDeploy(run)",
-    "requires": "run.agentBuild === true AND run.stages.builder.status === 'passed'",
-    "sequence": [
-      "1. Stop all running apps (workspace.stopAllApps)",
-      "2. Create workspace dir (workspace.createWorkspace)",
-      "3. Write agent files to disk (workspace.writeFiles)",
-      "4. Install deps (workspace.installDeps with installCommand)",
-      "5. Start app (workspace.startApp on port 4000)",
-      "6. Health check (HTTP GET / after 3s delay, 5s timeout)",
-      "7. Extract memory (brain.extractMemory on success)",
-      "8. Save run snapshot"
-    ],
-    "failure_handling": "brain.extractFailureMemory on install-failed or start-failed. run.status always set to 'completed' (workspace status captures the detail).",
-    "env_var_priority": "globalDefaults < globalSecrets < projectEnv (project vars win)"
+  "chat_engine": {
+    "current": "Hedwig \u2014 custom agent loop in server/index.js with nudges, guards, forced tool calls, task_complete detection. BEING REPLACED.",
+    "target": "Direct Anthropic API streaming. No agent loop. No nudges. No guards. Claude outputs structured commands (file writes, patches). Server parses and executes. Identical to Claude Code architecture.",
+    "why": "Hedwig fights Claude's training. Every patch found a new failure mode. The model behavior is stronger than application-layer patches. Direct streaming removes the fight entirely."
   },
   "server_routes": {
     "health": "GET /health \u2192 { status: 'ok' }",
-    "runs": {
-      "POST /api/runs": "Create run + fire buildAndDeploy (legacy direct build path)",
-      "GET /api/runs": "List all runs",
-      "GET /api/runs/:id": "Get run + live workspace status",
-      "GET /api/runs/:id/logs": "Get workspace logs. Query: since, level, source, search, limit",
-      "GET /api/runs/:id/files": "List workspace files",
-      "GET /api/runs/:id/file": "Read single file. Query: path",
-      "GET /api/runs/:id/file/search": "Search files by text. Query: text (min 2 chars)",
-      "PATCH /api/runs/:id/file": "Write file + restart app if running. Body: { path, content }"
-    },
     "projects": {
-      "POST /api/projects": "Create project + store opening prompt in brain conversation. Returns { id, runId:null, name, prompt }",
+      "POST /api/projects": "Create project. Body: { prompt, name }. Returns { id, name }. No build triggered \u2014 Forge writes to GitHub via chat.",
       "GET /api/projects": "List all projects",
-      "GET /api/projects/:id": "Full project detail with currentRun, workspace status, iterations",
+      "GET /api/projects/:id": "Get project. Returns { ...project, iterations: [], currentRun: null }. No workspace status.",
       "DELETE /api/projects/:id": "Delete project",
-      "PATCH /api/projects/:id": "Rename project. Body: { name }",
-      "POST /api/projects/:id/iterate": "Direct build path (non-chat). Large prompt guard at 3000 chars returns requiresPlan:true",
-      "POST /api/projects/:id/stop": "Stop workspace app",
-      "POST /api/projects/:id/restart": "Restart workspace \u2014 restores from snapshot if no lastStartCommand",
-      "POST /api/projects/:id/exec": "Shell command in workspace. Auto-wakes stopped workspace.",
-      "DELETE /api/projects/:id/runs/:runId": "Delete specific iteration",
-      "POST /api/projects/:id/restore/:runId": "Restore specific iteration as current"
+      "PATCH /api/projects/:id/name": "Rename project"
     },
-    "env_and_secrets": {
-      "GET /api/projects/:id/env": "List project env vars",
-      "PUT /api/projects/:id/env": "Set env var (key auto-uppercased, sanitized). Reserved keys blocked.",
-      "DELETE /api/projects/:id/env/:key": "Delete env var",
-      "GET /api/settings": "All global settings",
-      "PUT /api/settings/:key": "Set global setting",
-      "GET /api/secrets": "List secret keys (no values)",
-      "PUT /api/secrets": "Set secret (key auto-uppercased)",
-      "GET /api/secrets/:key/reveal": "Get secret value",
-      "DELETE /api/secrets/:key": "Delete secret"
-    },
-    "chat": {
-      "POST /api/projects/:id/chat": "PRIMARY BUILD + CHAT ROUTE. SSE streaming. Accepts { message, skillContext, attachments }. Events: thinking, agent_message, tool_status, file_written, run_created, done, error. Fires buildAndDeploy on task_complete.",
-      "GET /api/projects/:id/chat": "Fetch conversation history (last 50 messages)"
-    },
-    "publish": {
-      "POST /api/projects/:id/publish": "Publish to Render + register slug. Updates brain with URL.",
-      "DELETE /api/projects/:id/publish": "Unpublish",
-      "POST /api/projects/:id/slug": "Rename slug",
-      "POST /api/projects/:id/custom-domain": "Set custom domain",
-      "DELETE /api/projects/:id/custom-domain": "Remove custom domain",
-      "GET /api/projects/:id/versions": "List published versions",
-      "POST /api/projects/:id/rollback": "Rollback to version. Body: { tag, commitSha }",
-      "GET /api/projects/:id/publish": "Get publish status",
-      "GET /api/published": "List all published apps"
-    },
-    "brain": {
-      "GET /api/brain": "Brain summary: totals (projects, preferences, patterns, mistakes, snippets), topMistakes, recentProjects",
-      "POST /api/brain/upvote/:id": "Upvote a memory by numeric ID"
-    },
-    "analytics": {
-      "POST /api/analytics/events": "Ingest beacon events. Body: { projectId, events[] }",
-      "GET /api/analytics/:projectId/overview": "Overview stats. Query: range",
-      "GET /api/analytics/:projectId/pages": "Top pages",
-      "GET /api/analytics/:projectId/events": "Top events + event stream",
-      "GET /api/analytics/:projectId/vitals": "Web vitals",
-      "GET /api/analytics/:projectId/errors": "Error log",
-      "GET /api/analytics/:projectId/devices": "Device breakdown",
-      "GET /api/analytics/:projectId/timeseries": "Pageview timeseries",
-      "GET /api/analytics/:projectId/referrers": "Referrer breakdown",
-      "GET /api/analytics/:projectId/scroll": "Scroll depth"
-    },
-    "assets": {
-      "GET /api/assets": "List all assets",
-      "POST /api/assets": "Upload asset (busboy multipart, 10MB limit). Stored as base64 in Neon.",
-      "GET /api/assets/:filename": "Serve asset as binary with correct Content-Type",
-      "DELETE /api/assets/:filename": "Delete asset"
-    },
-    "skills": {
-      "GET /api/skills": "List all skills",
-      "POST /api/skills": "Create skill. Body: { name, description, instructions, tags }",
-      "PUT /api/skills/:id": "Update skill",
-      "DELETE /api/skills/:id": "Delete skill",
-      "POST /api/skills/import-url": "Import from skillsmp.com, github.com, or raw.githubusercontent.com. Parses SKILL.md frontmatter."
-    },
-    "hubspot": {
-      "GET /api/hubspot/status": "Connection status",
-      "GET /api/hubspot/contacts": "Search contacts. Query: q",
-      "POST /api/hubspot/contacts": "Create contact",
-      "GET /api/hubspot/deals": "Search deals. Query: q",
-      "POST /api/hubspot/deals": "Create deal + associate with contact"
-    },
-    "database_viewer": {
-      "GET /api/db/tables": "List all non-system tables",
-      "GET /api/db/tables/:name": "Table schema + row count",
-      "GET /api/db/tables/:name/rows": "Paginated rows. Query: limit (max 200), offset",
-      "POST /api/db/query": "Run SELECT/UPDATE/INSERT/DELETE. Blocks: DROP, TRUNCATE, ALTER, CREATE, GRANT, REVOKE"
-    },
-    "diagnostics": {
-      "GET /api/diagnostics": "Internal-only (x-forge-internal: 1 header or same-host). Runs chat manager diagnostics. Query: project_id, checks"
-    },
-    "preview_proxy": {
-      "ALL /preview/:runId/*": "Proxies to workspace app on localhost:{port}. HTML rewritten: root-relative paths prefixed with /preview/{runId}, fetch/XHR/history patched via injected script. SSE not supported (buffers HTML/CSS, pipes binary). Inspector script injected for element selection postMessage."
-    }
+    "chat": "POST /api/projects/:id/chat \u2014 SSE stream. Runs Forge agent. Returns thinking/done/error events.",
+    "brain": "GET /api/brain, POST /api/brain/search, etc.",
+    "assets": "GET/POST/DELETE /api/assets/*",
+    "publish": "GET/POST /api/publish/* \u2014 subdomain + Render service management",
+    "settings": "GET/POST /api/settings/*",
+    "removed": "All /api/runs/* routes, /iterate, /stop, /restart, /exec \u2014 GONE in v2"
   },
   "client_components": {
     "framework": "React 18 + TypeScript + Vite",
     "entry": "client/src/main.tsx \u2192 App.tsx",
     "css": "client/src/index.css (103KB \u2014 full design system)",
     "components": {
-      "App.tsx": "Root. Manages project selection, global state, tab routing between Projects/Workspace/Brain/Settings/Assets/DB.",
-      "ProjectsList.tsx": "Project cards grid. Create/delete/select projects. Shows status badges.",
-      "Workspace.tsx": "Main workspace view (87KB). Tabs: Preview, Files, Logs, Iterations, Analytics, Env Vars. Preview via /preview/:runId iframe. File editor. Log streaming.",
-      "PromptColumn.tsx": "Chat UI (18KB). SSE stream consumer. chatEndRef for scroll-to-bottom, chatThreadRef for thread container scroll. Handles all SSE event types: thinking, agent_message, tool_status, file_written, run_created, done, error. Image attachment support.",
-      "PromptColumn.css": "Chat column styles (colocated CSS file)",
-      "Settings.tsx": "Global settings, secrets vault, skills manager, HubSpot integration config.",
-      "Assets.tsx": "Asset library \u2014 upload, list, delete, copy URL.",
-      "DbTab.tsx": "Database viewer \u2014 table list, schema, row browser, SQL query runner."
-    }
+      "App.tsx": "Root. Project selection, global state, tab routing. Iteration model state being removed in v2.",
+      "ProjectsList.tsx": "Project cards. Create/delete/select projects.",
+      "Workspace.tsx": "Main workspace (87KB). NEEDS REBUILD: remove Shell/DB/Diff/Plan/Logs tabs. Add Files tab (GitHub tree), Commits tab (git history + rollback). Keep Publish, Env tabs.",
+      "PromptColumn.tsx": "Chat column (18KB). CSS/layout/streaming UI stays. Agent loop connection being replaced with direct streaming.",
+      "Settings.tsx": "Settings panels \u2014 env vars, secrets vault, skills. Unchanged.",
+      "Assets.tsx": "Asset upload/management. Unchanged."
+    },
+    "tabs_to_remove": [
+      "Shell",
+      "DB",
+      "Diff",
+      "Plan",
+      "Analytics",
+      "Logs"
+    ],
+    "tabs_to_add": [
+      "Files \u2014 live GitHub file tree, click to read, inline edit \u2192 github_patch",
+      "Commits \u2014 git history with one-click rollback via Render deploy"
+    ],
+    "tabs_to_keep": [
+      "Render/Preview (shows live *.forge-os.ai URL)",
+      "Publish",
+      "Env"
+    ]
   },
   "server_modules": {
-    "server/memory/brain.js": "Brain DB interface. ensureSchema, buildContext, extractMemory, extractFailureMemory, appendConversation, getConversation, getBrainSummary, upvoteMemory, updatePublishedUrl.",
-    "server/projects/manager.js": "Project CRUD, iteration tracking, env var management, workspace file capture.",
-    "server/workspace/manager.js": "Workspace lifecycle: createWorkspace, writeFiles, installDeps, startApp, stopApp, stopAllApps, restartApp, restoreWorkspace, listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile, searchWorkspaceFiles, execCommand, getWorkspaceStatus, getWorkspaceLogs, touchActivity, isStaticSite.",
-    "server/publish/manager.js": "Render publish/unpublish, slug management, custom domains, version tracking, rollback, export to zip, restorePublishedApps on startup.",
-    "server/analytics/manager.js": "Event ingestion and analytics queries. ensureSchema on startup.",
-    "server/assets/manager.js": "Asset storage in Neon (base64). ensureSchema on startup.",
-    "server/settings/manager.js": "Global settings, secrets vault (encrypted at rest), skills CRUD. getSecretsAsObject for env injection.",
-    "server/pipeline/runner.js": "Run lifecycle: createRun, saveRunSnapshot, getRun, getRunSync, getAllRuns.",
-    "server/integrations/hubspot.js": "HubSpot CRM: getStatus, searchContacts, createContact, searchDeals, createDeal.",
-    "server/chat/manager.js": "runDiagnostics \u2014 used by /api/diagnostics endpoint."
+    "ACTIVE": {
+      "server/index.js": "Main Express server. v2 cleanup STAGED NOT PUSHED. Will be 1451 lines after push.",
+      "server/agent/forge.js": "Forge agent loop. Beast mode (98dcbb7). v2 tool updates pending.",
+      "server/memory/brain.js": "Brain DB \u2014 memories, conversation history, failure extraction.",
+      "server/projects/manager.js": "Project CRUD, env vars, iteration tracking (simplified in v2).",
+      "server/publish/manager.js": "Subdomain + Render service lifecycle.",
+      "server/assets/manager.js": "Global asset storage in Neon as base64.",
+      "server/settings/manager.js": "Settings + Global Secrets Vault.",
+      "server/integrations/hubspot.js": "HubSpot CRM wrapper.",
+      "server/analytics/": "Analytics pipeline \u2014 tracker, manager, routes.",
+      "server/chat/manager.js": "Chat history + Brain conversation interface.",
+      "server/plan/manager.js": "Plan gate (may be simplified or removed in v2)."
+    },
+    "DELETED": {
+      "server/builder.js": "DELETED \u2014 local Claude builder call",
+      "server/workspace/manager.js": "DELETED \u2014 local workspace lifecycle",
+      "server/pipeline/runner.js": "DELETED \u2014 local install/start runner"
+    }
+  },
+  "mission_control": {
+    "url": "https://mission-control.forge-os.ai",
+    "branch": "apps/mission-control",
+    "stable_commit": "7f041ec",
+    "stack": "Plain Node.js/Express, vanilla JS, inline HTML/CSS (Mode A)",
+    "current_state": "Beast mode. Full agent loop with 8 tools. Sovereign over ForgeOS infrastructure.",
+    "tools": [
+      "forge_status",
+      "github_read",
+      "github_patch",
+      "github_write",
+      "db_query",
+      "render_action",
+      "brain_query",
+      "respond"
+    ],
+    "wall": "Does NOT touch /data/workspaces/ or apps/<slug> branches. Forge owns those.",
+    "no_self_surgery": "MC does not modify its own code. That belongs to Claude.ai sessions.",
+    "chat_ui": "Plain text only \u2014 markdown rendering killed (bf04617). Color: #e8e8f0 on dark background. Font: 12px."
   },
   "env_vars": {
     "required": {
-      "ANTHROPIC_API_KEY": "Claude API key. Used in runForgeAgent. Read at request time.",
-      "NEON_DATABASE_URL": "Neon PostgreSQL connection string. Used by brain, projects, analytics, assets, settings.",
-      "GITHUB_TOKEN": "GitHub PAT. Used by github_read, github_write, github_patch tools and skill import.",
-      "RENDER_API_KEY": "Render API key for publish/unpublish operations.",
-      "RENDER_SERVICE_ID": "Target Render service ID for deployments."
+      "ANTHROPIC_API_KEY": "Claude API \u2014 all model calls",
+      "GITHUB_TOKEN": "GitHub API \u2014 repo read/write for ForgeOS and all app branches",
+      "NEON_DATABASE_URL": "ForgeOS Neon DB \u2014 Brain, projects, assets, conversations",
+      "RENDER_API_KEY": "Render API \u2014 deploy, redeploy, service management",
+      "RENDER_OWNER_ID": "Render owner ID for service creation",
+      "BASE_DOMAIN": "forge-os.ai \u2014 wildcard subdomain base",
+      "SESSION_SECRET": "HMAC cookie signing for ForgeOS auth gate",
+      "DATA_DIR": "/data \u2014 persistent disk mount on Render"
     },
     "optional": {
-      "DATA_DIR": "Root for workspaces/ and published/ directories. Defaults to parent of server/.",
-      "BASE_DOMAIN": "Subdomain proxy base. Defaults to 'forge-os.ai'.",
-      "PORT": "Server port. Defaults to 3001.",
-      "HUBSPOT_ACCESS_TOKEN": "HubSpot private app token. If set, HubSpot CRM skill auto-seeded on startup."
-    },
-    "workspace_env_injection_order": "Global defaults \u2192 Global secrets \u2192 Project env vars (project vars win)"
+      "HUBSPOT_ACCESS_TOKEN": "HubSpot CRM integration",
+      "RESEND_API_KEY": "Email delivery",
+      "STABILITYAI_API_KEY": "StabilityAI image generation",
+      "OPENAI_API_KEY": "OpenAI fallback",
+      "ELEVENLABS_API_KEY": "Voice synthesis",
+      "VOYAGERAI_API_KEY": "VoyagerAI embeddings",
+      "ALLOWED_EMAILS": "Comma-separated whitelist for ForgeOS auth gate"
+    }
   },
-  "startup_sequence": [
-    "1. Ensure workspaces/ and published/ directories exist",
-    "2. analyticsManager.ensureSchema()",
-    "3. assetsManager.ensureSchema()",
-    "4. Auto-restore active/building projects: find from DB, restoreWorkspace for each",
-    "5. publishManager.ensureSchema() + restorePublishedApps()",
-    "6. brain.ensureSchema()",
-    "7. HubSpot skill auto-seed if HUBSPOT_ACCESS_TOKEN present and skill not yet created"
-  ],
   "conventions": {
     "module_system": "CommonJS (require/module.exports) throughout server. ES modules in client (Vite/React).",
     "api_keys": "Read from process.env at request time \u2014 never cached at module load.",
-    "error_responses": "{ error: 'message' } with appropriate HTTP status. Never expose raw API errors to client.",
+    "error_responses": "{ error: 'message' } with appropriate HTTP status.",
     "database": "@neondatabase/serverless exclusively. No pg, sqlite, mysql2.",
     "no_dotenv": "Platform injects env vars at runtime. No dotenv require anywhere.",
-    "file_storage": "In-memory or Neon DB. No disk writes for user data.",
-    "banned_packages": [
-      "bcrypt",
-      "jsonwebtoken",
-      "passport",
-      "webpack",
-      "esbuild",
-      "parcel",
-      "rollup",
-      "svelte",
-      "angular"
-    ],
-    "html_delivery": "GET / must return complete HTML. Never JSON or redirect from root.",
-    "url_style": "Root-relative everywhere (/api/...). No hardcoded localhost URLs. No base tags.",
-    "sse_pattern": "res.setHeader Content-Type: text/event-stream + Cache-Control: no-cache + Connection: keep-alive + flushHeaders(). Data: JSON.stringify(evt)\\n\\n",
-    "agent_terminology": "Use 'reforge' not 'refactor'. Use 'I'll make this update' for improvements. Reserve 'I found the bug' for actual runtime errors.",
-    "workspace_port": "Agent builds start on 4000. Platform assigns available port if taken.",
-    "large_prompt_guard": "Prompts > 3000 chars via /api/projects/:id/iterate (non-chat) return { error: 'large_prompt', requiresPlan: true }. Chat route has no limit.",
-    "skill_import": "SKILL.md frontmatter parsed: name, description (first sentence), instructions (rest + body). Supports skillsmp.com slugs, github.com paths, raw.githubusercontent.com URLs.",
-    "preview_proxy_rewriting": "HTML paths rewritten to /preview/{runId}/... prefix. fetch/XHR/history patched via injected script. Inspector postMessage bridge for element selection.",
-    "subdomain_proxy_sse": "SSE responses piped directly chunk by chunk. Non-SSE buffered via arrayBuffer. Redirect Location headers rewritten from Render URL to proxy URL.",
-    "reserved_env_keys": [
-      "PORT",
-      "DATABASE_URL",
-      "NEON_AUTH_JWKS_URL",
-      "JWT_SECRET",
-      "NODE_ENV",
-      "HOME",
-      "PATH",
-      "TERM"
-    ]
+    "app_branches": "apps/<slug> \u2014 one branch per published app. Render watches the branch and auto-deploys on push.",
+    "neon_database_url_reserved": "NEON_DATABASE_URL is reserved for ForgeOS itself. Published apps needing their own DB must use a custom env var name (e.g. CANVAS_DATABASE_URL).",
+    "proxy_rules": "Subdomain proxy always uses redirect:manual. Never follows 302s. Re-encodes form POST bodies as URLSearchParams not JSON.",
+    "no_backticks_in_templates": "Never write inline backtick-wrapped content inside JS template literal strings.",
+    "voice_directive": "Never use 'refactor' \u2014 the correct term is 'reforge'",
+    "forge_reply_language": "Use 'I'll make this update' for changes. Reserve 'I found the bug' for actual crashes."
   },
   "design_system": {
     "colors": {
-      "primary_dark": "#1A1A2E",
-      "secondary_dark": "#16213E",
-      "tertiary_dark": "#0F3460",
-      "accent": "#E94560",
-      "body_text": "#CCCCCC",
-      "headings": "#FFFFFF"
+      "background": "#0d0d1a",
+      "surface": "#12122a",
+      "border": "#1e1e3a",
+      "text_primary": "#e8e8f0",
+      "text_secondary": "#888899",
+      "accent": "#6366f1",
+      "accent_hover": "#5355d1",
+      "success": "#22c55e",
+      "error": "#ef4444",
+      "warning": "#f59e0b"
     },
-    "typography": {
-      "headings": "Space Grotesk (weights 400/600/700/800)",
-      "body": "Inter",
-      "no_serif_or_script": true
-    },
-    "ui_patterns": [
-      "frosted-glass nav",
-      "glassmorphism cards",
-      "accent red borders on CTAs",
-      "scroll reveal animations",
-      "dark indigo layered backgrounds"
-    ],
-    "css_file": "client/src/index.css (103KB \u2014 full design system, do not rewrite entire file for surgical changes)"
-  },
-  "mission_control": {
-    "description": "Standalone dashboard app (separate workspace project) for monitoring ForgeOS infrastructure",
-    "url": "https://mission-control.forge-os.ai",
-    "stack": "Mode A \u2014 plain Node.js/Express, vanilla JS, inline HTML/CSS",
-    "panels": {
-      "status_cards": [
-        "Forge API (latency)",
-        "Render Service (suspended/not_suspended)",
-        "Brain DB (memory counts via /api/brain)",
-        "Env Config (secrets set count)"
-      ],
-      "recent_commits": "GitHub API GET /repos/BrianBMorgan/ForgeOS/commits. 20 commits, 30s polling, 10s timeout. Auth header only sent when GITHUB_TOKEN present.",
-      "brain_memory": "Proxies /api/brain from forge-os.ai. Shows breakdown: patterns, preferences, snippets, mistakes, projects.",
-      "render_logs": "GET /v1/logs?ownerId=...&resource=...&limit=40&direction=backward. Requires ownerId extracted from service detail first.",
-      "quick_actions": [
-        "Redeploy (Render API)",
-        "Fetch Logs",
-        "GitHub Repo \u2197",
-        "ForgeOS Live \u2197",
-        "Neon DB \u2197",
-        "Context Pack (clipboard copy)"
-      ]
-    },
-    "render_status_normalization": "not_suspended \u2192 LIVE (green). suspended \u2192 SUSPENDED (red). Reads top-level suspended field, not serviceDetails.status."
+    "fonts": "System UI stack. Monospace: Courier New for code.",
+    "border_radius": "Moderate rounding on cards (8px), sharp on inputs.",
+    "intel_design_system": {
+      "cobalt": "#000864",
+      "energy_blue": "#00AAE8",
+      "carbon": "#1a1a1a",
+      "zero_border_radius": true
+    }
   },
   "brain_db_schema": {
-    "tables": [
-      "memories",
-      "conversations"
-    ],
-    "memories_columns": [
-      "id (serial PK)",
-      "project_id",
-      "category (preference|pattern|mistake|snippet|project)",
-      "content",
-      "score",
-      "created_at",
-      "updated_at"
-    ],
-    "conversations_columns": [
-      "id (serial PK)",
-      "project_id",
-      "role (user|assistant)",
-      "content",
-      "created_at"
-    ],
-    "api_endpoint": "GET /api/brain \u2192 { totals: { projects, preferences, patterns, mistakes, snippets }, topMistakes[], recentProjects[] }"
+    "forge_memory": "id, category (pattern/preference/mistake/snippet/project), content, source_project_id, upvotes, created_at",
+    "forge_conversations": "id, project_id, role, content, created_at",
+    "forge_projects": "id, name, slug, status, render_service_id, render_url, currentRunId (being removed in v2), created_at",
+    "forge_assets": "id, filename, mimetype, data (base64/text), size, created_at \u2014 global scope, no project_id",
+    "run_snapshots": "id, run_id, snapshot JSONB, created_at \u2014 BEING REMOVED in v2 (git history replaces it)",
+    "forge_analytics": "id, project_id, session_id, visitor_id, event_type, url, referrer, properties JSONB, created_at"
   },
   "known_issues_and_gotchas": {
-    "chatThreadRef": "PromptColumn.tsx requires both chatEndRef (scroll sentinel div) AND chatThreadRef (thread container div). Both must be declared with useRef. chatEndRef.current?.scrollIntoView() for auto-scroll; chatThreadRef for the scrollable container itself.",
-    "github_patch_exactness": "find string must be character-for-character exact including whitespace and newlines. Use github_read first if unsure.",
+    "index_js_not_pushed": "CRITICAL: The v2-cleaned index.js is staged locally but NOT yet on GitHub. First action in next session: re-derive and push.",
+    "forge_agent_still_v1": "server/agent/forge.js still has write_file/task_complete/run_command/list_files/read_file tools. These will crash on next build attempt since workspace is gone. Must update before testing.",
+    "github_patch_exactness": "find string must be character-for-character exact including whitespace and newlines. Use github_read first.",
     "orphaned_tool_use": "If agent loop breaks mid-call, history may have assistant tool_use with no following tool_result. Brain conversation scrubber drops these on next load.",
-    "workspace_port_collision": "stopAllApps() called before each new build to prevent EADDRINUSE. Iterations stop the previous workspace first.",
-    "render_api_suspended_field": "Render web service status is top-level .suspended ('not_suspended'/'suspended'), not serviceDetails.status.",
-    "asset_storage": "Assets stored base64-encoded in Neon to avoid UTF-8 errors with binary files (docx, xlsx, pdf). Decoded to binary on GET.",
-    "skill_import_max_attempts": "resolveSkillFromSlug has MAX_ATTEMPTS=30 guard to prevent runaway GitHub API calls on ambiguous slugs.",
-    "large_prompt_guard": "Only applies to /api/projects/:id/iterate (non-chat route). /api/projects/:id/chat has no prompt size limit.",
-    "analytics_beacon": "Published apps must include tracker script that posts to /api/analytics/events for analytics to populate.",
-    "db_viewer_sql_safety": "DROP/TRUNCATE/ALTER/CREATE/GRANT/REVOKE blocked. UPDATE/INSERT/DELETE allowed \u2014 no read-only enforcement beyond destructive DDL."
+    "render_branch_reset": "Render resets service branch to main on republish unless updateServiceBranch is called first.",
+    "proxy_encoding": "Always set accept-encoding: identity in proxy fetch headers to prevent ERR_CONTENT_DECODING_FAILED.",
+    "neon_database_url_reserved": "Cannot be overridden per published service. Apps needing isolated DBs must use custom env var names.",
+    "admin_auth_proxy": "Cookie-session Set-Cookie headers unreliable through ForgeOS proxy. Use bearer token stored in localStorage + passed as query param on first authenticated load."
   },
   "recent_changes": {
-    "since_version": "4.0.0",
-    "summary": "Major session 2026-03-18: unified agent, brain injection, Mission Control, all caps removed. Session 2026-03-19: ForgeOS UI overhaul, Mission Control dashboard overhaul, end_turn guard strengthened.",
-    "key_commits": [
-      {
-        "sha": "40e7edf",
-        "message": "Fix: initialize allThinking array \u2014 ReferenceError on first message"
-      },
-      {
-        "sha": "f8f5cd4",
-        "message": "Remove all artificial caps \u2014 let Forge breathe. 200k context, 50 rounds, 20min."
-      },
-      {
-        "sha": "5c74bcb",
-        "message": "Fix Forge amnesia \u2014 save full reasoning to conversation history"
-      },
-      {
-        "sha": "c46aff7",
-        "message": "Rewrite chat state \u2014 append-only, stable ids, no more filter/delete"
-      },
-      {
-        "sha": "d917ab6",
-        "message": "Add github_patch \u2014 surgical find/replace, no full file read needed"
-      },
-      {
-        "sha": "9b7e519",
-        "message": "Strengthen build mandate \u2014 end_turn nudge unconditional on read-only rounds"
-      },
-      {
-        "sha": "5ce0367",
-        "message": "Fix premature end_turn guard \u2014 catches read-then-announce-then-stop pattern"
-      },
-      {
-        "sha": "1c38afe",
-        "message": "Wire New Project button to drop directly into prompt view"
-      },
-      {
-        "sha": "360a59e",
-        "message": "Auto-scroll to bottom on project load + smooth scroll on new messages"
-      },
-      {
-        "sha": "45ed015",
-        "message": "Zero out render tab padding \u2014 iframe fills space edge to edge"
-      }
-    ]
+    "version": "6.0.0",
+    "summary": "ForgeOS v2 architecture decision. Phase 1 demolition. Hedwig condemned. Full rebuild plan documented.",
+    "key_commits": {
+      "forge_beast_mode": "98dcbb7 \u2014 Forge beast mode + clean wall + build mandate",
+      "mc_beast_mode": "7f041ec \u2014 MC beast mode restored",
+      "mc_no_markdown": "bf04617 \u2014 MC plain text responses",
+      "mc_contrast_fix": "ff6897e \u2014 MC readable text color",
+      "builder_deleted": "24e37d5 \u2014 server/builder.js deleted",
+      "workspace_deleted": "1714393 \u2014 server/workspace/manager.js deleted",
+      "pipeline_deleted": "e145e1a \u2014 server/pipeline/runner.js deleted",
+      "forge_canvas_stable": "7948b78 on apps/forge-canvas \u2014 brand watermark, full feature set"
+    }
   },
   "session_log": [
     {
@@ -447,28 +321,8 @@
     }
   ],
   "context_pack_update_instructions": {
-    "critical": "NEVER rewrite the entire context pack from scratch. ALWAYS append to session_log and update only recent_changes and current fields.",
-    "correct_workflow": [
-      "1. github_read Forge_context_pack.json to get current content",
-      "2. Parse it and append a new entry to session_log[]",
-      "3. Update recent_changes with new commits since last update",
-      "4. Update meta.version (increment patch) and meta.updated",
-      "5. github_write the updated file back",
-      "6. The base architecture sections (agent, builder, server_routes, etc.) should only change if the architecture actually changed"
-    ],
-    "never_do": "Do not regenerate the entire file from source code inspection unless explicitly asked for a full rebuild. That destroys accumulated session history."
-  },
-  "current_state": "ForgeOS v2 architecture decided and Phase 1 demolition underway. \n\nWHAT IS DONE:\n- server/builder.js, server/workspace/manager.js, server/pipeline/runner.js all deleted from GitHub\n- server/index.js surgically cleaned locally (1774\u21921451 lines, zero workspace refs) \u2014 STAGED BUT NOT YET PUSHED\n- Mission Control and Forge both in beast mode with clean walls\n- ForgeOS v2 Rebuild Plan doc complete (10 sections, checkbox tracking)\n\nWHAT IS NEXT (start here in next session):\n1. Push /tmp/index_v2.js to GitHub \u2014 complete Phase 1\n2. Update server/agent/forge.js \u2014 remove write_file/task_complete/run_command/list_files/read_file tools, add github_ls and render_status, update system prompt\n3. Rebuild client UI panels \u2014 Files tab (GitHub tree), Commits tab (rollback), remove dead tabs\n4. Update project model \u2014 schema migration, per-project env vars\n5. Replace Hedwig with direct Anthropic API streaming\n6. Test with Intel Event Content Review build\n\nTHE ARCHITECTURE:\nClaude writes to GitHub \u2192 Render auto-deploys \u2192 *.forge-os.ai serves it\nNo local workspace. No install loop. No task_complete. Git IS the history. Render IS the rollback.",
-  "next_steps": [
-    "FIRST: Push staged index.js to GitHub \u2014 file is at /tmp/index_v2.js on Claude's end, needs to be re-derived and pushed",
-    "Update server/agent/forge.js \u2014 new tool set for v2 (github_ls, render_status, keep github_read/write/patch/memory_search/ask_user)",
-    "Rewrite Forge system prompt \u2014 GitHub is the workspace, no task_complete, no write_file",
-    "Rebuild Workspace.tsx \u2014 Files tab, Commits tab, remove Shell/DB/Diff/Plan tabs",
-    "Update App.tsx \u2014 remove iteration model references, simplify project state",
-    "Schema migration \u2014 remove run_snapshots, simplify projects table",
-    "Replace chat agent loop (Hedwig) with direct Anthropic API streaming",
-    "Intel Event Content Review \u2014 build it clean as Phase 5 test"
-  ],
-  "version": "5.0.0",
-  "updated": "2026-03-20"
+    "when": "End of every session",
+    "how": "Append to session_log. Update current_state, next_steps, recent_changes. Mark completed items.",
+    "format": "session_log entry: { date, session_title, shipped[], decisions[], pending[], key_commits{} }"
+  }
 }
