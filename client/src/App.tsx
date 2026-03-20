@@ -200,7 +200,7 @@ function App() {
     } finally {
       setChatLoading(false);
     }
-  }, [currentProjectId, setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav]);
+  }, [currentProjectId, setCurrentProjectId, setCurrentRunId, setViewingIterationRunId, setActiveNav, setIsNewProjectMode]);
 
   const openProject = useCallback((projectId: string) => {
     setCurrentProjectId(projectId);
