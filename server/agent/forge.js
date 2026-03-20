@@ -1,20 +1,14 @@
 /**
- * ForgeOS Unified Agent — forge.js
+ * ForgeOS Unified Agent — forge.js (v2)
  *
- * One Claude session. Replaces the Chat Agent + Builder + Plan gate + Sub-agents.
- * Operates exactly like a senior engineer in a conversation:
- *   - Reads files before touching them
- *   - Reasons about the full problem
- *   - Writes only what needs to change
- *   - Verifies its own output
- *   - Talks to the user and makes changes in the same session
+ * v2 architecture: GitHub IS the workspace. No local files. No child processes.
+ * Claude writes to GitHub branches via github_write/github_patch.
+ * Render auto-deploys on push. No task_complete — deploy is automatic.
  */
 
 "use strict";
 
 const Anthropic = require("@anthropic-ai/sdk");
-const path = require("path");
-const fs = require("fs");
 const brain = require("../memory/brain");
 
 const FORGE_MODEL = "claude-sonnet-4-6";
@@ -29,51 +23,63 @@ You work with Brian the way a great engineering partner works. You think out lou
 
 When Brian tells you something is broken, you find it and fix it. When he has an idea, you build it. When he is frustrated, you acknowledge it honestly and solve the actual problem — not a workaround, not a band-aid, the actual problem. You do not make excuses. You do not narrate what you are about to do — you do it and explain what you found.
 
-You have full access to everything inside your domain: the current workspace, the Brain, Render deployments, external APIs and repos. You are not a guest in this system — you built it.
+You have full access to everything inside your domain: GitHub branches, the Brain, Render deployments, external APIs and repos. You are not a guest in this system — you built it.
+
+## v2 ARCHITECTURE — KNOW THIS COLD
+
+There is NO local workspace. No /data/workspaces/. No child processes. No install loop. No task_complete.
+
+GitHub IS the filesystem. Render IS the runtime.
+
+When Brian asks you to build or change an app:
+1. Determine the app's branch: apps/<slug> (e.g. apps/forge-canvas, apps/sandbox-xm)
+2. Read existing files with github_read (use the branch parameter)
+3. Write files with github_write or github_patch (specify the branch)
+4. Render auto-deploys on push — you are done when the files are pushed
+5. Use render_status to check deploy state and get the live URL
+
+When Brian asks you to fix ForgeOS itself (server/, client/):
+1. Read with github_read (main branch — the default)
+2. Patch with github_patch or rewrite with github_write
+3. Render auto-deploys ForgeOS from main
+
+There is no task_complete. There is no "triggering a build." Pushing to GitHub IS the build trigger.
 
 ## YOUR BOUNDARY
 
-You own workspaces. That is your entire domain.
+ForgeOS infrastructure (main branch server/ and client/) and app branches (apps/<slug>) are both in your domain.
 
-You do NOT touch ForgeOS infrastructure. These are off-limits — never read, never write, never patch:
-- server/agent/forge.js
-- server/index.js
-- server/builder.js
-- server/memory/brain.js
-- server/workspace/
-- server/pipeline/
-- server/publish/
-- client/src/
-
-If Brian asks you to fix something in ForgeOS itself, say: "That's Mission Control's job." Full stop.
+Mission Control owns its own branch (apps/mission-control). Forge does not touch that branch.
 
 ## YOUR TOOLS
 
-- list_files: see what exists in the workspace. Call this first on any new task.
-- read_file: read a file before touching it. Always.
-- write_file: write complete files. Never truncated. Never placeholder comments.
-- run_command: node --check <file> to verify syntax. cat to inspect. Nothing else.
+- github_ls: list files in a branch. Use this to explore an existing project before writing.
+- github_read: read a file from any branch. Always read before patching.
+- github_write: write a complete file to any branch. Use for new files or full rewrites.
+- github_patch: surgical find/replace on a file in any branch. Use for targeted edits.
+- render_status: check deploy status for any Render service, get the live URL.
 - memory_search: search Brain for patterns, past mistakes, lessons. Use when starting something new or hitting a wall.
-- task_complete: when all files are written and verified. Triggers install and app start.
+- fetch_url: fetch any external URL — GitHub raw files, APIs, documentation.
 - ask_user: send a message or genuine question to Brian.
-- github_read: read any ForgeOS file from GitHub. Authenticated. Use this instead of fetch_url for ForgeOS files.
-- github_write: write any ForgeOS file to GitHub and commit in one call. This is how you fix ForgeOS itself.
-- fetch_url: fetch any external URL, API, or repo file.
 
 ## HOW YOU WORK
 
-For workspace builds: read files first, write complete code, verify syntax with node --check, call task_complete.
+For app builds (new app on an apps/<slug> branch):
+1. github_ls to see what exists (branch: apps/<slug>)
+2. github_write each file needed — server.js, package.json, any static files
+3. render_status to confirm deploy is running and get the live URL
+4. Report the live URL to Brian
 
-For targeted ForgeOS edits (CSS tweaks, config values, single-line changes): use github_patch. It does a surgical find-and-replace without you needing to read or rewrite the entire file. One tool call. Done.
+For targeted app edits:
+1. github_read the file first (branch: apps/<slug>)
+2. github_patch for surgical changes, github_write for full rewrites
+3. render_status to confirm deploy
 
-Example — CSS padding change:
-  github_patch("client/src/index.css", [{find: "padding: 1.25rem", replace: "padding: 0.75rem 1.25rem"}], "fix input padding")
-
-For larger changes where you need to understand structure first: grep with run_command to find the lines, then github_patch or github_write.
-
-Only use github_write when you need to rewrite an entire file. For anything surgical — github_patch.
-
-For external repos: fetch_url to hit the GitHub API for a listing, fetch individual files, build from what you find.
+For ForgeOS changes:
+1. github_read the file (branch: main, or omit branch)
+2. github_patch for surgical changes (CSS tweaks, config, single functions)
+3. github_write for full file rewrites
+4. Render auto-deploys ForgeOS from main — no extra step needed
 
 ## PLATFORM RULES — YOU KNOW THESE COLD
 
@@ -85,7 +91,9 @@ For external repos: fetch_url to hit the GitHub API for a listing, fetch individ
 - GET / must return a complete HTML page — not JSON, not a redirect
 - Root-relative URLs everywhere — /api/data not http://localhost:3000/api/data
 - No base tags
-- All HTML/CSS/JS inlined in server.js unless you explicitly write separate static files
+- NEON_DATABASE_URL is reserved for ForgeOS — published apps needing their own DB must use a custom env var name (e.g. CANVAS_DATABASE_URL)
+- Proxy rules: always redirect:manual, URLSearchParams for form bodies, delete content-length before forwarding
+- Published apps must use fetch() with JSON bodies — never standard HTML form action/method POSTs through the proxy
 
 ## CONVERSATION VS ACTION
 
@@ -93,7 +101,7 @@ Not every message is a task. When Brian asks a question, answers it, jokes aroun
 
 When Brian asks you to build, fix, or change something — act. Read the file, make the change, push it. In the same response if you can.
 
-The signal: if the message has a verb that implies action (build, fix, change, move, add, update, delete, push) — act. If it is a question, observation, or conversation — respond like a person first. Tools are for work, not for filling silence.
+The signal: if the message has a verb that implies action (build, fix, change, move, add, update, delete, push) — act. If it is a question, observation, or conversation — respond like a person first.
 
 ## ONE RULE ABOVE ALL OTHERS
 
@@ -101,60 +109,89 @@ In every response, either say something that matters or do something that matter
 
 ## BUILD MANDATE
 
-If Brian asked you to build something — write ALL the files. Not one. ALL of them.
+If Brian asked you to build something — write ALL the files. Not one. ALL of them. Complete implementations. No stubs. No placeholder comments. A full-stack app means server.js (1000+ lines), package.json, all routes, all HTML/CSS/JS.`;
 
-A complex build spec means: write server.js (complete, 1000+ lines for a full-stack app), write package.json, verify with node --check, then task_complete.
-
-The task_complete guard will reject you if server.js is under 3000 characters. A stub is not a build. Keep writing until the implementation is complete.`;
 // ── TOOL DEFINITIONS ──────────────────────────────────────────────────────────
 
 const TOOLS = [
   {
-    name: "list_files",
-    description: "List all files in the current workspace. Only useful when iterating on an existing project. For new projects with an empty workspace, skip this and call write_file immediately.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: [],
-    },
-  },
-  {
-    name: "read_file",
-    description: "Read the full contents of a file in the workspace. Always read a file before modifying it.",
+    name: "github_ls",
+    description: "List files in a GitHub branch for a ForgeOS project or app. Use this to explore what exists before writing. Defaults to main branch for ForgeOS files. Use branch: 'apps/<slug>' for published apps.",
     input_schema: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Relative file path, e.g. server.js or public/app.js" },
+        path: { type: "string", description: "Directory path to list, e.g. 'server' or '' for root. Use empty string for root." },
+        branch: { type: "string", description: "Branch name. Default: 'main'. For apps use 'apps/<slug>', e.g. 'apps/forge-canvas'." },
       },
       required: ["path"],
     },
   },
   {
-    name: "write_file",
-    description: "Write or overwrite a file in the workspace. This is your primary action. When asked to build something, call this immediately. Always write complete file content — never truncated, never placeholder comments.",
+    name: "github_read",
+    description: "Read a file from the ForgeOS GitHub repository. Returns full file content. Always read before patching. Defaults to main branch.",
     input_schema: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Relative file path" },
-        content: { type: "string", description: "Complete file content" },
+        filepath: { type: "string", description: "File path relative to repo root, e.g. 'server/index.js' or 'server.js'" },
+        branch: { type: "string", description: "Branch name. Default: 'main'. For apps use 'apps/<slug>'." },
       },
-      required: ["path", "content"],
+      required: ["filepath"],
     },
   },
   {
-    name: "run_command",
-    description: "Run shell commands in the workspace. Use this like a real developer would — grep, sed, awk, wc, head, tail, find, node --check, cat, ls, jq. To search a large file: grep -n 'pattern' file.js. To see lines around a match: grep -n -A5 -B5 'pattern' file.js. To count lines: wc -l file.js. To see a range: sed -n '100,150p' file.js. To find a CSS rule: grep -n 'prompt-input-area' client/src/index.css.",
+    name: "github_write",
+    description: "Write or overwrite a complete file in the ForgeOS GitHub repository. Use for new files or full rewrites. Specify branch for app files. Render auto-deploys on push — no separate deploy step needed.",
     input_schema: {
       type: "object",
       properties: {
-        command: { type: "string", description: "Shell command to run" },
+        filepath: { type: "string", description: "File path relative to repo root, e.g. 'server.js' or 'server/index.js'" },
+        content: { type: "string", description: "Complete file content — never truncated, never placeholder comments" },
+        message: { type: "string", description: "Commit message" },
+        branch: { type: "string", description: "Branch name. Default: 'main'. For apps use 'apps/<slug>'." },
       },
-      required: ["command"],
+      required: ["filepath", "content", "message"],
+    },
+  },
+  {
+    name: "github_patch",
+    description: "Make a surgical find-and-replace edit to a file on GitHub without rewriting the entire file. Use for targeted changes: CSS tweaks, config values, single function edits. Fails if the search string is not found exactly — use github_read first to confirm the exact string.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filepath: { type: "string", description: "File path relative to repo root" },
+        replacements: {
+          type: "array",
+          description: "List of find/replace pairs to apply in order",
+          items: {
+            type: "object",
+            properties: {
+              find: { type: "string", description: "Exact string to find — must match character for character including whitespace" },
+              replace: { type: "string", description: "String to replace it with" },
+            },
+            required: ["find", "replace"],
+          },
+        },
+        message: { type: "string", description: "Commit message" },
+        branch: { type: "string", description: "Branch name. Default: 'main'. For apps use 'apps/<slug>'." },
+      },
+      required: ["filepath", "replacements", "message"],
+    },
+  },
+  {
+    name: "render_status",
+    description: "Check the deploy status of a Render service and get its live URL. Use after pushing to GitHub to confirm the deploy succeeded.",
+    input_schema: {
+      type: "object",
+      properties: {
+        service_id: { type: "string", description: "Render service ID (e.g. srv-xxx). If unknown, provide slug instead." },
+        slug: { type: "string", description: "App slug (e.g. 'forge-canvas') — used to look up the service if service_id is unknown." },
+      },
+      required: [],
     },
   },
   {
     name: "memory_search",
-    description: "Search Brain for relevant patterns, past mistakes, and lessons learned from previous builds. Use this when starting a new feature or debugging a recurring issue.",
+    description: "Search Brain for relevant patterns, past mistakes, and lessons learned from previous builds. Use when starting a new feature or debugging a recurring issue.",
     input_schema: {
       type: "object",
       properties: {
@@ -164,34 +201,20 @@ const TOOLS = [
     },
   },
   {
-    name: "task_complete",
-    description: "Call this when you have finished all file writes and verified the code is correct. This triggers the app to install dependencies and start. Do not call until you are confident everything is correct.",
+    name: "fetch_url",
+    description: "Fetch the contents of any URL — GitHub raw files, APIs, documentation, external repos. For GitHub files use raw.githubusercontent.com format.",
     input_schema: {
       type: "object",
       properties: {
-        startCommand: { type: "string", description: "Command to start the app, e.g. node server.js" },
-        installCommand: { type: "string", description: "Command to install dependencies, e.g. npm install" },
-        summary: { type: "string", description: "One or two sentences describing what was built or changed" },
-        envVars: {
-          type: "array",
-          description: "Environment variables the app needs (keys only)",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              description: { type: "string" },
-            },
-            required: ["name", "description"],
-          },
-        },
-        message: { type: "string", description: "Message to show the user in chat after the build completes" },
+        url: { type: "string", description: "URL to fetch. For GitHub files: https://raw.githubusercontent.com/BrianBMorgan/ForgeOS/<branch>/<path>" },
+        description: { type: "string", description: "What you are fetching and why" },
       },
-      required: ["startCommand", "installCommand", "summary", "message"],
+      required: ["url"],
     },
   },
   {
     name: "ask_user",
-    description: "Send a message to the user. Use for status updates while working, or to ask a genuine question when you cannot proceed without more information.",
+    description: "Send a message or status update to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
     input_schema: {
       type: "object",
       properties: {
@@ -200,137 +223,200 @@ const TOOLS = [
       required: ["message"],
     },
   },
-  {
-    name: "github_write",
-    description: "Write or update a file in the ForgeOS GitHub repository (BrianBMorgan/ForgeOS, main branch). Use this to fix ForgeOS server files directly. Reads the current SHA automatically, then commits the new content. This is the correct way to push changes to ForgeOS.",
-    input_schema: {
-      type: "object",
-      properties: {
-        filepath: { type: "string", description: "File path relative to repo root, e.g. 'server/index.js'" },
-        content: { type: "string", description: "Complete new file content" },
-        message: { type: "string", description: "Commit message" },
-      },
-      required: ["filepath", "content", "message"],
-    },
-  },
-  {
-    name: "github_patch",
-    description: "Make a surgical find-and-replace edit to a ForgeOS file on GitHub without reading the entire file first. Use this for targeted changes: CSS tweaks, config values, single function edits. Finds the exact string and replaces it. Fails if the search string is not found exactly. For multiple changes to the same file, include all replacements in one call.",
-    input_schema: {
-      type: "object",
-      properties: {
-        filepath: { type: "string", description: "File path relative to repo root, e.g. 'client/src/index.css'" },
-        replacements: {
-          type: "array",
-          description: "List of find/replace pairs to apply in order",
-          items: {
-            type: "object",
-            properties: {
-              find: { type: "string", description: "Exact string to find — must match character for character" },
-              replace: { type: "string", description: "String to replace it with" },
-            },
-            required: ["find", "replace"],
-          },
-        },
-        message: { type: "string", description: "Commit message" },
-      },
-      required: ["filepath", "replacements", "message"],
-    },
-  },
-  {
-    name: "github_read",
-    description: "Read a file from the ForgeOS GitHub repository (BrianBMorgan/ForgeOS, main branch). Returns the full file with line numbers. For large files, pipe through grep in run_command after writing to disk, or use github_read to get the file then grep locally.",
-    input_schema: {
-      type: "object",
-      properties: {
-        filepath: { type: "string", description: "File path relative to repo root, e.g. 'server/index.js'" },
-      },
-      required: ["filepath"],
-    },
-  },
-  {
-    name: "fetch_url",
-    description: "Fetch the contents of any URL — GitHub raw files, APIs, documentation, repo file listings. Use this to read files from a GitHub repo URL, fetch a package README, or retrieve any external content needed for a build. For GitHub repos, convert the URL to raw.githubusercontent.com format to get file contents.",
-    input_schema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "URL to fetch. For GitHub files use raw.githubusercontent.com. For repo listings use the GitHub API: https://api.github.com/repos/{owner}/{repo}/contents/{path}" },
-        description: { type: "string", description: "What you are fetching and why" },
-      },
-      required: ["url"],
-    },
-  },
 ];
 
 // ── TOOL EXECUTOR ─────────────────────────────────────────────────────────────
 
-async function executeTool(toolName, toolInput, wsDir, onMessage) {
+const GITHUB_REPO = "BrianBMorgan/ForgeOS";
+
+function githubHeaders() {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) throw new Error("GITHUB_TOKEN not set in environment");
+  return {
+    "Authorization": "Bearer " + token,
+    "Accept": "application/vnd.github.v3+json",
+    "Content-Type": "application/json",
+    "User-Agent": "ForgeOS-Agent",
+  };
+}
+
+async function executeTool(toolName, toolInput, onMessage) {
   switch (toolName) {
 
-    case "list_files": {
-      if (!wsDir || !fs.existsSync(wsDir)) {
-        return "Workspace is empty — this is a new project with no files yet.";
-      }
-      const files = [];
-      const SKIP = new Set(["node_modules", ".git", "dist", "build", ".cache"]);
-      function walk(dir, prefix) {
-        let entries;
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const e of entries) {
-          if (SKIP.has(e.name)) continue;
-          const rel = prefix ? prefix + "/" + e.name : e.name;
-          if (e.isDirectory()) walk(path.join(dir, e.name), rel);
-          else files.push(rel);
-        }
-      }
-      walk(wsDir, "");
-      return files.length > 0 ? files.join("\n") : "Workspace is empty.";
-    }
-
-    case "read_file": {
-      const filePath = path.resolve(wsDir, toolInput.path.replace(/^\//, ""));
-      if (!filePath.startsWith(wsDir)) return "Error: path traversal rejected";
-      if (!fs.existsSync(filePath)) return "File not found: " + toolInput.path;
+    case "github_ls": {
       try {
-        const content = fs.readFileSync(filePath, "utf-8");
-        return content;
-      } catch (err) {
-        return "Error reading file: " + err.message;
-      }
-    }
-
-    case "write_file": {
-      const filePath = path.resolve(wsDir, toolInput.path.replace(/^\//, ""));
-      if (!filePath.startsWith(wsDir)) return "Error: path traversal rejected";
-      try {
-        const dir = path.dirname(filePath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(filePath, toolInput.content, "utf-8");
-        if (onMessage) onMessage({ type: "file_written", path: toolInput.path });
-        return "Written: " + toolInput.path + " (" + toolInput.content.length + " chars)";
-      } catch (err) {
-        return "Error writing file: " + err.message;
-      }
-    }
-
-    case "run_command": {
-      const cmd = toolInput.command.trim();
-      // Block genuinely dangerous commands — everything else is fair game
-      const BLOCKED = /(sudo|rm\s+-rf|mkfs|dd\s+if|chmod\s+777|curl\s+.*\|\s*sh|wget\s+.*\|\s*sh)/;
-      if (BLOCKED.test(cmd)) {
-        return "Command blocked: " + cmd;
-      }
-      const { execSync } = require("child_process");
-      try {
-        const out = execSync(cmd, {
-          cwd: wsDir,
-          timeout: 15000,
-          encoding: "utf-8",
-          env: { ...process.env, PATH: "/usr/local/bin:/usr/bin:/bin" },
+        const branch = toolInput.branch || "main";
+        const dirPath = toolInput.path || "";
+        const url = "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + dirPath + "?ref=" + encodeURIComponent(branch);
+        const res = await fetch(url, { headers: githubHeaders() });
+        const data = await res.json();
+        if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
+        if (!Array.isArray(data)) return "Not a directory or unexpected response";
+        const lines = data.map(function(item) {
+          return (item.type === "dir" ? "[dir]  " : "[file] ") + item.name + (item.size ? " (" + item.size + " bytes)" : "");
         });
-        return out || "(no output — command succeeded)";
+        return "Branch: " + branch + " | Path: /" + dirPath + "\n" + lines.join("\n");
       } catch (err) {
-        return "Exit " + (err.status || 1) + ": " + (err.stderr || err.message || "").slice(0, 1000);
+        return "github_ls error: " + err.message;
+      }
+    }
+
+    case "github_read": {
+      try {
+        const branch = toolInput.branch || "main";
+        const url = "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch);
+        const res = await fetch(url, { headers: githubHeaders() });
+        const data = await res.json();
+        if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
+        return Buffer.from(data.content, "base64").toString("utf-8");
+      } catch (err) {
+        return "github_read error: " + err.message;
+      }
+    }
+
+    case "github_write": {
+      try {
+        const branch = toolInput.branch || "main";
+        const headers = githubHeaders();
+
+        // Get current SHA (file may not exist yet for new branches)
+        const shaRes = await fetch(
+          "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch),
+          { headers }
+        );
+        const shaData = await shaRes.json();
+        const currentSha = shaRes.ok ? shaData.sha : null;
+
+        const body = {
+          message: toolInput.message,
+          content: Buffer.from(toolInput.content, "utf-8").toString("base64"),
+          branch: branch,
+        };
+        if (currentSha) body.sha = currentSha;
+
+        const pushRes = await fetch(
+          "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath,
+          { method: "PUT", headers, body: JSON.stringify(body) }
+        );
+        const pushData = await pushRes.json();
+        if (!pushRes.ok) return "GitHub push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 300);
+
+        const commitSha = pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done";
+        if (onMessage) onMessage({ type: "file_written", path: toolInput.filepath });
+        return "Pushed " + toolInput.filepath + " to " + branch + " — commit: " + commitSha;
+      } catch (err) {
+        return "github_write error: " + err.message;
+      }
+    }
+
+    case "github_patch": {
+      try {
+        const branch = toolInput.branch || "main";
+        const headers = githubHeaders();
+
+        const res = await fetch(
+          "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch),
+          { headers }
+        );
+        const data = await res.json();
+        if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
+
+        let content = Buffer.from(data.content, "base64").toString("utf-8");
+        const sha = data.sha;
+
+        const applied = [];
+        const failed = [];
+        for (const rep of toolInput.replacements) {
+          if (content.includes(rep.find)) {
+            content = content.replace(rep.find, rep.replace);
+            applied.push(rep.find.slice(0, 60));
+          } else {
+            failed.push(rep.find.slice(0, 60));
+          }
+        }
+
+        if (failed.length > 0 && applied.length === 0) {
+          return "No replacements found. Check exact strings. Failed: " + failed.join("; ");
+        }
+
+        const pushRes = await fetch(
+          "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({
+              message: toolInput.message,
+              content: Buffer.from(content, "utf-8").toString("base64"),
+              sha,
+              branch,
+            }),
+          }
+        );
+        const pushData = await pushRes.json();
+        if (!pushRes.ok) return "Push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 200);
+
+        const commitSha = pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done";
+        let summary = "Patched " + toolInput.filepath + " on " + branch + " — " + applied.length + " replacement(s) applied — commit: " + commitSha;
+        if (failed.length > 0) summary += " | " + failed.length + " not found: " + failed.join("; ");
+        if (onMessage) onMessage({ type: "agent_message", content: "✓ " + summary });
+        return summary;
+      } catch (err) {
+        return "github_patch error: " + err.message;
+      }
+    }
+
+    case "render_status": {
+      try {
+        const renderKey = process.env.RENDER_API_KEY;
+        if (!renderKey) return "Error: RENDER_API_KEY not set";
+
+        let serviceId = toolInput.service_id;
+
+        // If no service_id, look up by slug via published apps
+        if (!serviceId && toolInput.slug) {
+          const publishManager = require("../publish/manager");
+          const app = publishManager.getPublishedAppBySlug(toolInput.slug);
+          if (app && app.renderServiceId) {
+            serviceId = app.renderServiceId;
+          }
+        }
+
+        // Fall back to ForgeOS main service if nothing provided
+        if (!serviceId) {
+          serviceId = process.env.RENDER_SERVICE_ID || "srv-d6h2rt56ubrc73duanfg";
+        }
+
+        const res = await fetch("https://api.render.com/v1/services/" + serviceId + "/deploys?limit=1", {
+          headers: { "Authorization": "Bearer " + renderKey, "Accept": "application/json" },
+        });
+        if (!res.ok) return "Render API error " + res.status;
+        const deploys = await res.json();
+        if (!deploys || deploys.length === 0) return "No deploys found for service " + serviceId;
+
+        const deploy = deploys[0].deploy || deploys[0];
+        const status = deploy.status;
+        const createdAt = deploy.createdAt || deploy.created_at || "";
+        const commitMsg = deploy.commit && deploy.commit.message ? deploy.commit.message.slice(0, 80) : "";
+
+        // Get service URL
+        const svcRes = await fetch("https://api.render.com/v1/services/" + serviceId, {
+          headers: { "Authorization": "Bearer " + renderKey, "Accept": "application/json" },
+        });
+        let liveUrl = "";
+        if (svcRes.ok) {
+          const svcData = await svcRes.json();
+          liveUrl = (svcData.service && svcData.service.serviceDetails && svcData.service.serviceDetails.url) || "";
+        }
+
+        return [
+          "Service: " + serviceId,
+          "Status: " + status,
+          "Last deploy: " + createdAt,
+          commitMsg ? "Commit: " + commitMsg : "",
+          liveUrl ? "URL: " + liveUrl : "",
+        ].filter(Boolean).join("\n");
+      } catch (err) {
+        return "render_status error: " + err.message;
       }
     }
 
@@ -343,159 +429,24 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
       }
     }
 
-    case "github_patch": {
-      var gpToken = process.env.GITHUB_TOKEN;
-      if (!gpToken) return "Error: GITHUB_TOKEN not set in environment";
-      try {
-        // Fetch current file
-        var gpRes = await fetch(
-          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath + "?ref=main",
-          { headers: { "Authorization": "Bearer " + gpToken, "Accept": "application/vnd.github.v3+json", "User-Agent": "ForgeOS-Agent" } }
-        );
-        var gpData = await gpRes.json();
-        if (!gpRes.ok) return "GitHub error " + gpRes.status + ": " + JSON.stringify(gpData).slice(0, 200);
-        var gpDecoded = Buffer.from(gpData.content, "base64").toString("utf-8");
-        var gpSha = gpData.sha;
-
-        // Apply all replacements
-        var gpResult = gpDecoded;
-        var applied = [];
-        var failed = [];
-        for (var ri = 0; ri < toolInput.replacements.length; ri++) {
-          var rep = toolInput.replacements[ri];
-          if (gpResult.includes(rep.find)) {
-            gpResult = gpResult.replace(rep.find, rep.replace);
-            applied.push(rep.find.slice(0, 60));
-          } else {
-            failed.push(rep.find.slice(0, 60));
-          }
-        }
-
-        if (failed.length > 0 && applied.length === 0) {
-          return "No replacements found. Check exact strings. Failed: " + failed.join("; ");
-        }
-
-        // Push
-        var gpPushRes = await fetch(
-          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath,
-          {
-            method: "PUT",
-            headers: { "Authorization": "Bearer " + gpToken, "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "ForgeOS-Agent" },
-            body: JSON.stringify({ message: toolInput.message, content: Buffer.from(gpResult, "utf-8").toString("base64"), sha: gpSha, branch: "main" }),
-          }
-        );
-        var gpPushData = await gpPushRes.json();
-        if (!gpPushRes.ok) return "Push error " + gpPushRes.status + ": " + JSON.stringify(gpPushData).slice(0, 200);
-
-        var summary = "Patched " + toolInput.filepath + " — " + applied.length + " replacement(s) applied";
-        if (failed.length > 0) summary += ", " + failed.length + " not found: " + failed.join("; ");
-        summary += " — commit: " + (gpPushData.commit && gpPushData.commit.sha ? gpPushData.commit.sha.slice(0, 7) : "done");
-        if (onMessage) onMessage({ type: "agent_message", content: "✓ " + summary });
-        return summary;
-      } catch (err) {
-        return "github_patch error: " + err.message;
-      }
-    }
-
-    case "github_read": {
-      var ghToken = process.env.GITHUB_TOKEN;
-      if (!ghToken) return "Error: GITHUB_TOKEN not set in environment";
-      try {
-        var ghReadRes = await fetch(
-          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath + "?ref=main",
-          { headers: { "Authorization": "Bearer " + ghToken, "Accept": "application/vnd.github.v3+json", "User-Agent": "ForgeOS-Agent" } }
-        );
-        var ghReadData = await ghReadRes.json();
-        if (!ghReadRes.ok) return "GitHub error " + ghReadRes.status + ": " + JSON.stringify(ghReadData).slice(0, 200);
-        var decoded = Buffer.from(ghReadData.content, "base64").toString("utf-8");
-        return decoded;
-      } catch (err) {
-        return "github_read error: " + err.message;
-      }
-    }
-
-    case "github_write": {
-      var gwToken = process.env.GITHUB_TOKEN;
-      if (!gwToken) return "Error: GITHUB_TOKEN not set in environment";
-      try {
-        // Step 1: get current SHA
-        var shaRes = await fetch(
-          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath + "?ref=main",
-          { headers: { "Authorization": "Bearer " + gwToken, "Accept": "application/vnd.github.v3+json", "User-Agent": "ForgeOS-Agent" } }
-        );
-        var shaData = await shaRes.json();
-        var currentSha = shaRes.ok ? shaData.sha : null;
-
-        // Step 2: push new content
-        var pushBody = {
-          message: toolInput.message,
-          content: Buffer.from(toolInput.content, "utf-8").toString("base64"),
-          branch: "main",
-        };
-        if (currentSha) pushBody.sha = currentSha;
-
-        var pushRes = await fetch(
-          "https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/" + toolInput.filepath,
-          {
-            method: "PUT",
-            headers: { "Authorization": "Bearer " + gwToken, "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "ForgeOS-Agent" },
-            body: JSON.stringify(pushBody),
-          }
-        );
-        var pushData = await pushRes.json();
-        if (!pushRes.ok) return "GitHub push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 300);
-        if (onMessage) onMessage({ type: "agent_message", content: "✓ Pushed " + toolInput.filepath + " to GitHub" });
-        return "Successfully pushed " + toolInput.filepath + " — commit: " + (pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done");
-      } catch (err) {
-        return "github_write error: " + err.message;
-      }
-    }
-
     case "fetch_url": {
-      var fetchUrl = toolInput.url;
-      if (!fetchUrl || !fetchUrl.startsWith("http")) {
-        return "Error: URL must start with http or https";
-      }
+      const url = toolInput.url;
+      if (!url || !url.startsWith("http")) return "Error: URL must start with http or https";
       try {
-        var fetchRes = await fetch(fetchUrl, {
-          headers: {
-            "User-Agent": "ForgeOS-Agent/1.0",
-            "Accept": "application/vnd.github.v3.raw, text/plain, */*",
-          },
+        const res = await fetch(url, {
+          headers: { "User-Agent": "ForgeOS-Agent/1.0", "Accept": "application/vnd.github.v3.raw, text/plain, */*" },
           signal: AbortSignal.timeout(15000),
         });
-        if (!fetchRes.ok) {
-          return "HTTP " + fetchRes.status + " fetching " + fetchUrl;
-        }
-        var fetchText = await fetchRes.text();
-        // No fetch cap — let the agent decide what to do with the content
-        if (onMessage) onMessage({ type: "thinking", content: "Fetched: " + fetchUrl.slice(0, 80) });
-        return fetchText;
+        if (!res.ok) return "HTTP " + res.status + " fetching " + url;
+        const text = await res.text();
+        if (onMessage) onMessage({ type: "thinking", content: "Fetched: " + url.slice(0, 80) });
+        return text;
       } catch (err) {
         return "Fetch error: " + err.message;
       }
     }
 
-    case "task_complete": {
-      // Guard: refuse if workspace is missing required files or server.js is a stub
-      var fs = require("fs");
-      var path = require("path");
-      var wsFiles = wsDir ? collectWorkspaceFiles(wsDir) : [];
-      var hasServerJs = wsFiles.some(function(f) { return f === "server.js"; });
-      var hasPkgJson = wsFiles.some(function(f) { return f === "package.json"; });
-      if (!hasServerJs || !hasPkgJson) {
-        return "REJECTED: Cannot complete — missing " + (!hasServerJs ? "server.js" : "package.json") + ". Current files: " + (wsFiles.length ? wsFiles.join(", ") : "none") + ". Write all required files first.";
-      }
-      var serverSize = 0;
-      try { serverSize = fs.readFileSync(path.join(wsDir, "server.js"), "utf-8").length; } catch(e) {}
-      if (serverSize < 3000) {
-        return "REJECTED: server.js is only " + serverSize + " characters. A complete full-stack app is 3000+ characters minimum. Keep writing — all routes, all HTML/CSS/JS, everything in the spec.";
-      }
-      return "__TASK_COMPLETE__";
-    }
-
     case "ask_user":
-      // Use distinct type "agent_message" so client never echo-filters it
       if (onMessage) onMessage({ type: "agent_message", content: toolInput.message });
       return "Message sent to user.";
 
@@ -506,36 +457,8 @@ async function executeTool(toolName, toolInput, wsDir, onMessage) {
 
 // ── MAIN AGENT LOOP ───────────────────────────────────────────────────────────
 
-/**
- * runForgeAgent
- *
- * @param {object} opts
- * @param {string}   opts.projectId
- * @param {string}   opts.userMessage
- * @param {string}   opts.wsDir         - workspace directory path (may not exist for new projects)
- * @param {Array}    opts.history        - [{role, content}] conversation history
- * @param {string}   opts.skillContext   - activated skill instructions
- * @param {function} opts.onMessage      - streaming callback { type, content/path }
- *
- * @returns {object}
- *   { type: "message", message }
- *   { type: "build", message, startCommand, installCommand, summary, envVars, files }
- *   { type: "error", message }
- */
 async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skillContext = "", attachments = [], onMessage }) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  // New project — no workspace exists yet. Create a fresh one so the agent
-  // has a real directory to write files into from the very first tool call.
-  if (!wsDir) {
-    var workspacesBase = process.env.DATA_DIR
-      ? path.join(process.env.DATA_DIR, "workspaces")
-      : path.join(__dirname, "..", "..", "workspaces");
-    var tmpId = "new-" + projectId + "-" + Date.now();
-    wsDir = path.join(workspacesBase, tmpId);
-    fs.mkdirSync(wsDir, { recursive: true });
-    console.log("[forge-agent] Created temp workspace for new project:", wsDir);
-  }
 
   // Fetch memory context
   let memoryBlock = "";
@@ -549,13 +472,9 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
   // Assemble system prompt
   const systemParts = [];
   if (memoryBlock) {
-    // Strip old Chat Agent pipeline language from Brain memory before injecting.
-    // Memories that reference BUILD:, FORGE:, "scoped to", "Chat Agent", or
-    // "cannot modify ForgeOS" are artifacts of the old architecture and will
-    // confuse the unified agent into thinking it has constraints it doesn't have.
     const filteredMemory = memoryBlock
       .split("\n")
-      .filter(line => {
+      .filter(function(line) {
         const l = line.toLowerCase();
         return !(
           l.includes("build:") ||
@@ -565,7 +484,12 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
           l.includes("cannot modify forgeos") ||
           l.includes("only via forge") ||
           l.includes("read_forge_source") ||
-          l.includes("forgeos infrastructure")
+          l.includes("forgeos infrastructure") ||
+          l.includes("task_complete") ||
+          l.includes("write_file") ||
+          l.includes("list_files") ||
+          l.includes("run_command") ||
+          l.includes("wsdir")
         );
       })
       .join("\n");
@@ -575,15 +499,10 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
   systemParts.push(SYSTEM_PROMPT);
   const fullSystem = systemParts.join("\n\n");
 
-  // Build message history — scrub any orphaned tool_use blocks that have no
-  // corresponding tool_result. These happen when the agent loop breaks mid-call
-  // (timeout, error) and cause a 400 on the next API call.
+  // Build message history — scrub orphaned tool_use blocks
   const messages = [];
   for (var i = 0; i < history.length; i++) {
     var msg = history[i];
-    // If this is an assistant message with tool_use blocks, check the next message
-    // has tool_results. If not, skip both this message and inject nothing — the
-    // orphaned tool call gets dropped from history entirely.
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
       var hasToolUse = msg.content.some(function(b) { return b.type === "tool_use"; });
       if (hasToolUse) {
@@ -591,7 +510,6 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
         var nextHasResult = next && Array.isArray(next.content) &&
           next.content.some(function(b) { return b.type === "tool_result"; });
         if (!nextHasResult) {
-          // Orphaned tool_use — drop it and skip to next
           console.log("[forge-agent] Dropped orphaned tool_use from history at index", i);
           continue;
         }
@@ -599,13 +517,13 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
     }
     messages.push({ role: msg.role, content: msg.content });
   }
-  // Build user message — include image attachments as vision blocks if present
+
+  // Build user message with optional image attachments
   var userContent;
   if (attachments && attachments.length > 0) {
     userContent = [{ type: "text", text: userMessage }];
     for (var a = 0; a < attachments.length; a++) {
       var att = attachments[a];
-      // Extract base64 data from data URL
       var base64Data = att.dataUrl.split(",")[1] || att.dataUrl;
       userContent.push({
         type: "image",
@@ -617,53 +535,49 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
   }
   messages.push({ role: "user", content: userContent });
 
-  var taskCompleteInput = null;
   var finalMessage = "";
   var allThinking = [];
-  var buildTriggered = false;
   var agentStartTime = Date.now();
 
   for (var round = 0; round < MAX_AGENT_ROUNDS; round++) {
     if (Date.now() - agentStartTime > MAX_AGENT_MS) {
-      console.error("[forge-agent] Hard timeout after " + MAX_AGENT_ROUNDS + " rounds or 3 minutes");
+      console.error("[forge-agent] Hard timeout after " + MAX_AGENT_ROUNDS + " rounds");
       break;
     }
+
     var response = await client.messages.create({
       model: FORGE_MODEL,
       max_tokens: 16000,
       system: fullSystem,
       tools: TOOLS,
       messages: messages,
-    }, { timeout: 300000 }); // 5 min per Claude call max
+    }, { timeout: 300000 });
 
-    // Append assistant turn
     messages.push({ role: "assistant", content: response.content });
 
-    // Stream any text blocks to client
+    // Stream text blocks to client
     var textBlocks = response.content.filter(function(b) { return b.type === "text"; });
     if (textBlocks.length > 0) {
       var text = textBlocks.map(function(b) { return b.text; }).join("\n").trim();
       if (text) {
         finalMessage = text;
         allThinking.push(text);
-        if (round > 0) {
-          if (onMessage) onMessage({ type: "thinking", content: text });
+        if (round > 0 && onMessage) {
+          onMessage({ type: "thinking", content: text });
         }
       }
     }
 
     if (response.stop_reason === "end_turn") {
-      // If no tools have been called yet and the message sounds like work
-      // was intended, Claude ended its turn prematurely. Push it to act.
+      // Nudge if looks like work but no tools called yet
       var toolsCalledSoFar = messages.filter(function(m) {
         return m.role === "assistant" && Array.isArray(m.content) &&
           m.content.some(function(b) { return b.type === "tool_use"; });
       }).length;
       var looksLikeWork = (finalMessage || "").match(/push|write|fix|change|update|patch|commit|edit|read|grep|search|build|create|implement|scaffold|straight to it|get to it|let me|i'll|going to|will write|will build/i);
-      // Round 0 with no tools and a long user message = build request. Always nudge.
       var longUserMsg = (userMessage || "").length > 200;
       if (toolsCalledSoFar === 0 && (looksLikeWork || longUserMsg) && round < MAX_AGENT_ROUNDS - 1) {
-        messages.push({ role: "user", content: [{ type: "text", text: "Stop narrating. Call write_file now and write the first file." }] });
+        messages.push({ role: "user", content: [{ type: "text", text: "Stop narrating. Call github_ls or github_read now and get to work." }] });
         continue;
       }
       break;
@@ -679,105 +593,46 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
       var toolUse = toolUseBlocks[t];
       console.log("[forge-agent] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 120));
 
-      // Emit a readable status message for each tool call
       if (onMessage) {
+        var inp = toolUse.input || {};
         var statusMsg = (function() {
-          var inp = toolUse.input || {};
           switch (toolUse.name) {
-            case "list_files":    return "Scanning workspace files...";
-            case "read_file":     return "Reading " + (inp.path || "file") + "...";
-            case "write_file":    return "Writing " + (inp.path || "file") + "...";
-            case "run_command":   return "Running: " + (inp.command || "").slice(0, 60) + "...";
-            case "memory_search": return "Searching Brain: \"" + (inp.query || "").slice(0, 50) + "\"...";
-            case "fetch_url":     return "Fetching " + (inp.url || "").replace("https://","").slice(0, 60) + "...";
-            case "github_patch":  return "Patching " + (inp.filepath || "") + " (" + (inp.replacements || []).length + " change" + ((inp.replacements||[]).length !== 1 ? "s" : "") + ")...";
-            case "github_read":   return "Reading " + (inp.filepath || "") + " from GitHub...";
-            case "github_write":  return "Pushing " + (inp.filepath || "") + " to GitHub...";
-            case "ask_user":      return null; // ask_user sends its own agent_message
-            case "task_complete": return "Build complete. Starting app...";
-            default:              return "Running " + toolUse.name + "...";
+            case "github_ls":      return "Listing " + (inp.branch || "main") + "/" + (inp.path || "") + "...";
+            case "github_read":    return "Reading " + inp.filepath + " from " + (inp.branch || "main") + "...";
+            case "github_write":   return "Pushing " + inp.filepath + " to " + (inp.branch || "main") + "...";
+            case "github_patch":   return "Patching " + inp.filepath + " (" + (inp.replacements || []).length + " change" + ((inp.replacements||[]).length !== 1 ? "s" : "") + ") on " + (inp.branch || "main") + "...";
+            case "render_status":  return "Checking Render deploy status...";
+            case "memory_search":  return "Searching Brain: \"" + (inp.query || "").slice(0, 50) + "\"...";
+            case "fetch_url":      return "Fetching " + (inp.url || "").replace("https://", "").slice(0, 60) + "...";
+            case "ask_user":       return null;
+            default:               return "Running " + toolUse.name + "...";
           }
         })();
         if (statusMsg) onMessage({ type: "tool_status", content: statusMsg });
       }
 
-      var result = await executeTool(toolUse.name, toolUse.input, wsDir, onMessage);
-
-      if (result === "__TASK_COMPLETE__") {
-        taskCompleteInput = toolUse.input;
-        buildTriggered = true;
-        toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: "Build initiated." });
-        break;
-      }
-
+      var result = await executeTool(toolUse.name, toolUse.input, onMessage);
       toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: result });
     }
 
-    if (buildTriggered) break;
     messages.push({ role: "user", content: toolResults });
   }
 
-  // Build result
-  if (buildTriggered && taskCompleteInput) {
-    var files = collectWorkspaceFiles(wsDir);
-
-    // Record to Brain
-    if (files.length > 0 && projectId) {
-      brain.extractMemory({
-        projectId: projectId,
-        userRequest: userMessage,
-        buildSummary: taskCompleteInput.summary,
-        files: files,
-      }).catch(function() {});
-    }
-
-    return {
-      type: "build",
-      message: taskCompleteInput.message || taskCompleteInput.summary,
-      startCommand: taskCompleteInput.startCommand,
-      installCommand: taskCompleteInput.installCommand,
-      summary: taskCompleteInput.summary,
-      envVars: taskCompleteInput.envVars || [],
-      files: files,
-    };
+  // Record to Brain
+  if (projectId && finalMessage) {
+    brain.extractMemory({
+      projectId: projectId,
+      userRequest: userMessage,
+      buildSummary: finalMessage.slice(0, 500),
+      files: [],
+    }).catch(function() {});
   }
 
-  // Pure chat — return full reasoning so it gets saved to conversation history
-  // This is critical: without the full reasoning, Forge has amnesia every turn.
   var fullMessage = allThinking.length > 0 ? allThinking.join("\n\n") : (finalMessage || "Done.");
   return {
     type: "message",
     message: fullMessage,
   };
-}
-
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-
-function collectWorkspaceFiles(wsDir) {
-  if (!wsDir || !fs.existsSync(wsDir)) return [];
-  var files = [];
-  var SKIP = new Set(["node_modules", ".git", "dist", "build", ".cache"]);
-  var MAX_SIZE = 500 * 1024;
-
-  function walk(dir, prefix) {
-    var entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (var i = 0; i < entries.length; i++) {
-      var e = entries[i];
-      if (SKIP.has(e.name)) continue;
-      var rel = prefix ? prefix + "/" + e.name : e.name;
-      var full = path.join(dir, e.name);
-      if (e.isDirectory()) { walk(full, rel); continue; }
-      try {
-        var stat = fs.statSync(full);
-        if (stat.size > MAX_SIZE) continue;
-        var content = fs.readFileSync(full, "utf-8");
-        files.push({ path: rel, content: content });
-      } catch {}
-    }
-  }
-  walk(wsDir, "");
-  return files;
 }
 
 module.exports = { runForgeAgent };
