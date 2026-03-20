@@ -250,7 +250,7 @@ try {
     try {
       const result = await renderApi.createService({
         slug,
-        repoPath: githubSettings.repo,
+        repoPath: "BrianBMorgan/ForgeOS",
         branch: `apps/${slug}`,
         envVars: mergedEnv,
         startCommand,
@@ -282,7 +282,7 @@ try {
   try {
     const { tagCommit } = require("./github");
     const tag = `apps/${slug}-v${Date.now()}`;
-    await tagCommit(githubSettings.repo, tag, branchResult.commitSha);
+    await tagCommit("BrianBMorgan/ForgeOS", tag, null);
     console.log(`[publish] Tagged ${tag}`);
   } catch (err) {
     console.warn(`[publish] Could not tag branch apps/${slug}:`, err.message);
