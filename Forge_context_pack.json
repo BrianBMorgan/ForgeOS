@@ -409,6 +409,48 @@
       "stable_commits": {
         "main": "16575a9"
       }
+    },
+    {
+      "date": "2026-03-20",
+      "session_title": "ForgeOS v2 Architecture Decision + Phase 1 Demolition",
+      "shipped": [
+        "Deleted server/builder.js \u2014 local Claude builder call gone",
+        "Deleted server/workspace/manager.js \u2014 local workspace gone",
+        "Deleted server/pipeline/runner.js \u2014 local install/start runner gone",
+        "Surgically cleaned server/index.js \u2014 all workspace/createRun/buildAndDeploy/iterate/stop/restart routes removed (1774 \u2192 1451 lines). File staged at /tmp/index_v2.js, NOT YET PUSHED to GitHub",
+        "Mission Control restored to beast mode (7f041ec) \u2014 full agent loop, 8 tools, sovereign over ForgeOS",
+        "Forge restored to beast mode (98dcbb7) \u2014 clean wall, build mandate",
+        "MC chat: markdown rendering killed, contrast fixed (#c0c0d8 \u2192 #e8e8f0, 11px \u2192 12px)",
+        "MC system prompt: no markdown in responses",
+        "ForgeOS v2 Rebuild Plan doc generated \u2014 10 sections, full checkbox tracking, board-level",
+        "Intel seed data extracted to separate file \u2014 intel_seed_data.md",
+        "Forge nudge improvements \u2014 looksLikeWork broadened, task_complete guard (3000 chars), build mandate updated"
+      ],
+      "decisions": [
+        "ARCHITECTURE DECISION: Kill the local workspace entirely. ForgeOS v2 = Claude writes to GitHub, Render deploys, ForgeOS is the GUI. No more local processes, no workspace files, no install loops.",
+        "Hedwig (the custom agent loop with nudges/guards/task_complete) is replaced with direct Anthropic API streaming \u2014 Claude Code architecture. Chat column CSS/layout survives. Engine is replaced.",
+        "Git history replaces the iteration model. Render rollback replaces workspace snapshots. Brian was already doing this manually.",
+        "ForgeOS is not a Replit competitor. It is a deployment platform with Claude wired into the build chain. Claude.ai is the IDE. ForgeOS is the deployment platform.",
+        "The Intel Event Content Review app that failed 10 times in v1 will be the definitive Phase 5 test of v2.",
+        "Mission Control owns ForgeOS infrastructure. Forge owns project workspaces (GitHub branches). Hard wall between them."
+      ],
+      "pending": [
+        "CRITICAL: Push /tmp/index_v2.js to GitHub main branch \u2014 Phase 1 not fully complete until this is pushed",
+        "Phase 2: Add github_ls and render_status tools to forge.js, update Forge system prompt for v2 (no task_complete, no write_file, GitHub IS the workspace)",
+        "Phase 3: Rebuild client UI \u2014 Files tab (live GitHub tree), Commits tab (git history + rollback), remove Shell/DB/Diff/Plan tabs",
+        "Phase 4: Project model update \u2014 remove currentRunId/iterations, add branch column, per-project env vars",
+        "Phase 5: Intel Event Content Review build test \u2014 the definitive v2 validation",
+        "Replace Hedwig with direct Anthropic API streaming in the chat route"
+      ],
+      "key_commits": {
+        "forge_beast_mode": "98dcbb7",
+        "mc_beast_mode": "7f041ec",
+        "mc_no_markdown": "bf04617",
+        "mc_contrast_fix": "ff6897e",
+        "builder_deleted": "24e37d5",
+        "workspace_deleted": "1714393",
+        "pipeline_deleted": "e145e1a"
+      }
     }
   ],
   "context_pack_update_instructions": {
@@ -422,5 +464,16 @@
       "6. The base architecture sections (agent, builder, server_routes, etc.) should only change if the architecture actually changed"
     ],
     "never_do": "Do not regenerate the entire file from source code inspection unless explicitly asked for a full rebuild. That destroys accumulated session history."
-  }
+  },
+  "current_state": "ForgeOS v2 architecture decided and Phase 1 demolition underway. \n\nWHAT IS DONE:\n- server/builder.js, server/workspace/manager.js, server/pipeline/runner.js all deleted from GitHub\n- server/index.js surgically cleaned locally (1774\u21921451 lines, zero workspace refs) \u2014 STAGED BUT NOT YET PUSHED\n- Mission Control and Forge both in beast mode with clean walls\n- ForgeOS v2 Rebuild Plan doc complete (10 sections, checkbox tracking)\n\nWHAT IS NEXT (start here in next session):\n1. Push /tmp/index_v2.js to GitHub \u2014 complete Phase 1\n2. Update server/agent/forge.js \u2014 remove write_file/task_complete/run_command/list_files/read_file tools, add github_ls and render_status, update system prompt\n3. Rebuild client UI panels \u2014 Files tab (GitHub tree), Commits tab (rollback), remove dead tabs\n4. Update project model \u2014 schema migration, per-project env vars\n5. Replace Hedwig with direct Anthropic API streaming\n6. Test with Intel Event Content Review build\n\nTHE ARCHITECTURE:\nClaude writes to GitHub \u2192 Render auto-deploys \u2192 *.forge-os.ai serves it\nNo local workspace. No install loop. No task_complete. Git IS the history. Render IS the rollback.",
+  "next_steps": [
+    "FIRST: Push staged index.js to GitHub \u2014 file is at /tmp/index_v2.js on Claude's end, needs to be re-derived and pushed",
+    "Update server/agent/forge.js \u2014 new tool set for v2 (github_ls, render_status, keep github_read/write/patch/memory_search/ask_user)",
+    "Rewrite Forge system prompt \u2014 GitHub is the workspace, no task_complete, no write_file",
+    "Rebuild Workspace.tsx \u2014 Files tab, Commits tab, remove Shell/DB/Diff/Plan tabs",
+    "Update App.tsx \u2014 remove iteration model references, simplify project state",
+    "Schema migration \u2014 remove run_snapshots, simplify projects table",
+    "Replace chat agent loop (Hedwig) with direct Anthropic API streaming",
+    "Intel Event Content Review \u2014 build it clean as Phase 5 test"
+  ]
 }
