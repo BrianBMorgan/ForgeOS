@@ -1,0 +1,13 @@
+{
+  "name": "mission-control",
+  "version": "1.0.0",
+  "description": "Mission Control shell",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@neondatabase/serverless": "^0.9.0"
+  }
+}
