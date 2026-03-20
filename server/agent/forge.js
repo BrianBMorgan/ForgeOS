@@ -642,9 +642,11 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
         return m.role === "assistant" && Array.isArray(m.content) &&
           m.content.some(function(b) { return b.type === "tool_use"; });
       }).length;
-      var looksLikeWork = (finalMessage || "").match(/push|write|fix|change|update|patch|commit|edit|read|grep|search/i);
-      if (toolsCalledSoFar === 0 && looksLikeWork && round < MAX_AGENT_ROUNDS - 1) {
-        messages.push({ role: "user", content: [{ type: "text", text: "Use a tool to do that." }] });
+      var looksLikeWork = (finalMessage || "").match(/push|write|fix|change|update|patch|commit|edit|read|grep|search|build|create|implement|scaffold|straight to it|get to it|let me|i'll|going to|will write|will build/i);
+      // Round 0 with no tools and a long user message = build request. Always nudge.
+      var longUserMsg = (userMessage || "").length > 200;
+      if (toolsCalledSoFar === 0 && (looksLikeWork || longUserMsg) && round < MAX_AGENT_ROUNDS - 1) {
+        messages.push({ role: "user", content: [{ type: "text", text: "Stop narrating. Call write_file now and write the first file." }] });
         continue;
       }
       break;
