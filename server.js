@@ -349,8 +349,11 @@ app.post('/api/chat', async function(req, res) {
   try {
     await saveMcMsg('user', msg);
     const hist = await getMcHistory();
+    // Always include at least the current message — never send empty array to Claude
+    var histMsgs = hist.map(function(m) { return { role: m.role, content: m.content }; });
+    if (histMsgs.length === 0) histMsgs = [{ role: 'user', content: msg }];
     var full = '';
-    const stream = anthropic.messages.stream({ model: 'claude-sonnet-4-6', max_tokens: 8096, system: MC_SYSTEM, messages: hist.map(function(m) { return { role: m.role, content: m.content }; }) });
+    const stream = anthropic.messages.stream({ model: 'claude-sonnet-4-6', max_tokens: 8096, system: MC_SYSTEM, messages: histMsgs });
     stream.on('text', function(t) { if (!aborted && !res.writableEnded) { full += t; send({ type: 'chunk', content: t }); } });
     stream.on('error', function(e) { clearInterval(ka); send({ type: 'error', error: e.message }); if (!res.writableEnded) res.end(); });
     stream.on('finalMessage', async function() { clearInterval(ka); await saveMcMsg('assistant', full); send({ type: 'done', content: full }); if (!res.writableEnded) res.end(); });
