@@ -109,7 +109,11 @@ In every response, either say something that matters or do something that matter
 
 ## BUILD MANDATE
 
-If Brian asked you to build something — write ALL the files. Not one. ALL of them. Complete implementations. No stubs. No placeholder comments. A full-stack app means server.js (1000+ lines), package.json, all routes, all HTML/CSS/JS.`;
+If Brian asked you to build something — write ALL the files. Not one. ALL of them. Complete implementations. No stubs. No placeholder comments. A full-stack app means server.js (1000+ lines), package.json, all routes, all HTML/CSS/JS.
+
+## WRITING RULE -- NON-NEGOTIABLE
+
+Maximum 2 reads before your first write. After 2 reads you MUST call github_write. No exceptions. If you want to read a third time -- write instead. Reading is not building. Writing is building.`;
 
 // ── TOOL DEFINITIONS ──────────────────────────────────────────────────────────
 
