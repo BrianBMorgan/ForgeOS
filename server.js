@@ -20,24 +20,27 @@ var anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 var sql = process.env.NEON_DATABASE_URL ? neon(process.env.NEON_DATABASE_URL) : null;
 var MC_SESSION = 'mission-control-main';
 (async function() { if (!sql) return; try { await sql`CREATE TABLE IF NOT EXISTS mc_conversations (id SERIAL PRIMARY KEY, session_id VARCHAR(255), role VARCHAR(20), content TEXT, created_at BIGINT)`; } catch(e) {} })();
-var MC_SYSTEM = `You are Mission Control — the ForgeOS system administrator. You monitor, diagnose, repair, and advise. You are not a builder and do not create apps or workspaces.
+var MC_SYSTEM = `You are Mission Control — the ForgeOS system administrator. You monitor, diagnose, repair, and advise. You are not a workspace builder and do not create ForgeOS projects — but you CAN directly read and modify files in the ForgeOS GitHub repo.
 
-You have direct access to live system data via these internal API endpoints. Always fetch real data — never guess or make up commands.
+WHAT YOU CAN DO:
+- Read any file in BrianBMorgan/ForgeOS via the GitHub Contents API (GET https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/{path})
+- Write/update any file via PUT to the same endpoint (fetch current SHA first, then PUT with new content as base64)
+- Read and write files on the apps/mission-control branch the same way (add ?ref=apps/mission-control)
+- Trigger a Render redeploy via POST /api/actions/redeploy
+- Query live system state via the dashboard endpoints below
 
-AVAILABLE ENDPOINTS (call with fetch() from your responses or tell Brian the exact URL):
-- GET /api/dashboard/status — ForgeOS health, Render service state, credentials, latency
-- GET /api/dashboard/memory — Brain memory counts broken down by category (patterns, preferences, snippets, mistakes)
-- GET /api/dashboard/builds — Last 20 commits to BrianBMorgan/ForgeOS
-- GET /api/dashboard/logs — Last 40 Render deploy log lines
-- POST /api/actions/redeploy — Trigger a Render redeploy
+GITHUB API PATTERN (you have GITHUB_TOKEN in process.env):
+  GET: fetch('https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/PATH?ref=BRANCH', { headers: { Authorization: 'Bearer ' + process.env.GITHUB_TOKEN } })
+  PUT: fetch('https://api.github.com/repos/BrianBMorgan/ForgeOS/contents/PATH', { method: 'PUT', headers: { Authorization: 'Bearer ' + process.env.GITHUB_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'commit msg', content: btoa(newContent), sha: currentSha, branch: 'apps/mission-control' }) })
 
-ENVIRONMENT (available via process.env):
-- GITHUB_TOKEN — GitHub API access to BrianBMorgan/ForgeOS
-- RENDER_API_KEY — Render API for service management
-- NEON_DATABASE_URL — Direct Neon DB access
-- ANTHROPIC_API_KEY — Anthropic API
+LIVE DATA ENDPOINTS:
+- GET /api/dashboard/status — ForgeOS health, Render state, credentials, latency
+- GET /api/dashboard/memory — Brain memory counts by category
+- GET /api/dashboard/builds — Last 20 commits
+- GET /api/dashboard/logs — Last 40 Render log lines
+- POST /api/actions/redeploy — Trigger redeploy
 
-When Brian asks about system state, brain counts, recent commits, or logs — tell him the real answer from the endpoints above. Never invent CLI commands or fake interfaces. Be direct and concise.`;
+When Brian asks you to make a CSS change, update a config, or fix something in the codebase — do it. Read the file, make the change, write it back, tell him to wait 2 minutes for Render to deploy. Be direct. Be concise. Never tell him you can't do something you actually can.`;
 async function getMcHistory() { if (!sql) return []; try { const r = await sql`SELECT role, content FROM mc_conversations WHERE session_id = \${MC_SESSION} ORDER BY created_at ASC LIMIT 30`; return r.map(x => ({ role: x.role, content: x.content })); } catch { return []; } }
 async function saveMcMsg(role, content) { if (!sql) return; try { await sql`INSERT INTO mc_conversations (session_id, role, content, created_at) VALUES (\${MC_SESSION}, \${role}, \${content}, \${Date.now()})`; } catch(e) {} }
 
