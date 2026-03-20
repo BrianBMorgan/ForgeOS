@@ -614,15 +614,29 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
     }
 
     if (response.stop_reason === "end_turn") {
-      // If no tools have been called yet and the message sounds like work
-      // was intended, Claude ended its turn prematurely. Push it to act.
-      var toolsCalledSoFar = messages.filter(function(m) {
-        return m.role === "assistant" && Array.isArray(m.content) &&
-          m.content.some(function(b) { return b.type === "tool_use"; });
-      }).length;
-      var looksLikeWork = (finalMessage || "").match(/push|write|fix|change|update|patch|commit|edit|read|grep|search/i);
-      if (toolsCalledSoFar === 0 && looksLikeWork && round < MAX_AGENT_ROUNDS - 1) {
-        messages.push({ role: "user", content: [{ type: "text", text: "Use a tool to do that." }] });
+      // Detect premature end_turn: agent announced a plan or described next steps
+      // but stopped without writing/pushing/completing anything actionable.
+      // This fires whether the agent called zero tools or only called read tools.
+      var lastAssistantTools = [];
+      for (var hi = messages.length - 1; hi >= 0; hi--) {
+        var hm = messages[hi];
+        if (hm.role === "assistant" && Array.isArray(hm.content)) {
+          lastAssistantTools = hm.content
+            .filter(function(b) { return b.type === "tool_use"; })
+            .map(function(b) { return b.name; });
+          break;
+        }
+      }
+      var onlyDidReads = lastAssistantTools.length > 0 && lastAssistantTools.every(function(n) {
+        return n === "list_files" || n === "read_file" || n === "github_read" ||
+               n === "memory_search" || n === "fetch_url" || n === "run_command";
+      });
+      var didNoTools = lastAssistantTools.length === 0;
+      var looksLikeMoreWork = (finalMessage || "").match(
+        /i('ll| will| can| need to|'m going to)|next|now i|let me|plan|going to write|going to create|going to build|going to add|going to fix|going to push|will write|will create|will build|will add|will fix|will push|here'?s (the|my|what|how)/i
+      );
+      if ((didNoTools || onlyDidReads) && looksLikeMoreWork && round < MAX_AGENT_ROUNDS - 1) {
+        messages.push({ role: "user", content: [{ type: "text", text: "Don't describe what you're going to do — do it now. Use a tool." }] });
         continue;
       }
       break;
