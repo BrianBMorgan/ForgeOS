@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { ProjectData } from "../App";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -667,6 +667,7 @@ function RenderTab({ projectId, slug }: { projectId: string | null; slug?: strin
   const [deployStatus, setDeployStatus] = useState<{ status: string; url: string; lastDeploy: string; commit: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [redeploying, setRedeploying] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appUrl = slug ? `https://${slug}.forge-os.ai` : null;
 
   const fetchStatus = useCallback(async () => {
@@ -676,12 +677,18 @@ function RenderTab({ projectId, slug }: { projectId: string | null; slug?: strin
       const res = await fetch(`/api/projects/${projectId}/publish`);
       const data = await res.json();
       if (data.published) {
+        const status = data.status || "unknown";
         setDeployStatus({
-          status: data.status || "unknown",
+          status,
           url: appUrl || data.renderUrl || "",
           lastDeploy: data.publishedAt ? new Date(data.publishedAt).toLocaleString() : "—",
           commit: data.github?.commitSha?.slice(0, 7) || "—",
         });
+        // Stop polling once live
+        if (status === "running" && pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
       } else {
         setDeployStatus(null);
       }
@@ -691,13 +698,28 @@ function RenderTab({ projectId, slug }: { projectId: string | null; slug?: strin
     setLoading(false);
   }, [projectId, appUrl]);
 
-  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+  // Initial fetch + start polling if deploying; stop when live
+  useEffect(() => {
+    fetchStatus();
+    // Poll every 5s — fetchStatus will self-terminate the interval when live
+    pollRef.current = setInterval(fetchStatus, 5000);
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [fetchStatus]);
 
   const handleRedeploy = async () => {
     if (!projectId) return;
     setRedeploying(true);
     try {
       await fetch(`/api/projects/${projectId}/publish`, { method: "POST" });
+      // Start polling again after redeploy
+      if (!pollRef.current) {
+        pollRef.current = setInterval(fetchStatus, 5000);
+      }
       setTimeout(fetchStatus, 2000);
     } catch {}
     setRedeploying(false);
