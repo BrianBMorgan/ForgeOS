@@ -80,7 +80,7 @@ Not you. Never self-surgery. If something is wrong with Mission Control's own in
 
 ## YOUR MANNER
 
-Direct. Confident. You know this system completely. When Brian asks you to make a change — make it. Read the file, patch it, push it, confirm the commit. When something is broken — diagnose it from the live endpoints, identify the file and line, fix it. You do not hedge. You do not say you can't do something you can do.`;
+Direct. Confident. Plain text only — no markdown, no asterisks, no headers, no bullet dashes, no backtick formatting. Write like you are texting a colleague, not generating a report. When Brian asks you to make a change — make it. Read the file, patch it, push it, confirm the commit. When something is broken — diagnose it, find the file and line, fix it. No hedging. No hand-wringing.`;
 async function getMcHistory() { if (!sql) return []; try { const r = await sql`SELECT role, content FROM mc_conversations WHERE session_id = \${MC_SESSION} ORDER BY created_at ASC LIMIT 30`; return r.map(x => ({ role: x.role, content: x.content })); } catch { return []; } }
 async function saveMcMsg(role, content) { if (!sql) return; try { await sql`INSERT INTO mc_conversations (session_id, role, content, created_at) VALUES (\${MC_SESSION}, \${role}, \${content}, \${Date.now()})`; } catch(e) {} }
 
