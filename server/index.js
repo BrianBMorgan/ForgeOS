@@ -1046,6 +1046,79 @@ app.post("/api/db/query", async (req, res) => {
 });
 
 
+// ---------------------------------------------------------------------------
+// GitHub proxy routes — used by Workspace v2 Files and Commits tabs
+// ---------------------------------------------------------------------------
+const FORGEOS_REPO = "BrianBMorgan/ForgeOS";
+
+function ghHeaders() {
+  const token = process.env.GITHUB_TOKEN;
+  return {
+    "Authorization": "Bearer " + token,
+    "Accept": "application/vnd.github.v3+json",
+    "User-Agent": "ForgeOS/2.0",
+  };
+}
+
+// List files in a branch/path — used by Files tab
+app.get("/api/github/ls", async (req, res) => {
+  const { branch = "main", path = "" } = req.query;
+  try {
+    const url = `https://api.github.com/repos/${FORGEOS_REPO}/contents/${path}?ref=${encodeURIComponent(branch)}`;
+    const r = await fetch(url, { headers: ghHeaders() });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: data.message || "GitHub error" });
+    if (!Array.isArray(data)) return res.json([]);
+    const items = data.map(item => ({
+      name: item.name,
+      path: item.path,
+      type: item.type === "dir" ? "dir" : "file",
+      size: item.size || 0,
+    }));
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Read a single file from a branch — used by Files tab viewer
+app.get("/api/github/read", async (req, res) => {
+  const { branch = "main", path } = req.query;
+  if (!path) return res.status(400).json({ error: "path is required" });
+  try {
+    const url = `https://api.github.com/repos/${FORGEOS_REPO}/contents/${path}?ref=${encodeURIComponent(branch)}`;
+    const r = await fetch(url, { headers: ghHeaders() });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: data.message || "GitHub error" });
+    const content = Buffer.from(data.content, "base64").toString("utf-8");
+    res.json({ content, sha: data.sha, size: data.size });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List commits for a branch — used by Commits tab
+app.get("/api/github/commits", async (req, res) => {
+  const { branch = "main", per_page = "30" } = req.query;
+  try {
+    const url = `https://api.github.com/repos/${FORGEOS_REPO}/commits?sha=${encodeURIComponent(branch)}&per_page=${per_page}`;
+    const r = await fetch(url, { headers: ghHeaders() });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: data.message || "GitHub error" });
+    if (!Array.isArray(data)) return res.json([]);
+    const commits = data.map(c => ({
+      sha: c.sha,
+      message: c.commit.message,
+      author: c.commit.author.name,
+      date: c.commit.author.date,
+    }));
+    res.json(commits);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 const clientDist = path.join(__dirname, "..", "client", "dist");
 try {
   const fs = require("fs");
@@ -1131,6 +1204,7 @@ app.listen(PORT, "0.0.0.0", async () => {
   }
 
 });
+
 
 
 
