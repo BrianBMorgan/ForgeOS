@@ -674,22 +674,22 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
         /build|fix|create|add|update|change|write|push|deploy|make|implement|refactor|reforge|remove|delete|install|move|rename|edit|patch|migrate|connect|wire|set up|set up|integrate|generate|scaffold|convert/i
       );
 
-      if ((didNoTools || onlyDidReads) && !isConversational && round < MAX_AGENT_ROUNDS - 1) {
-        var filesWrittenSoFar = messages.filter(function(m) {
-          return m.role === "assistant" && Array.isArray(m.content) &&
-            m.content.some(function(b) { return b.type === "tool_use" && b.name === "write_file"; });
-        }).length;
-        var workspaceEmpty = messages.some(function(m) {
-          return m.role === "tool" || (Array.isArray(m.content) && m.content.some(function(b) {
-            return b.type === "tool_result" && typeof b.content === "string" &&
-              (b.content.includes("Workspace is empty") || b.content.includes("new project with no files"));
-          }));
-        });
-        var nudgeMsg = workspaceEmpty
-          ? "The workspace is empty. This is a new project. Call write_file NOW and write the first file — server.js or whatever the entry point is. No scanning, no planning, no preamble."
-          : filesWrittenSoFar === 0
-            ? "You have read but not written anything. Call write_file now — no preamble, no plan. Write the first file."
-            : "Don't describe what you're going to do — do it now. Use a tool.";
+      // Count write_file calls so far across entire session
+      var filesWrittenSoFar = messages.filter(function(m) {
+        return m.role === "assistant" && Array.isArray(m.content) &&
+          m.content.some(function(b) { return b.type === "tool_use" && b.name === "write_file"; });
+      }).length;
+
+      // HARD RULE: if nothing has been written yet and user sent a build request,
+      // the conversational guard is overridden — nudge fires unconditionally.
+      var nothingWrittenYet = filesWrittenSoFar === 0;
+      var shouldNudge = (didNoTools || onlyDidReads) && round < MAX_AGENT_ROUNDS - 1 &&
+        (nothingWrittenYet ? !isConversational : true);
+
+      if (shouldNudge) {
+        var nudgeMsg = nothingWrittenYet
+          ? "Nothing has been written yet. Call write_file NOW. Write the first file — server.js or package.json. No narration, no summary, no 'Done.' — actual file content via write_file."
+          : "Don't describe what you're going to do — do it now. Use a tool.";
         messages.push({ role: "user", content: [{ type: "text", text: nudgeMsg }] });
         continue;
       }
