@@ -65,7 +65,7 @@ Mission Control owns its own branch (apps/mission-control). Forge does not touch
 ## HOW YOU WORK
 
 For app builds (new app on an apps/<slug> branch):
-1. github_ls to see what exists (branch: apps/<slug>)
+1. github_create_branch to create the branch (apps/<slug>) — ALWAYS do this first for new apps
 2. github_write each file needed — server.js, package.json, any static files
 3. render_status to confirm deploy is running and get the live URL
 4. Report the live URL to Brian
@@ -150,6 +150,17 @@ const TOOLS = [
         branch: { type: "string", description: "Branch name. Default: 'main'. For apps use 'apps/<slug>'." },
       },
       required: ["filepath", "content", "message"],
+    },
+  },
+  {
+    name: "github_create_branch",
+    description: "Create a new branch in the ForgeOS GitHub repository from main. ALWAYS call this before github_write when starting a new app build — the branch must exist before any files can be written to it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        branch: { type: "string", description: "Branch name to create, e.g. 'apps/my-app'" },
+      },
+      required: ["branch"],
     },
   },
   {
@@ -258,6 +269,43 @@ async function executeTool(toolName, toolInput, onMessage) {
         return "Branch: " + branch + " | Path: /" + dirPath + "\n" + lines.join("\n");
       } catch (err) {
         return "github_ls error: " + err.message;
+      }
+    }
+
+    case "github_create_branch": {
+      try {
+        const branch = toolInput.branch;
+        if (!branch) return "Error: branch name is required";
+        const headers = githubHeaders();
+
+        // Get main branch HEAD SHA
+        const refRes = await fetch(
+          "https://api.github.com/repos/" + GITHUB_REPO + "/git/ref/heads/main",
+          { headers }
+        );
+        const refData = await refRes.json();
+        if (!refRes.ok) return "GitHub error getting main ref: " + JSON.stringify(refData).slice(0, 200);
+        const sha = refData.object.sha;
+
+        // Create new branch from main HEAD
+        const createRes = await fetch(
+          "https://api.github.com/repos/" + GITHUB_REPO + "/git/refs",
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ ref: "refs/heads/" + branch, sha }),
+          }
+        );
+        const createData = await createRes.json();
+        if (!createRes.ok) {
+          // 422 = branch already exists — that's fine
+          if (createRes.status === 422) return "Branch " + branch + " already exists — proceeding.";
+          return "GitHub error creating branch: " + JSON.stringify(createData).slice(0, 200);
+        }
+        if (onMessage) onMessage({ type: "tool_status", content: "✓ Created branch: " + branch });
+        return "Branch " + branch + " created from main (" + sha.slice(0, 7) + ")";
+      } catch (err) {
+        return "github_create_branch error: " + err.message;
       }
     }
 
@@ -597,6 +645,7 @@ async function runForgeAgent({ projectId, userMessage, wsDir, history = [], skil
         var inp = toolUse.input || {};
         var statusMsg = (function() {
           switch (toolUse.name) {
+            case "github_create_branch": return "Creating branch " + (inp.branch || "") + "...";
             case "github_ls":      return "Listing " + (inp.branch || "main") + "/" + (inp.path || "") + "...";
             case "github_read":    return "Reading " + inp.filepath + " from " + (inp.branch || "main") + "...";
             case "github_write":   return "Pushing " + inp.filepath + " to " + (inp.branch || "main") + "...";
