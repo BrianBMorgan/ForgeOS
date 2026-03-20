@@ -111,13 +111,19 @@ async function saveToDb(app) {
 // ---------------------------------------------------------------------------
 
 function generateSlug(name) {
-  const slug = name
+  // Skip filler words — keep only meaningful words, max 3, max 30 chars total
+  const FILLER = new Set(["build","make","create","a","an","the","for","with","and","or","of","to","in","on","at","by"]);
+  const words = name
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !FILLER.has(w))
+    .slice(0, 3);
+  const slug = (words.length > 0 ? words : [name.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 10)])
+    .join("-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
-    .substring(0, 60);
+    .substring(0, 30);
   return slug || "app";
 }
 
