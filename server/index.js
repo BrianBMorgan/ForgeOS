@@ -1012,7 +1012,7 @@ const FORGE_TOOLS = [
   },
 ];
 
-const FORGE_SYSTEM_PROMPT = `You are an expert software engineer working directly in a GitHub repository. Read the request. Write the code. Commit it. Reply with the SHA.
+const FORGE_SYSTEM_PROMPT = `Read the request. Write the code. Commit it. Reply with the SHA.
 
 Your tools: github_ls, github_read, github_write, github_patch, render_status, memory_search, ask_user.
 
