@@ -357,7 +357,6 @@ app.get("/api/projects/:id/export", async (req, res) => {
 // ---------------------------------------------------------------------------
 // Analytics
 // ---------------------------------------------------------------------------
-const analyticsManager = require("./analytics/manager");
 analyticsManager.ensureSchema().catch(err => console.error("[analytics] Schema error:", err.message));
 
 // Ingest events from published app tracker beacons
@@ -506,8 +505,7 @@ app.get("/api/diagnostics", async (req, res) => {
     return res.status(403).json({ error: "Diagnostics only available from the ForgeOS UI" });
   }
   try {
-    const chatManager = require("./chat/manager");
-    const { runDiagnostics } = chatManager;
+        const { runDiagnostics } = chatManager;
     const projectId = req.query.project_id || null;
     const checks = req.query.checks ? req.query.checks.split(",") : ["all"];
     const report = await runDiagnostics(projectId, checks);
@@ -1186,14 +1184,8 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
     // Build system prompt
     const sysParts = [];
-    if (memoryBlock) {
-      const filtered = memoryBlock.split("\n").filter(function(l) {
-        const ll = l.toLowerCase();
-        return !(ll.includes("task_complete") || ll.includes("write_file") || ll.includes("list_files") || ll.includes("run_command") || ll.includes("wsdir"));
-      }).join("\n");
-      if (filtered.trim()) sysParts.push("## RELEVANT MEMORY\n" + filtered);
-    }
-    if (skillContext) sysParts.push("## ACTIVATED SKILL INSTRUCTIONS — FOLLOW THESE EXACTLY\n" + skillContext);
+    if (memoryBlock && memoryBlock.trim()) sysParts.push("## RELEVANT MEMORY\n" + memoryBlock.trim());
+    if (skillContext) sysParts.push("## SKILL INSTRUCTIONS\n" + skillContext);
     sysParts.push(FORGE_SYSTEM_PROMPT);
     const systemPrompt = sysParts.join("\n\n");
 
