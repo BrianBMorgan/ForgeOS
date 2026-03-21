@@ -306,9 +306,12 @@ function renderSubTable() {
 }
 
 function showAddSubmission() {
-  document.getElementById('slide-panel').innerHTML = '<h2>Add Submission</h2>' + submissionForm(null) + '<button class="btn-primary" onclick="saveNewSubmission()">Save Submission</button>';
+  var panel = document.getElementById('slide-panel');
+  panel.innerHTML = '<h2>Add Submission</h2>' + submissionForm(null) + '<button class="btn-primary" id="btn-save-sub">Save Submission</button>';
+  document.getElementById('btn-save-sub').addEventListener('click', saveNewSubmission);
   openPanel();
 }
+
 
 function submissionForm(s) {
   var f = s || {};
@@ -340,43 +343,100 @@ async function viewSubmission(id) {
   var score = s.ai_score;
   var scoreHtml = '';
   if (score) {
-    var dims = score.dimension_scores || {};
-    scoreHtml = '<div style="margin-top:16px;padding-top:16px;border-top:1px solid #EAEAEA"><div style="font-weight:700;margin-bottom:8px">AI Score: <span class="badge ' + (score.overall_score>=80?'score-high':score.overall_score>=60?'score-mid':'score-low') + '" style="font-size:16px">' + score.overall_score + '</span></div>';
-    Object.keys(dims).forEach(function(k){ var d = dims[k]; scoreHtml += '<div class="dim-row"><div><div style="font-weight:500;font-size:13px">' + k.replace(/_/g,' ') + '</div><div class="dim-rationale">' + (d.rationale||'') + '</div></div><div class="dim-score">' + d.score + '</div></div>'; });
-    scoreHtml += '<div style="margin-top:12px"><div style="font-weight:500;margin-bottom:4px;color:#007A3D">Strengths</div>' + (score.strengths||[]).map(function(s){return '<div style="font-size:12px;margin-bottom:2px">• ' + s + '</div>';}).join('') + '</div><div style="margin-top:8px"><div style="font-weight:500;margin-bottom:4px;color:#CC0000">Gaps</div>' + (score.gaps||[]).map(function(g){return '<div style="font-size:12px;margin-bottom:2px">• ' + g + '</div>';}).join('') + '</div><div style="margin-top:12px;padding:12px;background:#f9f9f9;border:1px solid #EAEAEA"><div style="font-weight:700">' + (score.recommendation||'') + '</div><div style="font-size:12px;color:#666;margin-top:4px">' + (score.recommendation_rationale||'') + '</div></div></div>';
+    var dims = score.dimension_scores || score.dimensions || {};
+    var overall = score.overall_score || score.overall || 0;
+    var cls = overall>=80?'score-high':overall>=60?'score-mid':'score-low';
+    scoreHtml = '<div style="margin-top:16px;padding-top:16px;border-top:1px solid #EAEAEA">';
+    scoreHtml += '<div style="font-weight:700;margin-bottom:8px">AI Score: <span class="badge ' + cls + '" style="font-size:16px">' + overall + '</span></div>';
+    Object.keys(dims).forEach(function(k) {
+      var d = dims[k];
+      scoreHtml += '<div class="dim-row"><div><div style="font-weight:500;font-size:13px">' + k.replace(/_/g,' ') + '</div>';
+      scoreHtml += '<div class="dim-rationale">' + (d.rationale||'') + '</div></div>';
+      scoreHtml += '<div class="dim-score">' + d.score + '</div></div>';
+    });
+    scoreHtml += '<div style="margin-top:12px"><div style="font-weight:500;margin-bottom:4px;color:#007A3D">Strengths</div>';
+    (score.strengths||[]).forEach(function(st){ scoreHtml += '<div style="font-size:12px;margin-bottom:2px">• ' + st + '</div>'; });
+    scoreHtml += '</div><div style="margin-top:8px"><div style="font-weight:500;margin-bottom:4px;color:#CC0000">Gaps</div>';
+    (score.gaps||[]).forEach(function(g){ scoreHtml += '<div style="font-size:12px;margin-bottom:2px">• ' + g + '</div>'; });
+    scoreHtml += '</div><div style="margin-top:12px;padding:12px;background:#f9f9f9;border:1px solid #EAEAEA">';
+    scoreHtml += '<div style="font-weight:700">' + (score.recommendation||'') + '</div>';
+    scoreHtml += '<div style="font-size:12px;color:#666;margin-top:4px">' + (score.recommendation_rationale||'') + '</div></div></div>';
   }
-  document.getElementById('slide-panel').innerHTML = '<h2>' + (s.title||'Untitled') + '</h2><div class="grid-2"><div><b>BU:</b> ' + (s.bu||'—') + '</div><div><b>Track:</b> ' + (s.track||'—') + '</div><div><b>Format:</b> ' + (s.format||'—') + '</div><div><b>Duration:</b> ' + (s.duration||'—') + '</div></div><div style="margin-top:12px"><b>Intel Speakers:</b> ' + (s.intel_speakers||'—') + '</div><div style="margin-top:8px"><b>Partner Speakers:</b> ' + (s.partner_speakers||'—') + '</div><div style="margin-top:8px"><b>Abstract:</b><p style="font-size:13px;margin-top:4px;color:#444">' + (s.abstract||'—') + '</p></div><div style="margin-top:8px"><b>Key Topics:</b> ' + (s.key_topics||'—') + '</div><div style="margin-top:8px"><b>Demos:</b> ' + (s.demos||'—') + '</div><div style="margin-top:8px"><b>Featured Products:</b> ' + (s.featured_products||'—') + '</div><div style="margin-top:16px"><label>Reviewer Notes</label><textarea id="notes-' + s.id + '" rows="3" style="margin-top:4px">' + (s.reviewer_notes||'') + '</textarea><button class="btn-secondary" style="margin-top:8px" onclick="saveNotes(' + s.id + ')">Save Notes</button></div><div style="margin-top:12px;display:flex;gap:8px"><button class="btn-primary" onclick="scoreSubmission(' + s.id + ')">Run AI Score</button></div>' + scoreHtml;
+  var panel = document.getElementById('slide-panel');
+  panel.innerHTML =
+    '<h2>' + (s.title||'Untitled') + '</h2>' +
+    '<div class="grid-2">' +
+      '<div><b>BU:</b> ' + (s.bu||'—') + '</div>' +
+      '<div><b>Track:</b> ' + (s.track||'—') + '</div>' +
+      '<div><b>Format:</b> ' + (s.format||'—') + '</div>' +
+      '<div><b>Duration:</b> ' + (s.duration||'—') + '</div>' +
+    '</div>' +
+    '<div style="margin-top:12px"><b>Intel Speakers:</b> ' + (s.intel_speakers||'—') + '</div>' +
+    '<div style="margin-top:8px"><b>Partner Speakers:</b> ' + (s.partner_speakers||'—') + '</div>' +
+    '<div style="margin-top:8px"><b>Abstract:</b><p style="font-size:13px;margin-top:4px;color:#444">' + (s.abstract||'—') + '</p></div>' +
+    '<div style="margin-top:8px"><b>Key Topics:</b> ' + (s.key_topics||'—') + '</div>' +
+    '<div style="margin-top:8px"><b>Demos:</b> ' + (s.demos||'—') + '</div>' +
+    '<div style="margin-top:8px"><b>Featured Products:</b> ' + (s.featured_products||'—') + '</div>' +
+    '<div style="margin-top:16px"><label>Reviewer Notes</label>' +
+      '<textarea id="notes-field" rows="3" style="margin-top:4px">' + (s.reviewer_notes||'') + '</textarea>' +
+      '<button class="btn-secondary" style="margin-top:8px" id="btn-save-notes">Save Notes</button>' +
+    '</div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px">' +
+      '<button class="btn-primary" id="btn-run-score">Run AI Score</button>' +
+    '</div>' +
+    scoreHtml;
+  document.getElementById('btn-save-notes').addEventListener('click', function() {
+    saveNotes(id, document.getElementById('notes-field').value);
+  });
+  document.getElementById('btn-run-score').addEventListener('click', function() { scoreSubmission(id); });
   openPanel();
 }
 
-async function saveNotes(id) {
-  var notes = document.getElementById('notes-' + id).value;
+
+async function saveNotes(id, notes) {
   await api('PUT', '/api/submissions/' + id, { reviewer_notes: notes });
 }
 
 function editStatus(id) {
   var s = allSubmissions.find(function(x){return x.id===id;});
-  document.getElementById('slide-panel').innerHTML = '<h2>Edit Status</h2><div class="form-group"><label>Status</label><select id="status-sel"><option value="submitted"' + (s.status==='submitted'?' selected':'') + '>Submitted</option><option value="under_review"' + (s.status==='under_review'?' selected':'') + '>Under Review</option><option value="approved"' + (s.status==='approved'?' selected':'') + '>Approved</option><option value="rejected"' + (s.status==='rejected'?' selected':'') + '>Rejected</option><option value="needs_revision"' + (s.status==='needs_revision'?' selected':'') + '>Needs Revision</option></select></div><button class="btn-primary" onclick="saveStatus(' + id + ')">Save</button>';
+  var current = s ? s.status : 'submitted';
+  var statuses = ['submitted','under_review','approved','rejected','needs_revision'];
+  var panel = document.getElementById('slide-panel');
+  panel.innerHTML =
+    '<h2>Edit Status</h2>' +
+    '<div class="form-group"><label>Status</label>' +
+      '<select id="status-sel">' +
+        statuses.map(function(st) {
+          return '<option value="' + st + '"' + (current===st?' selected':'') + '>' + st.replace('_',' ') + '</option>';
+        }).join('') +
+      '</select>' +
+    '</div>' +
+    '<button class="btn-primary" id="btn-save-status">Save</button>';
+  document.getElementById('btn-save-status').addEventListener('click', function() {
+    saveStatus(id, document.getElementById('status-sel').value);
+  });
   openPanel();
 }
 
-async function saveStatus(id) {
-  var status = document.getElementById('status-sel').value;
+
+async function saveStatus(id, status) {
   await api('PUT', '/api/submissions/' + id, { status: status });
   var s = allSubmissions.find(function(x){return x.id===id;}); if (s) s.status = status;
   closePanel(); renderSubTable();
 }
 
 async function scoreSubmission(id) {
-  var el = document.getElementById('slide-panel');
-  el.innerHTML = '<h2>Scoring...</h2><div class="loading">Running AI alignment scoring...</div>';
+  var panel = document.getElementById('slide-panel');
+  panel.innerHTML = '<h2>Scoring...</h2><div class="loading">Running AI alignment scoring...</div>';
   openPanel();
   var r = await api('POST', '/api/submissions/' + id + '/score');
-  if (r.error) { el.innerHTML = '<h2>Error</h2><div class="alert alert-error">' + r.error + '</div>'; return; }
-  var idx = allSubmissions.findIndex(function(x){return x.id===id;}); if (idx>=0) allSubmissions[idx].ai_score = r.ai_score || r;
+  if (r.error) { panel.innerHTML = '<h2>Error</h2><div class="alert alert-error">' + r.error + '</div>'; return; }
+  var idx2 = allSubmissions.findIndex(function(x){return x.id===id;});
+  if (idx2>=0) allSubmissions[idx2].ai_score = r.ai_score || r;
   renderSubTable();
   viewSubmission(id);
 }
+
 
 function exportCSV() {
   window.open('/api/submissions/export?event_id=' + currentEventId);
