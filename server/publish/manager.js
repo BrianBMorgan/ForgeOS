@@ -526,41 +526,6 @@ function listPublishedApps() {
 // Export
 // ---------------------------------------------------------------------------
 
-async function exportProject(projectId) {
-  const projectManager = require("../projects/manager");
-  const project = await projectManager.getProject(projectId);
-  if (!project) throw new Error("Project not found");
-
-  // v2: export not supported without local workspace
-  throw new Error("Export is not supported in v2 — download files directly from GitHub.");
-  const workspaceDir = null; // unreachable
-  if (!fs.existsSync(workspaceDir)) throw new Error("Workspace files not found");
-
-  const slug = generateSlug(project.name);
-  const zipPath = path.join("/tmp", `${slug}-export.zip`);
-
-  try { fs.unlinkSync(zipPath); } catch {}
-
-  // Use execFileSync (not execSync) to avoid shell interpolation of paths.
-  // Arguments are passed as an array — no shell metacharacter risk.
-  const { execFileSync } = require("child_process");
-  execFileSync(
-    "zip",
-    ["-r", zipPath, ".", "-x", "node_modules/*", ".git/*"],
-    { cwd: workspaceDir, timeout: 30_000 }
-  );
-
-  return { zipPath, filename: `${slug}.zip` };
-}
-
-// ---------------------------------------------------------------------------
-// Exports
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Custom Domain
-// ---------------------------------------------------------------------------
-
 async function setCustomDomain(projectId, domain) {
   const app = publishedApps.get(projectId);
   if (!app) throw new Error("App not published");
@@ -643,48 +608,6 @@ async function deleteCustomDomain(projectId) {
 // Version history & rollback
 // ---------------------------------------------------------------------------
 
-async function listVersions(projectId) {
-  const app = publishedApps.get(projectId);
-  if (!app) throw new Error("App not published");
-
-  const settingsManager = require("../settings/manager");
-  const githubSettings = await settingsManager.getSetting("github");
-  if (!githubSettings?.repo) throw new Error("GitHub repo not configured");
-
-  const { listVersionTags } = require("./github");
-  return await listVersionTags(githubSettings.repo, app.slug);
-}
-
-async function rollbackToVersion(projectId, tag, commitSha) {
-  const app = publishedApps.get(projectId);
-  if (!app) throw new Error("App not published");
-  if (!app.renderServiceId) throw new Error("No Render service found");
-
-  const settingsManager = require("../settings/manager");
-  const githubSettings = await settingsManager.getSetting("github");
-  if (!githubSettings?.repo) throw new Error("GitHub repo not configured");
-
-  const { restoreFromTag } = require("./github");
-  const renderApi = require("./render-api");
-
-  // Push the tagged commit back to the branch
-  await restoreFromTag(githubSettings.repo, app.slug, tag, commitSha);
-
-  // Trigger Render redeploy
-  await renderApi.redeployService(app.renderServiceId);
-
-  // Tag for version history (branch stays alive — Render deploys from it)
-  try {
-    const { tagCommit } = require("./github");
-    const tag = `apps/${app.slug}-v${Date.now()}`;
-    await tagCommit(githubSettings.repo, tag, commitSha);
-  } catch (err) {
-    console.warn(`[publish] Could not re-tag after rollback: ${err.message}`);
-  }
-
-  app.status = "deploying";
-  return { tag, commitSha, status: "deploying" };
-}
 
 module.exports = {
   ensureSchema,
@@ -693,12 +616,9 @@ module.exports = {
   renameSlug,
   setCustomDomain,
   deleteCustomDomain,
-  listVersions,
-  rollbackToVersion,
   getPublishedApp,
   getPublishedAppBySlug,
   listPublishedApps,
   restorePublishedApps,
-  exportProject,
   generateSlug,
 };
