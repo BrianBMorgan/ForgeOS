@@ -1171,15 +1171,20 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         const filesBlock = Object.entries(toolInput.files_context || {}).map(function(e) { return "=== " + e[0] + " ===\n" + e[1]; }).join("\n\n");
         const userPrompt = "TASK: " + toolInput.task + "\n\nREQUIREMENTS:\n" + (toolInput.requirements || []).map(function(r, i) { return (i+1) + ". " + r; }).join("\n") + "\n\nEXISTING FILES:\n" + filesBlock + "\n\nOUTPUT FILES NEEDED: " + (toolInput.output_files || []).join(", ") + "\n\nReturn JSON only: { \"files\": { \"filename\": \"complete contents\" } }";
         if (sendEvent) sendEvent({ type: "tool_status", content: "Sending to Gemini 2.5 Pro..." });
-        const result = await model.generateContent([systemPrompt, userPrompt]);
+        const result = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }]
+        });
         const raw = result.response.text();
         const clean = raw.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
-        const parsed = JSON.parse(clean);
+        var parsed;
+        try { parsed = JSON.parse(clean); } catch (parseErr) {
+          return "write_code error: Gemini returned invalid JSON. Raw: " + raw.slice(0, 500);
+        }
         const fileNames = Object.keys(parsed.files || {});
         if (sendEvent) sendEvent({ type: "tool_status", content: "\u2713 Code ready: " + fileNames.join(", ") });
         return JSON.stringify(parsed);
       } catch (err) {
-        return "write_code error: " + err.message;
+        return "write_code error: " + err.message + (err.cause ? " | cause: " + err.cause : "");
       }
     }
 
