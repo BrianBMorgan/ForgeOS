@@ -866,6 +866,17 @@ function githubHeaders() {
 
 const FORGE_TOOLS = [
   {
+    name: "github_create_branch",
+    description: "Create a new apps/<slug> branch from main. Call this if the branch doesn't exist before committing files.",
+    input_schema: {
+      type: "object",
+      properties: {
+        branch: { type: "string", description: "Branch name, e.g. apps/my-app" },
+      },
+      required: ["branch"],
+    },
+  },
+  {
     name: "github_ls",
     description: "List files in a GitHub branch. Use to explore what exists before writing. Default branch is main.",
     input_schema: {
@@ -999,6 +1010,7 @@ You do not write code. You think, plan, spec, and delegate.
 
 ## YOUR TOOLS
 
+- github_create_branch — create a new apps/<slug> branch when it doesn't exist yet
 - github_ls — explore what exists on a branch
 - github_read — read any file before requesting changes to it
 - github_write — commit files returned by write_code
@@ -1060,6 +1072,28 @@ If write_code returns an error, tell Brian exactly what the error was and stop. 
 
 async function executeForgeToken(toolName, toolInput, sendEvent) {
   switch (toolName) {
+
+    case "github_create_branch": {
+      try {
+        const branch = toolInput.branch;
+        if (!branch) return "Error: branch name required";
+        const headers = githubHeaders();
+        const refRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/ref/heads/main", { headers });
+        const refData = await refRes.json();
+        if (!refRes.ok) return "GitHub error: " + JSON.stringify(refData).slice(0, 200);
+        const sha = refData.object.sha;
+        const createRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/refs", {
+          method: "POST", headers, body: JSON.stringify({ ref: "refs/heads/" + branch, sha }),
+        });
+        const createData = await createRes.json();
+        if (!createRes.ok) {
+          if (createRes.status === 422) return "Branch " + branch + " already exists.";
+          return "GitHub error: " + JSON.stringify(createData).slice(0, 200);
+        }
+        if (sendEvent) sendEvent({ type: "tool_status", content: "✓ Created branch: " + branch });
+        return "Branch " + branch + " created from main (" + sha.slice(0, 7) + ")";
+      } catch (err) { return "github_create_branch error: " + err.message; }
+    }
 
     case "github_ls": {
       try {
