@@ -157,12 +157,12 @@ async function seedData() {
       status: 'submitted'
     },
     {
-      title: 'Intel Core Ultra at the Edge: Enabling AI Inference in Size, Weight & Power-Constrained Platforms',
+      title: 'Intel Core Ultra at the Edge: AI Inference in SWaP-Constrained Platforms',
       bu: 'NEX',
       track: 'Edge & Embedded Systems',
       format: 'Technical Session',
       speakers: 'Kevin Park (Intel NEX), Dr. Lisa Torres (Intel Labs)',
-      abstract: 'Forward-deployed ISR platforms demand AI inference capabilities within strict SWaP envelopes impossible for data center hardware. Intel Core Ultra\'s integrated NPU delivers 34 TOPS within a 15W TDP, enabling real-time object detection, signals classification, and sensor fusion directly on the platform. This session covers thermal management, security hardening (BootGuard, platform firmware resilience), ruggedization considerations, and a case study from a SOCOM-adjacent program.',
+      abstract: 'Forward-deployed ISR platforms demand AI inference capabilities within strict SWaP envelopes. Intel Core Ultra\'s integrated NPU delivers 34 TOPS within a 15W TDP, enabling real-time object detection, signals classification, and sensor fusion directly on the platform. This session covers thermal management, security hardening via BootGuard, ruggedization considerations, and a case study from a SOCOM-adjacent program.',
       topics: 'Edge AI, SWaP, NPU, ISR, BootGuard, ruggedized computing',
       demos: 'Object detection inference comparison: NPU vs CPU vs iGPU on Core Ultra',
       products: 'Intel Core Ultra (Meteor Lake), Intel NPU, Intel vPro',
@@ -174,7 +174,7 @@ async function seedData() {
       track: 'Data Center/HPC',
       format: 'Technical Session',
       speakers: 'Robert Kim (Intel Data Center Group), Jennifer Walsh (Intel Federal)',
-      abstract: 'The Department of Defense operates hundreds of data centers supporting classified modeling, simulation, and intelligence processing workloads that cannot move to commercial cloud. Intel Xeon 6 with P-cores delivers 2.1x the performance-per-watt of prior generation for HPC workloads while Intel TDX enables confidential computing enclaves for multi-tenant classified environments. Session covers ATO considerations, migration path from legacy infrastructure, and integration with JWICS/SIPRNet environments.',
+      abstract: 'The Department of Defense operates hundreds of data centers supporting classified modeling, simulation, and intelligence processing workloads that cannot move to commercial cloud. Intel Xeon 6 with P-cores delivers 2.1x the performance-per-watt of prior generation for HPC workloads while Intel TDX enables confidential computing enclaves for multi-tenant classified environments. Session covers ATO considerations, migration path from legacy infrastructure, and JWICS/SIPRNet integration.',
       topics: 'HPC, classified workloads, TDX, confidential computing, JWICS, data center modernization',
       demos: 'Xeon 6 vs Xeon 4 benchmark comparison on HPC workloads',
       products: 'Intel Xeon 6 (Granite Rapids), Intel TDX, Intel SGX',
@@ -186,7 +186,7 @@ async function seedData() {
       track: 'Commercial Client',
       format: 'Technical Session',
       speakers: 'Amanda Foster (Intel vPro Product), David Chen (Intel Security Solutions)',
-      abstract: 'Federal agencies managing large device fleets under CISA zero trust mandates require hardware-rooted identity and remote attestation capabilities that go beyond software MDM. Intel vPro with Hardware Shield provides silicon-level platform attestation, below-OS threat detection, and remote remediation. This session covers NIST SP 800-155 alignment, integration with Microsoft SCCM and Intune for federal M365 tenants, FedRAMP authorization implications, and practical deployment guidance for GFE fleet modernization.',
+      abstract: 'Federal agencies managing large device fleets under CISA zero trust mandates require hardware-rooted identity and remote attestation capabilities beyond software MDM. Intel vPro with Hardware Shield provides silicon-level platform attestation, below-OS threat detection, and remote remediation. Session covers NIST SP 800-155 alignment, integration with Microsoft SCCM and Intune for federal M365 tenants, FedRAMP implications, and practical deployment guidance.',
       topics: 'Zero trust, vPro, hardware security, MDM, FedRAMP, fleet management',
       demos: 'Remote attestation and below-OS threat detection live demo',
       products: 'Intel vPro, Intel Hardware Shield, Intel Boot Guard',
@@ -198,7 +198,7 @@ async function seedData() {
       track: 'Commercial Client',
       format: 'Workshop',
       speakers: 'Brian Taylor (Intel Software Division)',
-      abstract: 'Defense software teams maintain millions of lines of COBOL, Ada, and legacy C++ in mission-critical systems. This workshop explores using Intel-optimized LLMs running locally on Core Ultra developer workstations to assist with code analysis, documentation generation, and controlled modernization without sending sensitive source code to external APIs. Covers toolchain setup, model selection for code tasks, Intel OpenVINO integration, and lessons from a pilot with a prime integrator.',
+      abstract: 'Defense software teams maintain millions of lines of COBOL, Ada, and legacy C++ in mission-critical systems. This workshop explores using Intel-optimized LLMs running locally on Core Ultra developer workstations to assist with code analysis, documentation generation, and controlled modernization without sending sensitive source code to external APIs. Covers toolchain setup, model selection, Intel OpenVINO integration, and lessons from a pilot with a prime integrator.',
       topics: 'Legacy modernization, local LLM, OpenVINO, developer tools, COBOL, Ada',
       demos: 'Live code analysis with local LLM on Core Ultra workstation',
       products: 'Intel Core Ultra, Intel OpenVINO, Intel NPU',
@@ -327,7 +327,7 @@ app.post('/api/events/:id/generate-profile', async function(req, res) {
       {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2000,
-        system: 'You are an event strategy analyst. Given a strategy document, extract and synthesize a structured context profile and an AI scoring system prompt for session review. Return ONLY valid JSON with keys: context_profile (string) and ai_system_prompt (string). The ai_system_prompt must instruct an AI to score sessions on six dimensions: audience_fit, technical_depth, strategic_alignment, innovation_signal, delivery_readiness, and intel_alignment — each returning score (0-100) and rationale. Also return overall (0-100), strengths (array), gaps (array), recommendation (Accept|Accept with Revisions|Decline).',
+        system: 'You are an event strategy analyst. Given a strategy document, extract and synthesize a structured context profile and an AI scoring system prompt for session review. Return ONLY valid JSON with keys: context_profile (string) and ai_system_prompt (string). The ai_system_prompt must instruct an AI to score sessions on six dimensions: federal_relevance, technical_depth, intel_alignment, audience_fit, innovation_signal, delivery_readiness — each returning score (0-100) and rationale. Also include overall (0-100), strengths (array), gaps (array), recommendation (Accept|Accept with Revisions|Decline).',
         messages: [{ role: 'user', content: 'Event: ' + event.name + '\n\nStrategy document:\n' + strategyDoc }]
       },
       {
@@ -419,7 +419,7 @@ app.delete('/api/submissions/:id', async function(req, res) {
   }
 });
 
-// AI: parse PPTX upload into submission fields
+// AI: parse PPTX into submission fields
 app.post('/api/events/:eventId/parse-pptx', upload.single('file'), async function(req, res) {
   try {
     var apiKey = process.env.ANTHROPIC_API_KEY;
@@ -433,12 +433,16 @@ app.post('/api/events/:eventId/parse-pptx', upload.single('file'), async functio
       {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2000,
-        system: 'You are a session proposal parser. Extract structured submission fields from a PPTX file (provided as base64). Return ONLY valid JSON with keys: title, bu, track, format, speakers, abstract, topics, demos, products. All values are strings. topics/demos/products may be comma-separated.',
+        system: 'You are a session proposal parser. Extract structured submission fields from a presentation file (provided as base64). Return ONLY valid JSON with keys: title, bu, track, format, speakers, abstract, topics, demos, products. All values are strings. topics/demos/products may be comma-separated.',
         messages: [{
           role: 'user',
           content: [{
             type: 'document',
-            source: { type: 'base64', media_type: req.file.mimetype || 'application/vnd.openxmlformats-officedocument.presentationml.presentation', data: b64 }
+            source: {
+              type: 'base64',
+              media_type: req.file.mimetype || 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+              data: b64
+            }
           }, {
             type: 'text',
             text: 'Extract the session submission fields from this presentation file.'
@@ -461,11 +465,139 @@ app.post('/api/events/:eventId/parse-pptx', upload.single('file'), async functio
   }
 });
 
-// ─── PLACEHOLDER — HTML + REVIEW ROUTES COME IN PART 2 ───────────────────────
+// ─── AI SCORING ──────────────────────────────────────────────────────────────
+
+app.post('/api/submissions/:id/score', async function(req, res) {
+  try {
+    var apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return res.json({ ok: false, error: 'ANTHROPIC_API_KEY not set' });
+
+    var sql = getDb();
+    var subRows = await sql`SELECT * FROM submissions WHERE id = ${parseInt(req.params.id)}`;
+    if (!subRows.length) return res.json({ ok: false, error: 'submission not found' });
+    var sub = subRows[0];
+
+    var evtRows = await sql`SELECT * FROM events WHERE id = ${sub.event_id}`;
+    if (!evtRows.length) return res.json({ ok: false, error: 'event not found' });
+    var evt = evtRows[0];
+
+    var systemPrompt = evt.ai_system_prompt || 'You are an event content reviewer. Score this session submission on six dimensions and return JSON.';
+
+    var submissionText = [
+      'Title: ' + sub.title,
+      'Business Unit: ' + (sub.bu || 'N/A'),
+      'Track: ' + (sub.track || 'N/A'),
+      'Format: ' + (sub.format || 'N/A'),
+      'Speakers: ' + (sub.speakers || 'N/A'),
+      'Abstract: ' + (sub.abstract || 'N/A'),
+      'Topics: ' + (sub.topics || 'N/A'),
+      'Demos: ' + (sub.demos || 'N/A'),
+      'Products: ' + (sub.products || 'N/A')
+    ].join('\n');
+
+    var response = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: 'Score this session submission:\n\n' + submissionText }]
+      },
+      {
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        timeout: 60000
+      }
+    );
+
+    var text = response.data.content[0].text;
+    var cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    var scorecard = JSON.parse(cleaned);
+
+    await sql`
+      UPDATE submissions SET ai_score = ${scorecard.overall || 0}, ai_scorecard = ${JSON.stringify(scorecard)}
+      WHERE id = ${parseInt(req.params.id)}
+    `;
+
+    res.json({ ok: true, scorecard: scorecard });
+  } catch (err) {
+    console.error('[score]', err.message);
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+// Bulk score all submissions for an event
+app.post('/api/events/:eventId/score-all', async function(req, res) {
+  try {
+    var apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return res.json({ ok: false, error: 'ANTHROPIC_API_KEY not set' });
+
+    var sql = getDb();
+    var evtRows = await sql`SELECT * FROM events WHERE id = ${parseInt(req.params.eventId)}`;
+    if (!evtRows.length) return res.json({ ok: false, error: 'event not found' });
+    var evt = evtRows[0];
+
+    var submissions = await sql`SELECT * FROM submissions WHERE event_id = ${parseInt(req.params.eventId)}`;
+    var systemPrompt = evt.ai_system_prompt || 'You are an event content reviewer. Score this session submission on six dimensions and return JSON.';
+
+    var results = [];
+    for (var i = 0; i < submissions.length; i++) {
+      var sub = submissions[i];
+      try {
+        var submissionText = [
+          'Title: ' + sub.title,
+          'Business Unit: ' + (sub.bu || 'N/A'),
+          'Track: ' + (sub.track || 'N/A'),
+          'Format: ' + (sub.format || 'N/A'),
+          'Speakers: ' + (sub.speakers || 'N/A'),
+          'Abstract: ' + (sub.abstract || 'N/A'),
+          'Topics: ' + (sub.topics || 'N/A'),
+          'Demos: ' + (sub.demos || 'N/A'),
+          'Products: ' + (sub.products || 'N/A')
+        ].join('\n');
+
+        var response = await axios.post(
+          'https://api.anthropic.com/v1/messages',
+          {
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1500,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: 'Score this session submission:\n\n' + submissionText }]
+          },
+          {
+            headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+            timeout: 60000
+          }
+        );
+
+        var text = response.data.content[0].text;
+        var cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        var scorecard = JSON.parse(cleaned);
+
+        await sql`
+          UPDATE submissions SET ai_score = ${scorecard.overall || 0}, ai_scorecard = ${JSON.stringify(scorecard)}
+          WHERE id = ${sub.id}
+        `;
+
+        results.push({ id: sub.id, ok: true, score: scorecard.overall });
+      } catch (err) {
+        results.push({ id: sub.id, ok: false, error: err.message });
+      }
+    }
+
+    res.json({ ok: true, results: results });
+  } catch (err) {
+    console.error('[score-all]', err.message);
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+// ─── HTML SHELL (Part 2 will replace this) ───────────────────────────────────
 
 app.get('/', function(req, res) {
-  res.status(200).send('<h1>Intel Event Content Review — Part 1 loaded</h1><p>DB + API routes live. Part 2 coming next.</p>');
+  res.status(200).send('<!DOCTYPE html><html><head><title>Intel Event Content Review</title></head><body style="background:#000864;color:#fff;font-family:sans-serif;padding:2rem"><h1>Intel Event Content Review</h1><p>API routes live. UI coming in Part 2.</p></body></html>');
 });
+
+// ─── START ────────────────────────────────────────────────────────────────────
 
 app.listen(PORT, '0.0.0.0', async function() {
   console.log('[server] listening on port ' + PORT);
