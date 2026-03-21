@@ -128,7 +128,7 @@ app.get("/health", (_req, res) => {
 const projectManager = require("./projects/manager");
 
 app.post("/api/projects", async (req, res) => {
-  const { prompt, skipBuild } = req.body;
+  const { prompt } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return res.status(400).json({ error: "Prompt is required" });
   }
