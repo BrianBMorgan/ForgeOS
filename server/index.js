@@ -449,11 +449,7 @@ app.get("/api/diagnostics", async (req, res) => {
     return res.status(403).json({ error: "Diagnostics only available from the ForgeOS UI" });
   }
   try {
-        const { runDiagnostics } = chatManager;
-    const projectId = req.query.project_id || null;
-    const checks = req.query.checks ? req.query.checks.split(",") : ["all"];
-    const report = await runDiagnostics(projectId, checks);
-    res.json(report);
+    res.json({ status: 'diagnostics disabled' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
