@@ -967,39 +967,79 @@ async function renderReview() {
   allSubmissions.forEach(function(s){ if (s.track) { if (!tracks[s.track]) tracks[s.track] = []; tracks[s.track].push(s); } });
   var sortedSubs = scored.slice().sort(function(a,b){return (b.ai_score.overall_score||0)-(a.ai_score.overall_score||0);});
 
-  el.innerHTML = '<div class="grid-3" style="margin-bottom:20px"><div class="stat-card"><div class="num">' + allSubmissions.length + '</div><div class="lbl">Total Submissions</div></div><div class="stat-card"><div class="num">' + scored.length + '</div><div class="lbl">Scored</div></div><div class="stat-card"><div class="num">' + unscored.length + '</div><div class="lbl">Unscored</div></div></div>' +
-  '<div style="margin-bottom:20px"><button class="btn-primary" onclick="scoreAllUnscored()">Score All Unscored (' + unscored.length + ')</button> <button class="btn-secondary" onclick="exportCSV()">Export CSV</button></div>' +
-  '<div class="tabs"><div class="tab active" onclick="reviewTab(this,\'ranked\')">Ranked</div><div class="tab" onclick="reviewTab(this,\'tracks\')">By Track</div><div class="tab" onclick="reviewTab(this,\'compare\')">Compare</div></div>' +
-  '<div id="review-ranked"><h3 style="font-weight:700;margin-bottom:12px">All Submissions by Score</h3>' + sortedSubs.map(function(s){ var sc = s.ai_score; return '<div class="card" style="display:flex;justify-content:space-between;align-items:flex-start"><div style="flex:1"><div style="font-weight:700">' + (s.title||'') + '</div><div style="font-size:12px;color:#888">' + (s.bu||'') + ' &nbsp;|&nbsp; ' + (s.track||'') + '</div><div style="font-size:12px;margin-top:4px;color:#444">' + (sc.recommendation||'') + '</div></div><div style="text-align:right;margin-left:16px"><span class="badge ' + (sc.overall_score>=80?'score-high':sc.overall_score>=60?'score-mid':'score-low') + '" style="font-size:18px;padding:6px 12px">' + sc.overall_score + '</span><div style="margin-top:8px"><a class="actions" style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View Details</a></div></div></div>'; }).join('') + (sortedSubs.length===0?'<div class="loading">No scored submissions yet. Run scoring first.</div>':'') + '</div>' +
-  '<div id="review-tracks" style="display:none">' + Object.keys(tracks).map(function(track){ var ts = tracks[track].slice().sort(function(a,b){return ((b.ai_score&&b.ai_score.overall_score)||0)-((a.ai_score&&a.ai_score.overall_score)||0);}); return '<div style="margin-bottom:20px"><h3 style="font-weight:700;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid #00AAE8">' + track + ' (' + ts.length + ' submissions)</h3>' + ts.map(function(s){ var sc = s.ai_score; return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #EAEAEA"><div><div style="font-weight:500">' + (s.title||'').slice(0,70) + '</div><div style="font-size:11px;color:#888">' + (s.bu||'') + '</div></div><div style="display:flex;align-items:center;gap:8px">' + (sc?'<span class="badge ' + (sc.overall_score>=80?'score-high':sc.overall_score>=60?'score-mid':'score-low') + '">' + sc.overall_score + '</span>':'<span class="badge score-none">&mdash;</span>') + '<a style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View</a></div></div>'; }).join('') + '</div>'; }).join('') + '</div>' +
-  '<div id="review-compare" style="display:none"><div style="margin-bottom:12px;font-size:13px;color:#666">Select 2-3 submissions to compare side by side:</div><div id="compare-picks" style="margin-bottom:16px">' + allSubmissions.map(function(s){ return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" value="' + s.id + '" onchange="toggleCompare(' + s.id + ')"> ' + (s.title||'').slice(0,80) + '</label>'; }).join('') + '</div><div id="compare-table"></div></div>';
-}
-
-function reviewTab(el, name) {
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
-  el.classList.add('active');
-  document.getElementById('review-ranked').style.display = name==='ranked'?'block':'none';
-  document.getElementById('review-tracks').style.display = name==='tracks'?'block':'none';
-  document.getElementById('review-compare').style.display = name==='compare'?'block':'none';
-}
-
-function toggleCompare(id) {
-  var idx = compareIds.indexOf(id);
-  if (idx>=0) compareIds.splice(idx,1); else if (compareIds.length<3) compareIds.push(id);
-  renderCompareTable();
-}
-
-function renderCompareTable() {
-  var subs = compareIds.map(function(id){return allSubmissions.find(function(s){return s.id===id;});}).filter(Boolean);
-  if (subs.length < 2) { document.getElementById('compare-table').innerHTML = '<div class="loading">Select 2-3 submissions above.</div>'; return; }
-  var dims = ['track_fit','audience_alignment','intel_product_coverage','mission_relevance','partner_value','demo_strength'];
-  var html = '<div style="display:grid;grid-template-columns:repeat(' + subs.length + ',1fr);gap:1px;background:#2E2F2F">';
-  subs.forEach(function(s){ html += '<div style="background:#fff;padding:12px"><div style="font-weight:700;font-size:13px">' + (s.title||'').slice(0,60) + '</div><div style="font-size:11px;color:#888">' + (s.bu||'') + '</div></div>'; });
+  var html = '';
+  html += '<div class="grid-3" style="margin-bottom:20px">';
+  html += '<div class="stat-card"><div class="num">' + allSubmissions.length + '</div><div class="lbl">Total Submissions</div></div>';
+  html += '<div class="stat-card"><div class="num">' + scored.length + '</div><div class="lbl">Scored</div></div>';
+  html += '<div class="stat-card"><div class="num">' + unscored.length + '</div><div class="lbl">Unscored</div></div>';
   html += '</div>';
-  dims.forEach(function(dim){ html += '<div style="display:grid;grid-template-columns:repeat(' + subs.length + ',1fr);gap:1px;background:#EAEAEA;margin-top:1px">'; subs.forEach(function(s){ var sc = s.ai_score&&s.ai_score.dimension_scores&&s.ai_score.dimension_scores[dim]; html += '<div style="background:#fff;padding:10px"><div style="font-size:11px;font-weight:500;color:#888;text-transform:uppercase">' + dim.replace(/_/g,' ') + '</div>' + (sc?'<div style="font-size:20px;font-weight:700;color:' + (sc.score>=80?'#007A3D':sc.score>=60?'#B8860B':'#CC0000') + '">' + sc.score + '</div><div style="font-size:11px;color:#666">' + (sc.rationale||'') + '</div>':'<div style="color:#999">—</div>') + '</div>'; });
-  html += '</div>'; });
-  document.getElementById('compare-table').innerHTML = html;
+  html += '<div style="margin-bottom:20px">';
+  html += '<button class="btn-primary" onclick="scoreAllUnscored()">Score All Unscored (' + unscored.length + ')</button> ';
+  html += '<button class="btn-secondary" onclick="exportCSV()">Export CSV</button>';
+  html += '</div>';
+  html += '<div class="tabs">';
+  html += '<div class="tab active" id="tab-ranked" onclick="reviewTab(this, \'ranked\')">Ranked</div>';
+  html += '<div class="tab" id="tab-tracks" onclick="reviewTab(this, \'tracks\')">By Track</div>';
+  html += '<div class="tab" id="tab-compare" onclick="reviewTab(this, \'compare\')">Compare</div>';
+  html += '</div>';
+
+  // Ranked view
+  html += '<div id="review-ranked">';
+  html += '<h3 style="font-weight:700;margin-bottom:12px">All Submissions by Score</h3>';
+  if (sortedSubs.length === 0) {
+    html += '<div class="loading">No scored submissions yet. Run scoring first.</div>';
+  } else {
+    sortedSubs.forEach(function(s) {
+      var sc = s.ai_score;
+      var cls = sc.overall_score >= 80 ? 'score-high' : sc.overall_score >= 60 ? 'score-mid' : 'score-low';
+      html += '<div class="card" style="display:flex;justify-content:space-between;align-items:flex-start">';
+      html += '<div style="flex:1"><div style="font-weight:700">' + (s.title||'') + '</div>';
+      html += '<div style="font-size:12px;color:#888">' + (s.bu||'') + ' | ' + (s.track||'') + '</div>';
+      html += '<div style="font-size:12px;margin-top:4px;color:#444">' + (sc.recommendation||'') + '</div></div>';
+      html += '<div style="text-align:right;margin-left:16px">';
+      html += '<span class="badge ' + cls + '" style="font-size:18px;padding:6px 12px">' + sc.overall_score + '</span>';
+      html += '<div style="margin-top:8px"><a style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View Details</a></div>';
+      html += '</div></div>';
+    });
+  }
+  html += '</div>';
+
+  // By Track view
+  html += '<div id="review-tracks" style="display:none">';
+  Object.keys(tracks).forEach(function(track) {
+    var ts = tracks[track].slice().sort(function(a,b){return ((b.ai_score&&b.ai_score.overall_score)||0)-((a.ai_score&&a.ai_score.overall_score)||0);});
+    html += '<div style="margin-bottom:20px">';
+    html += '<h3 style="font-weight:700;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid #00AAE8">' + track + ' (' + ts.length + ')</h3>';
+    ts.forEach(function(s) {
+      var sc = s.ai_score;
+      var cls = sc ? (sc.overall_score>=80?'score-high':sc.overall_score>=60?'score-mid':'score-low') : 'score-none';
+      var scoreVal = sc ? sc.overall_score : '&mdash;';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #EAEAEA">';
+      html += '<div><div style="font-weight:500">' + (s.title||'').slice(0,70) + '</div>';
+      html += '<div style="font-size:11px;color:#888">' + (s.bu||'') + '</div></div>';
+      html += '<div style="display:flex;align-items:center;gap:8px">';
+      html += '<span class="badge ' + cls + '">' + scoreVal + '</span>';
+      html += '<a style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View</a>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Compare view
+  html += '<div id="review-compare" style="display:none">';
+  html += '<div style="margin-bottom:12px;font-size:13px;color:#666">Select 2-3 submissions to compare:</div>';
+  html += '<div id="compare-picks" style="margin-bottom:16px">';
+  allSubmissions.forEach(function(s) {
+    html += '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">';
+    html += '<input type="checkbox" value="' + s.id + '" onchange="toggleCompare(' + s.id + ')"> ';
+    html += (s.title||'').slice(0,80) + '</label>';
+  });
+  html += '</div><div id="compare-table"></div></div>';
+
+  el.innerHTML = html;
 }
+
 
 async function scoreAllUnscored() {
   var unscored = allSubmissions.filter(function(s){return !s.ai_score;});
