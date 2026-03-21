@@ -1302,12 +1302,12 @@ app.post("/api/projects/:id/chat", async (req, res) => {
         if (txt) fullAssistantMessage = txt;
       }
 
-      if (response.stop_reason === "end_turn") break;
-      if (response.stop_reason !== "tool_use") break;
+      // Only break if Claude made no tool calls — Claude decides when it's done
+      var toolCalls = response.content.filter(function(b) { return b.type === "tool_use"; });
+      if (toolCalls.length === 0) break;
 
       // Execute tools
       var toolResults = [];
-      var toolCalls = response.content.filter(function(b) { return b.type === "tool_use"; });
       for (var t = 0; t < toolCalls.length; t++) {
         var toolUse = toolCalls[t];
         console.log("[forge] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 120));
