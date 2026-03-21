@@ -320,6 +320,25 @@ app.get("/api/published", async (_req, res) => {
   res.json(publishManager.listPublishedApps());
 });
 
+// ── Brain purge — delete memories matching terms ─────────────────────────────
+app.post("/api/brain/purge", async (req, res) => {
+  const { terms } = req.body;
+  if (!terms || !Array.isArray(terms) || terms.length === 0) {
+    return res.status(400).json({ error: "terms array required" });
+  }
+  try {
+    const sql = require("@neondatabase/serverless").neon(process.env.NEON_DATABASE_URL);
+    // Build WHERE clause for all terms
+    const conditions = terms.map(t => `content ILIKE '%${t.replace(/'/g, "''")}%'`).join(" OR ");
+    const countResult = await sql`SELECT COUNT(*) as count FROM forge_memory WHERE ${sql.unsafe(conditions)}`;
+    const count = parseInt(countResult[0].count);
+    await sql`DELETE FROM forge_memory WHERE ${sql.unsafe(conditions)}`;
+    res.json({ deleted: count, terms });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/brain", async (_req, res) => {
   try {
     const summary = await brain.getBrainSummary();
