@@ -327,13 +327,16 @@ app.post("/api/brain/purge", async (req, res) => {
     return res.status(400).json({ error: "terms array required" });
   }
   try {
-    const sql = require("@neondatabase/serverless").neon(process.env.NEON_DATABASE_URL);
-    // Build WHERE clause for all terms
-    const conditions = terms.map(t => `content ILIKE '%${t.replace(/'/g, "''")}%'`).join(" OR ");
-    const countResult = await sql`SELECT COUNT(*) as count FROM forge_memory WHERE ${sql.unsafe(conditions)}`;
-    const count = parseInt(countResult[0].count);
-    await sql`DELETE FROM forge_memory WHERE ${sql.unsafe(conditions)}`;
-    res.json({ deleted: count, terms });
+    const { neon } = require("@neondatabase/serverless");
+    const purgeSql = neon(process.env.NEON_DATABASE_URL);
+    // Use individual deletes per term — avoids unsafe() and template literal nesting
+    var totalDeleted = 0;
+    for (var i = 0; i < terms.length; i++) {
+      var term = "%" + terms[i] + "%";
+      var result = await purgeSql("DELETE FROM forge_memory WHERE content ILIKE $1", [term]);
+      totalDeleted += result.rowCount || 0;
+    }
+    res.json({ deleted: totalDeleted, terms });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
