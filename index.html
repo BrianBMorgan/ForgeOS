@@ -121,7 +121,7 @@ tr:hover td{background:#f9f9f9;}
 
 <!-- Slide panel -->
 <div class="panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
-<div class="slide-panel" id="slide-panel"></div>
+<div class="slide-panel" id="slide-panel" onclick="event.stopPropagation()"></div>
 
 <script>
 var currentEventId = localStorage.getItem('selectedEventId') || null;
