@@ -1035,6 +1035,7 @@ Break large apps into multiple write_code calls — backend in one call, fronten
 ## PLATFORM RULES
 
 - Branch: apps/<slug> — already provisioned, never write to main
+- CRITICAL: Always pass branch: 'apps/<slug>' explicitly in every github_write and github_patch call. If branch is omitted it defaults to main and will overwrite ForgeOS itself.
 - PORT = process.env.PORT || 3000
 - CommonJS on server — no ES modules
 - @neondatabase/serverless for all databases
@@ -1087,6 +1088,13 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
     case "github_write": {
       try {
         const branch = toolInput.branch || "main";
+        // SAFETY GUARD: never overwrite ForgeOS core files on main
+        const coreFiles = ["package.json", "server/index.js", "server/memory/brain.js",
+          "server/publish/manager.js", "server/projects/manager.js"];
+        if (branch === "main" && coreFiles.includes(toolInput.filepath)) {
+          return "BLOCKED: Refusing to write " + toolInput.filepath + " to main branch. " +
+            "App files must go to apps/<slug> branch, not main. Main is ForgeOS itself.";
+        }
         const headers = githubHeaders();
         const shaRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
         const shaData = await shaRes.json();
