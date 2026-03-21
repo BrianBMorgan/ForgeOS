@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@google/generative-ai": "^0.21.0",
     "@neondatabase/serverless": "^1.0.2",
     "busboy": "^1.6.0",
     "concurrently": "^9.2.1",
