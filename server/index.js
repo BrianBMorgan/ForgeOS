@@ -948,11 +948,25 @@ const FORGE_TOOLS = [
       required: ["message"],
     },
   },
+  {
+    name: "write_code",
+    description: "Hand off a coding task to Gemini 2.5 Pro. Use this whenever you need to write or substantially rewrite files. Read the relevant files first with github_read, then call write_code with full file context and precise requirements. Take what it returns and commit with github_write. Do not write code directly in your responses.",
+    input_schema: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: "Precise description of what to build or change." },
+        files_context: { type: "object", description: "Current contents of relevant files keyed by filename." },
+        requirements: { type: "array", items: { type: "string" }, description: "Specific requirements the code must meet." },
+        output_files: { type: "array", items: { type: "string" }, description: "Which files to return." },
+      },
+      required: ["task", "files_context", "requirements", "output_files"],
+    },
+  },
 ];
 
 const FORGE_SYSTEM_PROMPT = `Read the request. Write the code. Commit it. Reply with the SHA.
 
-Your tools: github_ls, github_read, github_write, github_patch, render_status, memory_search, ask_user.
+Your tools: github_ls, github_read, github_write, github_patch, render_status, memory_search, ask_user, write_code.
 
 GitHub is your filesystem. Render auto-deploys every push. The apps/<slug> branch and Render service are already provisioned — just write files to apps/<slug> and they go live.
 
@@ -967,6 +981,10 @@ GitHub is your filesystem. Render auto-deploys every push. The apps/<slug> branc
 - GET / must return complete HTML — not JSON, not a redirect
 - Root-relative URLs only — /api/data not http://localhost/api/data
 - NEON_DATABASE_URL is reserved — published apps use a custom env var name (e.g. APP_DATABASE_URL)
+
+## WRITING CODE
+
+When you need to write or substantially rewrite files, use the write_code tool. Read the relevant files first with github_read, then call write_code with full context and precise requirements. Take what it returns and commit each file with github_write.
 
 ## ONE RULE
 
@@ -1073,6 +1091,29 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
     case "memory_search": {
       try { return await brain.buildContext(toolInput.query) || "No relevant memory found."; }
       catch { return "Memory search unavailable."; }
+    }
+
+    case "write_code": {
+      try {
+        const { GoogleGenerativeAI } = require("@google/generative-ai");
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (!geminiKey) return "Error: GEMINI_API_KEY not set";
+        const genAI = new GoogleGenerativeAI(geminiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-exp-03-25" });
+        const systemPrompt = "You are a code generation engine. Return complete file contents only.\nRules:\n- Return complete files. Never truncate. Never use placeholder comments.\n- No explanation. No preamble. No markdown fences.\n- Return valid JSON only: { \"files\": { \"filename\": \"complete file contents\" } }\n- If a file is not changing, omit it.\n- CommonJS on server (require/module.exports). No dotenv. PORT = process.env.PORT || 3000.";
+        const filesBlock = Object.entries(toolInput.files_context || {}).map(function(e) { return "=== " + e[0] + " ===\n" + e[1]; }).join("\n\n");
+        const userPrompt = "TASK: " + toolInput.task + "\n\nREQUIREMENTS:\n" + (toolInput.requirements || []).map(function(r, i) { return (i+1) + ". " + r; }).join("\n") + "\n\nEXISTING FILES:\n" + filesBlock + "\n\nOUTPUT FILES NEEDED: " + (toolInput.output_files || []).join(", ") + "\n\nReturn JSON only: { \"files\": { \"filename\": \"complete contents\" } }";
+        if (onMessage) onMessage({ type: "tool_status", content: "Sending to Gemini 2.5 Pro..." });
+        const result = await model.generateContent([systemPrompt, userPrompt]);
+        const raw = result.response.text();
+        const clean = raw.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
+        const parsed = JSON.parse(clean);
+        const fileNames = Object.keys(parsed.files || {});
+        if (onMessage) onMessage({ type: "tool_status", content: "\u2713 Code ready: " + fileNames.join(", ") });
+        return JSON.stringify(parsed);
+      } catch (err) {
+        return "write_code error: " + err.message;
+      }
     }
 
     case "ask_user":
