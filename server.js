@@ -1019,6 +1019,32 @@ async function scoreAllUnscored() {
 function openPanel() { document.getElementById('panel-overlay').classList.add('open'); document.getElementById('slide-panel').classList.add('open'); }
 function closePanel() { document.getElementById('panel-overlay').classList.remove('open'); document.getElementById('slide-panel').classList.remove('open'); }
 
+// ── Expose functions globally for inline onclick handlers ────────────────────
+window.showSection = showSection;
+window.onEventChange = onEventChange;
+window.showNewEventForm = showNewEventForm;
+window.showStep2 = showStep2;
+window.generateProfile = generateProfile;
+window.saveEventWithProfile = saveEventWithProfile;
+window.saveEventDirect = saveEventDirect;
+window.saveEventEdit = saveEventEdit;
+window.renderSubmissions = renderSubmissions;
+window.renderSubTable = renderSubTable;
+window.showAddSubmission = showAddSubmission;
+window.saveNewSubmission = saveNewSubmission;
+window.viewSubmission = viewSubmission;
+window.saveNotes = saveNotes;
+window.editStatus = editStatus;
+window.saveStatus = saveStatus;
+window.scoreSubmission = scoreSubmission;
+window.exportCSV = exportCSV;
+window.renderReview = renderReview;
+window.reviewTab = reviewTab;
+window.toggleCompare = toggleCompare;
+window.scoreAllUnscored = scoreAllUnscored;
+window.openPanel = openPanel;
+window.closePanel = closePanel;
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadEvents().then(function() { showSection('events'); });
 </script>
