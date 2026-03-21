@@ -144,7 +144,7 @@ function showSection(name) {
 
 function addTopbarBtn(label, fn) {
   var btn = document.createElement('button');
-  btn.className = 'btn-primary'; btn.textContent = label; btn.onclick = fn;
+  btn.className = 'btn-primary'; btn.textContent = label; btn.onclick = function() { fn(); };
   document.getElementById('topbar-action').appendChild(btn);
 }
 
