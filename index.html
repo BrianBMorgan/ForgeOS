@@ -432,8 +432,18 @@ async function scoreSubmission(id) {
   openPanel();
   var r = await api('POST', '/api/submissions/' + id + '/score');
   if (r.error) { panel.innerHTML = '<h2>Error</h2><div class="alert alert-error">' + r.error + '</div>'; return; }
+  // Normalize response shape — API returns scorecard with 'overall' and 'dimensions'
+  var raw = r.scorecard || r.ai_score || r;
+  var normalized = {
+    overall_score: raw.overall_score || raw.overall || 0,
+    dimension_scores: raw.dimension_scores || raw.dimensions || {},
+    strengths: raw.strengths || [],
+    gaps: raw.gaps || [],
+    recommendation: raw.recommendation || '',
+    recommendation_rationale: raw.recommendation_rationale || raw.rationale || ''
+  };
   var idx2 = allSubmissions.findIndex(function(x){return x.id===id;});
-  if (idx2>=0) allSubmissions[idx2].ai_score = r.ai_score || r;
+  if (idx2>=0) allSubmissions[idx2].ai_score = normalized;
   renderSubTable();
   viewSubmission(id);
 }
