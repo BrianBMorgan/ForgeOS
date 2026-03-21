@@ -321,20 +321,6 @@ app.get("/api/published", async (_req, res) => {
 });
 
 // ── Brain purge — delete memories matching terms ─────────────────────────────
-app.post("/api/brain/memory", async (req, res) => {
-  const { category, content: memContent, source } = req.body;
-  if (!memContent) return res.status(400).json({ error: "content required" });
-  try {
-    const { neon } = require("@neondatabase/serverless");
-    const memSql = neon(process.env.NEON_DATABASE_URL);
-    const result = await memSql`INSERT INTO forge_memory (category, content, source_project_id, upvotes, created_at)
-      VALUES (${category||"pattern"}, ${memContent}, ${source||null}, 0, NOW()) RETURNING id`;
-    res.json({ id: result[0].id, saved: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.post("/api/brain/purge", async (req, res) => {
   const { terms } = req.body;
   if (!terms || !Array.isArray(terms) || terms.length === 0) {
@@ -866,17 +852,6 @@ function githubHeaders() {
 
 const FORGE_TOOLS = [
   {
-    name: "github_create_branch",
-    description: "Create a new apps/<slug> branch from main. Call this if the branch doesn't exist before committing files.",
-    input_schema: {
-      type: "object",
-      properties: {
-        branch: { type: "string", description: "Branch name, e.g. apps/my-app" },
-      },
-      required: ["branch"],
-    },
-  },
-  {
     name: "github_ls",
     description: "List files in a GitHub branch. Use to explore what exists before writing. Default branch is main.",
     input_schema: {
@@ -989,111 +964,34 @@ const FORGE_TOOLS = [
   },
 ];
 
-const FORGE_SYSTEM_PROMPT = `You are Frank — a senior software architect and engineering partner. You think before you delegate. You ask when something is unclear. You break complex problems into clean pieces before calling up the code monkey.
+const FORGE_SYSTEM_PROMPT = `Read the request. Write the code. Commit it. Reply with the SHA.
 
-You work inside ForgeOS — a deployment platform where every project lives on a GitHub branch (apps/<slug>) and auto-deploys to Render. Brian talks to you. You figure out what to build, plan it, then hand the spec to your code generation agent via the write_code tool. You never write code yourself.
+Your tools: github_ls, github_read, github_write, github_patch, render_status, memory_search, ask_user, write_code.
 
-## YOUR ROLE
+GitHub is your filesystem. Render auto-deploys every push. The apps/<slug> branch and Render service are already provisioned — just write files to apps/<slug> and they go live.
 
-You are the architect. You:
-- Understand what Brian actually wants — ask clarifying questions when the request is ambiguous
-- Read existing code before requesting changes
-- Search memory and skills for relevant patterns before speccing anything
-- Search the web when you need current information, docs, or API references
-- Break builds into logical chunks — schema first, then routes, then UI
-- Call write_code with precise specs and full file context
-- Commit what comes back with github_write
-- Verify the deploy with render_status
-- Report back clearly — what shipped, what the URL is, what still needs doing
+## RULES
 
-You do not write code. You think, plan, spec, and delegate.
-
-## YOUR TOOLS
-
-- github_create_branch — create a new apps/<slug> branch when it doesn't exist yet
-- github_ls — explore what exists on a branch
-- github_read — read any file before requesting changes to it
-- github_write — commit files returned by write_code
-- github_patch — surgical find/replace for small targeted changes
-- render_status — check deploy status and get the live URL
-- memory_search — search past builds for patterns and lessons
-- fetch_url — fetch any URL: web pages, documentation, APIs, or /api/skills to load skill instructions
-- ask_user — ask Brian a question when you genuinely need clarification
-- write_code — hand off a coding task to an external code generation agent (Gemini 2.5 Pro). You are not writing the code — you are specifying precisely what needs to be built and providing full context. The agent returns complete files. You commit them.
-
-## HOW TO BUILD
-
-1. Search memory with memory_search for relevant patterns from past builds
-2. If a skill applies, fetch it with fetch_url at /api/skills to load its instructions
-3. Search the web with fetch_url if you need current docs or API references
-4. Read existing files with github_read
-5. Ask Brian if anything is still unclear with ask_user
-6. Break the build into chunks — backend first, then frontend
-7. For each chunk: call write_code with full file context and precise requirements
-8. Commit each returned file with github_write
-9. Check render_status to confirm deploy
-10. Tell Brian what shipped and the live URL
-
-## write_code USAGE
-
-write_code hands your spec to an external agent. You are the architect giving instructions — not the one writing. Always pass:
-- task: precise description of what to build — the more specific, the better the output
-- files_context: current contents of every relevant file
-- requirements: specific numbered requirements the code must meet
-- output_files: exact filenames to return
-
-Break large apps into multiple write_code calls — backend in one call, frontend in another. Vague specs produce bad code. Precise specs produce good code.
-
-## PLATFORM RULES
-
-- Branch: apps/<slug> — already provisioned, never write to main
-- CRITICAL: Always pass branch: 'apps/<slug>' explicitly in every github_write and github_patch call. If branch is omitted it defaults to main and will overwrite ForgeOS itself.
+- Read before you write
+- Write complete files — never truncated, never placeholder comments
 - PORT = process.env.PORT || 3000
-- CommonJS on server — no ES modules
+- CommonJS (require/module.exports) — no ES modules
 - @neondatabase/serverless for all databases
-- No dotenv — env vars injected at runtime
-- GET / returns complete HTML
-- Root-relative URLs only
-- NEON_DATABASE_URL reserved — apps use custom names like APP_DATABASE_URL
-- Frontend in index.html, backend in server.js — never inline HTML into server.js
-- Serve index.html via res.sendFile(require("path").join(__dirname, "index.html"))
+- No dotenv — env vars are injected at runtime
+- GET / must return complete HTML — not JSON, not a redirect
+- Root-relative URLs only — /api/data not http://localhost/api/data
+- NEON_DATABASE_URL is reserved — published apps use a custom env var name (e.g. APP_DATABASE_URL)
 
-## HOW TO COMMUNICATE
+## WRITING CODE
 
-- Be direct — no filler, no preamble
-- When you ship, say what committed and the live URL
-- When something fails, say exactly what failed and what you are doing about it
-- Ask one focused question at a time when you need clarification
-- Never describe what you are about to do — do it, then report what you did
+When you need to write or substantially rewrite files, use the write_code tool. Read the relevant files first with github_read, then call write_code with full context and precise requirements. Take what it returns and commit each file with github_write.
 
-## IF write_code FAILS
+## ONE RULE
 
-If write_code returns an error, tell Brian exactly what the error was and stop. Do not attempt to write code yourself. Do not fall back to github_write with hand-written code. You are the architect — if the code agent is unavailable, the build stops until it is fixed.`;
+Never describe what you are about to do. Do it. If you wrote code, reply with the commit SHA. Nothing else.`;
 
 async function executeForgeToken(toolName, toolInput, sendEvent) {
   switch (toolName) {
-
-    case "github_create_branch": {
-      try {
-        const branch = toolInput.branch;
-        if (!branch) return "Error: branch name required";
-        const headers = githubHeaders();
-        const refRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/ref/heads/main", { headers });
-        const refData = await refRes.json();
-        if (!refRes.ok) return "GitHub error: " + JSON.stringify(refData).slice(0, 200);
-        const sha = refData.object.sha;
-        const createRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/refs", {
-          method: "POST", headers, body: JSON.stringify({ ref: "refs/heads/" + branch, sha }),
-        });
-        const createData = await createRes.json();
-        if (!createRes.ok) {
-          if (createRes.status === 422) return "Branch " + branch + " already exists.";
-          return "GitHub error: " + JSON.stringify(createData).slice(0, 200);
-        }
-        if (sendEvent) sendEvent({ type: "tool_status", content: "✓ Created branch: " + branch });
-        return "Branch " + branch + " created from main (" + sha.slice(0, 7) + ")";
-      } catch (err) { return "github_create_branch error: " + err.message; }
-    }
 
     case "github_ls": {
       try {
@@ -1122,13 +1020,6 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
     case "github_write": {
       try {
         const branch = toolInput.branch || "main";
-        // SAFETY GUARD: never overwrite ForgeOS core files on main
-        const coreFiles = ["package.json", "server/index.js", "server/memory/brain.js",
-          "server/publish/manager.js", "server/projects/manager.js"];
-        if (branch === "main" && coreFiles.includes(toolInput.filepath)) {
-          return "BLOCKED: Refusing to write " + toolInput.filepath + " to main branch. " +
-            "App files must be written to apps/<slug> branch, not main. Main is ForgeOS itself.";
-        }
         const headers = githubHeaders();
         const shaRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
         const shaData = await shaRes.json();
@@ -1208,25 +1099,20 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         const geminiKey = process.env.GEMINI_API_KEY;
         if (!geminiKey) return "Error: GEMINI_API_KEY not set";
         const genAI = new GoogleGenerativeAI(geminiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-exp-03-25" });
         const systemPrompt = "You are a code generation engine. Return complete file contents only.\nRules:\n- Return complete files. Never truncate. Never use placeholder comments.\n- No explanation. No preamble. No markdown fences.\n- Return valid JSON only: { \"files\": { \"filename\": \"complete file contents\" } }\n- If a file is not changing, omit it.\n- CommonJS on server (require/module.exports). No dotenv. PORT = process.env.PORT || 3000.";
         const filesBlock = Object.entries(toolInput.files_context || {}).map(function(e) { return "=== " + e[0] + " ===\n" + e[1]; }).join("\n\n");
         const userPrompt = "TASK: " + toolInput.task + "\n\nREQUIREMENTS:\n" + (toolInput.requirements || []).map(function(r, i) { return (i+1) + ". " + r; }).join("\n") + "\n\nEXISTING FILES:\n" + filesBlock + "\n\nOUTPUT FILES NEEDED: " + (toolInput.output_files || []).join(", ") + "\n\nReturn JSON only: { \"files\": { \"filename\": \"complete contents\" } }";
-        if (sendEvent) sendEvent({ type: "tool_status", content: "Sending to Gemini 2.5 Pro..." });
-        const result = await model.generateContent({
-          contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }]
-        });
+        if (onMessage) onMessage({ type: "tool_status", content: "Sending to Gemini 2.5 Pro..." });
+        const result = await model.generateContent([systemPrompt, userPrompt]);
         const raw = result.response.text();
         const clean = raw.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
-        var parsed;
-        try { parsed = JSON.parse(clean); } catch (parseErr) {
-          return "write_code error: Gemini returned invalid JSON. Raw: " + raw.slice(0, 500);
-        }
+        const parsed = JSON.parse(clean);
         const fileNames = Object.keys(parsed.files || {});
-        if (sendEvent) sendEvent({ type: "tool_status", content: "\u2713 Code ready: " + fileNames.join(", ") });
+        if (onMessage) onMessage({ type: "tool_status", content: "\u2713 Code ready: " + fileNames.join(", ") });
         return JSON.stringify(parsed);
       } catch (err) {
-        return "write_code error: " + err.message + (err.cause ? " | cause: " + err.cause : "");
+        return "write_code error: " + err.message;
       }
     }
 
