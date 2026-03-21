@@ -123,6 +123,7 @@ tr:hover td{background:#f9f9f9;}
 <div class="panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
 <div class="slide-panel" id="slide-panel" onclick="event.stopPropagation()"></div>
 
+
 <script>
 var currentEventId = localStorage.getItem('selectedEventId') || null;
 var allEvents = [];
@@ -576,7 +577,7 @@ window.openPanel = openPanel;
 window.closePanel = closePanel;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() { loadEvents().then(function() { showSection('events'); }); });
+loadEvents().then(function() { showSection('events'); });
 </script>
 </body>
 </html>
