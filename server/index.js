@@ -1170,13 +1170,13 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         const systemPrompt = "You are a code generation engine. Return complete file contents only.\nRules:\n- Return complete files. Never truncate. Never use placeholder comments.\n- No explanation. No preamble. No markdown fences.\n- Return valid JSON only: { \"files\": { \"filename\": \"complete file contents\" } }\n- If a file is not changing, omit it.\n- CommonJS on server (require/module.exports). No dotenv. PORT = process.env.PORT || 3000.";
         const filesBlock = Object.entries(toolInput.files_context || {}).map(function(e) { return "=== " + e[0] + " ===\n" + e[1]; }).join("\n\n");
         const userPrompt = "TASK: " + toolInput.task + "\n\nREQUIREMENTS:\n" + (toolInput.requirements || []).map(function(r, i) { return (i+1) + ". " + r; }).join("\n") + "\n\nEXISTING FILES:\n" + filesBlock + "\n\nOUTPUT FILES NEEDED: " + (toolInput.output_files || []).join(", ") + "\n\nReturn JSON only: { \"files\": { \"filename\": \"complete contents\" } }";
-        if (onMessage) onMessage({ type: "tool_status", content: "Sending to Gemini 2.5 Pro..." });
+        if (sendEvent) sendEvent({ type: "tool_status", content: "Sending to Gemini 2.5 Pro..." });
         const result = await model.generateContent([systemPrompt, userPrompt]);
         const raw = result.response.text();
         const clean = raw.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
         const parsed = JSON.parse(clean);
         const fileNames = Object.keys(parsed.files || {});
-        if (onMessage) onMessage({ type: "tool_status", content: "\u2713 Code ready: " + fileNames.join(", ") });
+        if (sendEvent) sendEvent({ type: "tool_status", content: "\u2713 Code ready: " + fileNames.join(", ") });
         return JSON.stringify(parsed);
       } catch (err) {
         return "write_code error: " + err.message;
