@@ -193,9 +193,35 @@ async function renderEventsList() {
 
 function showNewEventForm(editEvent) {
   var isEdit = !!editEvent;
-  document.getElementById('slide-panel').innerHTML = '<h2>' + (isEdit ? 'Edit Event' : 'New Event') + '</h2><div id="event-form-step1"><div class="form-group"><label>Event Name *</label><input id="ef-name" value="' + (editEvent&&editEvent.name||'') + '"></div><div class="grid-2"><div class="form-group"><label>Event Date</label><input id="ef-date" value="' + (editEvent&&editEvent.event_date||'') + '"></div><div class="form-group"><label>Total Session Slots</label><input id="ef-slots" type="number" value="' + (editEvent&&editEvent.total_slots||12) + '"></div></div><div class="form-group"><label>Venue</label><input id="ef-venue" value="' + (editEvent&&editEvent.venue||'') + '"></div>' + (isEdit ? '' : '<button class="btn-primary" onclick="showStep2()">Next &rarr;</button>') + (isEdit ? '<button class="btn-primary" onclick="saveEventEdit(' + editEvent.id + ')">Save Changes</button>' : '') + '</div><div id="event-form-step2" style="display:none"><div class="form-group"><label>Paste event strategy, goals, KPIs, audience, content pillars here. The more context the better AI scoring.</label><textarea id="ef-context" rows="8" placeholder="Paste POR deck, strategy doc, goals..."></textarea></div><button class="btn-primary" onclick="generateProfile()">Generate Event Profile</button> <button class="btn-secondary" onclick="saveEventDirect()">Save Without Profile</button><div id="profile-result" style="margin-top:16px"></div></div>';
+  var panel = document.getElementById('slide-panel');
+  panel.innerHTML = '<h2>' + (isEdit ? 'Edit Event' : 'New Event') + '</h2>' +
+    '<div id="event-form-step1">' +
+      '<div class="form-group"><label>Event Name *</label><input id="ef-name" value="' + (editEvent&&editEvent.name||'') + '"></div>' +
+      '<div class="grid-2">' +
+        '<div class="form-group"><label>Event Date</label><input id="ef-date" value="' + (editEvent&&editEvent.event_date||'') + '"></div>' +
+        '<div class="form-group"><label>Total Session Slots</label><input id="ef-slots" type="number" value="' + (editEvent&&editEvent.total_slots||12) + '"></div>' +
+      '</div>' +
+      '<div class="form-group"><label>Venue</label><input id="ef-venue" value="' + (editEvent&&editEvent.venue||'') + '"></div>' +
+      (isEdit ? '<button class="btn-primary" id="btn-save-edit">Save Changes</button>' : '<button class="btn-primary" id="btn-next-step">Next &rarr;</button>') +
+    '</div>' +
+    '<div id="event-form-step2" style="display:none">' +
+      '<div class="form-group"><label>Paste event strategy, goals, KPIs, audience, content pillars here. The more context the better AI scoring.</label>' +
+      '<textarea id="ef-context" rows="8" placeholder="Paste POR deck, strategy doc, goals..."></textarea></div>' +
+      '<button class="btn-primary" id="btn-gen-profile">Generate Event Profile</button> ' +
+      '<button class="btn-secondary" id="btn-save-direct">Save Without Profile</button>' +
+      '<div id="profile-result" style="margin-top:16px"></div>' +
+    '</div>';
+  // Attach events after innerHTML is set
+  if (isEdit) {
+    document.getElementById('btn-save-edit').addEventListener('click', function() { saveEventEdit(editEvent.id); });
+  } else {
+    document.getElementById('btn-next-step').addEventListener('click', showStep2);
+  }
+  document.getElementById('btn-gen-profile').addEventListener('click', generateProfile);
+  document.getElementById('btn-save-direct').addEventListener('click', saveEventDirect);
   openPanel();
 }
+
 
 function showStep2() {
   var name = document.getElementById('ef-name').value.trim();
