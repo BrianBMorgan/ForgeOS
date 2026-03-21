@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Countdown Timer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #1A1A2E;
+            --bg-card: #16213E;
+            --accent: #E94560;
+            --text-light: #FFFFFF;
+            --text-muted: #a9a9a9;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-light);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            padding: 2.5rem 3rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            text-align: center;
+            width: 100%;
+            max-width: 650px;
+        }
+
+        h1 {
+            font-weight: 700;
+            margin-bottom: 2rem;
+        }
+
+        #form-container form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background-color: var(--bg-main);
+            border: 1px solid #303956;
+            border-radius: 8px;
+            color: var(--text-light);
+            font-family: inherit;
+            font-size: 1rem;
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        .btn {
+            background-color: var(--accent);
+            color: var(--text-light);
+            border: none;
+            padding: 0.9rem 2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .btn:hover {
+            background-color: #d83c54;
+            transform: translateY(-2px);
+        }
+
+        #error-message {
+            color: var(--accent);
+            min-height: 1.2em;
+            font-size: 0.9rem;
+            margin-top: -1rem;
+        }
+
+        #countdown-container {
+            display: none;
+        }
+
+        #countdown-title {
+            font-size: 2.5rem;
+            word-wrap: break-word;
+        }
+
+        #timer {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .time-box {
+            background-color: var(--bg-main);
+            padding: 1.5rem;
+            border-radius: 8px;
+            min-width: 120px;
+            flex-grow: 1;
+        }
+
+        .time-box span {
+            font-size: 3.5rem;
+            font-weight: 700;
+            display: block;
+            line-height: 1;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .time-box p {
+            font-size: 0.8rem;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        #celebration {
+            display: none;
+            font-size: 2rem;
+            color: var(--accent);
+            font-weight: 700;
+            margin-bottom: 2rem;
+            word-wrap: break-word;
+        }
+
+        #reset-btn {
+            background-color: transparent;
+            border: 2px solid var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            #timer {
+                flex-wrap: wrap;
+                gap: 1rem;
+            }
+            .time-box {
+                flex-basis: calc(50% - 0.5rem);
+                min-width: 0;
+                padding: 1rem;
+            }
+            .time-box span {
+                font-size: 2.5rem;
+            }
+            #countdown-title {
+                font-size: 2rem;
+            }
+            .card {
+                padding: 2rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 0.5rem;
+            }
+            .card {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <main>
+        <div id="form-container" class="card">
+            <h1>Create a Countdown</h1>
+            <form id="countdown-form">
+                <input type="text" id="event-name" class="form-input" placeholder="Event Name" required>
+                <input type="date" id="event-date" class="form-input" required>
+                <p id="error-message"></p>
+                <button type="submit" class="btn">Start Countdown</button>
+            </form>
+        </div>
+
+        <div id="countdown-container" class="card">
+            <h1 id="countdown-title"></h1>
+            <div id="timer">
+                <div class="time-box">
+                    <span id="days">00</span>
+                    <p>Days</p>
+                </div>
+                <div class="time-box">
+                    <span id="hours">00</span>
+                    <p>Hours</p>
+                </div>
+                <div class="time-box">
+                    <span id="minutes">00</span>
+                    <p>Minutes</p>
+                </div>
+                <div class="time-box">
+                    <span id="seconds">00</span>
+                    <p>Seconds</p>
+                </div>
+            </div>
+            <div id="celebration"></div>
+            <button id="reset-btn" class="btn">Reset</button>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var formContainer = document.getElementById('form-container');
+            var countdownContainer = document.getElementById('countdown-container');
+            var countdownForm = document.getElementById('countdown-form');
+            var eventNameInput = document.getElementById('event-name');
+            var eventDateInput = document.getElementById('event-date');
+            var errorMessage = document.getElementById('error-message');
+            var countdownTitle = document.getElementById('countdown-title');
+            var timer = document.getElementById('timer');
+            var celebration = document.getElementById('celebration');
+            var resetBtn = document.getElementById('reset-btn');
+
+            var daysEl = document.getElementById('days');
+            var hoursEl = document.getElementById('hours');
+            var minutesEl = document.getElementById('minutes');
+            var secondsEl = document.getElementById('seconds');
+
+            var countdownInterval;
+            var targetDate;
+            var eventName;
+
+            function pad(num) {
+                return String(num).padStart(2, '0');
+            }
+
+            function updateCountdown() {
+                var now = new Date().getTime();
+                var distance = targetDate - now;
+
+                if (distance < 0) {
+                    clearInterval(countdownInterval);
+                    timer.style.display = 'none';
+                    celebration.style.display = 'block';
+                    celebration.textContent = 'The moment has arrived! \u2014 ' + eventName;
+                    return;
+                }
+
+                var days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                daysEl.textContent = pad(days);
+                hoursEl.textContent = pad(hours);
+                minutesEl.textContent = pad(minutes);
+                secondsEl.textContent = pad(seconds);
+            }
+
+            function startCountdown() {
+                updateCountdown();
+                countdownInterval = setInterval(updateCountdown, 1000);
+            }
+
+            countdownForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                eventName = eventNameInput.value.trim();
+                var eventDateValue = eventDateInput.value;
+
+                if (!eventName || !eventDateValue) {
+                    errorMessage.textContent = 'Please fill in both fields.';
+                    return;
+                }
+
+                var selectedDate = new Date(eventDateValue + 'T00:00:00');
+                var now = new Date();
+                now.setHours(0, 0, 0, 0);
+
+                if (selectedDate <= now) {
+                    errorMessage.textContent = 'Please select a future date.';
+                    return;
+                }
+
+                errorMessage.textContent = '';
+                targetDate = new Date(eventDateValue + 'T00:00:00').getTime();
+                countdownTitle.textContent = eventName;
+
+                formContainer.style.display = 'none';
+                countdownContainer.style.display = 'block';
+                timer.style.display = 'flex';
+                celebration.style.display = 'none';
+
+                startCountdown();
+            });
+
+            resetBtn.addEventListener('click', function() {
+                clearInterval(countdownInterval);
+                countdownContainer.style.display = 'none';
+                formContainer.style.display = 'block';
+                countdownForm.reset();
+            });
+        });
+    </script>
+</body>
+</html>
