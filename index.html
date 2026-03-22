@@ -446,6 +446,12 @@ function parseAiScore(s) {
   if (typeof s.ai_score === 'string') {
     try { s.ai_score = JSON.parse(s.ai_score); } catch(e) { s.ai_score = null; }
   }
+  if (s.ai_score) {
+    // Normalize the structure
+    if (s.ai_score.overall_score == null && s.ai_score.overall != null) {
+      s.ai_score.overall_score = s.ai_score.overall;
+    }
+  }
   return s;
 }
 
@@ -477,7 +483,7 @@ function renderSubTable() {
   });
   var html = '<table><thead><tr><th>Title</th><th>BU</th><th>Track</th><th>Format</th><th>Speakers</th><th>Demo</th><th>Partner</th><th>Status</th><th>AI Score</th><th>Actions</th></tr></thead><tbody>';
   filtered.forEach(function(s){
-    var score = s.ai_score ? (s.ai_score.overall_score != null ? s.ai_score.overall_score : s.ai_score.overall) : null;
+    var score = s.ai_score ? s.ai_score.overall_score : null;
     var scoreBadge = score !== null ? '<span class="badge ' + (score>=80?'score-high':score>=60?'score-mid':'score-low') + '">Score: ' + score + '</span>' : '<span class="badge score-none">Not Scored</span>';
     function toTitleCase(str) { return str.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}); }
     var statusBadge = '<span class="badge badge-' + (s.status||'submitted') + '">' + toTitleCase(s.status||'submitted') + '</span>';
@@ -526,7 +532,7 @@ async function viewSubmission(id) {
   var scoreHtml = '';
   if (score) {
     var dims = score.dimension_scores || score.dimensions || {};
-    var overall = score.overall_score != null ? score.overall_score : (score.overall != null ? score.overall : 0);
+    var overall = score.overall_score != null ? score.overall_score : 0;
     var cls = overall>=80?'score-high':overall>=60?'score-mid':'score-low';
     scoreHtml = '<div style="margin-top:16px;padding-top:16px;border-top:1px solid #EAEAEA">';
     scoreHtml += '<div style="font-weight:700;margin-bottom:8px">AI Score: <span class="badge ' + cls + '" style="font-size:16px">' + overall + '</span></div>';
@@ -785,7 +791,7 @@ function renderCompareTable() {
   });
   html += '<tr><td style="font-weight:700">Overall</td>';
   subs.forEach(function(s){
-    var ov = s.ai_score ? (s.ai_score.overall_score || s.ai_score.overall || null) : null;
+    var ov = s.ai_score && s.ai_score.overall_score != null ? s.ai_score.overall_score : null;
     var ovCls = typeof ov === 'number' ? (ov>=80?'score-high':ov>=60?'score-mid':'score-low') : 'score-none';
     var ovLabel = typeof ov === 'number' ? 'Score: ' + ov : 'Not Scored';
     html += '<td><span class="badge ' + ovCls + '" style="font-size:14px">' + ovLabel + '</span></td>';
