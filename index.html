@@ -447,7 +447,6 @@ async function renderSubmissions() {
     '<div class="filter-bar"><input placeholder="Search title / speaker..." oninput="subFilters.search=this.value;renderSubTable()" value="' + subFilters.search + '"><select onchange="subFilters.track=this.value;renderSubTable()"><option value="">All Tracks</option>' + tracks.map(function(t){return '<option value="' + t + '"' + (subFilters.track===t?' selected':'') + '>' + t + '</option>';}).join('') + '</select><select onchange="subFilters.bu=this.value;renderSubTable()"><option value="">All BUs</option>' + bus.map(function(b){return '<option value="' + b + '"' + (subFilters.bu===b?' selected':'') + '>' + b + '</option>';}).join('') + '</select><select onchange="subFilters.status=this.value;renderSubTable()"><option value="">All Status</option><option value="submitted">Submitted</option><option value="under_review">Under Review</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="needs_revision">Needs Revision</option></select></div>' +
     '<div id="sub-table"></div>';
   renderSubTable();
-  document.getElementById('topbar-action').innerHTML = '<button class="btn-primary" onclick="showAddSubmission()">+ Add Submission</button>';
 }
 
 function renderSubTable() {
