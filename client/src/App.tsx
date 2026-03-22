@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { AppWindowMac, FileBox, Settings } from "lucide-react";
+import { AppWindowMac, FileBox, Settings as SettingsIcon } from "lucide-react";
 import logo from "./ForgeOS_1772241278038.png";
 import logoStacked from "./ForgeOS_Stacked.png";
 import PromptColumn from "./components/PromptColumn";
@@ -13,7 +13,7 @@ type NavId = "projects" | "assets" | "settings";
 const navItems: { id: NavId; label: string; icon: React.ReactNode }[] = [
   { id: "projects", label: "Projects", icon: <AppWindowMac size={18} strokeWidth={1.5} /> },
   { id: "assets",   label: "Assets",   icon: <FileBox size={18} strokeWidth={1.5} /> },
-  { id: "settings", label: "Settings", icon: <Settings size={18} strokeWidth={1.5} /> },
+  { id: "settings", label: "Settings", icon: <SettingsIcon size={18} strokeWidth={1.5} /> },
 ];
 
 export interface ChatMessage {
