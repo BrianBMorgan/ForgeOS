@@ -532,7 +532,7 @@ async function viewSubmission(id) {
     scoreHtml += '<div style="font-weight:700;margin-bottom:8px">AI Score: <span class="badge ' + cls + '" style="font-size:16px">' + overall + '</span></div>';
     Object.keys(dims).forEach(function(k) {
       var d = dims[k];
-      scoreHtml += '<div class="dim-row"><div><div style="font-weight:500;font-size:13px">' + k.replace(/_/g,' ') + '</div>';
+      scoreHtml += '<div class="dim-row"><div><div style="font-weight:500;font-size:13px;text-transform:capitalize">' + k.replace(/_/g,' ') + '</div>';
       scoreHtml += '<div class="dim-rationale">' + (d.rationale||'') + '</div></div>';
       scoreHtml += '<div class="dim-score">' + d.score + '</div></div>';
     });
@@ -777,7 +777,7 @@ function renderCompareTable() {
   var dims = ['federal_relevance','technical_depth','intel_alignment','audience_fit','innovation_signal','delivery_readiness'];
   var html = '<table><thead><tr><th>Dimension</th>' + subs.map(function(s){return '<th>' + (s.title||'').slice(0,30) + '</th>';}).join('') + '</tr></thead><tbody>';
   dims.forEach(function(d){
-    html += '<tr><td style="font-weight:500">' + d.replace(/_/g,' ') + '</td>';
+    html += '<tr><td style="font-weight:500;text-transform:capitalize">' + d.replace(/_/g,' ') + '</td>';
     subs.forEach(function(s){
       var sc = s.ai_score && s.ai_score.dimension_scores && s.ai_score.dimension_scores[d] ? s.ai_score.dimension_scores[d].score : (s.ai_score && s.ai_score.dimensions && s.ai_score.dimensions[d] ? s.ai_score.dimensions[d].score : '&mdash;');
       var dimCls = typeof sc === 'number' ? (sc>=80?'score-high':sc>=60?'score-mid':'score-low') : 'score-none';
