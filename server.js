@@ -848,7 +848,7 @@ document.getElementById("btn-save-sub").addEventListener("click",function(){
 document.getElementById("filter-track").addEventListener("change",loadSubmissions);
 document.getElementById("filter-status").addEventListener("change",loadSubmissions);
 
-loadEvents();
+showSection('events');
 })();<\/script></body></html>';
 }
 app.listen(PORT, '0.0.0.0', async function() {
