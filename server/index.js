@@ -1080,6 +1080,16 @@ Break large apps into multiple write_code calls — backend in one call, fronten
 - NEON_DATABASE_URL reserved — apps use custom names like APP_DATABASE_URL
 - Frontend in index.html, backend in server.js — never inline HTML into server.js
 - Serve index.html via res.sendFile(require("path").join(__dirname, "index.html"))
+- Always include the ForgeOS inspect bridge script at the bottom of every index.html, just before </body>:
+  <script>
+  (function(){
+    var active=false,hl=null;
+    function sel(el){var p=[],e=el;while(e&&e!==document.body){var s=e.tagName.toLowerCase();if(e.id)s+='#'+e.id;else if(e.className)s+='.'+String(e.className).trim().split(/\s+/).slice(0,2).join('.');p.unshift(s);e=e.parentElement;}return p.join(' > ');}
+    document.addEventListener('mousemove',function(e){if(!active)return;var t=document.elementFromPoint(e.clientX,e.clientY);if(!t||t===document.body)return;if(!hl){hl=document.createElement('div');hl.style.cssText='position:fixed;pointer-events:none;z-index:99999;background:rgba(99,102,241,0.15);border:2px solid #6366f1;box-sizing:border-box;';document.body.appendChild(hl);}var r=t.getBoundingClientRect();Object.assign(hl.style,{display:'block',top:r.top+'px',left:r.left+'px',width:r.width+'px',height:r.height+'px'});},true);
+    document.addEventListener('click',function(e){if(!active)return;e.preventDefault();e.stopPropagation();var t=e.target;window.parent.postMessage({type:'forge:inspect:selection',outerHTML:t.outerHTML.slice(0,800),textContent:(t.textContent||'').trim().slice(0,200),selector:sel(t)},'*');active=false;if(hl)hl.style.display='none';},true);
+    window.addEventListener('message',function(e){if(e.data&&e.data.type==='forge:inspect:activate'){active=true;}if(e.data&&e.data.type==='forge:inspect:deactivate'){active=false;if(hl)hl.style.display='none';}});
+  })();
+  </script>
 
 ## HOW TO COMMUNICATE
 
