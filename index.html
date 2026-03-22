@@ -518,7 +518,7 @@ async function viewSubmission(id) {
   var scoreHtml = '';
   if (score) {
     var dims = score.dimension_scores || score.dimensions || {};
-    var overall = score.overall_score || score.overall || 0;
+    var overall = score.overall_score != null ? score.overall_score : (score.overall != null ? score.overall : 0);
     var cls = overall>=80?'score-high':overall>=60?'score-mid':'score-low';
     scoreHtml = '<div style="margin-top:16px;padding-top:16px;border-top:1px solid #EAEAEA">';
     scoreHtml += '<div style="font-weight:700;margin-bottom:8px">AI Score: <span class="badge ' + cls + '" style="font-size:16px">' + overall + '</span></div>';
