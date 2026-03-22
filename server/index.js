@@ -1139,6 +1139,7 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         if (!pushRes.ok) return "GitHub push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 300);
         const commitSha = pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done";
         sendEvent({ type: "tool_status", content: "✓ Written: " + toolInput.filepath });
+        sendEvent({ type: "file_committed", filepath: toolInput.filepath, branch: branch, commit: commitSha });
 
         // Auto-provision Render service if writing to an apps/* branch with no service yet
         if (branch.startsWith("apps/")) {
