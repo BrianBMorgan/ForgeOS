@@ -85,6 +85,384 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
+  // Migrate ai_score column to JSONB if it was previously created as INTEGER
+  try {
+    await sql`ALTER TABLE submissions ALTER COLUMN ai_score TYPE JSONB USING CASE WHEN ai_score::text ~ '^[0-9]+
+
+async function seedData() {
+  var sql = getDb();
+  console.log('Checking for seed data...');
+  var eventCount = await sql`SELECT COUNT(*) FROM events`;
+  if (parseInt(eventCount[0].count, 10) === 0) {
+    console.log('No events found, seeding database...');
+
+    var context_profile = [
+      'Intel Federal Summit 2026',
+      'Date: April 27-28, 2026',
+      'Venue: Marriott Westfields Chantilly, VA',
+      'Available session slots: 12',
+      '',
+      'Audience: Senior federal IT decision-makers, defense program managers, intelligence community architects, DoD CIOs and CTOs, cleared systems integrators.',
+      '',
+      'Strategic themes for 2026:',
+      '- Agentic AI for autonomous mission systems and decision support',
+      '- Edge & embedded computing for contested/denied environments',
+      '- Data center modernization for classified and FedRAMP workloads',
+      '- Silicon-level security: TDX, SGX, Boot Guard for zero-trust architectures',
+      '- High-performance computing for simulation, modeling, and intelligence analysis',
+      '- Commercial client platforms for government-managed device fleets',
+      '',
+      'Intel federal portfolio highlights: Intel Xeon 6 (Granite Rapids), Intel Core Ultra (Meteor Lake) with NPU for on-device AI, Gaudi 3 AI accelerators, Intel TDX for confidential computing, Intel vPro for enterprise manageability.',
+      '',
+      'Content bar: Sessions must be technically credible, speak directly to federal procurement and mission realities, and avoid purely commercial/enterprise framing.'
+    ].join('\n');
+
+    var ai_system_prompt = [
+      'You are an AI content reviewer for the Intel Federal Summit 2026, a premier event targeting US federal government, defense, intelligence community, and public sector IT decision-makers.',
+      '',
+      'Scoring mission: Evaluate session submissions on their relevance, technical depth, and strategic value to federal/defense audiences. Intel\'s federal priorities for 2026 center on AI for national security, edge computing at the tactical edge, data center modernization for classified workloads, and silicon-level trust/security.',
+      '',
+      'Score each submission on six dimensions (0-100 each):',
+      '1. Federal Relevance — Does this directly address federal/defense/IC use cases, mission requirements, or procurement concerns?',
+      '2. Technical Depth — Is the content substantive enough for technical buyers and architects in cleared environments?',
+      '3. Intel Alignment — Does it showcase Intel silicon, software, or ecosystem advantages meaningfully?',
+      '4. Audience Fit — Is the content level and framing appropriate for GS-13+, SES, and senior program managers?',
+      '5. Innovation Signal — Does it present genuinely new capabilities, architectures, or approaches vs. known baselines?',
+      '6. Delivery Readiness — Are the speakers credible, is the format appropriate, and is the abstract clear enough to attract the right attendees?',
+      '',
+      'Return ONLY valid JSON in this exact shape:',
+      '{',
+      '  "overall": <integer 0-100>,',
+      '  "dimensions": {',
+      '    "federal_relevance": { "score": <int>, "rationale": "<string>" },',
+      '    "technical_depth": { "score": <int>, "rationale": "<string>" },',
+      '    "intel_alignment": { "score": <int>, "rationale": "<string>" },',
+      '    "audience_fit": { "score": <int>, "rationale": "<string>" },',
+      '    "innovation_signal": { "score": <int>, "rationale": "<string>" },',
+      '    "delivery_readiness": { "score": <int>, "rationale": "<string>" }',
+      '  },',
+      '  "strengths": ["<string>", ...],',
+      '  "gaps": ["<string>", ...],',
+      '  "recommendation": "<Accept|Accept with Revisions|Decline>"',
+      '}'
+    ].join('\n');
+
+    var newEvent = await sql`
+      INSERT INTO events (name, event_date, venue, slot_count, context_profile, ai_system_prompt)
+      VALUES ('Intel Federal Summit 2026', 'April 27-28, 2026', 'Marriott Westfields Chantilly, VA', 12, ${context_profile}, ${ai_system_prompt})
+      RETURNING id
+    `;
+    var eventId = newEvent[0].id;
+
+    var submissions = [
+      {
+        title: 'Agentic AI at the Tactical Edge: Autonomous Decision Support for DoD',
+        bu: 'DCAI',
+        track: 'Agentic AI',
+        intel_speakers: 'Dr. Sarah Chen (Intel DCAI), Col. James Harrington (US Army, ret.)',
+        abstract: 'This session presents Intel\'s Gaudi 3-powered agentic AI framework deployed in a classified Army logistics optimization pilot. We demonstrate how multi-agent systems running on Intel silicon achieve sub-second decision latency for resupply routing in GPS-denied environments, reducing mission planner cognitive load by 40%. Architecture deep-dive covers inference pipeline, security isolation via Intel TDX, and integration with existing C2 systems.'
+      },
+      {
+        title: 'Building Trustworthy AI Agents for Intelligence Analysis Workflows',
+        bu: 'DCAI',
+        track: 'Agentic AI',
+        intel_speakers: 'Maya Patel (Intel AI Research), Thomas Nguyen (Intel Federal Solutions)',
+        abstract: 'Intelligence analysts face an explosion of multi-source data requiring rapid synthesis. This session covers Intel\'s reference architecture for deploying agentic AI pipelines in air-gapped IC environments, using open-weight LLMs on Xeon 6 with Intel AMX acceleration. Topics include agent orchestration patterns, hallucination mitigation for high-stakes decisions, provenance tracking, and audit logging for compliance with IC data handling directives.'
+      },
+      {
+        title: 'Intel Core Ultra at the Edge: AI Inference in SWaP-Constrained Platforms',
+        bu: 'NEX',
+        track: 'Edge & Embedded Systems',
+        intel_speakers: 'Kevin Park (Intel NEX), Dr. Lisa Torres (Intel Labs)',
+        abstract: 'Forward-deployed ISR platforms demand AI inference capabilities within strict SWaP envelopes. Intel Core Ultra\'s integrated NPU delivers 34 TOPS within a 15W TDP, enabling real-time object detection, signals classification, and sensor fusion directly on the platform. This session covers thermal management, security hardening via BootGuard, ruggedization considerations, and a case study from a SOCOM-adjacent program.'
+      },
+      {
+        title: 'Modernizing the DoD Data Center: Xeon 6 for Classified HPC Workloads',
+        bu: 'DCAI',
+        track: 'Data Center/HPC',
+        intel_speakers: 'Robert Kim (Intel Data Center Group), Jennifer Walsh (Intel Federal)',
+        abstract: 'The Department of Defense operates hundreds of data centers supporting classified modeling, simulation, and intelligence processing workloads that cannot move to commercial cloud. Intel Xeon 6 with P-cores delivers 2.1x the performance-per-watt of prior generation for HPC workloads while Intel TDX enables confidential computing enclaves for multi-tenant classified environments. Session covers ATO considerations, migration path from legacy infrastructure, and JWICS/SIPRNet integration.'
+      },
+      {
+        title: 'Zero Trust Device Identity: Intel vPro and Hardware-Rooted Security for Federal Fleets',
+        bu: 'CCG',
+        track: 'Commercial Client',
+        intel_speakers: 'Amanda Foster (Intel vPro Product), David Chen (Intel Security Solutions)',
+        abstract: 'Federal agencies managing large device fleets under CISA zero trust mandates require hardware-rooted identity and remote attestation capabilities beyond software MDM. Intel vPro with Hardware Shield provides silicon-level platform attestation, below-OS threat detection, and remote remediation. Session covers NIST SP 800-155 alignment, integration with Microsoft SCCM and Intune for federal M365 tenants, FedRAMP implications, and practical deployment guidance.'
+      },
+      {
+        title: 'AI-Assisted Code Modernization for Legacy Defense Systems',
+        bu: 'CCG',
+        track: 'Commercial Client',
+        intel_speakers: 'Brian Taylor (Intel Software Division)',
+        abstract: 'Defense software teams maintain millions of lines of COBOL, Ada, and legacy C++ in mission-critical systems. This workshop explores using Intel-optimized LLMs running locally on Core Ultra developer workstations to assist with code analysis, documentation generation, and controlled modernization without sending sensitive source code to external APIs. Covers toolchain setup, model selection, Intel OpenVINO integration, and lessons from a pilot with a prime integrator.'
+      }
+    ];
+
+    for (var i = 0; i < submissions.length; i++) {
+      var sub = submissions[i];
+      await sql`
+        INSERT INTO submissions (event_id, title, bu, track, intel_speakers, abstract, status)
+        VALUES (${eventId}, ${sub.title}, ${sub.bu}, ${sub.track}, ${sub.intel_speakers}, ${sub.abstract}, 'submitted')
+      `;
+    }
+    console.log('Database seeded successfully.');
+  } else {
+    console.log('Data already exists, skipping seed.');
+  }
+}
+
+// ─── ASSET PROXY ─────────────────────────────────────────────────────────────
+
+app.get('/api/assets/:filename', async function (req, res) {
+  try {
+    var url = 'https://forge-os.ai/api/assets/' + req.params.filename;
+    var response = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
+    res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(response.data));
+  } catch (err) {
+    res.status(404).send('asset not found');
+  }
+});
+
+// ─── EVENTS API ───────────────────────────────────────────────────────────────
+
+app.get('/api/events', async function (req, res) {
+  try {
+    var sql = getDb();
+    var rows = await sql`SELECT * FROM events ORDER BY created_at DESC`;
+    res.json({ ok: true, events: rows });
+  } catch (err) {
+    console.error('[api/events GET]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// IMPORTANT: generate-profile must be before /api/events/:id
+app.post('/api/events/generate-profile', async function (req, res) {
+  try {
+    var context_raw = req.body.context_raw;
+    if (!context_raw) return res.status(400).json({ ok: false, error: 'context_raw is required.' });
+    var systemPrompt = 'You are an expert assistant for creating event content strategies. Given raw context about an event, generate two things: (1) a concise context_profile summarizing the event focus, audience, and key themes for content submitters, and (2) a detailed ai_system_prompt for an AI that will score session submissions. The ai_system_prompt must instruct the AI to score on six dimensions: federal_relevance, technical_depth, intel_alignment, audience_fit, innovation_signal, delivery_readiness (each returning score 0-100 and rationale), plus overall (0-100), strengths (array), gaps (array), and recommendation (Accept|Accept with Revisions|Decline). Return ONLY valid JSON with keys: context_profile and ai_system_prompt.';
+    var profile = await callClaude(systemPrompt, context_raw, true);
+    res.json({ ok: true, profile: profile });
+  } catch (err) {
+    console.error('[generate-profile]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/events', async function (req, res) {
+  try {
+    var sql = getDb();
+    var body = req.body;
+    var name = body.name;
+    var event_date = body.event_date || '';
+    var venue = body.venue || '';
+    var slot_count = parseInt(body.total_slots || body.slot_count) || 0;
+    var context_profile = body.context_profile || '';
+    var ai_system_prompt = body.ai_system_prompt || '';
+    if (!name) return res.status(400).json({ ok: false, error: 'name is required' });
+    var result = await sql`
+      INSERT INTO events (name, event_date, venue, slot_count, context_profile, ai_system_prompt)
+      VALUES (${name}, ${event_date}, ${venue}, ${slot_count}, ${context_profile}, ${ai_system_prompt})
+      RETURNING *
+    `;
+    res.json({ ok: true, event: result[0] });
+  } catch (err) {
+    console.error('[api/events POST]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.put('/api/events/:id', async function (req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var body = req.body;
+    var name = body.name || '';
+    var event_date = body.event_date || '';
+    var venue = body.venue || '';
+    var slot_count = parseInt(body.total_slots || body.slot_count) || 0;
+    var context_profile = body.context_profile || '';
+    var ai_system_prompt = body.ai_system_prompt || '';
+    var result = await sql`
+      UPDATE events SET
+        name = ${name},
+        event_date = ${event_date},
+        venue = ${venue},
+        slot_count = ${slot_count},
+        context_profile = ${context_profile},
+        ai_system_prompt = ${ai_system_prompt}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    if (!result.length) return res.status(404).json({ ok: false, error: 'event not found' });
+    res.json({ ok: true, event: result[0] });
+  } catch (err) {
+    console.error('[api/events PUT]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ─── SUBMISSIONS API ──────────────────────────────────────────────────────────
+
+// IMPORTANT: /export must be before /:id to avoid 'export' matching as an id
+app.get('/api/submissions/export', async function (req, res) {
+  try {
+    var sql = getDb();
+    var event_id = req.query.event_id;
+    if (!event_id) return res.status(400).json({ ok: false, error: 'event_id is required' });
+    var submissions = await sql`
+      SELECT id, title, bu, track, format, intel_speakers, partner_speakers, status, ai_score
+      FROM submissions WHERE event_id = ${event_id} ORDER BY title ASC
+    `;
+    var csv = 'ID,Title,BU,Track,Format,Speakers,Status,AI Score\n';
+    submissions.forEach(function (sub) {
+      var speakers = [sub.intel_speakers, sub.partner_speakers].filter(Boolean).join('; ');
+      var aiScore = (sub.ai_score && sub.ai_score.overall) ? sub.ai_score.overall : '';
+      csv += [
+        sub.id,
+        '"' + (sub.title || '').replace(/"/g, '""') + '"',
+        '"' + (sub.bu || '').replace(/"/g, '""') + '"',
+        '"' + (sub.track || '').replace(/"/g, '""') + '"',
+        '"' + (sub.format || '').replace(/"/g, '""') + '"',
+        '"' + speakers.replace(/"/g, '""') + '"',
+        sub.status || 'submitted',
+        aiScore
+      ].join(',') + '\n';
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="submissions.csv"');
+    res.end(csv);
+  } catch (err) {
+    console.error('[submissions/export]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/submissions', async function (req, res) {
+  try {
+    var sql = getDb();
+    var event_id = req.query.event_id;
+    if (!event_id) return res.status(400).json({ ok: false, error: 'event_id is required' });
+    var rows = await sql`SELECT * FROM submissions WHERE event_id = ${event_id} ORDER BY created_at DESC`;
+    res.json({ ok: true, submissions: rows });
+  } catch (err) {
+    console.error('[api/submissions GET]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/submissions', async function (req, res) {
+  try {
+    var sql = getDb();
+    var b = req.body;
+    var result = await sql`
+      INSERT INTO submissions (
+        event_id, title, content_lead, bu, track, format, duration,
+        intel_speakers, partner_speakers, abstract, key_topics, demos,
+        featured_products, business_challenge, partner_highlights, new_launches
+      ) VALUES (
+        ${b.event_id}, ${b.title || ''}, ${b.content_lead || ''}, ${b.bu || ''},
+        ${b.track || ''}, ${b.format || ''}, ${b.duration || ''},
+        ${b.intel_speakers || ''}, ${b.partner_speakers || ''}, ${b.abstract || ''},
+        ${b.key_topics || ''}, ${b.demos || ''}, ${b.featured_products || ''},
+        ${b.business_challenge || ''}, ${b.partner_highlights || ''}, ${b.new_launches || ''}
+      )
+      RETURNING *
+    `;
+    res.json({ ok: true, submission: result[0] });
+  } catch (err) {
+    console.error('[api/submissions POST]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// IMPORTANT: /api/submissions/:id/score must be before /api/submissions/:id
+app.post('/api/submissions/:id/score', async function (req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var subResult = await sql`SELECT * FROM submissions WHERE id = ${id}`;
+    if (!subResult.length) return res.status(404).json({ ok: false, error: 'Submission not found' });
+    var sub = subResult[0];
+    var evtResult = await sql`SELECT * FROM events WHERE id = ${sub.event_id}`;
+    if (!evtResult.length) return res.status(404).json({ ok: false, error: 'Event not found' });
+    var evt = evtResult[0];
+    if (!evt.ai_system_prompt) return res.status(400).json({ ok: false, error: 'AI system prompt not configured for this event.' });
+    var userPrompt = [
+      'Title: ' + (sub.title || ''),
+      'Abstract: ' + (sub.abstract || ''),
+      'Business Unit: ' + (sub.bu || ''),
+      'Track: ' + (sub.track || ''),
+      'Key Topics: ' + (sub.key_topics || ''),
+      'Featured Products: ' + (sub.featured_products || ''),
+      'Business Challenge: ' + (sub.business_challenge || ''),
+      'Intel Speakers: ' + (sub.intel_speakers || '')
+    ].join('\n');
+    var scorecard = await callClaude(evt.ai_system_prompt, userPrompt, true);
+    await sql`UPDATE submissions SET ai_score = ${JSON.stringify(scorecard)} WHERE id = ${id}`;
+    res.json({ ok: true, scorecard: scorecard });
+  } catch (err) {
+    console.error('[submissions/score]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.put('/api/submissions/:id', async function (req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var updates = req.body;
+    var allowedFields = [
+      'title', 'content_lead', 'bu', 'track', 'format', 'duration',
+      'intel_speakers', 'partner_speakers', 'abstract', 'key_topics', 'demos',
+      'featured_products', 'business_challenge', 'partner_highlights',
+      'new_launches', 'reviewer_notes', 'status'
+    ];
+    var setClauses = [];
+    var values = [];
+    var paramIndex = 1;
+    Object.keys(updates).forEach(function (key) {
+      if (allowedFields.indexOf(key) !== -1) {
+        setClauses.push(key + ' = $' + paramIndex);
+        values.push(updates[key]);
+        paramIndex++;
+      }
+    });
+    if (!setClauses.length) return res.status(400).json({ ok: false, error: 'No valid fields to update.' });
+    values.push(id);
+    var query = 'UPDATE submissions SET ' + setClauses.join(', ') + ' WHERE id = $' + paramIndex + ' RETURNING *';
+    var result = await sql.unsafe(query, values);
+    res.json({ ok: true, submission: result[0] });
+  } catch (err) {
+    console.error('[api/submissions PUT]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ─── FRONTEND ─────────────────────────────────────────────────────────────────
+
+app.get('/', function (req, res) {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ─── START ────────────────────────────────────────────────────────────────────
+
+app.listen(PORT, '0.0.0.0', function () {
+  console.log('[server] listening on port ' + PORT);
+  ensureSchema()
+    .then(function () { return seedData(); })
+    .catch(function (err) { console.error('[startup] DB error:', err.message); });
+});
+ THEN NULL ELSE ai_score::text::jsonb END`;
+    console.log('ai_score column migrated to JSONB.');
+  } catch (migrateErr) {
+    // Already JSONB or column doesn't exist — safe to ignore
+    console.log('ai_score column migration skipped:', migrateErr.message);
+  }
   console.log('Schema is ready.');
 }
 
