@@ -591,53 +591,6 @@ app.post('/api/events/:eventId/score-all', async function(req, res) {
   }
 });
 
-// ─── HTML SHELL (Part 2 will replace this) ───────────────────────────────────
-
-app.get('/api/submissions', async function(req, res) {
-  try {
-    var sql = getDb();
-    var eventId = req.query.event_id;
-    var rows = eventId
-      ? await sql`SELECT * FROM submissions WHERE event_id = ${eventId} ORDER BY created_at DESC`
-      : await sql`SELECT * FROM submissions ORDER BY created_at DESC`;
-    res.json({ ok: true, submissions: rows });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/submissions', async function(req, res) {
-  try {
-    var sql = getDb();
-    var b = req.body;
-    var rows = await sql`INSERT INTO submissions
-      (event_id, title, content_lead, bu, track, format, duration, intel_speakers, partner_speakers,
-       abstract, key_topics, partner_highlights, demos, new_launches, featured_products, business_challenge, status)
-      VALUES (${b.event_id}, ${b.title||''}, ${b.content_lead||''}, ${b.bu||''}, ${b.track||''},
-        ${b.format||''}, ${b.duration||''}, ${b.intel_speakers||''}, ${b.partner_speakers||''},
-        ${b.abstract||''}, ${b.key_topics||''}, ${b.partner_highlights||''}, ${b.demos||''},
-        ${b.new_launches||''}, ${b.featured_products||''}, ${b.business_challenge||''}, ${b.status||'submitted'})
-      RETURNING *`;
-    res.json({ ok: true, submission: rows[0] });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/submissions/export', async function(req, res) {
-  try {
-    var sql = getDb();
-    var eventId = req.query.event_id;
-    var rows = eventId
-      ? await sql`SELECT * FROM submissions WHERE event_id = ${eventId} ORDER BY created_at DESC`
-      : await sql`SELECT * FROM submissions ORDER BY created_at DESC`;
-    var fields = ['id','event_id','title','bu','track','format','duration','intel_speakers','partner_speakers','status'];
-    var lines = [fields.join(',')];
-    rows.forEach(function(r) {
-      lines.push(fields.map(function(f) { return '"' + String(r[f]||'').replace(/"/g,'""') + '"'; }).join(','));
-    });
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="submissions.csv"');
-    res.send(lines.join('\n'));
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 app.get('/', function(req, res) {
   res.send(getHTML());
 });
