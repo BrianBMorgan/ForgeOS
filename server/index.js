@@ -1140,6 +1140,23 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         if (!pushRes.ok) return "GitHub push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 300);
         const commitSha = pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done";
         sendEvent({ type: "tool_status", content: "✓ Written: " + toolInput.filepath });
+
+        // Auto-provision Render service if writing to an apps/* branch with no service yet
+        if (branch.startsWith("apps/")) {
+          const appSlug = branch.replace("apps/", "");
+          setImmediate(async () => {
+            try {
+              const pubManager = require("./publish/manager");
+              const existing = pubManager.getPublishedAppBySlug(appSlug);
+              if (!existing || !existing.renderServiceId) {
+                const allProjects = await require("./projects/manager").getAllProjects();
+                const project = allProjects.find(function(p) { return pubManager.generateSlug(p.name) === appSlug; });
+                if (project) { await pubManager.publishProject(project.id); console.log("[forge] Auto-provisioned Render for " + appSlug); }
+              }
+            } catch (provErr) { console.warn("[forge] Auto-provision skipped:", provErr.message); }
+          });
+        }
+
         return "Pushed " + toolInput.filepath + " to " + branch + " — commit: " + commitSha;
       } catch (err) { return "github_write error: " + err.message; }
     }
