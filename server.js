@@ -428,6 +428,38 @@ app.post('/api/submissions/:id/score', async function (req, res) {
   }
 });
 
+app.post('/api/submissions/:id/enrich', async function (req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+
+    var subResult = await sql`SELECT * FROM submissions WHERE id = ${id}`;
+    if (!subResult.length) {
+      return res.status(404).json({ ok: false, error: 'Submission not found' });
+    }
+    var submission = subResult[0];
+
+    var eventResult = await sql`SELECT * FROM events WHERE id = ${submission.event_id}`;
+    if (!eventResult.length) {
+      return res.status(404).json({ ok: false, error: 'Event not found for this submission' });
+    }
+    var event = eventResult[0];
+
+    if (!submission.abstract || submission.abstract.trim() === '') {
+      return res.status(400).json({ ok: false, error: 'Submission abstract is empty.' });
+    }
+
+    var systemPrompt = `You are a world-class content editor for a tech conference. Your task is to refine the provided abstract to be clearer, more impactful, and better aligned with the event's audience, without changing the core technical message.\n\nEvent context for audience and theme alignment:\n${event.context_profile}`;
+
+    var enriched_abstract = await callClaude(systemPrompt, submission.abstract, false);
+
+    res.json({ ok: true, enriched_abstract: enriched_abstract });
+  } catch (err) {
+    console.error('[submissions/enrich]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.put('/api/submissions/:id', async function (req, res) {
   try {
     var sql = getDb();
