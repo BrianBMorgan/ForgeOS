@@ -1664,6 +1664,84 @@ try {
   }
 } catch {}
 
+// ── Dashboard routes ──────────────────────────────────────────────────────────
+
+app.get("/api/dashboard/status", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
+  const checks = {
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    github: !!process.env.GITHUB_TOKEN,
+    render: !!process.env.RENDER_API_KEY,
+    neon: !!process.env.NEON_DATABASE_URL,
+    gemini: !!process.env.GEMINI_API_KEY,
+  };
+  try {
+    const [svcRes, depRes] = await Promise.all([
+      fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}`, {
+        headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json" }
+      }),
+      fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys?limit=3`, {
+        headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json" }
+      })
+    ]);
+    const svc = await svcRes.json();
+    const deps = await depRes.json();
+    const service = svc.service || svc;
+    res.json({
+      ok: true,
+      checks,
+      service: {
+        name: service.name,
+        status: (deps[0]?.deploy || deps[0])?.status || service.serviceDetails?.status || "unknown",
+        branch: service.branch || "main",
+        updatedAt: service.updatedAt || new Date().toISOString(),
+      },
+      deploys: deps.slice(0, 3).map((d) => {
+        const dep = d.deploy || d;
+        return { status: dep.status, createdAt: dep.createdAt, commit: dep.commit };
+      }),
+    });
+  } catch (err) {
+    res.json({ ok: false, checks, error: err.message });
+  }
+});
+
+app.get("/api/dashboard/builds", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    const r = await fetch("https://api.github.com/repos/BrianBMorgan/ForgeOS/commits?per_page=20", {
+      headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json", "User-Agent": "ForgeOS/2.0" }
+    });
+    const data = await r.json();
+    const commits = (data || []).map((c) => ({
+      sha: c.sha,
+      message: c.commit?.message || "",
+      author: c.commit?.author?.name || "",
+      date: c.commit?.author?.date || "",
+      url: c.html_url,
+    }));
+    res.json({ ok: true, commits });
+  } catch (err) {
+    res.json({ ok: false, commits: [], error: err.message });
+  }
+});
+
+app.post("/api/dashboard/redeploy", async (_req, res) => {
+  const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
+  try {
+    const r = await fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys`, {
+      method: "POST", body: JSON.stringify({ clearCache: false }),
+      headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json", "Content-Type": "application/json" }
+    });
+    const data = await r.json();
+    res.json({ ok: r.ok, deploy: data });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`ForgeOS server running on port ${PORT}`);
 
