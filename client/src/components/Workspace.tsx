@@ -701,20 +701,19 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
   }, [projectId, appUrl, refreshKey]);
 
   // Initial fetch + start polling if deploying; stop when live
-  // Sync inspect mode into iframe
+  // Send activate/deactivate to iframe via postMessage when inspect mode changes
   useEffect(() => {
-    try {
-      const iframeWin = iframeRef.current?.contentWindow;
-      if (iframeWin) (iframeWin as any).__forgeInspectMode = inspectMode;
-    } catch(e) {}
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: inspectMode ? "forge:inspect:activate" : "forge:inspect:deactivate" }, "*"
+    );
   }, [inspectMode]);
 
-  // Capture inspect events from iframe
+  // Receive selections from iframe
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type !== "forge:inspect") return;
-      const { html, selector, styles, tagName } = e.data;
-      const captured = "[INSPECTED ELEMENT]\nSelector: " + selector + "\nTag: " + tagName + "\nStyles: " + styles + "\nHTML: " + html;
+      if (e.data?.type !== "forge:inspect:selection") return;
+      const { outerHTML, textContent, selector } = e.data;
+      const captured = "[SELECTED ELEMENT]\nSelector: " + selector + (textContent ? "\nText: " + textContent : "") + "\nHTML: " + outerHTML;
       window.dispatchEvent(new CustomEvent("forge:inject_context", { detail: captured }));
       setInspectMode(false);
     };
@@ -836,15 +835,6 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
             className="render-v2-iframe"
             style={{cursor: inspectMode ? "crosshair" : "default"}}
             title="Live App"
-            onLoad={() => {
-              try {
-                const doc = iframeRef.current?.contentDocument;
-                if (!doc) return;
-                const s = doc.createElement("script");
-                s.textContent = "(function() {\n  if (window.__forgeInspectInstalled) return;\n  window.__forgeInspectInstalled = true;\n  var hl = null;\n  function getSelector(el) {\n    var parts = [];\n    while (el && el !== document.body) {\n      var p = el.tagName.toLowerCase();\n      if (el.id) { p += '#' + el.id; parts.unshift(p); break; }\n      if (el.className) p += '.' + el.className.trim().split(/\\\\s+/).slice(0,2).join('.');\n      parts.unshift(p); el = el.parentElement;\n    }\n    return parts.join(' > ');\n  }\n  document.addEventListener('mousemove', function(e) {\n    if (!window.__forgeInspectMode) { if (hl) hl.style.display='none'; return; }\n    var el = document.elementFromPoint(e.clientX, e.clientY);\n    if (!el || el === document.body) return;\n    if (!hl) { hl = document.createElement('div'); hl.style.cssText='position:fixed;pointer-events:none;z-index:99999;background:rgba(99,102,241,0.15);border:2px solid #6366f1;box-sizing:border-box;transition:all 0.05s'; document.body.appendChild(hl); }\n    var r = el.getBoundingClientRect();\n    hl.style.cssText += ';display:block;top:'+r.top+'px;left:'+r.left+'px;width:'+r.width+'px;height:'+r.height+'px';\n  }, true);\n  document.addEventListener('click', function(e) {\n    if (!window.__forgeInspectMode) return;\n    e.preventDefault(); e.stopPropagation();\n    var el = e.target;\n    var cs = window.getComputedStyle(el);\n    window.parent.postMessage({ type:'forge:inspect', html:el.outerHTML.slice(0,800), selector:getSelector(el), tagName:el.tagName.toLowerCase(), styles:'color:'+cs.color+';bg:'+cs.backgroundColor+';font:'+cs.fontSize+'/'+cs.fontWeight }, '*');\n    if (hl) hl.style.display='none';\n  }, true);\n})();";
-                doc.head.appendChild(s);
-              } catch(e) {}
-            }}
           />
           {isDeploying && (
             <div className="render-v2-deploying-overlay">
