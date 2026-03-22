@@ -560,6 +560,7 @@ async function viewSubmission(id) {
     '<div style="margin-top:12px"><b>Intel Speakers:</b> ' + (s.intel_speakers||'&mdash;') + '</div>' +
     '<div style="margin-top:8px"><b>Partner Speakers:</b> ' + (s.partner_speakers||'&mdash;') + '</div>' +
     '<div style="margin-top:8px"><b>Abstract:</b><p style="font-size:13px;margin-top:4px;color:#444">' + (s.abstract||'&mdash;') + '</p></div>' +
+    '<div id="enrich-container" style="margin-top:16px;"></div>' +
     '<div style="margin-top:8px"><b>Key Topics:</b> ' + (s.key_topics||'&mdash;') + '</div>' +
     '<div style="margin-top:8px"><b>Demos:</b> ' + (s.demos||'&mdash;') + '</div>' +
     '<div style="margin-top:8px"><b>Featured Products:</b> ' + (s.featured_products||'&mdash;') + '</div>' +
@@ -569,12 +570,14 @@ async function viewSubmission(id) {
     '</div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
       '<button class="btn-primary" id="btn-run-score">Run AI Score</button>' +
+      '<button class="btn-secondary" id="btn-enrich-abstract">Enrich Abstract</button>' +
     '</div>' +
     scoreHtml;
   document.getElementById('btn-save-notes').addEventListener('click', function() {
     saveNotes(id, document.getElementById('notes-field').value);
   });
   document.getElementById('btn-run-score').addEventListener('click', function() { scoreSubmission(id); });
+  document.getElementById('btn-enrich-abstract').addEventListener('click', function() { enrichAbstract(id); });
   openPanel();
 }
 
@@ -648,6 +651,45 @@ async function scoreSubmission(id) {
   if (idx2>=0) allSubmissions[idx2].ai_score = normalized;
   renderSubTable();
   viewSubmission(id);
+}
+
+async function enrichAbstract(id) {
+  var container = document.getElementById('enrich-container');
+  container.innerHTML = '<div class="loading">Enriching abstract with AI...</div>';
+
+  try {
+    var r = await api('POST', '/api/submissions/' + id + '/enrich');
+    if (r.error) {
+      container.innerHTML = '<div class="alert alert-error">' + r.error + '</div>';
+      return;
+    }
+    
+    var enrichedAbstract = r.enriched_abstract || 'No content returned.';
+    container.innerHTML = 
+      '<div style="padding:12px;background:#f9f9f9;border:1px solid #EAEAEA">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+          '<h4 style="font-weight:700;font-size:14px;">AI Enriched Abstract</h4>' +
+          '<button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="copyEnrichedAbstract()">Copy</button>' +
+        '</div>' +
+        '<p id="enriched-text" style="font-size:13px;color:#444">' + enrichedAbstract + '</p>' +
+      '</div>';
+  } catch (err) {
+    container.innerHTML = '<div class="alert alert-error">An unexpected error occurred while enriching the abstract.</div>';
+  }
+}
+
+function copyEnrichedAbstract() {
+  var textElement = document.getElementById('enriched-text');
+  if (!textElement) {
+    alert('Could not find enriched text to copy.');
+    return;
+  }
+  var textToCopy = textElement.innerText;
+  navigator.clipboard.writeText(textToCopy).then(function() {
+    alert('Enriched abstract copied to clipboard!');
+  }, function(err) {
+    alert('Failed to copy text: ' + err);
+  });
 }
 
 function exportCSV() {
@@ -828,6 +870,8 @@ window.editSubmission = editSubmission;
 window.saveEditedSubmission = saveEditedSubmission;
 window.saveStatus = saveStatus;
 window.scoreSubmission = scoreSubmission;
+window.enrichAbstract = enrichAbstract;
+window.copyEnrichedAbstract = copyEnrichedAbstract;
 window.exportCSV = exportCSV;
 window.renderReview = renderReview;
 window.reviewTab = reviewTab;
