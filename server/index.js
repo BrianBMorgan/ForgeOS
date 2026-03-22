@@ -1122,12 +1122,10 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
     case "github_write": {
       try {
         const branch = toolInput.branch || "main";
-        // SAFETY GUARD: never overwrite ForgeOS core files on main
-        const coreFiles = ["package.json", "server/index.js", "server/memory/brain.js",
-          "server/publish/manager.js", "server/projects/manager.js"];
-        if (branch === "main" && coreFiles.includes(toolInput.filepath)) {
-          return "BLOCKED: Refusing to write " + toolInput.filepath + " to main branch. " +
-            "App files must go to apps/<slug> branch, not main. Main is ForgeOS itself.";
+        // ABSOLUTE BLOCK: nothing gets written to main — ever
+        if (branch === "main") {
+          return "BLOCKED: Writing to main is not permitted. Main is ForgeOS itself. " +
+            "All app files must be written to apps/<slug> branch. Specify branch: 'apps/<slug>' in your call.";
         }
         const headers = githubHeaders();
         const shaRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
@@ -1164,6 +1162,11 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
     case "github_patch": {
       try {
         const branch = toolInput.branch || "main";
+        // ABSOLUTE BLOCK: nothing gets patched on main — ever
+        if (branch === "main") {
+          return "BLOCKED: Patching main is not permitted. Main is ForgeOS itself. " +
+            "All app changes must go to apps/<slug> branch.";
+        }
         const headers = githubHeaders();
         const res = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
         const data = await res.json();
