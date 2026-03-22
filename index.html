@@ -181,12 +181,15 @@ async function renderEventsList() {
   var el = document.getElementById('events-list');
   el.innerHTML = '<div class="loading">Loading...</div>';
   await loadEvents();
-  var subs = await api('GET', '/api/submissions?event_id=' + (currentEventId||''));
   var subsByEvent = {};
-  (subs.submissions || subs || []).forEach(function(s){ subsByEvent[s.event_id] = (subsByEvent[s.event_id]||0)+1; });
+  for (var ei = 0; ei < allEvents.length; ei++) {
+    var evId = allEvents[ei].id;
+    var subs = await api('GET', '/api/submissions?event_id=' + evId);
+    subsByEvent[evId] = (subs.submissions || []).length;
+  }
   el.innerHTML = allEvents.map(function(e){
     var count = subsByEvent[e.id] || 0;
-    var slots = e.total_slots || 12;
+    var slots = e.slot_count || 12;
     var pct = Math.min(100, Math.round(count/slots*100));
     return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h3>' + e.name + '</h3><div class="meta">' + (e.event_date||'') + ' &nbsp;|&nbsp; ' + (e.venue||'') + '</div></div><div style="text-align:right"><span class="badge" style="background:#000864">' + count + ' / ' + slots + ' slots</span></div></div><div class="slot-bar" style="margin-top:12px"><div class="slot-bar-fill" style="width:' + pct + '%"></div></div></div>';
   }).join('') || '<div class="loading">No events yet.</div>';
@@ -587,7 +590,14 @@ window.openPanel = openPanel;
 window.closePanel = closePanel;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-loadEvents().then(function() { showSection('events'); });
+loadEvents().then(function() {
+  renderEventsList();
+  document.getElementById('topbar-action').innerHTML = '';
+  var btn = document.createElement('button');
+  btn.className = 'btn-primary'; btn.textContent = 'New Event';
+  btn.onclick = function() { showNewEventForm(); };
+  document.getElementById('topbar-action').appendChild(btn);
+});
 </script>
 </body>
 </html>
