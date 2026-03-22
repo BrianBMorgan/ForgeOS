@@ -639,8 +639,217 @@ app.get('/api/submissions/export', async function(req, res) {
 });
 
 app.get('/', function(req, res) {
-  res.sendFile(require('path').join(__dirname, 'index.html'));
-})
+  res.send(getHTML());
+});
+
+function getHTML() {
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Intel Event Content Review</title><style>@font-face{font-family:"IntelOneDisplay";src:url("/api/assets/IntelOneDisplay-Light.woff") format("woff");font-weight:300}@font-face{font-family:"IntelOneDisplay";src:url("/api/assets/IntelOneDisplay-Regular.woff") format("woff");font-weight:400}@font-face{font-family:"IntelOneDisplay";src:url("/api/assets/IntelOneDisplay-Medium.woff") format("woff");font-weight:500}@font-face{font-family:"IntelOneDisplay";src:url("/api/assets/IntelOneDisplay-Bold.woff") format("woff");font-weight:700}*{box-sizing:border-box;margin:0;padding:0;border-radius:0}html,body{height:100%;font-family:"IntelOneDisplay",sans-serif;background:#EAEAEA;color:#2E2F2F}body{display:flex;height:100vh;overflow:hidden}.sidebar{width:220px;background:#000864;color:#fff;display:flex;flex-direction:column;padding:20px;flex-shrink:0}.sidebar img{width:90px;margin-bottom:40px}.sidebar nav ul{list-style:none}.sidebar nav li a{display:block;padding:14px 0;color:#fff;text-decoration:none;font-size:1rem;font-weight:500;opacity:.7}.sidebar nav li a:hover,.sidebar nav li a.active{opacity:1;color:#00AAE8}.content-area{flex:1;overflow-y:auto;padding:30px}.content-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}.content-section{display:none}.content-section.active{display:block}h1{font-size:1.8rem;font-weight:600}h2{font-size:1.3rem;font-weight:500}button{font-family:"IntelOneDisplay",sans-serif;cursor:pointer;border:none;padding:10px 18px;font-size:.9rem;font-weight:500;background:#00AAE8;color:#fff}.btn-secondary{background:#2E2F2F}.btn-sm{padding:6px 12px;font-size:.8rem}button:disabled{background:#999;cursor:not-allowed}#events-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}.event-card{background:#fff;border:1px solid #2E2F2F;padding:20px;cursor:pointer}.event-card:hover{background:#f4f4f4}.event-card h3{color:#000864;margin-bottom:10px;font-size:1.1rem}.event-card p{font-size:.85rem;margin-bottom:4px}.filter-bar{display:flex;gap:12px;margin-bottom:16px;align-items:center}.filter-bar select{padding:8px;border:1px solid #2E2F2F;font-family:"IntelOneDisplay",sans-serif;background:#fff}table{width:100%;border-collapse:collapse;background:#fff}th{background:#2E2F2F;color:#fff;padding:12px;text-align:left;font-weight:500;font-size:.85rem}td{padding:11px 12px;border-bottom:1px solid #EAEAEA;font-size:.85rem;vertical-align:middle}tbody tr:hover{background:#f0f8ff}tbody tr{cursor:pointer}.badge{padding:3px 8px;font-size:.75rem;font-weight:600;color:#fff;display:inline-block}.badge-submitted{background:#00AAE8}.badge-under_review{background:#000864}.badge-accepted{background:#1a7f37}.badge-declined{background:#c0392b}.badge-score-high{background:#1a7f37}.badge-score-med{background:#b8860b;color:#fff}.badge-score-low{background:#c0392b}.badge-score-none{background:#888}.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100}.panel-overlay.open{display:block}.slide-panel{position:fixed;top:0;right:-640px;width:600px;height:100%;background:#fff;border-left:1px solid #2E2F2F;z-index:101;display:flex;flex-direction:column;transition:right .3s ease}.slide-panel.open{right:0}.panel-head{background:#2E2F2F;color:#fff;padding:18px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}.panel-head h2{margin:0;font-size:1.1rem}.panel-head button{background:transparent;color:#fff;font-size:1.2rem;padding:0 6px}.panel-body{padding:20px;overflow-y:auto;flex:1}.panel-foot{padding:16px 20px;border-top:1px solid #EAEAEA;flex-shrink:0;display:flex;gap:10px}.form-group{margin-bottom:14px}.form-group label{display:block;font-size:.85rem;font-weight:600;margin-bottom:5px}.form-group input,.form-group textarea,.form-group select{width:100%;padding:9px;border:1px solid #2E2F2F;font-family:"IntelOneDisplay",sans-serif;font-size:.9rem;background:#fff}.form-group textarea{resize:vertical;min-height:90px}.scorecard-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}.dim-card{border:1px solid #EAEAEA;padding:12px;background:#fafafa}.dim-card-top{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:.85rem;margin-bottom:6px}.dim-card p{font-size:.8rem;color:#555}.lists-row{display:flex;gap:20px;margin-top:10px}.lists-row ul{padding-left:18px;font-size:.83rem}.msg-center{padding:30px;text-align:center;color:#666}.loader{width:18px;height:18px;border:3px solid #ccc;border-top-color:#00AAE8;display:inline-block;animation:spin 1s linear infinite;vertical-align:middle;margin-left:8px}@keyframes spin{to{transform:rotate(360deg)}}.hidden{display:none!important}</style></head><body><div style="display:flex;height:100vh;width:100%;overflow:hidden"><aside class="sidebar"><img src="/api/assets/Logo.png" alt="Intel"><nav><ul><li><a href="#" id="nav-events" class="active">Events</a></li><li><a href="#" id="nav-submissions">Submissions</a></li><li><a href="#" id="nav-review">Review</a></li></ul></nav></aside><main class="content-area"><section id="sec-events" class="content-section active"><div class="content-header"><h1>Events</h1><button id="btn-new-event">+ New Event</button></div><div id="events-grid"><p class="msg-center">Loading events...</p></div></section><section id="sec-submissions" class="content-section"><div class="content-header"><div><h1>Submissions</h1><div id="sub-event-label" style="font-size:.9rem;color:#555"></div></div><button id="btn-add-sub">+ Add Submission</button></div><div class="filter-bar"><select id="filter-track"><option value="">All Tracks</option></select><select id="filter-status"><option value="">All Statuses</option><option value="submitted">Submitted</option><option value="under_review">Under Review</option><option value="accepted">Accepted</option><option value="declined">Declined</option></select></div><table><thead><tr><th>Title</th><th>BU</th><th>Track</th><th>Format</th><th>Speakers</th><th>Status</th><th>AI Score</th></tr></thead><tbody id="sub-tbody"></tbody></table><div id="sub-msg" class="msg-center">Select an event to view submissions.</div></section><section id="sec-review" class="content-section"><div class="content-header"><div><h1>Review</h1><div id="rev-event-label" style="font-size:.9rem;color:#555"></div></div><div style="display:flex;gap:10px"><button id="btn-export" class="btn-secondary">Export CSV</button><button id="btn-score-all">Score All <span id="score-loader" class="loader hidden"></span></button></div></div><table><thead><tr><th>Title</th><th>Track</th><th>Score</th><th>Recommendation</th><th>Actions</th></tr></thead><tbody id="rev-tbody"></tbody></table><div id="rev-msg" class="msg-center">Select an event to review.</div></section></main></div><div id="overlay" class="panel-overlay"></div><div id="panel-event" class="slide-panel"><div class="panel-head"><h2>New Event</h2><button id="close-event-panel">&#x2715;</button></div><div class="panel-body"><div id="step1"><div class="form-group"><label>Event Name *</label><input id="ev-name"></div><div class="form-group"><label>Date</label><input id="ev-date" type="text" placeholder="e.g. April 27-28, 2026"></div><div class="form-group"><label>Venue</label><input id="ev-venue"></div><div class="form-group"><label>Slot Count</label><input id="ev-slots" type="number" value="0"></div></div><div id="step2" class="hidden"><p style="margin-bottom:12px;font-size:.9rem">Event created. Optionally paste a strategy document to auto-generate the AI scoring profile.</p><div class="form-group"><label>Strategy Document</label><textarea id="ev-strategy" style="min-height:200px" placeholder="Paste strategy doc here..."></textarea></div></div></div><div class="panel-foot"><button id="btn-create-ev">Create Event</button><button id="btn-gen-profile" class="btn-secondary hidden">Generate AI Profile <span id="gen-loader" class="loader hidden"></span></button><button id="btn-skip-profile" class="btn-secondary hidden">Skip</button></div></div><div id="panel-sub" class="slide-panel"><div class="panel-head"><h2 id="sub-panel-title">Add Submission</h2><button id="close-sub-panel">&#x2715;</button></div><div class="panel-body"><input type="hidden" id="sub-id"><div class="form-group"><label>Title *</label><input id="sub-title"></div><div class="form-group"><label>Business Unit</label><input id="sub-bu"></div><div class="form-group"><label>Track</label><input id="sub-track"></div><div class="form-group"><label>Format</label><input id="sub-format"></div><div class="form-group"><label>Speakers</label><input id="sub-speakers"></div><div class="form-group"><label>Abstract</label><textarea id="sub-abstract" style="min-height:140px"></textarea></div><div class="form-group"><label>Topics</label><input id="sub-topics"></div><div class="form-group"><label>Demos</label><input id="sub-demos"></div><div class="form-group"><label>Products</label><input id="sub-products"></div><div class="form-group"><label>Status</label><select id="sub-status"><option value="submitted">Submitted</option><option value="under_review">Under Review</option><option value="accepted">Accepted</option><option value="declined">Declined</option></select></div></div><div class="panel-foot"><button id="btn-save-sub">Save</button></div></div><script>(function(){
+var currentEventId=null;
+var currentEventName=null;
+var allSubmissions=[];
+
+function esc(s){if(!s)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function scoreBadge(s){if(s===null||s===undefined)return"<span class=\"badge badge-score-none\">N/A</span>";var c=s>=80?"high":s>=60?"med":"low";return"<span class=\"badge badge-score-"+c+"\">"+s+"</span>";}
+function statusBadge(s){return"<span class=\"badge badge-"+s+"\">"+esc(s.replace("_"," "))+"</span>";}
+
+function showSection(id){
+  ["events","submissions","review"].forEach(function(n){
+    document.getElementById("sec-"+n).classList.remove("active");
+    document.getElementById("nav-"+n).classList.remove("active");
+  });
+  document.getElementById("sec-"+id).classList.add("active");
+  document.getElementById("nav-"+id).classList.add("active");
+  if(id==="submissions")loadSubmissions();
+  if(id==="review")loadReview();
+}
+
+document.getElementById("nav-events").addEventListener("click",function(e){e.preventDefault();showSection("events");});
+document.getElementById("nav-submissions").addEventListener("click",function(e){e.preventDefault();showSection("submissions");});
+document.getElementById("nav-review").addEventListener("click",function(e){e.preventDefault();showSection("review");});
+
+function loadEvents(){
+  fetch("/api/events").then(function(r){return r.json();}).then(function(data){
+    var events=data.events||data;
+    var grid=document.getElementById("events-grid");
+    if(!events||!events.length){grid.innerHTML="<p class=\"msg-center\">No events yet.</p>";return;}
+    grid.innerHTML="";
+    events.forEach(function(ev){
+      var card=document.createElement("div");
+      card.className="event-card";
+      card.innerHTML="<h3>"+esc(ev.name)+"</h3><p><strong>Date:</strong> "+esc(ev.event_date||"TBD")+"</p><p><strong>Venue:</strong> "+esc(ev.venue||"TBD")+"</p><p><strong>Slots:</strong> "+esc(ev.slot_count)+"</p>";
+      card.addEventListener("click",function(){
+        currentEventId=ev.id;
+        currentEventName=ev.name;
+        document.getElementById("sub-event-label").textContent=ev.name;
+        document.getElementById("rev-event-label").textContent=ev.name;
+        showSection("submissions");
+      });
+      grid.appendChild(card);
+    });
+  }).catch(function(e){document.getElementById("events-grid").innerHTML="<p class=\"msg-center\">Error loading events.</p>";console.error(e);});}
+
+function loadSubmissions(){
+  var tbody=document.getElementById("sub-tbody");
+  var msg=document.getElementById("sub-msg");
+  if(!currentEventId){tbody.innerHTML="";msg.textContent="Select an event to view submissions.";msg.classList.remove("hidden");return;}
+  msg.textContent="Loading...";msg.classList.remove("hidden");
+  var track=document.getElementById("filter-track").value;
+  var status=document.getElementById("filter-status").value;
+  fetch("/api/events/"+currentEventId+"/submissions").then(function(r){return r.json();}).then(function(data){
+    allSubmissions=data.submissions||data;
+    var rows=allSubmissions.filter(function(s){
+      return(!track||s.track===track)&&(!status||s.status===status);
+    });
+    var tracks=[...new Set(allSubmissions.map(function(s){return s.track;}).filter(Boolean))];
+    var tf=document.getElementById("filter-track");
+    tf.innerHTML="<option value=\"\">All Tracks</option>";
+    tracks.forEach(function(t){tf.innerHTML+="<option value=\""+esc(t)+"\">"+esc(t)+"</option>";});
+    if(track)tf.value=track;
+    tbody.innerHTML="";
+    if(!rows.length){msg.textContent="No submissions match the current filters.";return;}
+    msg.classList.add("hidden");
+    rows.forEach(function(s){
+      var tr=document.createElement("tr");
+      tr.innerHTML="<td>"+esc(s.title)+"</td><td>"+esc(s.bu)+"</td><td>"+esc(s.track)+"</td><td>"+esc(s.format)+"</td><td>"+esc(s.speakers)+"</td><td>"+statusBadge(s.status||"submitted")+"</td><td>"+scoreBadge(s.ai_score)+"</td>";
+      tr.addEventListener("click",function(){openSubPanel(s);});
+      tbody.appendChild(tr);
+    });
+  }).catch(function(e){msg.textContent="Error loading submissions.";console.error(e);});}
+
+function loadReview(){
+  var tbody=document.getElementById("rev-tbody");
+  var msg=document.getElementById("rev-msg");
+  if(!currentEventId){tbody.innerHTML="";msg.textContent="Select an event to review.";msg.classList.remove("hidden");return;}
+  msg.textContent="Loading...";msg.classList.remove("hidden");
+  fetch("/api/events/"+currentEventId+"/submissions").then(function(r){return r.json();}).then(function(data){
+    var subs=data.submissions||data;
+    subs.sort(function(a,b){return(b.ai_score||0)-(a.ai_score||0);});
+    tbody.innerHTML="";
+    if(!subs.length){msg.textContent="No submissions for this event.";return;}
+    msg.classList.add("hidden");
+    subs.forEach(function(s){
+      var sc=s.ai_scorecard;
+      var rec=sc?(sc.recommendation||sc.summary&&sc.summary.overall_recommendation||"--"):"Not scored";
+      var tr=document.createElement("tr");
+      tr.innerHTML="<td>"+esc(s.title)+"</td><td>"+esc(s.track)+"</td><td>"+scoreBadge(s.ai_score)+"</td><td><span class=\"badge\" style=\"background:#000864\">"+esc(rec)+"</span></td><td><button class=\"btn-sm btn-score\" data-id=\""+s.id+"\">Score</button>"+( sc?" <button class=\"btn-sm btn-view\" data-id=\""+s.id+"\">Scorecard</button>":"")+"</td>";
+      tbody.appendChild(tr);
+      if(sc){
+        var dr=document.createElement("tr");
+        dr.id="sc-row-"+s.id;
+        dr.classList.add("hidden");
+        dr.innerHTML="<td colspan=\"5\" style=\"padding:16px;background:#fafafa;border-bottom:2px solid #EAEAEA\">"+buildScorecardHTML(sc)+"</td>";
+        tbody.appendChild(dr);
+      }
+    });
+  }).catch(function(e){msg.textContent="Error loading review.";console.error(e);});}
+
+function buildScorecardHTML(sc){
+  var dims=sc.dimensions||sc.scores||{};
+  var dimNames=["federal_relevance","technical_depth","intel_alignment","audience_fit","innovation_signal","delivery_readiness"];
+  var grid="<div class=\"scorecard-grid\">";
+  dimNames.forEach(function(k){
+    var d=dims[k]||{};
+    var label=k.replace(/_/g," ").replace(/\b\w/g,function(c){return c.toUpperCase();});
+    grid+="<div class=\"dim-card\"><div class=\"dim-card-top\"><span>"+esc(label)+"</span>"+scoreBadge(d.score)+"</div><p>"+esc(d.rationale||"")+"</p></div>";
+  });
+  grid+="</div>";
+  var strengths=(sc.strengths||sc.summary&&sc.summary.strengths||[]);
+  var gaps=(sc.gaps||sc.summary&&sc.summary.gaps||[]);
+  var sl="<ul>"+strengths.map(function(x){return"<li>"+esc(x)+"</li>";}).join("")+"</ul>";
+  var gl="<ul>"+gaps.map(function(x){return"<li>"+esc(x)+"</li>";}).join("")+"</ul>";
+  return grid+"<div class=\"lists-row\"><div><strong>Strengths</strong>"+sl+"</div><div><strong>Gaps</strong>"+gl+"</div></div>";}
+
+document.getElementById("rev-tbody").addEventListener("click",function(e){
+  if(e.target.classList.contains("btn-score")){
+    var id=e.target.getAttribute("data-id");
+    e.target.textContent="Scoring...";
+    e.target.disabled=true;
+    fetch("/api/submissions/"+id+"/score",{method:"POST"}).then(function(r){return r.json();}).then(function(){loadReview();}).catch(function(){e.target.textContent="Score";e.target.disabled=false;});}
+  if(e.target.classList.contains("btn-view")){
+    var id=e.target.getAttribute("data-id");
+    var row=document.getElementById("sc-row-"+id);
+    if(row)row.classList.toggle("hidden");}});
+
+document.getElementById("btn-score-all").addEventListener("click",function(){
+  if(!currentEventId)return;
+  var loader=document.getElementById("score-loader");
+  var btn=document.getElementById("btn-score-all");
+  loader.classList.remove("hidden");btn.disabled=true;
+  fetch("/api/events/"+currentEventId+"/score-all",{method:"POST"}).then(function(r){return r.json();}).then(function(){loadReview();loader.classList.add("hidden");btn.disabled=false;}).catch(function(){loader.classList.add("hidden");btn.disabled=false;});});
+
+document.getElementById("btn-export").addEventListener("click",function(){
+  if(!currentEventId)return;
+  var rows=[["ID","Title","BU","Track","Format","Speakers","Status","AI Score"]];
+  allSubmissions.forEach(function(s){rows.push([s.id,s.title,s.bu,s.track,s.format,s.speakers,s.status,s.ai_score||""]);});
+  var csv=rows.map(function(r){return r.map(function(c){return"\""+String(c||"").replace(/"/g,"\"\"")+"\"";}).join(",");}).join("\n");
+  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="submissions.csv";a.click();});
+
+function openPanel(id){document.getElementById(id).classList.add("open");document.getElementById("overlay").classList.add("open");}
+function closePanels(){["panel-event","panel-sub"].forEach(function(id){document.getElementById(id).classList.remove("open");});document.getElementById("overlay").classList.remove("open");}
+document.getElementById("overlay").addEventListener("click",closePanels);
+document.getElementById("close-event-panel").addEventListener("click",closePanels);
+document.getElementById("close-sub-panel").addEventListener("click",closePanels);
+
+document.getElementById("btn-new-event").addEventListener("click",function(){
+  document.getElementById("step1").classList.remove("hidden");
+  document.getElementById("step2").classList.add("hidden");
+  document.getElementById("btn-create-ev").classList.remove("hidden");
+  document.getElementById("btn-gen-profile").classList.add("hidden");
+  document.getElementById("btn-skip-profile").classList.add("hidden");
+  ["ev-name","ev-date","ev-venue","ev-slots","ev-strategy"].forEach(function(id){document.getElementById(id).value="";});
+  document.getElementById("ev-slots").value="0";
+  openPanel("panel-event");});
+
+var newEvId=null;
+document.getElementById("btn-create-ev").addEventListener("click",function(){
+  var name=document.getElementById("ev-name").value.trim();
+  if(!name){alert("Event name is required.");return;}
+  var body={name:name,event_date:document.getElementById("ev-date").value,venue:document.getElementById("ev-venue").value,slot_count:parseInt(document.getElementById("ev-slots").value)||0};
+  fetch("/api/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(data){
+    newEvId=(data.event||data).id;
+    loadEvents();
+    document.getElementById("step1").classList.add("hidden");
+    document.getElementById("step2").classList.remove("hidden");
+    document.getElementById("btn-create-ev").classList.add("hidden");
+    document.getElementById("btn-gen-profile").classList.remove("hidden");
+    document.getElementById("btn-skip-profile").classList.remove("hidden");
+  }).catch(function(e){alert("Failed to create event.");console.error(e);});});
+
+document.getElementById("btn-gen-profile").addEventListener("click",function(){
+  var doc=document.getElementById("ev-strategy").value.trim();
+  if(!doc){alert("Paste a strategy document first.");return;}
+  var loader=document.getElementById("gen-loader");
+  var btn=document.getElementById("btn-gen-profile");
+  loader.classList.remove("hidden");btn.disabled=true;
+  fetch("/api/events/"+newEvId+"/generate-profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({strategy_doc:doc})}).then(function(r){return r.json();}).then(function(){loader.classList.add("hidden");btn.disabled=false;closePanels();loadEvents();}).catch(function(e){loader.classList.add("hidden");btn.disabled=false;console.error(e);});});
+
+document.getElementById("btn-skip-profile").addEventListener("click",closePanels);
+
+document.getElementById("btn-add-sub").addEventListener("click",function(){openSubPanel(null);});
+
+function openSubPanel(s){
+  document.getElementById("sub-panel-title").textContent=s?"Edit Submission":"Add Submission";
+  document.getElementById("sub-id").value=s?s.id:"";
+  ["title","bu","track","format","speakers","abstract","topics","demos","products"].forEach(function(f){
+    document.getElementById("sub-"+f).value=s?(s[f]||""): "";});
+  document.getElementById("sub-status").value=s?(s.status||"submitted"): "submitted";
+  openPanel("panel-sub");}
+
+document.getElementById("btn-save-sub").addEventListener("click",function(){
+  var id=document.getElementById("sub-id").value;
+  var title=document.getElementById("sub-title").value.trim();
+  if(!title){alert("Title is required.");return;}
+  var body={event_id:currentEventId,title:title,bu:document.getElementById("sub-bu").value,track:document.getElementById("sub-track").value,format:document.getElementById("sub-format").value,speakers:document.getElementById("sub-speakers").value,abstract:document.getElementById("sub-abstract").value,topics:document.getElementById("sub-topics").value,demos:document.getElementById("sub-demos").value,products:document.getElementById("sub-products").value,status:document.getElementById("sub-status").value};
+  var url=id?("/api/submissions/"+id):"/api/events/"+currentEventId+"/submissions";
+  var method=id?"PUT":"POST";
+  fetch(url,{method:method,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(){closePanels();loadSubmissions();}).catch(function(e){alert("Failed to save submission.");console.error(e);});});
+
+document.getElementById("filter-track").addEventListener("change",loadSubmissions);
+document.getElementById("filter-status").addEventListener("change",loadSubmissions);
+
+loadEvents();
+})();<\/script></body></html>';
+}
 app.listen(PORT, '0.0.0.0', async function() {
   console.log('[server] listening on port ' + PORT);
   try {
