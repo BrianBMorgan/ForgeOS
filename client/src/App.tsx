@@ -113,8 +113,13 @@ function App() {
             updatePending({ toolStatus: evt.content });
           } else if (evt.type === "agent_message") {
             updatePending({ content: evt.content });
+          } else if (evt.type === "file_committed") {
+            // A file was committed — trigger deploy poll so UI lights up when Render goes live
+            window.dispatchEvent(new CustomEvent("forge:file_committed", { detail: { branch: evt.branch, commit: evt.commit } }));
           } else if (evt.type === "done") {
             updatePending({ content: evt.content || "Done.", pending: false, toolStatus: undefined });
+            // Signal workspace to refresh files and commits tabs
+            window.dispatchEvent(new CustomEvent("forge:build_complete"));
           } else if (evt.type === "error") {
             updatePending({ content: evt.error || "Something went wrong.", pending: false });
           }
