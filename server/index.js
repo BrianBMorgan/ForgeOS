@@ -313,6 +313,29 @@ app.post("/api/projects/:id/rollback", async (req, res) => {
 app.get("/api/projects/:id/publish", async (req, res) => {
   const app = publishManager.getPublishedApp(req.params.id);
   if (!app) return res.json({ published: false });
+
+  // If still showing deploying, check live Render status and update DB
+  if (app.status === "deploying" && app.renderServiceId) {
+    try {
+      const renderRes = await fetch(
+        `https://api.render.com/v1/services/${app.renderServiceId}/deploys?limit=1`,
+        { headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json" } }
+      );
+      if (renderRes.ok) {
+        const deploys = await renderRes.json();
+        const latest = deploys[0]?.deploy || deploys[0];
+        const renderStatus = latest?.status;
+        if (renderStatus === "live") {
+          await publishManager.updateAppStatus(req.params.id, "running");
+          return res.json({ published: true, ...app, status: "running" });
+        } else if (renderStatus === "build_failed" || renderStatus === "deactivated") {
+          await publishManager.updateAppStatus(req.params.id, "failed");
+          return res.json({ published: true, ...app, status: "failed" });
+        }
+      }
+    } catch (e) { /* fall through to cached status */ }
+  }
+
   res.json({ published: true, ...app });
 });
 
