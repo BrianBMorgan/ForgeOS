@@ -140,7 +140,7 @@ function showSection(name) {
   document.getElementById('topbar-action').innerHTML = '';
   if (name === 'events') { renderEventsList(); addTopbarBtn('New Event', showNewEventForm); }
   if (name === 'submissions') { renderSubmissions(); }
-  if (name === 'review') { renderReview(); addTopbarBtn('Score All Unscored', scoreAllUnscored); }
+  if (name === 'review') { renderReview(); }
 }
 
 function addTopbarBtn(label, fn) {
