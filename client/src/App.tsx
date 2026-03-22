@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { AppWindowMac, FileBox, Settings as SettingsIcon } from "lucide-react";
+import { AppWindowMac, FileBox, Settings as SettingsIcon, LayoutDashboard } from "lucide-react";
 import logo from "./ForgeOS_1772241278038.png";
 import logoStacked from "./ForgeOS_Stacked.png";
 import PromptColumn from "./components/PromptColumn";
@@ -7,13 +7,15 @@ import Workspace from "./components/Workspace";
 import ProjectsList from "./components/ProjectsList";
 import Settings from "./components/Settings";
 import Assets from "./components/Assets";
+import Dashboard from "./components/Dashboard";
 
-type NavId = "projects" | "assets" | "settings";
+type NavId = "projects" | "assets" | "settings" | "dashboard";
 
 const navItems: { id: NavId; label: string; icon: React.ReactNode }[] = [
   { id: "projects", label: "Projects", icon: <AppWindowMac size={18} strokeWidth={1.5} /> },
   { id: "assets",   label: "Assets",   icon: <FileBox size={18} strokeWidth={1.5} /> },
   { id: "settings", label: "Settings", icon: <SettingsIcon size={18} strokeWidth={1.5} /> },
+  { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} strokeWidth={1.5} /> },
 ];
 
 export interface ChatMessage {
@@ -224,6 +226,7 @@ function App() {
 
   const renderMainContent = () => {
     if (activeNav === "settings") return <Settings />;
+    if (activeNav === "dashboard") return <Dashboard />;
     if (activeNav === "assets") return <Assets />;
     if (activeNav === "projects" && !currentProjectId && !isNewProjectMode) {
       return <ProjectsList onSelectProject={openProject} onNewProject={handleNewProject} />;
