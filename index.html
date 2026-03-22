@@ -759,8 +759,9 @@ function renderCompareTable() {
     html += '<tr><td style="font-weight:500">' + d.replace(/_/g,' ') + '</td>';
     subs.forEach(function(s){
       var sc = s.ai_score && s.ai_score.dimension_scores && s.ai_score.dimension_scores[d] ? s.ai_score.dimension_scores[d].score : (s.ai_score && s.ai_score.dimensions && s.ai_score.dimensions[d] ? s.ai_score.dimensions[d].score : '&mdash;');
-      var cls = typeof sc === 'number' ? (sc>=80?'score-high':sc>=60?'score-mid':'score-low') : 'score-none';
-      html += '<td><span class="badge ' + cls + '">' + sc + '</span></td>';
+      var dimCls = typeof sc === 'number' ? (sc>=80?'score-high':sc>=60?'score-mid':'score-low') : 'score-none';
+      var dimLabel = typeof sc === 'number' ? 'Score: ' + sc : 'Not Scored';
+      html += '<td><span class="badge ' + dimCls + '">' + dimLabel + '</span></td>';
     });
     html += '</tr>';
   });
