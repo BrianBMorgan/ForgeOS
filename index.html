@@ -441,13 +441,21 @@ async function saveEventEdit(id) {
 // ── Submissions ───────────────────────────────────────────────────────────────
 var subFilters = { search: '', track: '', bu: '', status: '', has_demo: '', has_partner: '' };
 
+function parseAiScore(s) {
+  if (!s.ai_score) return s;
+  if (typeof s.ai_score === 'string') {
+    try { s.ai_score = JSON.parse(s.ai_score); } catch(e) { s.ai_score = null; }
+  }
+  return s;
+}
+
 async function renderSubmissions() {
   if (!currentEventId) { document.getElementById('submissions-content').innerHTML = '<div class="loading">Select an event first.</div>'; return; }
   var el = document.getElementById('submissions-content');
   el.innerHTML = '<div class="loading">Loading...</div>';
   var event = allEvents.find(function(e){return String(e.id)===String(currentEventId);});
   var data = await api('GET', '/api/submissions?event_id=' + currentEventId);
-  allSubmissions = data.submissions || data || [];
+  allSubmissions = (data.submissions || data || []).map(parseAiScore);
   var tracks = [...new Set(allSubmissions.map(function(s){return s.track;}).filter(Boolean))];
   var bus = [...new Set(allSubmissions.map(function(s){return s.bu;}).filter(Boolean))];
   var slots = event ? event.total_slots || 12 : 12;
@@ -650,7 +658,7 @@ async function renderReview() {
   var el = document.getElementById('review-content');
   el.innerHTML = '<div class="loading">Loading...</div>';
   var data = await api('GET', '/api/submissions?event_id=' + currentEventId);
-  allSubmissions = data.submissions || data || [];
+  allSubmissions = (data.submissions || data || []).map(parseAiScore);
   var scored = allSubmissions.filter(function(s){return s.ai_score;});
   var unscored = allSubmissions.filter(function(s){return !s.ai_score;});
   var tracks = {};
