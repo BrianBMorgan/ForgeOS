@@ -891,7 +891,7 @@ const FORGE_TOOLS = [
   {
     name: "github_create_branch",
     description: "Create a new apps/<slug> branch from main. Call this if the branch doesn't exist before committing files.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         branch: { type: "string", description: "Branch name, e.g. apps/my-app" },
@@ -902,7 +902,7 @@ const FORGE_TOOLS = [
   {
     name: "github_ls",
     description: "List files in a GitHub branch. Use to explore what exists before writing. Default branch is main.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         path: { type: "string", description: "Directory path to list. Empty string for root." },
@@ -914,7 +914,7 @@ const FORGE_TOOLS = [
   {
     name: "github_read",
     description: "Read a file from the ForgeOS GitHub repository. Always read before patching.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         filepath: { type: "string", description: "File path relative to repo root." },
@@ -926,7 +926,7 @@ const FORGE_TOOLS = [
   {
     name: "github_write",
     description: "Write or overwrite a complete file in the GitHub repository. Render auto-deploys on push. Never truncate — always write the complete file.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         filepath: { type: "string", description: "File path relative to repo root." },
@@ -940,7 +940,7 @@ const FORGE_TOOLS = [
   {
     name: "github_patch",
     description: "Surgical find-and-replace on a file. Use github_read first to confirm exact strings. Fails if find string not found exactly.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         filepath: { type: "string", description: "File path relative to repo root." },
@@ -965,7 +965,7 @@ const FORGE_TOOLS = [
   {
     name: "render_status",
     description: "Check the deploy status of a Render service and get its live URL.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         service_id: { type: "string", description: "Render service ID. If unknown, provide slug instead." },
@@ -977,7 +977,7 @@ const FORGE_TOOLS = [
   {
     name: "memory_search",
     description: "Search Brain for relevant patterns, past mistakes, and lessons from previous builds.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         query: { type: "string", description: "What to search for." },
@@ -988,7 +988,7 @@ const FORGE_TOOLS = [
   {
     name: "ask_user",
     description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         message: { type: "string", description: "Message for Brian." },
@@ -999,7 +999,7 @@ const FORGE_TOOLS = [
   {
     name: "write_code",
     description: "Hand off a coding task to Gemini 2.5 Pro. Use this whenever you need to write or substantially rewrite files. Read the relevant files first with github_read, then call write_code with full file context and precise requirements. Take what it returns and commit with github_write. Do not write code directly in your responses.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         task: { type: "string", description: "Precise description of what to build or change." },
