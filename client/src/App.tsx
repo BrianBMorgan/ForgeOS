@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { AppWindowMac, FileBox, Settings } from "lucide-react";
 import logo from "./ForgeOS_1772241278038.png";
 import logoStacked from "./ForgeOS_Stacked.png";
 import PromptColumn from "./components/PromptColumn";
@@ -9,10 +10,10 @@ import Assets from "./components/Assets";
 
 type NavId = "projects" | "assets" | "settings";
 
-const navItems: { id: NavId; label: string; icon: string }[] = [
-  { id: "projects", label: "Projects", icon: "▶" },
-  { id: "assets",   label: "Assets",   icon: "◈" },
-  { id: "settings", label: "Settings", icon: "⚙" },
+const navItems: { id: NavId; label: string; icon: React.ReactNode }[] = [
+  { id: "projects", label: "Projects", icon: <AppWindowMac size={18} strokeWidth={1.5} /> },
+  { id: "assets",   label: "Assets",   icon: <FileBox size={18} strokeWidth={1.5} /> },
+  { id: "settings", label: "Settings", icon: <Settings size={18} strokeWidth={1.5} /> },
 ];
 
 export interface ChatMessage {
