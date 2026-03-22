@@ -1092,11 +1092,21 @@ function BrainTab() {
 export default function Workspace({ projectData }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("files");
   const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    const handler = (e: CustomEvent) => setActiveTab(e.detail);
-    window.addEventListener("forgeos:switch-tab", handler as EventListener);
-    return () => window.removeEventListener("forgeos:switch-tab", handler as EventListener);
+    const tabHandler = (e: CustomEvent) => setActiveTab(e.detail);
+    // Refresh all tabs when a file is committed or build is complete
+    const commitHandler = () => setRefreshKey(k => k + 1);
+    const buildHandler = () => setRefreshKey(k => k + 1);
+    window.addEventListener("forgeos:switch-tab", tabHandler as EventListener);
+    window.addEventListener("forge:file_committed", commitHandler);
+    window.addEventListener("forge:build_complete", buildHandler);
+    return () => {
+      window.removeEventListener("forgeos:switch-tab", tabHandler as EventListener);
+      window.removeEventListener("forge:file_committed", commitHandler);
+      window.removeEventListener("forge:build_complete", buildHandler);
+    };
   }, []);
 
   const projectId = projectData?.id || null;
@@ -1115,11 +1125,11 @@ export default function Workspace({ projectData }: WorkspaceProps) {
   const renderTabContent = () => {
     switch (activeTab) {
       case "files":
-        return <FilesTab projectId={projectId} slug={slug} />;
+        return <FilesTab projectId={projectId} slug={slug} refreshKey={refreshKey} />;
       case "commits":
-        return <CommitsTab projectId={projectId} slug={slug} />;
+        return <CommitsTab projectId={projectId} slug={slug} refreshKey={refreshKey} />;
       case "render":
-        return <RenderTab projectId={projectId} slug={slug} />;
+        return <RenderTab projectId={projectId} slug={slug} refreshKey={refreshKey} />;
       case "env":
         return <EnvTab projectId={projectId} />;
       case "publish":
