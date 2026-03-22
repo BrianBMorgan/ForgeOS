@@ -195,26 +195,78 @@ async function renderEventsList() {
   }).join('') || '<div class="loading">No events yet.</div>';
 }
 
+// ── Profile field helpers ─────────────────────────────────────────────────────
+function getProfileFieldsHtml() {
+  return '<div class="form-group"><label>Event Strategy</label><textarea id="ef-profile-strategy" rows="4" placeholder="What is the overarching strategy for this event?"></textarea></div>' +
+    '<div class="form-group"><label>Goals</label><textarea id="ef-profile-goals" rows="3" placeholder="What are the primary goals and objectives?"></textarea></div>' +
+    '<div class="form-group"><label>KPIs</label><textarea id="ef-profile-kpis" rows="3" placeholder="How will success be measured?"></textarea></div>' +
+    '<div class="form-group"><label>Audience</label><textarea id="ef-profile-audience" rows="3" placeholder="Who is the target audience? Roles, seniority, departments..."></textarea></div>' +
+    '<div class="form-group"><label>Content Pillars</label><textarea id="ef-profile-pillars" rows="3" placeholder="Key themes and topic areas for content submissions..."></textarea></div>' +
+    '<div class="form-group"><label>Additional Information</label><textarea id="ef-profile-additional" rows="4" placeholder="Any other context: portfolio highlights, speaker requirements, format constraints..."></textarea></div>';
+}
+
+function populateProfileFields(rawProfile) {
+  if (!rawProfile) return;
+  var profileObject = null;
+  if (typeof rawProfile === 'object' && rawProfile !== null) {
+    profileObject = rawProfile;
+  } else if (typeof rawProfile === 'string') {
+    try {
+      var parsed = JSON.parse(rawProfile);
+      if (typeof parsed === 'object' && parsed !== null) {
+        profileObject = parsed;
+      }
+    } catch (e) { /* Not JSON — treat as legacy string */ }
+  }
+  if (profileObject) {
+    document.getElementById('ef-profile-strategy').value = profileObject.event_strategy || '';
+    document.getElementById('ef-profile-goals').value = profileObject.goals || '';
+    document.getElementById('ef-profile-kpis').value = profileObject.kpis || '';
+    document.getElementById('ef-profile-audience').value = profileObject.audience || '';
+    document.getElementById('ef-profile-pillars').value = profileObject.content_pillars || '';
+    document.getElementById('ef-profile-additional').value = profileObject.additional_information || '';
+  } else if (typeof rawProfile === 'string') {
+    // Legacy plain-text profile — drop into Additional Information
+    document.getElementById('ef-profile-additional').value = rawProfile;
+  }
+}
+
+function buildContextRawFromFields() {
+  var parts = [
+    { label: 'Event Strategy', id: 'ef-profile-strategy' },
+    { label: 'Goals', id: 'ef-profile-goals' },
+    { label: 'KPIs', id: 'ef-profile-kpis' },
+    { label: 'Audience', id: 'ef-profile-audience' },
+    { label: 'Content Pillars', id: 'ef-profile-pillars' },
+    { label: 'Additional Information', id: 'ef-profile-additional' }
+  ];
+  var lines = [];
+  parts.forEach(function(p) {
+    var val = (document.getElementById(p.id) || {}).value || '';
+    val = val.trim();
+    if (val) lines.push(p.label + ':\n' + val);
+  });
+  return lines.join('\n\n');
+}
+
+function buildProfileJsonFromFields() {
+  return JSON.stringify({
+    event_strategy: (document.getElementById('ef-profile-strategy') || {}).value || '',
+    goals: (document.getElementById('ef-profile-goals') || {}).value || '',
+    kpis: (document.getElementById('ef-profile-kpis') || {}).value || '',
+    audience: (document.getElementById('ef-profile-audience') || {}).value || '',
+    content_pillars: (document.getElementById('ef-profile-pillars') || {}).value || '',
+    additional_information: (document.getElementById('ef-profile-additional') || {}).value || ''
+  });
+}
+
+// ── Event form ────────────────────────────────────────────────────────────────
 function showNewEventForm(editEvent) {
   var isEdit = !!editEvent;
   var panel = document.getElementById('slide-panel');
   window._editGeneratedProfile = null;
 
   if (isEdit) {
-    var contextProfileText = '';
-    var rawProfile = editEvent.context_profile;
-    if (rawProfile) {
-      if (typeof rawProfile === 'object') {
-        contextProfileText = JSON.stringify(rawProfile, null, 2);
-      } else {
-        try {
-          contextProfileText = JSON.stringify(JSON.parse(rawProfile), null, 2);
-        } catch(e) {
-          contextProfileText = rawProfile;
-        }
-      }
-    }
-
     panel.innerHTML = '<h2>Edit Event: ' + (editEvent.name || '') + '</h2>' +
       '<div class="tabs">' +
         '<div class="tab active" id="panel-tab-details">Details</div>' +
@@ -230,8 +282,7 @@ function showNewEventForm(editEvent) {
         '<button class="btn-primary" id="btn-save-details">Save Details</button>' +
       '</div>' +
       '<div id="panel-pane-profile" style="display:none;">' +
-        '<div class="form-group"><label>Event strategy, goals, KPIs, audience, content pillars. Used for AI scoring.</label>' +
-        '<textarea id="ef-context-edit" rows="12" placeholder="Paste POR deck, strategy doc, goals..."></textarea></div>' +
+        getProfileFieldsHtml() +
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
           '<button class="btn-secondary" id="btn-regen-profile">Regenerate with AI</button>' +
           '<button class="btn-primary" id="btn-save-profile">Save Profile</button>' +
@@ -239,8 +290,7 @@ function showNewEventForm(editEvent) {
         '<div id="edit-profile-result" style="margin-top:16px"></div>' +
       '</div>';
 
-    // Set textarea value separately to avoid escaping issues
-    document.getElementById('ef-context-edit').value = contextProfileText;
+    populateProfileFields(editEvent.context_profile);
 
     document.getElementById('panel-tab-details').addEventListener('click', function() { switchPanelTab('details'); });
     document.getElementById('panel-tab-profile').addEventListener('click', function() { switchPanelTab('profile'); });
@@ -260,10 +310,12 @@ function showNewEventForm(editEvent) {
         '<button class="btn-primary" id="btn-next-step">Next &rarr;</button>' +
       '</div>' +
       '<div id="event-form-step2" style="display:none">' +
-        '<div class="form-group"><label>Paste event strategy, goals, KPIs, audience, content pillars here. The more context the better AI scoring.</label>' +
-        '<textarea id="ef-context" rows="8" placeholder="Paste POR deck, strategy doc, goals..."></textarea></div>' +
-        '<button class="btn-primary" id="btn-gen-profile">Generate Event Profile</button> ' +
-        '<button class="btn-secondary" id="btn-save-direct">Save Without Profile</button>' +
+        '<p style="font-size:12px;color:#666;margin-bottom:16px">Fill in as much context as possible. The more detail, the more accurate the AI scoring will be.</p>' +
+        getProfileFieldsHtml() +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+          '<button class="btn-primary" id="btn-gen-profile">Generate Event Profile with AI</button>' +
+          '<button class="btn-secondary" id="btn-save-direct">Save Without Profile</button>' +
+        '</div>' +
         '<div id="profile-result" style="margin-top:16px"></div>' +
       '</div>';
     document.getElementById('btn-next-step').addEventListener('click', showStep2);
@@ -283,8 +335,8 @@ function switchPanelTab(name) {
 }
 
 async function regenerateProfileEdit() {
-  var ctx = document.getElementById('ef-context-edit').value.trim();
-  if (!ctx) { alert('Paste some context first'); return; }
+  var ctx = buildContextRawFromFields();
+  if (!ctx) { alert('Enter some information in the profile fields first.'); return; }
   var resultDiv = document.getElementById('edit-profile-result');
   var btn = document.getElementById('btn-regen-profile');
   btn.disabled = true;
@@ -310,7 +362,7 @@ async function saveEventProfile(id) {
     body.context_profile = typeof profileData === 'string' ? profileData : JSON.stringify(profileData);
     body.ai_system_prompt = window._editGeneratedProfile.ai_system_prompt || '';
   } else {
-    body.context_profile = document.getElementById('ef-context-edit').value;
+    body.context_profile = buildProfileJsonFromFields();
     body.ai_system_prompt = '';
   }
   var r = await api('PUT', '/api/events/' + id, body);
@@ -328,8 +380,8 @@ function showStep2() {
 }
 
 async function generateProfile() {
-  var ctx = document.getElementById('ef-context').value.trim();
-  if (!ctx) { alert('Paste some context first'); return; }
+  var ctx = buildContextRawFromFields();
+  if (!ctx) { alert('Enter some context in the fields above first.'); return; }
   document.getElementById('profile-result').innerHTML = '<div class="loading">Generating profile with AI...</div>';
   var r = await api('POST', '/api/events/generate-profile', { context_raw: ctx });
   if (r.error) { document.getElementById('profile-result').innerHTML = '<div class="alert alert-error">' + r.error + '</div>'; return; }
@@ -340,14 +392,29 @@ async function generateProfile() {
 }
 
 async function saveEventWithProfile() {
-  var body = { name: document.getElementById('ef-name').value.trim(), event_date: document.getElementById('ef-date').value, venue: document.getElementById('ef-venue').value, total_slots: parseInt(document.getElementById('ef-slots').value)||12, context_raw: document.getElementById('ef-context').value, context_profile: window._generatedProfile };
+  var body = {
+    name: document.getElementById('ef-name').value.trim(),
+    event_date: document.getElementById('ef-date').value,
+    venue: document.getElementById('ef-venue').value,
+    total_slots: parseInt(document.getElementById('ef-slots').value) || 12,
+    context_profile: window._generatedProfile ? JSON.stringify(window._generatedProfile) : buildProfileJsonFromFields()
+  };
+  if (window._generatedProfile && window._generatedProfile.ai_system_prompt) {
+    body.ai_system_prompt = window._generatedProfile.ai_system_prompt;
+  }
   var r = await api('POST', '/api/events', body);
   if (r.error) { alert(r.error); return; }
   closePanel(); renderEventsList(); loadEvents();
 }
 
 async function saveEventDirect() {
-  var body = { name: document.getElementById('ef-name').value.trim(), event_date: document.getElementById('ef-date').value, venue: document.getElementById('ef-venue').value, total_slots: parseInt(document.getElementById('ef-slots').value)||12 };
+  var body = {
+    name: document.getElementById('ef-name').value.trim(),
+    event_date: document.getElementById('ef-date').value,
+    venue: document.getElementById('ef-venue').value,
+    total_slots: parseInt(document.getElementById('ef-slots').value) || 12,
+    context_profile: buildProfileJsonFromFields()
+  };
   if (!body.name) { alert('Event name required'); return; }
   var r = await api('POST', '/api/events', body);
   if (r.error) { alert(r.error); return; }
