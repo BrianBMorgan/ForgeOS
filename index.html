@@ -198,34 +198,127 @@ async function renderEventsList() {
 function showNewEventForm(editEvent) {
   var isEdit = !!editEvent;
   var panel = document.getElementById('slide-panel');
-  panel.innerHTML = '<h2>' + (isEdit ? 'Edit Event' : 'New Event') + '</h2>' +
-    '<div id="event-form-step1">' +
-      '<div class="form-group"><label>Event Name *</label><input id="ef-name" value="' + (editEvent&&editEvent.name||'') + '"></div>' +
-      '<div class="grid-2">' +
-        '<div class="form-group"><label>Event Date</label><input id="ef-date" value="' + (editEvent&&editEvent.event_date||'') + '"></div>' +
-        '<div class="form-group"><label>Total Session Slots</label><input id="ef-slots" type="number" value="' + (editEvent&&(editEvent.slot_count||editEvent.total_slots)||12) + '"></div>' +
-      '</div>' +
-      '<div class="form-group"><label>Venue</label><input id="ef-venue" value="' + (editEvent&&editEvent.venue||'') + '"></div>' +
-      (isEdit ? '<button class="btn-primary" id="btn-save-edit">Save Changes</button>' : '<button class="btn-primary" id="btn-next-step">Next &rarr;</button>') +
-    '</div>' +
-    '<div id="event-form-step2" style="display:none">' +
-      '<div class="form-group"><label>Paste event strategy, goals, KPIs, audience, content pillars here. The more context the better AI scoring.</label>' +
-      '<textarea id="ef-context" rows="8" placeholder="Paste POR deck, strategy doc, goals..."></textarea></div>' +
-      '<button class="btn-primary" id="btn-gen-profile">Generate Event Profile</button> ' +
-      '<button class="btn-secondary" id="btn-save-direct">Save Without Profile</button>' +
-      '<div id="profile-result" style="margin-top:16px"></div>' +
-    '</div>';
-  // Attach events after innerHTML is set
+  window._editGeneratedProfile = null;
+
   if (isEdit) {
-    document.getElementById('btn-save-edit').addEventListener('click', function() { saveEventEdit(editEvent.id); });
+    var contextProfileText = '';
+    var rawProfile = editEvent.context_profile;
+    if (rawProfile) {
+      if (typeof rawProfile === 'object') {
+        contextProfileText = JSON.stringify(rawProfile, null, 2);
+      } else {
+        try {
+          contextProfileText = JSON.stringify(JSON.parse(rawProfile), null, 2);
+        } catch(e) {
+          contextProfileText = rawProfile;
+        }
+      }
+    }
+
+    panel.innerHTML = '<h2>Edit Event: ' + (editEvent.name || '') + '</h2>' +
+      '<div class="tabs">' +
+        '<div class="tab active" id="panel-tab-details">Details</div>' +
+        '<div class="tab" id="panel-tab-profile">Content Profile</div>' +
+      '</div>' +
+      '<div id="panel-pane-details">' +
+        '<div class="form-group"><label>Event Name *</label><input id="ef-name" value="' + (editEvent.name || '') + '"></div>' +
+        '<div class="grid-2">' +
+          '<div class="form-group"><label>Event Date</label><input id="ef-date" value="' + (editEvent.event_date || '') + '"></div>' +
+          '<div class="form-group"><label>Total Session Slots</label><input id="ef-slots" type="number" value="' + ((editEvent.slot_count || editEvent.total_slots) || 12) + '"></div>' +
+        '</div>' +
+        '<div class="form-group"><label>Venue</label><input id="ef-venue" value="' + (editEvent.venue || '') + '"></div>' +
+        '<button class="btn-primary" id="btn-save-details">Save Details</button>' +
+      '</div>' +
+      '<div id="panel-pane-profile" style="display:none;">' +
+        '<div class="form-group"><label>Event strategy, goals, KPIs, audience, content pillars. Used for AI scoring.</label>' +
+        '<textarea id="ef-context-edit" rows="12" placeholder="Paste POR deck, strategy doc, goals..."></textarea></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+          '<button class="btn-secondary" id="btn-regen-profile">Regenerate with AI</button>' +
+          '<button class="btn-primary" id="btn-save-profile">Save Profile</button>' +
+        '</div>' +
+        '<div id="edit-profile-result" style="margin-top:16px"></div>' +
+      '</div>';
+
+    // Set textarea value separately to avoid escaping issues
+    document.getElementById('ef-context-edit').value = contextProfileText;
+
+    document.getElementById('panel-tab-details').addEventListener('click', function() { switchPanelTab('details'); });
+    document.getElementById('panel-tab-profile').addEventListener('click', function() { switchPanelTab('profile'); });
+    document.getElementById('btn-save-details').addEventListener('click', function() { saveEventEdit(editEvent.id); });
+    document.getElementById('btn-regen-profile').addEventListener('click', regenerateProfileEdit);
+    document.getElementById('btn-save-profile').addEventListener('click', function() { saveEventProfile(editEvent.id); });
+
   } else {
+    panel.innerHTML = '<h2>New Event</h2>' +
+      '<div id="event-form-step1">' +
+        '<div class="form-group"><label>Event Name *</label><input id="ef-name" value=""></div>' +
+        '<div class="grid-2">' +
+          '<div class="form-group"><label>Event Date</label><input id="ef-date" value=""></div>' +
+          '<div class="form-group"><label>Total Session Slots</label><input id="ef-slots" type="number" value="12"></div>' +
+        '</div>' +
+        '<div class="form-group"><label>Venue</label><input id="ef-venue" value=""></div>' +
+        '<button class="btn-primary" id="btn-next-step">Next &rarr;</button>' +
+      '</div>' +
+      '<div id="event-form-step2" style="display:none">' +
+        '<div class="form-group"><label>Paste event strategy, goals, KPIs, audience, content pillars here. The more context the better AI scoring.</label>' +
+        '<textarea id="ef-context" rows="8" placeholder="Paste POR deck, strategy doc, goals..."></textarea></div>' +
+        '<button class="btn-primary" id="btn-gen-profile">Generate Event Profile</button> ' +
+        '<button class="btn-secondary" id="btn-save-direct">Save Without Profile</button>' +
+        '<div id="profile-result" style="margin-top:16px"></div>' +
+      '</div>';
     document.getElementById('btn-next-step').addEventListener('click', showStep2);
+    document.getElementById('btn-gen-profile').addEventListener('click', generateProfile);
+    document.getElementById('btn-save-direct').addEventListener('click', saveEventDirect);
   }
-  document.getElementById('btn-gen-profile').addEventListener('click', generateProfile);
-  document.getElementById('btn-save-direct').addEventListener('click', saveEventDirect);
   openPanel();
 }
 
+function switchPanelTab(name) {
+  document.getElementById('panel-tab-details').classList.toggle('active', name === 'details');
+  document.getElementById('panel-tab-profile').classList.toggle('active', name === 'profile');
+  var paneDetails = document.getElementById('panel-pane-details');
+  var paneProfile = document.getElementById('panel-pane-profile');
+  if (paneDetails) paneDetails.style.display = name === 'details' ? 'block' : 'none';
+  if (paneProfile) paneProfile.style.display = name === 'profile' ? 'block' : 'none';
+}
+
+async function regenerateProfileEdit() {
+  var ctx = document.getElementById('ef-context-edit').value.trim();
+  if (!ctx) { alert('Paste some context first'); return; }
+  var resultDiv = document.getElementById('edit-profile-result');
+  var btn = document.getElementById('btn-regen-profile');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  resultDiv.innerHTML = '<div class="loading">Generating profile with AI...</div>';
+  var r = await api('POST', '/api/events/generate-profile', { context_raw: ctx });
+  btn.disabled = false;
+  btn.textContent = 'Regenerate with AI';
+  if (r.error) {
+    resultDiv.innerHTML = '<div class="alert alert-error">' + r.error + '</div>';
+    window._editGeneratedProfile = null;
+    return;
+  }
+  var p = r.profile || r;
+  resultDiv.innerHTML = '<div class="card"><h3>Generated Profile</h3><pre style="font-size:11px;overflow:auto;max-height:200px">' + JSON.stringify(p, null, 2) + '</pre><div style="margin-top:8px;font-size:12px;color:#007A3D">&#10003; Profile ready. Click Save Profile to apply.</div></div>';
+  window._editGeneratedProfile = p;
+}
+
+async function saveEventProfile(id) {
+  var body = {};
+  if (window._editGeneratedProfile) {
+    var profileData = window._editGeneratedProfile.context_profile || window._editGeneratedProfile;
+    body.context_profile = typeof profileData === 'string' ? profileData : JSON.stringify(profileData);
+    body.ai_system_prompt = window._editGeneratedProfile.ai_system_prompt || '';
+  } else {
+    body.context_profile = document.getElementById('ef-context-edit').value;
+    body.ai_system_prompt = '';
+  }
+  var r = await api('PUT', '/api/events/' + id, body);
+  if (r.error) { alert(r.error); return; }
+  closePanel();
+  renderEventsList();
+  loadEvents();
+}
 
 function showStep2() {
   var name = document.getElementById('ef-name').value.trim();
@@ -241,7 +334,8 @@ async function generateProfile() {
   var r = await api('POST', '/api/events/generate-profile', { context_raw: ctx });
   if (r.error) { document.getElementById('profile-result').innerHTML = '<div class="alert alert-error">' + r.error + '</div>'; return; }
   var p = r.profile || r;
-  document.getElementById('profile-result').innerHTML = '<div class="card"><h3>Generated Profile</h3><pre style="font-size:11px;overflow:auto;max-height:200px">' + JSON.stringify(p, null, 2) + '</pre></div><button class="btn-primary" onclick="saveEventWithProfile()">Save Event</button>';
+  document.getElementById('profile-result').innerHTML = '<div class="card"><h3>Generated Profile</h3><pre style="font-size:11px;overflow:auto;max-height:200px">' + JSON.stringify(p, null, 2) + '</pre></div><button class="btn-primary" id="btn-save-with-profile">Save Event</button>';
+  document.getElementById('btn-save-with-profile').addEventListener('click', saveEventWithProfile);
   window._generatedProfile = p;
 }
 
@@ -262,7 +356,8 @@ async function saveEventDirect() {
 
 async function saveEventEdit(id) {
   var body = { name: document.getElementById('ef-name').value.trim(), event_date: document.getElementById('ef-date').value, venue: document.getElementById('ef-venue').value, total_slots: parseInt(document.getElementById('ef-slots').value)||12 };
-  await api('PUT', '/api/events/' + id, body);
+  var r = await api('PUT', '/api/events/' + id, body);
+  if (r.error) { alert(r.error); return; }
   closePanel(); renderEventsList(); loadEvents();
 }
 
@@ -285,7 +380,6 @@ async function renderSubmissions() {
     '<div class="filter-bar"><input placeholder="Search title / speaker..." oninput="subFilters.search=this.value;renderSubTable()" value="' + subFilters.search + '"><select onchange="subFilters.track=this.value;renderSubTable()"><option value="">All Tracks</option>' + tracks.map(function(t){return '<option value="' + t + '"' + (subFilters.track===t?' selected':'') + '>' + t + '</option>';}).join('') + '</select><select onchange="subFilters.bu=this.value;renderSubTable()"><option value="">All BUs</option>' + bus.map(function(b){return '<option value="' + b + '"' + (subFilters.bu===b?' selected':'') + '>' + b + '</option>';}).join('') + '</select><select onchange="subFilters.status=this.value;renderSubTable()"><option value="">All Status</option><option value="submitted">Submitted</option><option value="under_review">Under Review</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="needs_revision">Needs Revision</option></select></div>' +
     '<div id="sub-table"></div>';
   renderSubTable();
-  // topbar for export
   document.getElementById('topbar-action').innerHTML = '<button class="btn-primary" onclick="showAddSubmission()">+ Add Submission</button>';
 }
 
@@ -315,7 +409,6 @@ function showAddSubmission() {
   document.getElementById('btn-save-sub').addEventListener('click', saveNewSubmission);
   openPanel();
 }
-
 
 function submissionForm(s) {
   var f = s || {};
@@ -359,9 +452,9 @@ async function viewSubmission(id) {
       scoreHtml += '<div class="dim-score">' + d.score + '</div></div>';
     });
     scoreHtml += '<div style="margin-top:12px"><div style="font-weight:500;margin-bottom:4px;color:#007A3D">Strengths</div>';
-    (score.strengths||[]).forEach(function(st){ scoreHtml += '<div style="font-size:12px;margin-bottom:2px">• ' + st + '</div>'; });
+    (score.strengths||[]).forEach(function(st){ scoreHtml += '<div style="font-size:12px;margin-bottom:2px">&bull; ' + st + '</div>'; });
     scoreHtml += '</div><div style="margin-top:8px"><div style="font-weight:500;margin-bottom:4px;color:#CC0000">Gaps</div>';
-    (score.gaps||[]).forEach(function(g){ scoreHtml += '<div style="font-size:12px;margin-bottom:2px">• ' + g + '</div>'; });
+    (score.gaps||[]).forEach(function(g){ scoreHtml += '<div style="font-size:12px;margin-bottom:2px">&bull; ' + g + '</div>'; });
     scoreHtml += '</div><div style="margin-top:12px;padding:12px;background:#f9f9f9;border:1px solid #EAEAEA">';
     scoreHtml += '<div style="font-weight:700">' + (score.recommendation||'') + '</div>';
     scoreHtml += '<div style="font-size:12px;color:#666;margin-top:4px">' + (score.recommendation_rationale||'') + '</div></div></div>';
@@ -370,17 +463,17 @@ async function viewSubmission(id) {
   panel.innerHTML =
     '<h2>' + (s.title||'Untitled') + '</h2>' +
     '<div class="grid-2">' +
-      '<div><b>BU:</b> ' + (s.bu||'—') + '</div>' +
-      '<div><b>Track:</b> ' + (s.track||'—') + '</div>' +
-      '<div><b>Format:</b> ' + (s.format||'—') + '</div>' +
-      '<div><b>Duration:</b> ' + (s.duration||'—') + '</div>' +
+      '<div><b>BU:</b> ' + (s.bu||'&mdash;') + '</div>' +
+      '<div><b>Track:</b> ' + (s.track||'&mdash;') + '</div>' +
+      '<div><b>Format:</b> ' + (s.format||'&mdash;') + '</div>' +
+      '<div><b>Duration:</b> ' + (s.duration||'&mdash;') + '</div>' +
     '</div>' +
-    '<div style="margin-top:12px"><b>Intel Speakers:</b> ' + (s.intel_speakers||'—') + '</div>' +
-    '<div style="margin-top:8px"><b>Partner Speakers:</b> ' + (s.partner_speakers||'—') + '</div>' +
-    '<div style="margin-top:8px"><b>Abstract:</b><p style="font-size:13px;margin-top:4px;color:#444">' + (s.abstract||'—') + '</p></div>' +
-    '<div style="margin-top:8px"><b>Key Topics:</b> ' + (s.key_topics||'—') + '</div>' +
-    '<div style="margin-top:8px"><b>Demos:</b> ' + (s.demos||'—') + '</div>' +
-    '<div style="margin-top:8px"><b>Featured Products:</b> ' + (s.featured_products||'—') + '</div>' +
+    '<div style="margin-top:12px"><b>Intel Speakers:</b> ' + (s.intel_speakers||'&mdash;') + '</div>' +
+    '<div style="margin-top:8px"><b>Partner Speakers:</b> ' + (s.partner_speakers||'&mdash;') + '</div>' +
+    '<div style="margin-top:8px"><b>Abstract:</b><p style="font-size:13px;margin-top:4px;color:#444">' + (s.abstract||'&mdash;') + '</p></div>' +
+    '<div style="margin-top:8px"><b>Key Topics:</b> ' + (s.key_topics||'&mdash;') + '</div>' +
+    '<div style="margin-top:8px"><b>Demos:</b> ' + (s.demos||'&mdash;') + '</div>' +
+    '<div style="margin-top:8px"><b>Featured Products:</b> ' + (s.featured_products||'&mdash;') + '</div>' +
     '<div style="margin-top:16px"><label>Reviewer Notes</label>' +
       '<textarea id="notes-field" rows="3" style="margin-top:4px">' + (s.reviewer_notes||'') + '</textarea>' +
       '<button class="btn-secondary" style="margin-top:8px" id="btn-save-notes">Save Notes</button>' +
@@ -395,7 +488,6 @@ async function viewSubmission(id) {
   document.getElementById('btn-run-score').addEventListener('click', function() { scoreSubmission(id); });
   openPanel();
 }
-
 
 async function saveNotes(id, notes) {
   await api('PUT', '/api/submissions/' + id, { reviewer_notes: notes });
@@ -422,7 +514,6 @@ function editStatus(id) {
   openPanel();
 }
 
-
 async function saveStatus(id, status) {
   await api('PUT', '/api/submissions/' + id, { status: status });
   var s = allSubmissions.find(function(x){return x.id===id;}); if (s) s.status = status;
@@ -435,7 +526,6 @@ async function scoreSubmission(id) {
   openPanel();
   var r = await api('POST', '/api/submissions/' + id + '/score');
   if (r.error) { panel.innerHTML = '<h2>Error</h2><div class="alert alert-error">' + r.error + '</div>'; return; }
-  // Normalize response shape — API returns scorecard with 'overall' and 'dimensions'
   var raw = r.scorecard || r.ai_score || r;
   var normalized = {
     overall_score: raw.overall_score || raw.overall || 0,
@@ -450,7 +540,6 @@ async function scoreSubmission(id) {
   renderSubTable();
   viewSubmission(id);
 }
-
 
 function exportCSV() {
   window.open('/api/submissions/export?event_id=' + currentEventId);
@@ -487,7 +576,6 @@ async function renderReview() {
   html += '<div class="tab" id="tab-compare" onclick="reviewTab(this, &quot;compare&quot;)">Compare</div>';
   html += '</div>';
 
-  // Ranked view
   html += '<div id="review-ranked">';
   html += '<h3 style="font-weight:700;margin-bottom:12px">All Submissions by Score</h3>';
   if (sortedSubs.length === 0) {
@@ -508,7 +596,6 @@ async function renderReview() {
   }
   html += '</div>';
 
-  // By Track view
   html += '<div id="review-tracks" style="display:none">';
   Object.keys(tracks).forEach(function(track) {
     var ts = tracks[track].slice().sort(function(a,b){return ((b.ai_score&&b.ai_score.overall_score)||0)-((a.ai_score&&a.ai_score.overall_score)||0);});
@@ -530,7 +617,6 @@ async function renderReview() {
   });
   html += '</div>';
 
-  // Compare view
   html += '<div id="review-compare" style="display:none">';
   html += '<div style="margin-bottom:12px;font-size:13px;color:#666">Select 2-3 submissions to compare:</div>';
   html += '<div id="compare-picks" style="margin-bottom:16px">';
@@ -543,7 +629,6 @@ async function renderReview() {
 
   el.innerHTML = html;
 }
-
 
 async function scoreAllUnscored() {
   var unscored = allSubmissions.filter(function(s){return !s.ai_score;});
@@ -586,7 +671,7 @@ function renderCompareTable() {
   dims.forEach(function(d){
     html += '<tr><td style="font-weight:500">' + d.replace(/_/g,' ') + '</td>';
     subs.forEach(function(s){
-      var sc = s.ai_score && s.ai_score.dimension_scores && s.ai_score.dimension_scores[d] ? s.ai_score.dimension_scores[d].score : (s.ai_score && s.ai_score.dimensions && s.ai_score.dimensions[d] ? s.ai_score.dimensions[d].score : '—');
+      var sc = s.ai_score && s.ai_score.dimension_scores && s.ai_score.dimension_scores[d] ? s.ai_score.dimension_scores[d].score : (s.ai_score && s.ai_score.dimensions && s.ai_score.dimensions[d] ? s.ai_score.dimensions[d].score : '&mdash;');
       var cls = typeof sc === 'number' ? (sc>=80?'score-high':sc>=60?'score-mid':'score-low') : 'score-none';
       html += '<td><span class="badge ' + cls + '">' + sc + '</span></td>';
     });
@@ -594,7 +679,7 @@ function renderCompareTable() {
   });
   html += '<tr><td style="font-weight:700">Overall</td>';
   subs.forEach(function(s){
-    var ov = s.ai_score ? (s.ai_score.overall_score || s.ai_score.overall || '—') : '—';
+    var ov = s.ai_score ? (s.ai_score.overall_score || s.ai_score.overall || '&mdash;') : '&mdash;';
     var cls = typeof ov === 'number' ? (ov>=80?'score-high':ov>=60?'score-mid':'score-low') : 'score-none';
     html += '<td><span class="badge ' + cls + '" style="font-size:14px">' + ov + '</span></td>';
   });
@@ -610,11 +695,14 @@ function closePanel() { document.getElementById('panel-overlay').classList.remov
 window.showSection = showSection;
 window.onEventChange = onEventChange;
 window.showNewEventForm = showNewEventForm;
+window.switchPanelTab = switchPanelTab;
 window.showStep2 = showStep2;
 window.generateProfile = generateProfile;
 window.saveEventWithProfile = saveEventWithProfile;
 window.saveEventDirect = saveEventDirect;
 window.saveEventEdit = saveEventEdit;
+window.saveEventProfile = saveEventProfile;
+window.regenerateProfileEdit = regenerateProfileEdit;
 window.renderSubmissions = renderSubmissions;
 window.renderSubTable = renderSubTable;
 window.showAddSubmission = showAddSubmission;
