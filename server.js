@@ -420,7 +420,7 @@ app.post('/api/submissions/:id/score', async function (req, res) {
       'Intel Speakers: ' + (sub.intel_speakers || '')
     ].join('\n');
     var scorecard = await callClaude(evt.ai_system_prompt, userPrompt, true);
-    await sql`UPDATE submissions SET ai_score = ${JSON.stringify(scorecard)} WHERE id = ${id}`;
+    await sql`UPDATE submissions SET ai_score = ${scorecard} WHERE id = ${id}`;
     res.json({ ok: true, scorecard: scorecard });
   } catch (err) {
     console.error('[submissions/score]', err.message);
