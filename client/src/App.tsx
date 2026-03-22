@@ -44,6 +44,17 @@ function App() {
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [injectContext, setInjectContext] = useState<string | null>(null);
+
+  // Listen for element captures from inspect tool
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string;
+      setInjectContext(detail);
+    };
+    window.addEventListener("forge:inject_context", handler);
+    return () => window.removeEventListener("forge:inject_context", handler);
+  }, []);
   const [mobileView, setMobileView] = useState<"chat" | "workspace">("chat");
   const [isNewProjectMode, setIsNewProjectMode] = useState(false);
 
@@ -232,6 +243,8 @@ function App() {
             chatMessages={chatMessages}
             onSendChat={sendChat}
             chatLoading={chatLoading}
+            injectContext={injectContext}
+            onClearInjectContext={() => setInjectContext(null)}
           />
         </div>
         <div className={`mobile-panel mobile-panel-workspace ${mobileView === "workspace" ? "mobile-active" : ""}`}>
