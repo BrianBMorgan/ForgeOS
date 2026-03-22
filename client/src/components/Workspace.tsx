@@ -809,6 +809,10 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
             <div className="render-v2-deploying-overlay">
               <div className="render-v2-deploying-spinner" />
               <span>Deploying... live in ~2 min</span>
+              <button
+                onClick={() => setDeployStatus(s => s ? { ...s, status: "running" } : s)}
+                style={{ marginTop: 12, padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "transparent", border: "1px solid rgba(255,255,255,0.4)", color: "white", borderRadius: 4 }}
+              >Already live? Dismiss</button>
             </div>
           )}
         </div>
