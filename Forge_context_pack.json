@@ -1,16 +1,11 @@
 {
   "version": "7.0.0",
   "updated": "2026-03-22",
-  "current_state": "ForgeOS v2 fully operational. Frank + Gemini two-agent architecture live. Intel Event Content Review shipped. Countdown timer app built via Frank/Gemini flow. Dashboard ported from Mission Control into ForgeOS sidebar. Inspect tool rebuilt. Lucide icons added. Full deploy loop (commit -> Render -> UI refresh) wired end to end.",
+  "current_state": "Architecture v2.1 is live. ForgeOS is now powered exclusively by Gemini 2.5 Pro. The local-to-cloud autonomous maintenance loop is operational and verified.",
   "next_steps": [
-    "Test Frank + Gemini flow on a fresh project end to end",
-    "Run Brain memory purge with v1 poison terms (task_complete, write_file, run_command, list_files, wsDir, buildAndDeploy)",
-    "Verify ForgeOS TypeScript build passes after recent Workspace.tsx + App.tsx changes",
-    "Add pgvector semantic search to Brain (VoyageAI voyage-code-2, 1024 dimensions)",
-    "BYO custom domain support for published apps",
-    "Sandbox-ERP migration: Replit export + dependency audit (Clerk for auth)",
-    "Publish Sandbox-GTM article: Event Platform Analytics vs. GTM",
-    "Sandbox-XM website rebuild in Forge"
+    "Formalize architect.py into the core repository structure.",
+    "Stress test Gemini 2.5 Pro reasoning on complex multi-file app builds.",
+    "Expand the local toolset for more granular filesystem control."
   ],
   "architecture": {
     "model": "ForgeOS v2 \u2014 Frank (Claude) architects + delegates to Gemini 2.5 Pro via write_code tool. GitHub is the filesystem. Render is the runtime.",
@@ -317,6 +312,11 @@
         "intel_shipped": "b80dea7",
         "package_json_restored": "c5c7730"
       }
+    },
+    {
+      "date": "2026-03-22",
+      "session_title": "Sunset Claude-3.5-Sonnet, Moved to Gemini 2.5 Pro",
+      "summary": "Successfully sunset Claude-3.5-Sonnet and moved the Frank planner to Gemini 2.5 Pro. Unified the SDK to google-genai and established a local autonomous Architect Shell (architect.py) for hands-free maintenance. Resolved tool schema mismatch (input_schema to parameters)."
     }
   ],
   "context_pack_update_instructions": {
