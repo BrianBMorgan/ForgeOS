@@ -659,6 +659,7 @@ function showSection(id){
   });
   document.getElementById("sec-"+id).classList.add("active");
   document.getElementById("nav-"+id).classList.add("active");
+  if(id==="events")loadEvents();
   if(id==="submissions")loadSubmissions();
   if(id==="review")loadReview();
 }
