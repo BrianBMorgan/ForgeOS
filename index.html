@@ -463,7 +463,7 @@ function renderSubTable() {
     var score = s.ai_score ? s.ai_score.overall_score : null;
     var scoreBadge = score !== null ? '<span class="badge ' + (score>=80?'score-high':score>=60?'score-mid':'score-low') + '">' + score + '</span>' : '<span class="badge score-none">&mdash;</span>';
     var statusBadge = '<span class="badge badge-' + (s.status||'submitted') + '">' + (s.status||'submitted').replace('_',' ') + '</span>';
-    html += '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'') + '">' + (s.title||'').slice(0,55) + (s.title&&s.title.length>55?'...':'') + '</td><td>' + (s.bu||'&mdash;') + '</td><td>' + (s.track||'&mdash;') + '</td><td>' + (s.format||'&mdash;') + '</td><td style="font-size:11px">' + (s.intel_speakers||'&mdash;').slice(0,40) + '</td><td style="text-align:center">' + (s.demos&&s.demos!=='None'&&s.demos!=='TBD'?'&#10003;':'&mdash;') + '</td><td style="text-align:center">' + (s.partner_speakers&&s.partner_speakers!=='TBD'?'&#10003;':'&mdash;') + '</td><td>' + statusBadge + '</td><td>' + scoreBadge + '</td><td class="actions"><a onclick="viewSubmission(' + s.id + ')">View</a><a onclick="scoreSubmission(' + s.id + ')">Score</a><a onclick="editStatus(' + s.id + ')">Status</a></td></tr>';
+    html += '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'') + '">' + (s.title||'').slice(0,55) + (s.title&&s.title.length>55?'...':'') + '</td><td>' + (s.bu||'&mdash;') + '</td><td>' + (s.track||'&mdash;') + '</td><td>' + (s.format||'&mdash;') + '</td><td style="font-size:11px">' + (s.intel_speakers||'&mdash;').slice(0,40) + '</td><td style="text-align:center">' + (s.demos&&s.demos!=='None'&&s.demos!=='TBD'?'&#10003;':'&mdash;') + '</td><td style="text-align:center">' + (s.partner_speakers&&s.partner_speakers!=='TBD'?'&#10003;':'&mdash;') + '</td><td>' + statusBadge + '</td><td>' + scoreBadge + '</td><td class="actions"><a onclick="viewSubmission(' + s.id + ')">View</a><a onclick="scoreSubmission(' + s.id + ')">Score</a><a onclick="editStatus(' + s.id + ')">Status</a><a onclick="editSubmission(' + s.id + ')">Edit</a></td></tr>';
   });
   html += '</tbody></table>';
   if (!filtered.length) html = '<div class="loading">No submissions match filters.</div>';
@@ -558,6 +558,26 @@ async function viewSubmission(id) {
 
 async function saveNotes(id, notes) {
   await api('PUT', '/api/submissions/' + id, { reviewer_notes: notes });
+}
+
+function editSubmission(id) {
+  var s = allSubmissions.find(function(x){return x.id===id;});
+  if (!s) return;
+  var panel = document.getElementById('slide-panel');
+  panel.innerHTML = '<h2>Edit Submission</h2>' + submissionForm(s) + '<button class="btn-primary" id="btn-save-edit-sub">Save Changes</button>';
+  document.getElementById('btn-save-edit-sub').addEventListener('click', function() { saveEditedSubmission(id); });
+  openPanel();
+}
+
+async function saveEditedSubmission(id) {
+  var data = getSubmissionFormData();
+  delete data.event_id;
+  var r = await api('PUT', '/api/submissions/' + id, data);
+  if (r.error) { alert(r.error); return; }
+  var idx = allSubmissions.findIndex(function(x){return x.id===id;});
+  if (idx >= 0) { Object.assign(allSubmissions[idx], r.submission || data); }
+  closePanel();
+  renderSubTable();
 }
 
 function editStatus(id) {
@@ -777,6 +797,8 @@ window.saveNewSubmission = saveNewSubmission;
 window.viewSubmission = viewSubmission;
 window.saveNotes = saveNotes;
 window.editStatus = editStatus;
+window.editSubmission = editSubmission;
+window.saveEditedSubmission = saveEditedSubmission;
 window.saveStatus = saveStatus;
 window.scoreSubmission = scoreSubmission;
 window.exportCSV = exportCSV;
