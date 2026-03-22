@@ -8,6 +8,8 @@ interface PromptColumnProps {
   chatMessages: ChatMessage[];
   onSendChat: (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => void;
   chatLoading: boolean;
+  injectContext?: string | null;
+  onClearInjectContext?: () => void;
 }
 
 
@@ -34,8 +36,18 @@ export default function PromptColumn({
   chatMessages,
   onSendChat,
   chatLoading,
+  injectContext,
+  onClearInjectContext,
 }: PromptColumnProps) {
   const [prompt, setPrompt] = useState("");
+
+  // Pre-populate chat input when inspect tool captures an element
+  useEffect(() => {
+    if (injectContext) {
+      setPrompt(prev => (prev ? prev + "\n\n" : "") + injectContext);
+      if (onClearInjectContext) onClearInjectContext();
+    }
+  }, [injectContext, onClearInjectContext]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatThreadRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
