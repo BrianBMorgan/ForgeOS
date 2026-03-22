@@ -691,7 +691,7 @@ async function renderReview() {
     ts.forEach(function(s) {
       var sc = s.ai_score;
       var cls = sc ? (sc.overall_score>=80?'score-high':sc.overall_score>=60?'score-mid':'score-low') : 'score-none';
-      var scoreVal = sc ? sc.overall_score : '&mdash;';
+      var scoreVal = sc ? 'Score: ' + sc.overall_score : 'Not Scored';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #EAEAEA">';
       html += '<div><div style="font-weight:500">' + (s.title||'').slice(0,70) + '</div>';
       html += '<div style="font-size:11px;color:#888">' + (s.bu||'') + '</div></div>';
