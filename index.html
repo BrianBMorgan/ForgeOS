@@ -461,8 +461,9 @@ function renderSubTable() {
   var html = '<table><thead><tr><th>Title</th><th>BU</th><th>Track</th><th>Format</th><th>Speakers</th><th>Demo</th><th>Partner</th><th>Status</th><th>AI Score</th><th>Actions</th></tr></thead><tbody>';
   filtered.forEach(function(s){
     var score = s.ai_score ? s.ai_score.overall_score : null;
-    var scoreBadge = score !== null ? '<span class="badge ' + (score>=80?'score-high':score>=60?'score-mid':'score-low') + '">' + score + '</span>' : '<span class="badge score-none">&mdash;</span>';
-    var statusBadge = '<span class="badge badge-' + (s.status||'submitted') + '">' + (s.status||'submitted').replace('_',' ') + '</span>';
+    var scoreBadge = score !== null ? '<span class="badge ' + (score>=80?'score-high':score>=60?'score-mid':'score-low') + '">Score: ' + score + '</span>' : '<span class="badge score-none">Not Scored</span>';
+    function toTitleCase(str) { return str.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}); }
+    var statusBadge = '<span class="badge badge-' + (s.status||'submitted') + '">' + toTitleCase(s.status||'submitted') + '</span>';
     html += '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'') + '">' + (s.title||'').slice(0,55) + (s.title&&s.title.length>55?'...':'') + '</td><td>' + (s.bu||'&mdash;') + '</td><td>' + (s.track||'&mdash;') + '</td><td>' + (s.format||'&mdash;') + '</td><td style="font-size:11px">' + (s.intel_speakers||'&mdash;').slice(0,40) + '</td><td style="text-align:center">' + (s.demos&&s.demos!=='None'&&s.demos!=='TBD'?'&#10003;':'&mdash;') + '</td><td style="text-align:center">' + (s.partner_speakers&&s.partner_speakers!=='TBD'?'&#10003;':'&mdash;') + '</td><td>' + statusBadge + '</td><td>' + scoreBadge + '</td><td class="actions"><a onclick="viewSubmission(' + s.id + ')">View</a><a onclick="scoreSubmission(' + s.id + ')">Score</a><a onclick="editStatus(' + s.id + ')">Status</a><a onclick="editSubmission(' + s.id + ')">Edit</a></td></tr>';
   });
   html += '</tbody></table>';
