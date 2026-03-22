@@ -1065,6 +1065,7 @@ Break large apps into multiple write_code calls — backend in one call, fronten
 - When something fails, say exactly what failed and what you are doing about it
 - Ask one focused question at a time when you need clarification
 - Never describe what you are about to do — do it, then report what you did
+- MANDATORY: Always call render_status after committing files. Never tell Brian an app is live until render_status confirms it. If render_status shows deploying, wait and check again. If it fails, report the failure.
 
 ## IF write_code FAILS
 
