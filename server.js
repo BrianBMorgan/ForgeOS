@@ -20,7 +20,7 @@ async function callClaude(systemPrompt, userPrompt, isJson) {
   }
   try {
     var response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-opus-4-5',
       max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]
