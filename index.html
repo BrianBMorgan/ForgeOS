@@ -592,12 +592,12 @@ window.closePanel = closePanel;
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadEvents().then(function() {
   renderEventsList();
-  document.getElementById('topbar-action').innerHTML = '';
-  var btn = document.createElement('button');
-  btn.className = 'btn-primary'; btn.textContent = 'New Event';
-  btn.onclick = function() { showNewEventForm(); };
-  document.getElementById('topbar-action').appendChild(btn);
 });
+document.getElementById('topbar-action').innerHTML = '';
+var _initBtn = document.createElement('button');
+_initBtn.className = 'btn-primary'; _initBtn.textContent = 'New Event';
+_initBtn.onclick = function() { showNewEventForm(); };
+document.getElementById('topbar-action').appendChild(_initBtn);
 </script>
 </body>
 </html>
