@@ -20,7 +20,7 @@ async function callClaude(systemPrompt, userPrompt, isJson) {
   }
   try {
     var response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'gemini-1.5-pro-latest',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]
@@ -41,6 +41,56 @@ async function callClaude(systemPrompt, userPrompt, isJson) {
     }
   } catch (error) {
     console.error('Error calling Claude API:', error.response ? error.response.data : error.message);
+    throw new Error('Failed to get response from AI model.');
+  }
+}
+
+async function callGemini(systemPrompt, userPrompt, isJson) {
+  var GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY environment variable not set.');
+  }
+
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=' + GEMINI_API_KEY;
+  
+  var requestBody = {
+    systemInstruction: {
+      parts: [{ text: systemPrompt }]
+    },
+    contents: [{
+      parts: [{ text: userPrompt }]
+    }],
+    generationConfig: {}
+  };
+
+  if (isJson) {
+    requestBody.generationConfig.responseMimeType = 'application/json';
+  }
+
+  try {
+    var response = await axios.post(url, requestBody, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000
+    });
+
+    if (!response.data.candidates || !response.data.candidates.length) {
+        throw new Error('No content returned from Gemini API');
+    }
+    
+    var contentText = response.data.candidates[0].content.parts[0].text;
+    
+    if (isJson) {
+      return JSON.parse(contentText);
+    } else {
+      return contentText;
+    }
+  } catch (error) {
+    console.error('Error calling Gemini API:', error.response ? error.response.data : error.message);
+    if (error.response && error.response.data && error.response.data.error) {
+        console.error('Gemini API Error Details:', error.response.data.error.message);
+    }
     throw new Error('Failed to get response from AI model.');
   }
 }
@@ -419,7 +469,7 @@ app.post('/api/submissions/:id/score', async function (req, res) {
       'Business Challenge: ' + (sub.business_challenge || ''),
       'Intel Speakers: ' + (sub.intel_speakers || '')
     ].join('\n');
-    var scorecard = await callClaude(evt.ai_system_prompt, userPrompt, true);
+    var scorecard = await callGemini(evt.ai_system_prompt, userPrompt, true);
     await sql`UPDATE submissions SET ai_score = ${scorecard} WHERE id = ${id}`;
     res.json({ ok: true, scorecard: scorecard });
   } catch (err) {
@@ -451,7 +501,7 @@ app.post('/api/submissions/:id/enrich', async function (req, res) {
 
     var systemPrompt = `You are a world-class content editor for a tech conference. Your task is to refine the provided abstract to be clearer, more impactful, and better aligned with the event's audience, without changing the core technical message.\n\nEvent context for audience and theme alignment:\n${event.context_profile}`;
 
-    var enriched_abstract = await callClaude(systemPrompt, submission.abstract, false);
+    var enriched_abstract = await callGemini(systemPrompt, submission.abstract, false);
 
     res.json({ ok: true, enriched_abstract: enriched_abstract });
   } catch (err) {
