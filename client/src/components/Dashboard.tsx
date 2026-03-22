@@ -23,17 +23,10 @@ interface MemoryStats {
   error?: string;
 }
 
-interface LogLine {
-  timestamp: string;
-  message: string;
-  level?: string;
-}
-
 export default function Dashboard() {
   const [status, setStatus] = useState<ServiceStatus | null>(null);
   const [builds, setBuilds] = useState<Build[]>([]);
   const [memory, setMemory] = useState<MemoryStats | null>(null);
-  const [logs, setLogs] = useState<LogLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [redeploying, setRedeploying] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
