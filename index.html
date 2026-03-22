@@ -559,6 +559,49 @@ async function scoreAllUnscored() {
   renderReview();
 }
 
+// ── Review tab switcher ──────────────────────────────────────────────────────
+function reviewTab(el, name) {
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+  el.classList.add('active');
+  ['ranked','tracks','compare'].forEach(function(n){
+    var div = document.getElementById('review-' + n);
+    if (div) div.style.display = n === name ? 'block' : 'none';
+  });
+}
+
+function toggleCompare(id) {
+  var idx = compareIds.indexOf(id);
+  if (idx === -1) { if (compareIds.length < 3) compareIds.push(id); }
+  else { compareIds.splice(idx, 1); }
+  renderCompareTable();
+}
+
+function renderCompareTable() {
+  var el = document.getElementById('compare-table');
+  if (!el) return;
+  var subs = compareIds.map(function(id){ return allSubmissions.find(function(s){return s.id===id;}); }).filter(Boolean);
+  if (subs.length < 2) { el.innerHTML = '<div class="loading">Select 2 or 3 submissions above to compare.</div>'; return; }
+  var dims = ['federal_relevance','technical_depth','intel_alignment','audience_fit','innovation_signal','delivery_readiness'];
+  var html = '<table><thead><tr><th>Dimension</th>' + subs.map(function(s){return '<th>' + (s.title||'').slice(0,30) + '</th>';}).join('') + '</tr></thead><tbody>';
+  dims.forEach(function(d){
+    html += '<tr><td style="font-weight:500">' + d.replace(/_/g,' ') + '</td>';
+    subs.forEach(function(s){
+      var sc = s.ai_score && s.ai_score.dimension_scores && s.ai_score.dimension_scores[d] ? s.ai_score.dimension_scores[d].score : (s.ai_score && s.ai_score.dimensions && s.ai_score.dimensions[d] ? s.ai_score.dimensions[d].score : '—');
+      var cls = typeof sc === 'number' ? (sc>=80?'score-high':sc>=60?'score-mid':'score-low') : 'score-none';
+      html += '<td><span class="badge ' + cls + '">' + sc + '</span></td>';
+    });
+    html += '</tr>';
+  });
+  html += '<tr><td style="font-weight:700">Overall</td>';
+  subs.forEach(function(s){
+    var ov = s.ai_score ? (s.ai_score.overall_score || s.ai_score.overall || '—') : '—';
+    var cls = typeof ov === 'number' ? (ov>=80?'score-high':ov>=60?'score-mid':'score-low') : 'score-none';
+    html += '<td><span class="badge ' + cls + '" style="font-size:14px">' + ov + '</span></td>';
+  });
+  html += '</tr></tbody></table>';
+  el.innerHTML = html;
+}
+
 // ── Panel helpers ─────────────────────────────────────────────────────────────
 function openPanel() { document.getElementById('panel-overlay').classList.add('open'); document.getElementById('slide-panel').classList.add('open'); }
 function closePanel() { document.getElementById('panel-overlay').classList.remove('open'); document.getElementById('slide-panel').classList.remove('open'); }
@@ -590,14 +633,8 @@ window.openPanel = openPanel;
 window.closePanel = closePanel;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-loadEvents().then(function() {
-  renderEventsList();
-});
-document.getElementById('topbar-action').innerHTML = '';
-var _initBtn = document.createElement('button');
-_initBtn.className = 'btn-primary'; _initBtn.textContent = 'New Event';
-_initBtn.onclick = function() { showNewEventForm(); };
-document.getElementById('topbar-action').appendChild(_initBtn);
+renderEventsList();
+addTopbarBtn('New Event', showNewEventForm);
 </script>
 </body>
 </html>
