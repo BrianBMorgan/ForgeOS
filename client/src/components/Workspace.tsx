@@ -405,7 +405,7 @@ function FilesTab({ projectId, slug, refreshKey }: { projectId: string | null; s
       setFiles([]);
     }
     setLoading(false);
-  }, [branch]);
+  }, [branch, refreshKey]);
 
   useEffect(() => {
     if (branch) {
@@ -565,7 +565,7 @@ function CommitsTab({ projectId, slug, refreshKey }: { projectId: string | null;
       setError(err.message);
     }
     setLoading(false);
-  }, [branch]);
+  }, [branch, refreshKey]);
 
   useEffect(() => {
     if (branch) fetchCommits();
@@ -696,7 +696,7 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
       setDeployStatus(null);
     }
     setLoading(false);
-  }, [projectId, appUrl]);
+  }, [projectId, appUrl, refreshKey]);
 
   // Initial fetch + start polling if deploying; stop when live
   useEffect(() => {
