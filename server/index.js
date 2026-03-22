@@ -867,12 +867,12 @@ app.post("/api/hubspot/deals", async (req, res) => {
   }
 });
 
-// ── FORGE CHAT — Direct Anthropic Streaming ──────────────────────────────────
-// Claude Code architecture. No agent loop. No nudges. No guards.
-// Claude gets tools and a system prompt. It calls tools when it needs to.
+// ── FORGE CHAT — Direct Gemini Streaming ──────────────────────────────────
+// Gemini Code architecture. No agent loop. No nudges. No guards.
+// Gemini gets tools and a system prompt. It calls tools when it needs to.
 // It stops when it is done. We get out of the way.
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const Anthropic = require("@anthropic-ai/sdk");
 
 const GITHUB_REPO = "BrianBMorgan/ForgeOS";
 
@@ -1318,10 +1318,11 @@ app.post("/api/projects/:id/chat", async (req, res) => {
   let history = [];
   try {
     const rows = await brain.getConversation(project.id, 30);
-    history = rows.map(function(r) { return { role: r.role, content: r.content }; });
+    // We keep the history in Anthropic format for DB storage consistency
+    history = rows.map(r => ({ role: r.role, content: r.content }));
   } catch {}
 
-  brain.appendConversation(project.id, "user", message.trim()).catch(function() {});
+  brain.appendConversation(project.id, "user", message.trim()).catch(() => {});
 
   // SSE
   res.setHeader("Content-Type", "text/event-stream");
@@ -1332,159 +1333,126 @@ app.post("/api/projects/:id/chat", async (req, res) => {
   function send(evt) { res.write("data: " + JSON.stringify(evt) + "\n\n"); }
 
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
     // Memory context
     let memoryBlock = "";
     try {
       memoryBlock = await Promise.race([
         brain.buildContext(message.trim(), project.id),
-        new Promise(function(_, rej) { setTimeout(function() { rej(new Error("timeout")); }, 4000); }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
       ]);
     } catch {}
 
     // Build system prompt
     const sysParts = [];
-
-    // Inject project context — Frank always knows exactly which branch to use
     const pubApp = publishManager.getPublishedApp(project.id);
     const projectSlug = pubApp ? pubApp.slug : require("./publish/manager").generateSlug(project.name);
     const projectBranch = "apps/" + projectSlug;
     const projectUrl = "https://" + projectSlug + ".forge-os.ai";
-    sysParts.push("## THIS PROJECT\nName: " + project.name + "\nBranch: " + projectBranch + "\nLive URL: " + projectUrl + "\n\nAlways use branch: '" + projectBranch + "' in every github_write, github_patch, and github_ls call for this project.");
-
+    sysParts.push(`## THIS PROJECT\nName: ${project.name}\nBranch: ${projectBranch}\nLive URL: ${projectUrl}\n\nAlways use branch: '${projectBranch}' in every github_write, github_patch, and github_ls call for this project.`);
     if (memoryBlock && memoryBlock.trim()) sysParts.push("## RELEVANT MEMORY\n" + memoryBlock.trim());
     if (skillContext) sysParts.push("## SKILL INSTRUCTIONS\n" + skillContext);
     sysParts.push(FORGE_SYSTEM_PROMPT);
     const systemPrompt = sysParts.join("\n\n");
 
-    // Scrub orphaned tool_use blocks from history
-    const messages = [];
-    for (var i = 0; i < history.length; i++) {
-      var msg = history[i];
-      if (msg.role === "assistant" && Array.isArray(msg.content)) {
-        var hasToolUse = msg.content.some(function(b) { return b.type === "tool_use"; });
-        if (hasToolUse) {
-          var next = history[i + 1];
-          var nextHasResult = next && Array.isArray(next.content) && next.content.some(function(b) { return b.type === "tool_result"; });
-          if (!nextHasResult) { console.log("[forge] Dropped orphaned tool_use at", i); continue; }
-        }
-      }
-      messages.push({ role: msg.role, content: msg.content });
-    }
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-pro",
+      systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
+    });
 
-    // User message — support image attachments
-    var userContent;
+    // Convert Anthropic-formatted history to Gemini format for the API call
+    // This is a simplified conversion and may not perfectly handle complex tool histories.
+    const geminiMessages = history.map(msg => {
+      const role = msg.role === 'assistant' ? 'model' : 'user';
+      if (typeof msg.content === 'string') {
+        return { role, parts: [{ text: msg.content }] };
+      }
+      // For now, we only take the text part of complex messages from history.
+      const textContent = (Array.isArray(msg.content) ? msg.content.find(c => c.type === 'text')?.text : '') || '';
+      return { role, parts: [{ text: textContent }] };
+    }).filter(m => m.parts[0].text);
+
+    // Add current user message
+    const userParts = [{ text: message.trim() }];
     if (attachments && attachments.length > 0) {
-      userContent = [{ type: "text", text: message.trim() }];
-      for (var a = 0; a < attachments.length; a++) {
-        var att = attachments[a];
-        userContent.push({ type: "image", source: { type: "base64", media_type: att.mimeType || "image/png", data: att.dataUrl.split(",")[1] || att.dataUrl } });
+      for (const att of attachments) {
+        userParts.push({
+          inlineData: {
+            mimeType: att.mimeType || "image/png",
+            data: att.dataUrl.split(",")[1] || att.dataUrl,
+          }
+        });
       }
-    } else {
-      userContent = message.trim();
     }
-    messages.push({ role: "user", content: userContent });
+    geminiMessages.push({ role: "user", parts: userParts });
 
-    var fullAssistantMessage = "";
-    var MAX_ROUNDS = 50;
-    var startTime = Date.now();
+    let fullAssistantMessage = "";
+    const MAX_ROUNDS = 20;
 
-    // Claude drives. We execute tools. We get out of the way.
-    for (var round = 0; round < MAX_ROUNDS; round++) {
-      if (Date.now() - startTime > 20 * 60 * 1000) break;
-
-      var currentText = "";
-      var currentToolBlock = null;
-      var currentToolJson = "";
-
-      const stream = client.messages.stream({
-        model: "claude-sonnet-4-6",
-        max_tokens: 16000,
-        system: systemPrompt,
-        tools: FORGE_TOOLS,
-        messages: messages,
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const result = await model.generateContentStream({
+        contents: geminiMessages,
+        tools: [{ functionDeclarations: FORGE_TOOLS }],
       });
 
-      for await (const event of stream) {
-        if (event.type === "content_block_start") {
-          if (event.content_block.type === "tool_use") {
-            currentToolBlock = { id: event.content_block.id, name: event.content_block.name };
-            currentToolJson = "";
-            var statusMsg = (function(name) {
-              switch (name) {
-                case "github_ls":   return "Listing files...";
-                case "github_read": return "Reading file...";
-                case "github_write": return "Writing file...";
-                case "github_patch": return "Patching file...";
-                case "render_status": return "Checking deploy status...";
-                case "memory_search": return "Searching Brain...";
-                case "fetch_url": return "Fetching URL...";
-                default: return null;
-              }
-            })(event.content_block.name);
-            if (statusMsg) send({ type: "tool_status", content: statusMsg });
-          }
-        } else if (event.type === "content_block_delta") {
-          if (event.delta.type === "text_delta" && event.delta.text) {
-            currentText += event.delta.text;
-            send({ type: "thinking", content: currentText });
-          } else if (event.delta.type === "input_json_delta") {
-            currentToolJson += event.delta.partial_json;
-          }
-        } else if (event.type === "content_block_stop") {
-          if (currentToolBlock) {
-            var inp = {};
-            try { inp = JSON.parse(currentToolJson || "{}"); } catch {}
-            var refinedStatus = (function(name, i) {
-              switch (name) {
-                case "github_ls":   return "Listing " + (i.branch || "main") + "/" + (i.path || "") + "...";
-                case "github_read": return "Reading " + (i.filepath || "") + "...";
-                case "github_write": return "Writing " + (i.filepath || "") + " to " + (i.branch || "main") + "...";
-                case "github_patch": return "Patching " + (i.filepath || "") + "...";
-                case "memory_search": return "Searching Brain: \"" + ((i.query || "").slice(0, 50)) + "\"...";
-                default: return null;
-              }
-            })(currentToolBlock.name, inp);
-            if (refinedStatus) send({ type: "tool_status", content: refinedStatus });
-            currentToolBlock.input = inp;
-            currentToolBlock = null;
-            currentToolJson = "";
-          }
+      let responseText = "";
+      let functionCalls = [];
+
+      for await (const chunk of result.stream) {
+        const text = chunk.text();
+        if (text) {
+          responseText += text;
+          send({ type: "thinking", content: responseText });
+        }
+        const fcs = chunk.functionCalls();
+        if (fcs) {
+          functionCalls.push(...fcs);
         }
       }
 
-      const response = await stream.finalMessage();
-      messages.push({ role: "assistant", content: response.content });
-
-      var textBlocks = response.content.filter(function(b) { return b.type === "text"; });
-      if (textBlocks.length > 0) {
-        var txt = textBlocks.map(function(b) { return b.text; }).join("\n").trim();
-        if (txt) fullAssistantMessage = txt;
+      const modelResponseParts = [];
+      if (responseText) {
+        modelResponseParts.push({ text: responseText });
+      }
+      if (functionCalls.length > 0) {
+        functionCalls.forEach(fc => modelResponseParts.push({ functionCall: fc }));
       }
 
-      // Only break if Claude made no tool calls — Claude decides when it's done
-      var toolCalls = response.content.filter(function(b) { return b.type === "tool_use"; });
-      if (toolCalls.length === 0) break;
+      if (modelResponseParts.length > 0) {
+        geminiMessages.push({ role: 'model', parts: modelResponseParts });
+      }
+
+      if (functionCalls.length === 0) {
+        fullAssistantMessage = responseText;
+        break; // End of conversation turn
+      }
 
       // Execute tools
-      var toolResults = [];
-      for (var t = 0; t < toolCalls.length; t++) {
-        var toolUse = toolCalls[t];
-        console.log("[forge] round=" + round + " tool=" + toolUse.name, JSON.stringify(toolUse.input).slice(0, 120));
-        var result = await executeForgeToken(toolUse.name, toolUse.input, send);
-        toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: String(result) });
+      const toolResultsParts = [];
+      for (const call of functionCalls) {
+        console.log(`[forge] round=${round} tool=${call.name}`, JSON.stringify(call.args).slice(0, 120));
+        const toolResultContent = await executeForgeToken(call.name, call.args, send);
+        toolResultsParts.push({
+          functionResponse: {
+            name: call.name,
+            response: { content: String(toolResultContent) },
+          },
+        });
       }
-      messages.push({ role: "user", content: toolResults });
+
+      if (toolResultsParts.length > 0) {
+        geminiMessages.push({ role: 'function', parts: toolResultsParts });
+      }
     }
 
-    brain.appendConversation(project.id, "assistant", fullAssistantMessage).catch(function() {});
-    brain.extractMemory({ projectId: project.id, userRequest: message.trim(), buildSummary: fullAssistantMessage.slice(0, 500), files: [] }).catch(function() {});
+    brain.appendConversation(project.id, "assistant", fullAssistantMessage).catch(() => {});
+    brain.extractMemory({ projectId: project.id, userRequest: message.trim(), buildSummary: fullAssistantMessage.slice(0, 500), files: [] }).catch(() => {});
 
     send({ type: "done", role: "assistant", content: fullAssistantMessage, building: false, createdAt: Date.now() });
 
   } catch (err) {
-    console.error("[forge] Chat error:", err.message);
+    console.error("[forge] Chat error:", err.message, err.stack);
     send({ type: "error", error: "Chat error: " + err.message });
   }
 
@@ -1815,11 +1783,3 @@ app.listen(PORT, "0.0.0.0", async () => {
   }
 
 });
-
-
-
-
-
-
-
-
