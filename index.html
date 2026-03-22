@@ -191,7 +191,7 @@ async function renderEventsList() {
     var count = subsByEvent[e.id] || 0;
     var slots = e.slot_count || 12;
     var pct = Math.min(100, Math.round(count/slots*100));
-    return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h3>' + e.name + '</h3><div class="meta">' + (e.event_date||'') + ' &nbsp;|&nbsp; ' + (e.venue||'') + '</div></div><div style="text-align:right"><span class="badge" style="background:#000864">' + count + ' / ' + slots + ' slots</span></div></div><div class="slot-bar" style="margin-top:12px"><div class="slot-bar-fill" style="width:' + pct + '%"></div></div></div>';
+    return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h3>' + e.name + '</h3><div class="meta">' + (e.event_date||'') + ' &nbsp;|&nbsp; ' + (e.venue||'') + '</div></div><div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px"><span class="badge" style="background:#000864">' + count + ' / ' + slots + ' slots</span><button class="btn-secondary" style="font-size:12px;padding:4px 10px" onclick="showNewEventForm(allEvents.find(function(ev){return ev.id===' + e.id + ';}))">Edit</button></div></div><div class="slot-bar" style="margin-top:12px"><div class="slot-bar-fill" style="width:' + pct + '%"></div></div></div>';
   }).join('') || '<div class="loading">No events yet.</div>';
 }
 
@@ -203,7 +203,7 @@ function showNewEventForm(editEvent) {
       '<div class="form-group"><label>Event Name *</label><input id="ef-name" value="' + (editEvent&&editEvent.name||'') + '"></div>' +
       '<div class="grid-2">' +
         '<div class="form-group"><label>Event Date</label><input id="ef-date" value="' + (editEvent&&editEvent.event_date||'') + '"></div>' +
-        '<div class="form-group"><label>Total Session Slots</label><input id="ef-slots" type="number" value="' + (editEvent&&editEvent.total_slots||12) + '"></div>' +
+        '<div class="form-group"><label>Total Session Slots</label><input id="ef-slots" type="number" value="' + (editEvent&&(editEvent.slot_count||editEvent.total_slots)||12) + '"></div>' +
       '</div>' +
       '<div class="form-group"><label>Venue</label><input id="ef-venue" value="' + (editEvent&&editEvent.venue||'') + '"></div>' +
       (isEdit ? '<button class="btn-primary" id="btn-save-edit">Save Changes</button>' : '<button class="btn-primary" id="btn-next-step">Next &rarr;</button>') +
