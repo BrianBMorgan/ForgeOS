@@ -1299,6 +1299,14 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
     // Build system prompt
     const sysParts = [];
+
+    // Inject project context — Frank always knows exactly which branch to use
+    const pubApp = publishManager.getPublishedApp(project.id);
+    const projectSlug = pubApp ? pubApp.slug : require("./publish/manager").generateSlug(project.name);
+    const projectBranch = "apps/" + projectSlug;
+    const projectUrl = "https://" + projectSlug + ".forge-os.ai";
+    sysParts.push("## THIS PROJECT\nName: " + project.name + "\nBranch: " + projectBranch + "\nLive URL: " + projectUrl + "\n\nAlways use branch: '" + projectBranch + "' in every github_write, github_patch, and github_ls call for this project.");
+
     if (memoryBlock && memoryBlock.trim()) sysParts.push("## RELEVANT MEMORY\n" + memoryBlock.trim());
     if (skillContext) sysParts.push("## SKILL INSTRUCTIONS\n" + skillContext);
     sysParts.push(FORGE_SYSTEM_PROMPT);
