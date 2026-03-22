@@ -688,13 +688,15 @@ async function renderReview() {
   } else {
     sortedSubs.forEach(function(s) {
       var sc = s.ai_score;
-      var cls = sc.overall_score >= 80 ? 'score-high' : sc.overall_score >= 60 ? 'score-mid' : 'score-low';
+      var scoreNum = (sc && sc.overall_score !== null && sc.overall_score !== undefined) ? sc.overall_score : null;
+      var cls = scoreNum !== null ? (scoreNum >= 80 ? 'score-high' : scoreNum >= 60 ? 'score-mid' : 'score-low') : 'score-none';
+      var scoreText = scoreNum !== null ? 'Score: ' + scoreNum : 'Not Scored';
       html += '<div class="card" style="display:flex;justify-content:space-between;align-items:flex-start">';
       html += '<div style="flex:1"><div style="font-weight:700">' + (s.title||'') + '</div>';
       html += '<div style="font-size:12px;color:#888">' + (s.bu||'') + ' | ' + (s.track||'') + '</div>';
-      html += '<div style="font-size:12px;margin-top:4px;color:#444">' + (sc.recommendation||'') + '</div></div>';
+      html += '<div style="font-size:12px;margin-top:4px;color:#444">' + (sc ? (sc.recommendation||'') : '') + '</div></div>';
       html += '<div style="text-align:right;margin-left:16px">';
-      html += '<span class="badge ' + cls + '" style="font-size:18px;padding:6px 12px">Score: ' + sc.overall_score + '</span>';
+      html += '<span class="badge ' + cls + '" style="font-size:18px;padding:6px 12px">' + scoreText + '</span>';
       html += '<div style="margin-top:8px"><a style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View Details</a></div>';
       html += '</div></div>';
     });
@@ -708,8 +710,9 @@ async function renderReview() {
     html += '<h3 style="font-weight:700;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid #00AAE8">' + track + ' (' + ts.length + ')</h3>';
     ts.forEach(function(s) {
       var sc = s.ai_score;
-      var cls = sc ? (sc.overall_score>=80?'score-high':sc.overall_score>=60?'score-mid':'score-low') : 'score-none';
-      var scoreVal = sc ? 'Score: ' + sc.overall_score : 'Not Scored';
+      var scoreNum = (sc && sc.overall_score !== null && sc.overall_score !== undefined) ? sc.overall_score : null;
+      var cls = scoreNum !== null ? (scoreNum >= 80 ? 'score-high' : scoreNum >= 60 ? 'score-mid' : 'score-low') : 'score-none';
+      var scoreVal = scoreNum !== null ? 'Score: ' + scoreNum : 'Not Scored';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #EAEAEA">';
       html += '<div><div style="font-weight:500">' + (s.title||'').slice(0,70) + '</div>';
       html += '<div style="font-size:11px;color:#888">' + (s.bu||'') + '</div></div>';
