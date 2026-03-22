@@ -377,7 +377,7 @@ interface GitHubFile {
   size?: number;
 }
 
-function FilesTab({ projectId, slug }: { projectId: string | null; slug?: string | null }) {
+function FilesTab({ projectId, slug, refreshKey }: { projectId: string | null; slug?: string | null; refreshKey?: number }) {
   const [files, setFiles] = useState<GitHubFile[]>([]);
   const [currentPath, setCurrentPath] = useState("");
   const [pathHistory, setPathHistory] = useState<string[]>([]);
@@ -544,7 +544,7 @@ interface GitCommit {
   date: string;
 }
 
-function CommitsTab({ projectId, slug }: { projectId: string | null; slug?: string | null }) {
+function CommitsTab({ projectId, slug, refreshKey }: { projectId: string | null; slug?: string | null; refreshKey?: number }) {
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [loading, setLoading] = useState(false);
   const [rollingBack, setRollingBack] = useState<string | null>(null);
@@ -663,7 +663,7 @@ function CommitsTab({ projectId, slug }: { projectId: string | null; slug?: stri
 
 // ── Render Tab ────────────────────────────────────────────────────────────────
 
-function RenderTab({ projectId, slug }: { projectId: string | null; slug?: string | null }) {
+function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; slug?: string | null; refreshKey?: number }) {
   const [deployStatus, setDeployStatus] = useState<{ status: string; url: string; lastDeploy: string; commit: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [redeploying, setRedeploying] = useState(false);
