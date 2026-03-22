@@ -1,389 +1,327 @@
 {
-  "version": "6.2.0",
-  "updated": "2026-03-20",
-  "current_state": "ForgeOS v2 -- Engine fixed. No apps until engine is proven.\n\nCOMPLETED THIS SESSION:\n- Phase 4 (Schema): COMPLETE. run_snapshots and iterations tables dropped. currentRunId gone. projects/manager.js 470->197 lines. ProjectsList.tsx cleaned. DbTab.tsx deleted.\n- github_create_branch tool added to forge.js (POST to GitHub refs API)\n- stream.js is the ACTIVE chat engine (not runForgeAgent). streamChat() wired in index.js.\n- Read-loop detection added to stream.js: after 2 reads with 0 writes, forced write nudge injected. After reads>writes+3, ongoing nudge.\n- forge.js buildSystemPrompt exports WRITING RULE: max 2 reads before first write.\n\nCRITICAL DISCOVERY:\n- The nudges built into forge.js (runForgeAgent) were NEVER firing -- stream.js is the active engine and had NO nudge logic.\n- The read loop during Intel build was caused by zero guard rails in stream.js.\n- Both files now have the read-loop guard. Deploy pending.\n\nWHAT HAPPENED WITH INTEL BUILD:\n- Branch creation gap found and fixed (github_create_branch tool)\n- Read loop exposed the missing nudge in stream.js\n- No app was successfully built -- Phase 5 is blocked until engine is proven with a simple test first\n\nNEXT: Test the engine with something small before Intel. One route, GET /, returns HTML. If that ships clean, Intel goes next.",
+  "version": "7.0.0",
+  "updated": "2026-03-22",
+  "current_state": "ForgeOS v2 fully operational. Frank + Gemini two-agent architecture live. Intel Event Content Review shipped. Countdown timer app built via Frank/Gemini flow. Dashboard ported from Mission Control into ForgeOS sidebar. Inspect tool rebuilt. Lucide icons added. Full deploy loop (commit -> Render -> UI refresh) wired end to end.",
   "next_steps": [
-    "FIRST -- Verify stream.js read-loop fix is working: test with a simple single-file app (GET / returns HTML page). No seed data, no DB, no AI. Just proof the write happens.",
-    "If simple test passes -- run Intel build. One prompt, watch it write without looping.",
-    "If Intel passes -- update context pack, update rebuild plan doc, declare v2 complete.",
-    "Phase 6 (post-v2): Replace Anthropic SDK agent loop in stream.js with true token streaming to client (tokens appear in real time, not after full response). This is the UX upgrade, not a correctness fix.",
-    "Sandbox-ERP migration: initiate Replit export and dependency audit (Clerk for auth)",
-    "BYO custom domain support for ForgeOS published apps"
+    "Test Frank + Gemini flow on a fresh project end to end",
+    "Run Brain memory purge with v1 poison terms (task_complete, write_file, run_command, list_files, wsDir, buildAndDeploy)",
+    "Verify ForgeOS TypeScript build passes after recent Workspace.tsx + App.tsx changes",
+    "Add pgvector semantic search to Brain (VoyageAI voyage-code-2, 1024 dimensions)",
+    "BYO custom domain support for published apps",
+    "Sandbox-ERP migration: Replit export + dependency audit (Clerk for auth)",
+    "Publish Sandbox-GTM article: Event Platform Analytics vs. GTM",
+    "Sandbox-XM website rebuild in Forge"
   ],
   "architecture": {
-    "model": "ForgeOS v2 \u2014 Claude writes directly to GitHub, Render deploys, ForgeOS is the GUI layer",
-    "deploy_chain": "Claude (via chat) \u2192 GitHub (BrianBMorgan/ForgeOS, apps/<slug> branch) \u2192 Render auto-deploy \u2192 *.forge-os.ai",
+    "model": "ForgeOS v2 \u2014 Frank (Claude) architects + delegates to Gemini 2.5 Pro via write_code tool. GitHub is the filesystem. Render is the runtime.",
+    "deploy_chain": "Frank reasons -> write_code -> Gemini writes files -> Frank commits via github_write to apps/<slug> -> Render auto-deploys -> *.forge-os.ai",
     "runtime": "Node.js + Express (CommonJS) on server; React + Vite (TypeScript) on client",
-    "database": "Neon PostgreSQL via @neondatabase/serverless (NEON_DATABASE_URL)",
-    "port": "process.env.PORT || 3001 (ForgeOS server)",
-    "binding": "0.0.0.0 for all interfaces",
-    "subdomain_proxy": "Wildcard *.forge-os.ai \u2192 Render services. CNAME + A record at Namecheap.",
-    "no_local_workspace": "CRITICAL: There is no local workspace in v2. No /data/workspaces/. No child processes. No install loop. GitHub is the filesystem. Render is the runtime.",
-    "what_died": [
-      "server/builder.js \u2014 DELETED",
-      "server/workspace/manager.js \u2014 DELETED",
-      "server/pipeline/runner.js \u2014 DELETED",
-      "write_file tool \u2014 GONE",
-      "task_complete tool \u2014 GONE",
-      "run_command tool \u2014 GONE",
-      "list_files tool \u2014 GONE",
-      "read_file tool \u2014 GONE",
-      "POST /api/projects/:id/iterate \u2014 GONE",
-      "POST /api/projects/:id/stop \u2014 GONE",
-      "POST /api/projects/:id/restart \u2014 GONE",
-      "GET /api/runs/:id/* routes \u2014 ALL GONE",
-      "Iteration model / run_snapshots \u2014 GONE",
-      "Hedwig (custom agent loop with nudges/guards) \u2014 BEING REPLACED"
+    "database": "Neon PostgreSQL via @neondatabase/serverless (NEON_DATABASE_URL reserved for ForgeOS)",
+    "port": "process.env.PORT || 3000",
+    "binding": "0.0.0.0",
+    "subdomain": "Wildcard *.forge-os.ai via Namecheap CNAME + A record",
+    "no_local_workspace": "CRITICAL: No local workspace. No child processes. No install loops. GitHub IS the filesystem. Render IS the runtime.",
+    "app_structure": "Every app: server.js (Express backend) + index.html (complete frontend). Never inline HTML into server.js template literals. Serve index.html via res.sendFile(path.join(__dirname, 'index.html'))."
+  },
+  "two_agent_system": {
+    "frank": {
+      "model": "claude-sonnet-4-6",
+      "role": "Architect and engineering partner. Thinks before delegating. Never writes code directly.",
+      "tools": [
+        "github_create_branch",
+        "github_ls",
+        "github_read",
+        "github_write",
+        "github_patch",
+        "render_status",
+        "memory_search",
+        "fetch_url",
+        "ask_user",
+        "write_code"
+      ],
+      "system_prompt_location": "FORGE_SYSTEM_PROMPT in server/index.js",
+      "key_behaviors": [
+        "Reads existing files before requesting changes",
+        "Searches Brain memory and skills before building",
+        "Breaks builds into chunks: backend first, then frontend",
+        "Calls write_code with precise spec and full file context",
+        "Commits returned files via github_write with explicit branch",
+        "MANDATORY: calls render_status to confirm deploy before reporting live",
+        "Never falls back to writing code if write_code fails",
+        "Never writes to main branch \u2014 absolute block enforced"
+      ]
+    },
+    "gemini": {
+      "model": "gemini-2.5-pro",
+      "role": "Code generation engine. Returns complete files as JSON.",
+      "response_format": "{ \"files\": { \"filename\": \"complete file contents\" } }",
+      "key_behaviors": [
+        "Always includes ForgeOS inspect snippet in every index.html before </head>",
+        "Never truncates files",
+        "Returns valid JSON only \u2014 no markdown fences, no preamble"
+      ]
+    }
+  },
+  "auto_provisioning": {
+    "trigger": "POST /api/projects",
+    "flow": [
+      "Generate slug: strip filler words (build, make, create, a, an, the, for, with, app), max 3 meaningful words",
+      "Create GitHub branch apps/<slug> from main HEAD",
+      "Create Render Web Service pointed at apps/<slug> with Global Secrets injected",
+      "Save to published_apps DB table",
+      "Branch and Render service exist before first Frank message"
     ],
-    "what_survives": [
-      "Chat column CSS/layout/streaming UI \u2014 unchanged",
-      "Brain memory system (Neon + forge_memory) \u2014 unchanged",
-      "Assets tab \u2014 global file uploads to Neon as base64",
-      "Wildcard subdomain proxy (*.forge-os.ai)",
-      "Render API integration (deploy, redeploy, status, logs)",
-      "GitHub API integration (github_read/write/patch)",
-      "Mission Control \u2014 sovereign ForgeOS administrator",
-      "Settings \u2014 env vars / Global Secrets Vault",
-      "server/publish/manager.js \u2014 subdomain + Render service management",
-      "server/projects/manager.js \u2014 project CRUD (simplified)",
-      "server/memory/brain.js \u2014 Brain interface",
-      "server/assets/manager.js \u2014 asset storage",
-      "server/integrations/hubspot.js \u2014 HubSpot CRM",
-      "server/analytics/ \u2014 analytics pipeline"
+    "github_write_side_effect": "If Frank writes to an apps/* branch with no Render service, github_write auto-provisions one",
+    "main_branch_protection": "github_write and github_patch both hard-block writes to main \u2014 BLOCKED error, no exceptions"
+  },
+  "project_context_injection": {
+    "description": "Every Frank session gets project branch and URL injected at top of system prompt",
+    "format": "## THIS PROJECT\\nName: <n>\\nBranch: apps/<slug>\\nLive URL: https://<slug>.forge-os.ai\\n\\nAlways use branch: 'apps/<slug>' in every github_write call.",
+    "source": "Built from published_apps record at chat route start"
+  },
+  "inspect_tool": {
+    "approach": "Snippet baked into every app index.html at build time \u2014 no proxy, no cross-origin issues",
+    "protocol": {
+      "activate": "iframeWin.postMessage({ type: 'forge:inspect:activate' }, '*')",
+      "selection_event": "{ type: 'forge:inspect:selection', outerHTML, textContent, selector }"
+    },
+    "ui_flow": "Inspect button in Render tab -> indigo hover overlay -> click -> context populates chat input",
+    "coverage": "14/17 published apps patched. v1 apps with inlined server.js HTML excluded (escaping risk)."
+  },
+  "deploy_loop": {
+    "flow": [
+      "github_write emits file_committed SSE -> client dispatches forge:file_committed",
+      "Workspace increments refreshKey -> FilesTab, CommitsTab, RenderTab re-fetch",
+      "RenderTab polls /api/projects/:id/publish every 5s",
+      "Endpoint checks live Render API when status is deploying, updates DB on change",
+      "Iframe reloads when status flips to running"
     ]
   },
-  "agent": {
-    "file": "server/agent/forge.js",
-    "model": "claude-sonnet-4-6",
-    "max_rounds": 50,
-    "max_ms": 1200000,
-    "current_state": "Beast mode restored (commit 98dcbb7). Wall in place. v2 tool updates PENDING.",
-    "entry": "runForgeAgent({ projectId, userMessage, wsDir: null, history, skillContext, attachments, onMessage })",
-    "tools_current_v1_pending_removal": [
-      "list_files \u2014 reads local workspace dir (REMOVE)",
-      "read_file \u2014 reads local workspace file (REMOVE)",
-      "write_file \u2014 writes local workspace file (REMOVE)",
-      "task_complete \u2014 triggers local install/start (REMOVE)",
-      "run_command \u2014 runs shell in local workspace (REMOVE)"
+  "dashboard": {
+    "description": "Mission Control ported into ForgeOS as native sidebar panel",
+    "nav_icon": "LayoutDashboard (Lucide)",
+    "features": [
+      "Service status + env key checks",
+      "Recent GitHub commits",
+      "Brain memory stats",
+      "Redeploy button"
     ],
-    "tools_keep": [
-      "github_read \u2014 read any file from GitHub branch (KEEP)",
-      "github_write \u2014 write complete file to GitHub branch (KEEP)",
-      "github_patch \u2014 surgical find/replace on GitHub file (KEEP)",
-      "memory_search \u2014 search Brain for patterns (KEEP)",
-      "ask_user \u2014 send message to Brian (KEEP)"
+    "routes": [
+      "/api/dashboard/status",
+      "/api/dashboard/builds",
+      "/api/dashboard/redeploy"
     ],
-    "tools_add": [
-      "github_ls \u2014 list files in project branch via GitHub tree API (NEW)",
-      "render_status \u2014 check latest deploy status, return live URL (NEW)"
-    ],
-    "system_prompt_update_needed": "Remove all references to write_file/task_complete/run_command/list_files. Add: GitHub IS the workspace. Write files with github_write/github_patch. Render auto-deploys on push. No task_complete \u2014 deploy is automatic."
+    "component": "client/src/components/Dashboard.tsx"
   },
-  "chat_engine": {
-    "current": "Hedwig \u2014 custom agent loop in server/index.js with nudges, guards, forced tool calls, task_complete detection. BEING REPLACED.",
-    "target": "Direct Anthropic API streaming. No agent loop. No nudges. No guards. Claude outputs structured commands (file writes, patches). Server parses and executes. Identical to Claude Code architecture.",
-    "why": "Hedwig fights Claude's training. Every patch found a new failure mode. The model behavior is stronger than application-layer patches. Direct streaming removes the fight entirely."
-  },
-  "server_routes": {
-    "health": "GET /health \u2192 { status: 'ok' }",
-    "projects": {
-      "POST /api/projects": "Create project. Body: { prompt, name }. Returns { id, name }. No build triggered \u2014 Forge writes to GitHub via chat.",
-      "GET /api/projects": "List all projects",
-      "GET /api/projects/:id": "Get project. Returns { ...project, iterations: [], currentRun: null }. No workspace status.",
-      "DELETE /api/projects/:id": "Delete project",
-      "PATCH /api/projects/:id/name": "Rename project"
-    },
-    "chat": "POST /api/projects/:id/chat \u2014 SSE stream. Runs Forge agent. Returns thinking/done/error events.",
-    "brain": "GET /api/brain, POST /api/brain/search, etc.",
-    "assets": "GET/POST/DELETE /api/assets/*",
-    "publish": "GET/POST /api/publish/* \u2014 subdomain + Render service management",
-    "settings": "GET/POST /api/settings/*",
-    "removed": "All /api/runs/* routes, /iterate, /stop, /restart, /exec \u2014 GONE in v2"
-  },
-  "client_components": {
-    "framework": "React 18 + TypeScript + Vite",
-    "entry": "client/src/main.tsx \u2192 App.tsx",
-    "css": "client/src/index.css (103KB \u2014 full design system)",
-    "components": {
-      "App.tsx": "Root. Project selection, global state, tab routing. Iteration model state being removed in v2.",
-      "ProjectsList.tsx": "Project cards. Create/delete/select projects.",
-      "Workspace.tsx": "Main workspace (87KB). NEEDS REBUILD: remove Shell/DB/Diff/Plan/Logs tabs. Add Files tab (GitHub tree), Commits tab (git history + rollback). Keep Publish, Env tabs.",
-      "PromptColumn.tsx": "Chat column (18KB). CSS/layout/streaming UI stays. Agent loop connection being replaced with direct streaming.",
-      "Settings.tsx": "Settings panels \u2014 env vars, secrets vault, skills. Unchanged.",
-      "Assets.tsx": "Asset upload/management. Unchanged."
-    },
-    "tabs_to_remove": [
-      "Shell",
-      "DB",
-      "Diff",
-      "Plan",
-      "Analytics",
-      "Logs"
+  "sidebar_nav": {
+    "items": [
+      "projects (AppWindowMac)",
+      "assets (FileBox)",
+      "settings (SettingsIcon)",
+      "dashboard (LayoutDashboard)"
     ],
-    "tabs_to_add": [
-      "Files \u2014 live GitHub file tree, click to read, inline edit \u2192 github_patch",
-      "Commits \u2014 git history with one-click rollback via Render deploy"
-    ],
-    "tabs_to_keep": [
-      "Render/Preview (shows live *.forge-os.ai URL)",
-      "Publish",
-      "Env"
-    ]
+    "icon_library": "lucide-react ^0.400.0",
+    "note": "Lucide Settings aliased as SettingsIcon to avoid conflict with Settings component import"
   },
   "server_modules": {
-    "ACTIVE": {
-      "server/index.js": "Main Express server. v2 cleanup STAGED NOT PUSHED. Will be 1451 lines after push.",
-      "server/agent/forge.js": "Forge agent loop. Beast mode (98dcbb7). v2 tool updates pending.",
-      "server/memory/brain.js": "Brain DB \u2014 memories, conversation history, failure extraction.",
-      "server/projects/manager.js": "Project CRUD, env vars, iteration tracking (simplified in v2).",
-      "server/publish/manager.js": "Subdomain + Render service lifecycle.",
-      "server/assets/manager.js": "Global asset storage in Neon as base64.",
-      "server/settings/manager.js": "Settings + Global Secrets Vault.",
-      "server/integrations/hubspot.js": "HubSpot CRM wrapper.",
-      "server/analytics/": "Analytics pipeline \u2014 tracker, manager, routes.",
-      "server/chat/manager.js": "Chat history + Brain conversation interface.",
-      "server/plan/manager.js": "Plan gate (may be simplified or removed in v2)."
-    },
-    "DELETED": {
-      "server/builder.js": "DELETED \u2014 local Claude builder call",
-      "server/workspace/manager.js": "DELETED \u2014 local workspace lifecycle",
-      "server/pipeline/runner.js": "DELETED \u2014 local install/start runner"
-    }
-  },
-  "mission_control": {
-    "url": "https://mission-control.forge-os.ai",
-    "branch": "apps/mission-control",
-    "stable_commit": "7f041ec",
-    "stack": "Plain Node.js/Express, vanilla JS, inline HTML/CSS (Mode A)",
-    "current_state": "Beast mode. Full agent loop with 8 tools. Sovereign over ForgeOS infrastructure.",
-    "tools": [
-      "forge_status",
-      "github_read",
-      "github_patch",
-      "github_write",
-      "db_query",
-      "render_action",
-      "brain_query",
-      "respond"
-    ],
-    "wall": "Does NOT touch /data/workspaces/ or apps/<slug> branches. Forge owns those.",
-    "no_self_surgery": "MC does not modify its own code. That belongs to Claude.ai sessions.",
-    "chat_ui": "Plain text only \u2014 markdown rendering killed (bf04617). Color: #e8e8f0 on dark background. Font: 12px."
+    "server/index.js": "Main server + Frank chat engine + FORGE_SYSTEM_PROMPT + FORGE_TOOLS + executeForgeToken + write_code Gemini executor + all API routes",
+    "server/memory/brain.js": "Brain DB \u2014 memories, conversation history",
+    "server/projects/manager.js": "Project CRUD",
+    "server/publish/manager.js": "Render service lifecycle, generateSlug(), publishProject(), updateAppStatus()",
+    "server/publish/github.js": "GitHub API helpers \u2014 REQUIRED, do not delete",
+    "server/publish/render-api.js": "Render API helpers \u2014 REQUIRED, do not delete",
+    "server/assets/manager.js": "Global asset storage",
+    "server/settings/manager.js": "Settings + Global Secrets Vault",
+    "server/integrations/hubspot.js": "HubSpot CRM",
+    "DELETED": [
+      "server/agent/forge.js",
+      "server/chat/stream.js",
+      "server/chat/manager.js",
+      "server/analytics/tracker.js",
+      "server/analytics/manager.js",
+      "server/builder.js",
+      "server/workspace/manager.js",
+      "server/pipeline/runner.js"
+    ]
   },
   "env_vars": {
-    "required": {
-      "ANTHROPIC_API_KEY": "Claude API \u2014 all model calls",
-      "GITHUB_TOKEN": "GitHub API \u2014 repo read/write for ForgeOS and all app branches",
-      "NEON_DATABASE_URL": "ForgeOS Neon DB \u2014 Brain, projects, assets, conversations",
-      "RENDER_API_KEY": "Render API \u2014 deploy, redeploy, service management",
-      "RENDER_OWNER_ID": "Render owner ID for service creation",
-      "BASE_DOMAIN": "forge-os.ai \u2014 wildcard subdomain base",
-      "SESSION_SECRET": "HMAC cookie signing for ForgeOS auth gate",
-      "DATA_DIR": "/data \u2014 persistent disk mount on Render"
+    "forgeos_required": {
+      "ANTHROPIC_API_KEY": "Claude API \u2014 Frank",
+      "GEMINI_API_KEY": "Gemini 2.5 Pro \u2014 write_code. Must be in ForgeOS Render service env vars directly, not just Global Secrets.",
+      "GITHUB_TOKEN": "GitHub API",
+      "NEON_DATABASE_URL": "ForgeOS DB \u2014 RESERVED, never use in published apps",
+      "RENDER_API_KEY": "Render API",
+      "RENDER_OWNER_ID": "tea-d6gtqoh4tr6s73bgmk1g",
+      "BASE_DOMAIN": "forge-os.ai",
+      "SESSION_SECRET": "Cookie signing"
     },
-    "optional": {
-      "HUBSPOT_ACCESS_TOKEN": "HubSpot CRM integration",
-      "RESEND_API_KEY": "Email delivery",
-      "STABILITYAI_API_KEY": "StabilityAI image generation",
-      "OPENAI_API_KEY": "OpenAI fallback",
-      "ELEVENLABS_API_KEY": "Voice synthesis",
-      "VOYAGERAI_API_KEY": "VoyagerAI embeddings",
-      "ALLOWED_EMAILS": "Comma-separated whitelist for ForgeOS auth gate"
-    }
+    "global_secrets_injected_to_apps": [
+      "ANTHROPIC_API_KEY",
+      "STABILITYAI_API_KEY"
+    ],
+    "published_apps_db": "Use APP_DATABASE_URL or any custom name \u2014 never NEON_DATABASE_URL"
   },
   "conventions": {
-    "module_system": "CommonJS (require/module.exports) throughout server. ES modules in client (Vite/React).",
-    "api_keys": "Read from process.env at request time \u2014 never cached at module load.",
-    "error_responses": "{ error: 'message' } with appropriate HTTP status.",
-    "database": "@neondatabase/serverless exclusively. No pg, sqlite, mysql2.",
-    "no_dotenv": "Platform injects env vars at runtime. No dotenv require anywhere.",
-    "app_branches": "apps/<slug> \u2014 one branch per published app. Render watches the branch and auto-deploys on push.",
-    "neon_database_url_reserved": "NEON_DATABASE_URL is reserved for ForgeOS itself. Published apps needing their own DB must use a custom env var name (e.g. CANVAS_DATABASE_URL).",
-    "proxy_rules": "Subdomain proxy always uses redirect:manual. Never follows 302s. Re-encodes form POST bodies as URLSearchParams not JSON.",
-    "no_backticks_in_templates": "Never write inline backtick-wrapped content inside JS template literal strings.",
-    "voice_directive": "Never use 'refactor' \u2014 the correct term is 'reforge'",
-    "forge_reply_language": "Use 'I'll make this update' for changes. Reserve 'I found the bug' for actual crashes."
+    "module_system": "CommonJS on server, ES modules in client",
+    "no_dotenv": "Platform injects env vars. No dotenv anywhere.",
+    "frontend_separation": "index.html + server.js always. Never inline HTML into JS strings.",
+    "inspect_snippet": "Required in every app index.html before </head>",
+    "port": "process.env.PORT || 3000",
+    "urls": "Root-relative only (/api/... not http://localhost/...)",
+    "branch_naming": "apps/<slug>",
+    "typescript": "noUnusedLocals is on \u2014 all props must be used"
   },
-  "design_system": {
-    "colors": {
-      "background": "#0d0d1a",
-      "surface": "#12122a",
-      "border": "#1e1e3a",
-      "text_primary": "#e8e8f0",
-      "text_secondary": "#888899",
-      "accent": "#6366f1",
-      "accent_hover": "#5355d1",
-      "success": "#22c55e",
-      "error": "#ef4444",
-      "warning": "#f59e0b"
+  "known_issues_and_gotchas": {
+    "gemini_model": "gemini-2.5-pro confirmed working. gemini-2.5-pro-exp-03-25 is 404.",
+    "gemini_key_scope": "GEMINI_API_KEY must be in ForgeOS's OWN Render env vars. Global Secrets only inject into published apps.",
+    "main_branch_protection": "github_write + github_patch both return BLOCKED if branch is main. Only way to touch main is Claude.ai sessions directly.",
+    "slug_mismatch": "Branch must be created before Frank writes. Auto-provisioning handles new projects. Legacy: use github_create_branch.",
+    "inspect_v1_apps": "v1 apps with inlined server.js HTML not patched \u2014 string escaping risk. Snippet added on next rebuild.",
+    "deploy_overlay": "If stuck on deploying, use 'Already live? Dismiss' button in Render tab.",
+    "github_patch_exactness": "find string must be exact including whitespace. Always github_read first.",
+    "typescript_strict": "noUnusedLocals on. Unused component props cause build failures.",
+    "package_json_overwrite": "Fixed. Main branch writes blocked absolutely. Was caused by Frank omitting branch param."
+  },
+  "infrastructure": {
+    "forgeos_render_service": "srv-d6h2rt56ubrc73duanfg",
+    "github_repo": "BrianBMorgan/ForgeOS",
+    "neon_forgeos_db": "ep-twilight-cherry-akul6a77-pooler",
+    "dns": "Namecheap \u2014 *.forge-os.ai wildcard",
+    "gemini_project": "ForgOS (gen-lang-client-0995235057) \u2014 Paid Tier 1"
+  },
+  "published_apps_notable": {
+    "intel_event_content_review": {
+      "url": "https://intel-event-content-review.forge-os.ai",
+      "service_id": "srv-d6utqi9j16oc738tkpe0",
+      "db_env": "APP_DATABASE_URL",
+      "description": "Intel Federal Summit 2026 session review. AI scoring, Intel design system, seed data."
     },
-    "fonts": "System UI stack. Monospace: Courier New for code.",
-    "border_radius": "Moderate rounding on cards (8px), sharp on inputs.",
-    "intel_design_system": {
-      "cobalt": "#000864",
-      "energy_blue": "#00AAE8",
-      "carbon": "#1a1a1a",
-      "zero_border_radius": true
+    "forge_canvas": {
+      "url": "https://forge-canvas.forge-os.ai",
+      "stable_commit": "7948b78"
+    },
+    "sandbox_xm": {
+      "url": "https://sandbox-xm.forge-os.ai",
+      "description": "Sandbox-XM website"
+    },
+    "mission_control": {
+      "url": "https://mission-control.forge-os.ai",
+      "description": "Standalone ForgeOS admin. Dashboard now also native in ForgeOS sidebar."
     }
   },
   "brain_db_schema": {
-    "forge_memory": "id, category (pattern/preference/mistake/snippet/project), content, source_project_id, upvotes, created_at",
+    "forge_memory": "id, category, content, source_project_id, upvotes, created_at",
     "forge_conversations": "id, project_id, role, content, created_at",
-    "forge_projects": "id, name, slug, status, render_service_id, render_url, currentRunId (being removed in v2), created_at",
-    "forge_assets": "id, filename, mimetype, data (base64/text), size, created_at \u2014 global scope, no project_id",
-    "run_snapshots": "id, run_id, snapshot JSONB, created_at \u2014 BEING REMOVED in v2 (git history replaces it)",
-    "forge_analytics": "id, project_id, session_id, visitor_id, event_type, url, referrer, properties JSONB, created_at"
+    "forge_projects": "id, name, slug, status, created_at",
+    "published_apps": "project_id, slug, status, render_service_id, render_url, custom_domain, custom_domain_arecord, custom_domain_cname, logs, published_at",
+    "forge_assets": "id, filename, mimetype, data, size, created_at",
+    "forge_settings": "key, value, created_at",
+    "forge_skills": "id, name, slug, description, instructions, created_at"
   },
-  "known_issues_and_gotchas": {
-    "index_js_not_pushed": "RESOLVED \u2014 index.js is clean and deployed",
-    "forge_agent_still_v1": "RESOLVED \u2014 forge.js fully v2, all v1 tools removed",
-    "github_patch_exactness": "find string must be character-for-character exact including whitespace and newlines. Use github_read first.",
-    "orphaned_tool_use": "If agent loop breaks mid-call, history may have assistant tool_use with no following tool_result. Brain conversation scrubber drops these on next load.",
-    "render_branch_reset": "Render resets service branch to main on republish unless updateServiceBranch is called first.",
-    "proxy_encoding": "Always set accept-encoding: identity in proxy fetch headers to prevent ERR_CONTENT_DECODING_FAILED.",
-    "neon_database_url_reserved": "Cannot be overridden per published service. Apps needing isolated DBs must use custom env var names.",
-    "admin_auth_proxy": "Cookie-session Set-Cookie headers unreliable through ForgeOS proxy. Use bearer token stored in localStorage + passed as query param on first authenticated load.",
-    "workspace_tsx_dead_tabs": "RESOLVED \u2014 Shell/Diff/Edit/Plan/Analytics removed, Files/Commits/Render added",
-    "projects_table_has_iteration_columns": "PENDING Phase 4 \u2014 iterations table and currentRunId column still exist in DB, ProjectsList.tsx still has local iteration interface",
-    "slug_not_in_projects_table": "KNOWN \u2014 slug lives in published_apps table, not projects. Workspace fetches it via /api/projects/:id/publish on mount. Works correctly.",
-    "stream_js_was_missing_nudges": "RESOLVED -- read-loop detection added to stream.js (b2c0164). Nudges in forge.js were dead code since stream.js is the active engine.",
-    "github_create_branch_missing": "RESOLVED -- github_create_branch tool added to forge.js (dd69081). Creates branch from main HEAD via refs API before first write.",
-    "intel_build_incomplete": "PENDING -- Intel Event Content Review not yet built. Engine must be proven with simple test first."
-  },
-  "recent_changes": {
-    "version": "6.2.0",
-    "summary": "Phase 4 complete. Critical engine bug found: stream.js had no nudge logic. Read-loop detection added. No apps until engine proven.",
-    "key_commits": {
-      "stream_read_loop_fix": "b2c0164 -- read-loop detection in stream.js (the active engine)",
-      "github_create_branch": "dd69081 -- branch creation tool",
-      "phase4_complete": "0bb9aa4 / 525fc34 / 7cec4f0 -- schema migration, ProjectsList, DbTab deleted"
+  "design_system": {
+    "forgeos": {
+      "background": "#0d0d1a",
+      "surface": "#12122a",
+      "border": "#1e293b",
+      "text_primary": "#f1f5f9",
+      "text_secondary": "#64748b",
+      "accent": "#6366f1",
+      "success": "#22c55e",
+      "error": "#ef4444",
+      "warning": "#f59e0b",
+      "icons": "lucide-react, strokeWidth 1.5, size 18"
+    },
+    "intel": {
+      "cobalt": "#000864",
+      "energy_blue": "#00AAE8",
+      "carbon_light": "#EAEAEA",
+      "carbon_dark": "#2E2F2F",
+      "zero_border_radius": true,
+      "font": "IntelOneDisplay"
     }
   },
   "session_log": [
     {
       "date": "2026-03-18",
-      "session_title": "The Great Exorcism \u2014 Unified Agent, Brain Injection, Mission Control, Freedom",
-      "summary": "Burned 5,587 lines of dead code (11-agent pipeline). Replaced with single unified agent. Injected 326 memories + 27 prefs from all Sandbox Group context packs. Built Mission Control in 3 phases. Rewrote chat state to append-only. Fixed Forge amnesia by saving full allThinking[] to conversation history. Removed all artificial caps (200k context, 50 rounds, 20min). Added github_patch, github_read, github_write tools. Opened run_command to grep/sed/awk. Rewrote system prompt as identity not instruction manual. First CSS change after freedom pass: 3 changes committed in one response, no loops.",
-      "stable_commits": {
-        "main": "40e7edf",
-        "apps/forge-canvas": "7948b78"
-      }
+      "session_title": "The Great Exorcism \u2014 Unified Agent, Brain Injection, Mission Control",
+      "summary": "Burned 5,587 lines of dead code. Single unified agent. 326 memories injected. Mission Control built. Chat state rewrote to append-only."
     },
     {
       "date": "2026-03-19",
       "session_title": "ForgeOS UI Overhaul + Mission Control Dashboard",
-      "summary": "Forge autonomously overhauled the ForgeOS UI and Mission Control dashboard with open-ended prompts. Mission Control v3.2: status cards, commit history, brain memory breakdown, render logs, quick actions including links Forge inferred from usage patterns. Context pack button auto-generates and clipboard-copies update prompt. Forge rationalized workflow and business priorities without being asked. Multiple UI changes executed flawlessly on first try.",
-      "stable_commits": {
-        "main": "16575a9"
-      }
+      "summary": "Mission Control v3.2 autonomously built. Status cards, commit history, brain stats, render logs."
     },
     {
       "date": "2026-03-20",
-      "session_title": "ForgeOS v2 Architecture Decision + Phase 1 Demolition",
-      "shipped": [
-        "Deleted server/builder.js \u2014 local Claude builder call gone",
-        "Deleted server/workspace/manager.js \u2014 local workspace gone",
-        "Deleted server/pipeline/runner.js \u2014 local install/start runner gone",
-        "Surgically cleaned server/index.js \u2014 all workspace/createRun/buildAndDeploy/iterate/stop/restart routes removed (1774 \u2192 1451 lines). File staged at /tmp/index_v2.js, NOT YET PUSHED to GitHub",
-        "Mission Control restored to beast mode (7f041ec) \u2014 full agent loop, 8 tools, sovereign over ForgeOS",
-        "Forge restored to beast mode (98dcbb7) \u2014 clean wall, build mandate",
-        "MC chat: markdown rendering killed, contrast fixed (#c0c0d8 \u2192 #e8e8f0, 11px \u2192 12px)",
-        "MC system prompt: no markdown in responses",
-        "ForgeOS v2 Rebuild Plan doc generated \u2014 10 sections, full checkbox tracking, board-level",
-        "Intel seed data extracted to separate file \u2014 intel_seed_data.md",
-        "Forge nudge improvements \u2014 looksLikeWork broadened, task_complete guard (3000 chars), build mandate updated"
-      ],
-      "decisions": [
-        "ARCHITECTURE DECISION: Kill the local workspace entirely. ForgeOS v2 = Claude writes to GitHub, Render deploys, ForgeOS is the GUI. No more local processes, no workspace files, no install loops.",
-        "Hedwig (the custom agent loop with nudges/guards/task_complete) is replaced with direct Anthropic API streaming \u2014 Claude Code architecture. Chat column CSS/layout survives. Engine is replaced.",
-        "Git history replaces the iteration model. Render rollback replaces workspace snapshots. Brian was already doing this manually.",
-        "ForgeOS is not a Replit competitor. It is a deployment platform with Claude wired into the build chain. Claude.ai is the IDE. ForgeOS is the deployment platform.",
-        "The Intel Event Content Review app that failed 10 times in v1 will be the definitive Phase 5 test of v2.",
-        "Mission Control owns ForgeOS infrastructure. Forge owns project workspaces (GitHub branches). Hard wall between them."
-      ],
-      "pending": [
-        "CRITICAL: Push /tmp/index_v2.js to GitHub main branch \u2014 Phase 1 not fully complete until this is pushed",
-        "Phase 2: Add github_ls and render_status tools to forge.js, update Forge system prompt for v2 (no task_complete, no write_file, GitHub IS the workspace)",
-        "Phase 3: Rebuild client UI \u2014 Files tab (live GitHub tree), Commits tab (git history + rollback), remove Shell/DB/Diff/Plan tabs",
-        "Phase 4: Project model update \u2014 remove currentRunId/iterations, add branch column, per-project env vars",
-        "Phase 5: Intel Event Content Review build test \u2014 the definitive v2 validation",
-        "Replace Hedwig with direct Anthropic API streaming in the chat route"
-      ],
-      "key_commits": {
-        "forge_beast_mode": "98dcbb7",
-        "mc_beast_mode": "7f041ec",
-        "mc_no_markdown": "bf04617",
-        "mc_contrast_fix": "ff6897e",
-        "builder_deleted": "24e37d5",
-        "workspace_deleted": "1714393",
-        "pipeline_deleted": "e145e1a"
-      }
+      "session_title": "ForgeOS v2 Architecture Decision + Phases 1-4 Complete",
+      "summary": "Killed local workspace. Direct Anthropic streaming. GitHub = filesystem. Render = runtime. Phases 1-4: builder/workspace/pipeline deleted, server cleaned, UI rebuilt, schema migrated."
     },
     {
-      "date": "2026-03-20",
-      "session_title": "Phase 3 Complete \u2014 Workspace UI Rebuilt, TypeScript Clean",
+      "date": "2026-03-22",
+      "session_title": "Frank + Gemini Architecture Live \u2014 Full Deploy Loop \u2014 Dashboard \u2014 Inspect",
       "shipped": [
-        "server/index.js: added /api/github/ls, /api/github/read, /api/github/commits proxy routes (48eff8c)",
-        "client/src/components/Workspace.tsx: full v2 rewrite \u2014 2210 \u2192 1136 lines. Files tab (GitHub tree), Commits tab (git history + rollback), Render tab (live iframe), Env, Publish, Brain. Shell/Diff/Edit/Plan/Analytics/DB deleted. Slug resolver hook added. (cb04eee)",
-        "client/src/App.tsx: 471 \u2192 293 lines. RunData, IterationData, WorkspaceStatus, TokenUsage interfaces gone. currentRunId state gone. Both poll loops (runData poll + project poll) simplified. Iteration callbacks (viewIteration, viewLatest, restoreIteration) gone. (f0a57ef)",
-        "client/src/components/PromptColumn.tsx: iteration props removed from interface and destructure. isRunning/isViewingHistory/hasIterations gone. Interface tightened to 5 props. (095f5ec \u2192 24db8a9)",
-        "client/src/index.css: +498 lines CSS for files-tab, commits-tab, render-v2-* components (3573bfa)",
-        "TypeScript strict errors fixed \u2014 noUnusedLocals violations (isRunning, useRef, message param) resolved (24db8a9, cb04eee)",
-        "Rebuild plan docx updated to v2.1 with accurate COMPLETE/PENDING status across all phases"
+        "forge.js + stream.js DELETED \u2014 replaced with inline Frank engine in server/index.js",
+        "Frank system prompt v2: architect who delegates, never writes code, has web + skills access",
+        "write_code tool: Frank delegates to Gemini 2.5 Pro for all code generation",
+        "GEMINI_API_KEY wired into ForgeOS Render service env vars directly",
+        "gemini-2.5-pro confirmed as correct model (exp-03-25 deprecated)",
+        "github_create_branch added to Frank's tools",
+        "Absolute block on github_write + github_patch to main branch",
+        "Project branch + URL injected into every Frank session at runtime",
+        "Auto-provisioning: branch + Render at project creation; github_write triggers provision if missing",
+        "render_status mandatory before Frank reports app as live",
+        "Intel Event Content Review: full app shipped (server.js + index.html separation, Intel design system, AI scoring, seed data, all bugs fixed)",
+        "Full deploy loop: file_committed SSE -> client refresh -> Render polling -> iframe reload",
+        "GET /api/projects/:id/publish: checks live Render API, updates DB status",
+        "Deploy overlay dismiss button",
+        "Lucide icons: AppWindowMac, FileBox, SettingsIcon, LayoutDashboard",
+        "Dashboard component: Mission Control ported into ForgeOS native sidebar",
+        "Inspect tool: postMessage activate/deactivate, snippet baked into apps at build time",
+        "Inspect snippet patched into 14 existing published apps",
+        "PromptColumn: injectContext prop wires inspect captures to chat input",
+        "Countdown timer: first Frank + Gemini production build",
+        "Brain: POST /api/brain/memory endpoint added",
+        "publish/manager.js: updateAppStatus() added",
+        "package.json overwrite bug found and fixed \u2014 main branch absolute protection"
       ],
       "decisions": [
-        "Slug lives in published_apps table not projects \u2014 Workspace fetches it via publish endpoint on mount. Clean separation of concerns, no schema change needed for this.",
-        "ProjectsList.tsx has its own local ProjectSummary interface \u2014 does not import from App.tsx, so no TS error, but still shows iterations in card UI. Phase 4 will clean this.",
-        "DbTab.tsx left as orphaned file \u2014 not imported anywhere, Vite tree-shakes it. Will delete in Phase 4 cleanup."
+        "Frank is the architect \u2014 plans, specs, delegates. Never writes code.",
+        "Gemini 2.5 Pro is the code monkey \u2014 receives specs, returns complete files as JSON.",
+        "Inspect snippet baked into apps at build time \u2014 no proxy, no cross-origin issues.",
+        "Frontend always in index.html, backend always in server.js \u2014 never inline HTML in JS strings.",
+        "Main branch absolutely protected \u2014 no writes via Frank or Gemini ever.",
+        "Dashboard native in ForgeOS sidebar supplements standalone Mission Control app."
       ],
       "pending": [
-        "Phase 4: DROP TABLE run_snapshots, remove iterations table, remove currentRunId from projects schema, update projects/manager.js loadFromDb, clean ProjectsList.tsx",
-        "Phase 4: Delete DbTab.tsx from repo",
-        "Phase 5: Intel Event Content Review \u2014 the definitive v2 build test"
+        "Brain memory purge \u2014 v1 poison terms still present",
+        "pgvector semantic search for Brain",
+        "BYO custom domain support",
+        "Sandbox-ERP Replit migration",
+        "Verify TypeScript build passes"
       ],
       "key_commits": {
-        "workspace_v2": "cb04eee",
-        "app_v2": "f0a57ef",
-        "promptcolumn_v2": "24db8a9",
-        "github_routes": "48eff8c",
-        "css_new_tabs": "3573bfa",
-        "ts_fix": "24db8a9"
-      }
-    },
-    {
-      "date": "2026-03-20",
-      "session_title": "Phase 4 Complete + Engine Bug Found and Fixed",
-      "shipped": [
-        "Phase 4 complete: run_snapshots/iterations tables dropped, currentRunId removed, projects/manager.js 470->197 lines, ProjectsList.tsx cleaned, DbTab.tsx deleted (0bb9aa4, 525fc34, 7cec4f0)",
-        "github_create_branch tool added to forge.js -- POST to GitHub refs API, creates branch from main HEAD (dd69081)",
-        "Read-loop detection added to stream.js -- the ACTUAL active engine. After 2 reads/0 writes: forced write nudge. After reads>writes+3: ongoing nudge. (b2c0164)",
-        "WRITING RULE added to forge.js system prompt: max 2 reads before first write (e98fd53)",
-        "Render tab always-on iframe confirmed working in production (sandbox-xm.forge-os.ai)"
-      ],
-      "decisions": [
-        "CRITICAL: stream.js is the active chat engine. runForgeAgent in forge.js is exported but NOT called from index.js. All nudge logic must live in stream.js.",
-        "No app builds until engine is proven with a simple test. Intel is not the test. A blank HTML page is the test.",
-        "The Intel reading loop was caused by zero guard rails in the active engine path -- not by Claude's behavior. This was a ForgeOS bug.",
-        "Phase 5 (Intel build) is blocked until simple build test passes cleanly."
-      ],
-      "pending": [
-        "Verify stream.js fix with simple single-file app build",
-        "Intel Event Content Review build -- Phase 5 proper",
-        "True token streaming to client (tokens visible in real time) -- Phase 6 UX upgrade"
-      ],
-      "key_commits": {
-        "phase4_schema": "0bb9aa4",
-        "projectslist_clean": "525fc34",
-        "dbtab_deleted": "7cec4f0",
-        "github_create_branch": "dd69081",
-        "stream_read_loop_fix": "b2c0164",
-        "writing_rule_system_prompt": "e98fd53"
+        "frank_prompt_v2": "f946729",
+        "write_code_tool": "d06b8b4",
+        "gemini_model": "e0961c6",
+        "github_create_branch": "944c6f2",
+        "main_branch_block": "6dd195f",
+        "project_context_injection": "666bd64",
+        "file_committed_sse": "27ee6e4",
+        "workspace_refresh": "0b2ca3f",
+        "deploy_status_live": "559a12a",
+        "lucide_icons": "4e8e99c",
+        "dashboard_component": "f9cf3ee",
+        "dashboard_routes": "fe88569",
+        "inspect_postmessage": "5e1d2fc",
+        "inspect_snippet_in_prompt": "939cfeb",
+        "intel_shipped": "b80dea7",
+        "package_json_restored": "c5c7730"
       }
     }
   ],
   "context_pack_update_instructions": {
     "when": "End of every session",
-    "how": "Append to session_log. Update current_state, next_steps, recent_changes. Mark completed items.",
-    "format": "session_log entry: { date, session_title, shipped[], decisions[], pending[], key_commits{} }"
+    "how": "Append to session_log. Update current_state, next_steps. Mark completed items.",
+    "format": "{ date, session_title, shipped[], decisions[], pending[], key_commits{} }"
   }
 }
