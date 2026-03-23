@@ -24,6 +24,10 @@ app.get("/health", (_req, res) => {
 
 // ... (the rest of the file is the same until the dashboard routes)
 
+// ── Dashboard Constants ───────────────────────────────────────────────────────
+const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
+const FORGEOS_HOST = process.env.BASE_DOMAIN || "forge-os.ai";
+
 // ── Dashboard: System Status ──────────────────────────────────────────────────
 app.get('/api/dashboard/status', function(req, res) {
   res.set('Cache-Control', 'no-store');
@@ -175,7 +179,6 @@ app.get('/api/dashboard/logs', function(req, res) {
 });
 
 app.post("/api/dashboard/redeploy", async (_req, res) => {
-  const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
   try {
     const r = await fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys`, {
       method: "POST", body: JSON.stringify({ clearCache: false }),
