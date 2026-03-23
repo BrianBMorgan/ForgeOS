@@ -51,7 +51,7 @@ async function callGemini(systemPrompt, userPrompt, isJson) {
     throw new Error('GEMINI_API_KEY environment variable not set.');
   }
 
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=' + GEMINI_API_KEY;
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + GEMINI_API_KEY;
   
   var requestBody = {
     system_instruction: {
