@@ -133,6 +133,7 @@ async function ensureSchema() {
       reviewer_notes TEXT,
       status TEXT DEFAULT 'submitted',
       ai_score JSONB,
+      enriched_abstract TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
@@ -154,6 +155,20 @@ async function ensureSchema() {
   } catch (migrateErr) {
     console.log('ai_score migration check skipped:', migrateErr.message);
   }
+
+  try {
+    var colCheckEnriched = await sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'submissions' AND column_name = 'enriched_abstract' AND table_schema = 'public'`;
+    if (colCheckEnriched.length === 0) {
+      console.log('Adding enriched_abstract column to submissions table...');
+      await sql`ALTER TABLE submissions ADD COLUMN enriched_abstract TEXT`;
+      console.log('enriched_abstract column added.');
+    }
+  } catch (addColErr) {
+    console.log('enriched_abstract column check skipped:', addColErr.message);
+  }
+
   console.log('Schema is ready.');
 }
 
@@ -507,7 +522,14 @@ app.post('/api/submissions/:id/enrich', async function (req, res) {
     var converter = new showdown.Converter();
     var enriched_abstract_html = converter.makeHtml(enriched_abstract_markdown);
 
-    res.json({ ok: true, enriched_abstract: enriched_abstract_html });
+    var updateResult = await sql`
+      UPDATE submissions
+      SET enriched_abstract = ${enriched_abstract_html}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    res.json({ ok: true, submission: updateResult[0] });
   } catch (err) {
     console.error('[submissions/enrich]', err.message);
     res.status(500).json({ ok: false, error: err.message });
