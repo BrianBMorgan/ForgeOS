@@ -4,9 +4,17 @@ import { useEffect } from 'react';
 const GITHUB_OWNER = 'BrianBMorgan';
 const GITHUB_REPO = 'ForgeOS';
 
+interface Build {
+  sha: string;
+  message: string;
+  author: string;
+  date: string;
+  url: string;
+}
+
 export default function Dashboard() {
   useEffect(() => {
-    function toast(msg, type) {
+    function toast(msg: string, type: 'ok' | 'err') {
       const el = document.getElementById("toast");
       if (!el) return;
       el.textContent = msg;
@@ -14,7 +22,7 @@ export default function Dashboard() {
       setTimeout(function() { el.className = "toast"; }, 4000);
     }
 
-    function timeAgo(iso) {
+    function timeAgo(iso: string | null): string {
       if (!iso) return "";
       const diff = (Date.now() - new Date(iso).getTime()) / 1000;
       if (diff < 60) return Math.round(diff) + "s ago";
@@ -23,13 +31,13 @@ export default function Dashboard() {
       return Math.round(diff / 86400) + "d ago";
     }
 
-    function escHtml(s) {
+    function escHtml(s: any): string {
       return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    let cachedBuilds = [];
+    let cachedBuilds: Build[] = [];
 
-    function renderBuilds(builds) {
+    function renderBuilds(builds: Build[]) {
       const list = document.getElementById("buildsList");
       const countEl = document.getElementById("buildsCount");
       if (!list || !countEl) return;
@@ -38,7 +46,7 @@ export default function Dashboard() {
         return;
       }
       countEl.textContent = builds.length + " commits";
-      const rows = builds.map(b => (
+      const rows = builds.map((b: Build) => (
         '<a class="build-row" href="' + escHtml(b.url || "#") + '" target="_blank" rel="noopener">' +
         '<div class="build-sha">' + escHtml(b.sha) + '</div>' +
         '<div class="build-info">' +
@@ -165,13 +173,13 @@ export default function Dashboard() {
             return;
           }
           let maxCount = 0;
-          d.categories.forEach(c => {
+          d.categories.forEach((c: { count: string; }) => {
             const count = parseInt(c.count) || 0;
             if (count > maxCount) maxCount = count;
           });
 
           const rows = ['<div class="mem-total">Memory breakdown</div>'];
-          d.categories.forEach(cat => {
+          d.categories.forEach((cat: { count: string; category: string; }) => {
             const pct = maxCount > 0 ? Math.round((parseInt(cat.count) / maxCount) * 100) : 0;
             rows.push(
               '<div class="mem-stat-row">' +
@@ -205,7 +213,7 @@ export default function Dashboard() {
             body.innerHTML = '<div class="empty-state"><div class="es-text">' + escHtml(d.error || "No logs") + '</div></div>';
             return;
           }
-          const html = d.lines.map(line => {
+          const html = d.lines.map((line: string) => {
             let cls = "log-line";
             if (/error/i.test(line)) cls += " err";
             else if (/warn/i.test(line)) cls += " warn";
@@ -222,7 +230,7 @@ export default function Dashboard() {
 
     function refreshAll() { loadStatus(); loadBuilds(); loadMemory(); loadLogs(); }
 
-    const redeployBtn = document.getElementById("btnRedeploy");
+    const redeployBtn = document.getElementById("btnRedeploy") as HTMLButtonElement;
     if(redeployBtn) redeployBtn.addEventListener("click", function() {
       const btn = this;
       btn.disabled = true;
