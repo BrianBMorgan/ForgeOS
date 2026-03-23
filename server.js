@@ -54,7 +54,7 @@ async function callGemini(systemPrompt, userPrompt, isJson) {
   var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=' + GEMINI_API_KEY;
   
   var requestBody = {
-    systemInstruction: {
+    system_instruction: {
       parts: [{ text: systemPrompt }]
     },
     contents: [{
