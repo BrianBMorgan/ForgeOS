@@ -1,350 +1,311 @@
-import { useState, useEffect, useCallback } from "react";
-import "./Dashboard.css";
 
-interface ServiceStatus {
-  ok: boolean;
-  credentials?: Record<string, boolean>;
-  render?: { state: string; name: string; updatedAt: string };
-  forge?: { alive: boolean; latencyMs: number };
-  service?: { name: string; status: string; branch: string; updatedAt: string };
-  checks?: Record<string, boolean>;
-  timestamp?: string;
-  error?: string;
-}
+import { useEffect } from 'react';
 
-interface Build {
-  sha: string;
-  message: string;
-  author: string;
-  date: string;
-  url: string;
-}
-
-interface MemoryStats {
-  ok: boolean;
-  stats?: { total: number };
-  categories?: { category: string; count: number }[];
-  topMemories?: { content: string; upvotes: number }[];
-  error?: string;
-}
-
-interface LogData {
-  ok: boolean;
-  lines?: string[];
-  error?: string;
-}
+const GITHUB_OWNER = 'BrianBMorgan';
+const GITHUB_REPO = 'ForgeOS';
 
 export default function Dashboard() {
-  const [status, setStatus] = useState<ServiceStatus | null>(null);
-  const [builds, setBuilds] = useState<Build[]>([]);
-  const [memory, setMemory] = useState<MemoryStats | null>(null);
-  const [logs, setLogs] = useState<LogData | null>(null);
-  
-  const [loadingBuilds, setLoadingBuilds] = useState(true);
-  const [loadingMemory, setLoadingMemory] = useState(true);
-  const [loadingLogs, setLoadingLogs] = useState(true);
-  
-  const [redeploying, setRedeploying] = useState(false);
-  const [refreshingLogs, setRefreshingLogs] = useState(false);
-
-  const loadStatus = useCallback(async () => {
-    try {
-      const res = await fetch("/api/dashboard/status");
-      setStatus(await res.json());
-    } catch (e) {
-      console.error("Dashboard status error:", e);
-    }
-  }, []);
-
-  const loadBuilds = useCallback(async () => {
-    setLoadingBuilds(true);
-    try {
-      const res = await fetch("/api/dashboard/builds");
-      const data = await res.json();
-      setBuilds(data.commits || data.builds || []);
-    } catch (e) {
-      console.error("Dashboard builds error:", e);
-    } finally {
-      setLoadingBuilds(false);
-    }
-  }, []);
-
-  const loadMemory = useCallback(async () => {
-    setLoadingMemory(true);
-    try {
-      const res = await fetch("/api/brain"); // Wait, original ForgeOS has /api/brain
-      const data = await res.json();
-      
-      const totals = data.totals || {};
-      const total = (totals.projects || 0) + (totals.preferences || 0) + (totals.patterns || 0) +
-                    (totals.mistakes || 0) + (totals.snippets || 0);
-
-      const categories = [
-        { category: 'patterns',    count: totals.patterns    || 0 },
-        { category: 'preferences', count: totals.preferences || 0 },
-        { category: 'snippets',    count: totals.snippets    || 0 },
-        { category: 'mistakes',    count: totals.mistakes    || 0 },
-        { category: 'projects',    count: totals.projects    || 0 }
-      ].filter(c => c.count > 0);
-
-      setMemory({ ok: true, stats: { total }, categories, topMemories: data.topMistakes || [] });
-    } catch (e) {
-      console.error("Dashboard memory error:", e);
-      setMemory({ ok: false, error: "Failed to load brain" });
-    } finally {
-      setLoadingMemory(false);
-    }
-  }, []);
-
-  const loadLogs = useCallback(async () => {
-    setLoadingLogs(true);
-    try {
-      // ForgeOS might not have /api/dashboard/logs yet. We will call it anyway, it will return 404 or data.
-      const res = await fetch("/api/dashboard/logs");
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data);
-      } else {
-        setLogs({ ok: false, error: "Logs unavailable in ForgeOS v2" });
-      }
-    } catch (e) {
-      setLogs({ ok: false, error: "Failed to fetch logs" });
-    } finally {
-      setLoadingLogs(false);
-      setRefreshingLogs(false);
-    }
-  }, []);
-
-  const refreshAll = useCallback(() => {
-    loadStatus();
-    loadBuilds();
-    loadMemory();
-    loadLogs();
-  }, [loadStatus, loadBuilds, loadMemory, loadLogs]);
-
   useEffect(() => {
+    function toast(msg, type) {
+      const el = document.getElementById("toast");
+      if (!el) return;
+      el.textContent = msg;
+      el.className = "toast show " + (type === "ok" ? "toast-ok" : "toast-err");
+      setTimeout(function() { el.className = "toast"; }, 4000);
+    }
+
+    function timeAgo(iso) {
+      if (!iso) return "";
+      const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+      if (diff < 60) return Math.round(diff) + "s ago";
+      if (diff < 3600) return Math.round(diff / 60) + "m ago";
+      if (diff < 86400) return Math.round(diff / 3600) + "h ago";
+      return Math.round(diff / 86400) + "d ago";
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    let cachedBuilds = [];
+
+    function renderBuilds(builds) {
+      const list = document.getElementById("buildsList");
+      const countEl = document.getElementById("buildsCount");
+      if (!list || !countEl) return;
+      if (!builds || !builds.length) {
+        list.innerHTML = '<div class="empty-state"><div class="es-icon">📦</div><div class="es-text">No commits found</div></div>';
+        return;
+      }
+      countEl.textContent = builds.length + " commits";
+      const rows = builds.map(b => (
+        '<a class="build-row" href="' + escHtml(b.url || "#") + '" target="_blank" rel="noopener">' +
+        '<div class="build-sha">' + escHtml(b.sha) + '</div>' +
+        '<div class="build-info">' +
+        '<div class="build-message">' + escHtml(b.message) + '</div>' +
+        '<div class="build-meta">' + escHtml(b.author) + ' &middot; ' + timeAgo(b.date) + '</div>' +
+        '</div></a>'
+      ));
+      list.innerHTML = rows.join("");
+    }
+
+    function loadStatus() {
+      fetch("/api/dashboard/status")
+        .then(r => r.json())
+        .then(d => {
+          const lastUpdated = document.getElementById("lastUpdated");
+          if(lastUpdated) lastUpdated.textContent = new Date().toTimeString().slice(0, 8);
+
+          const forgeEl = document.getElementById("sc-forge");
+          const forgeSub = document.getElementById("sc-forge-sub");
+          if(forgeEl && forgeSub) {
+            if (d.forge && d.forge.alive) {
+              forgeEl.innerHTML = '<span class="badge badge-green"><span class="dot"></span>LIVE</span>';
+              forgeSub.textContent = d.forge.latencyMs ? d.forge.latencyMs + "ms" : "online";
+            } else {
+              forgeEl.innerHTML = '<span class="badge badge-red"><span class="dot"></span>UNREACHABLE</span>';
+              forgeSub.textContent = "ping failed";
+            }
+          }
+
+          const renderEl = document.getElementById("sc-render");
+          const renderSub = document.getElementById("sc-render-sub");
+          if(renderEl && renderSub) {
+            if (d.render) {
+              const rState = d.render.state;
+              if (rState === "live" || rState === "not_suspended" || rState === "available") {
+                renderEl.innerHTML = '<span class="badge badge-green"><span class="dot"></span>LIVE</span>';
+              } else if (rState === "no-key") {
+                renderEl.innerHTML = '<span class="badge badge-gray">NO KEY</span>';
+              } else if (rState === "suspended" || rState === "deactivated" || rState === "unavailable") {
+                renderEl.innerHTML = '<span class="badge badge-red"><span class="dot"></span>' + escHtml(rState.toUpperCase()) + '</span>';
+              } else {
+                renderEl.innerHTML = '<span class="badge badge-yellow"><span class="dot"></span>' + escHtml(rState.toUpperCase()) + '</span>';
+              }
+              renderSub.textContent = d.render.updatedAt ? timeAgo(d.render.updatedAt) : "";
+            }
+          }
+
+          const credsEl = document.getElementById("sc-creds");
+          const credsSub = document.getElementById("sc-creds-sub");
+          if(credsEl && credsSub) {
+            if (d.credentials) {
+              const keys = Object.keys(d.credentials);
+              const setCount = keys.filter(k => d.credentials[k]).length;
+              const allSet = setCount === keys.length;
+              if (allSet) {
+                credsEl.innerHTML = '<span class="badge badge-green"><span class="dot"></span>ALL SET</span>';
+              } else {
+                credsEl.innerHTML = '<span class="badge badge-yellow"><span class="dot"></span>' + setCount + "/" + keys.length + ' SET</span>';
+              }
+              const missing = keys.filter(k => !d.credentials[k]);
+              credsSub.textContent = missing.length ? "missing: " + missing.join(", ") : "all credentials present";
+            }
+          }
+        })
+        .catch(e => {
+          const forgeEl = document.getElementById("sc-forge");
+          if(forgeEl) forgeEl.innerHTML = '<span class="badge badge-red">ERROR</span>';
+          console.error("status error:", e);
+        });
+    }
+
+    function loadBuilds() {
+      fetch("/api/dashboard/builds")
+        .then(r => r.json())
+        .then(d => {
+          const buildsList = document.getElementById("buildsList");
+          const buildsCount = document.getElementById("buildsCount");
+          if(!buildsList || !buildsCount) return;
+
+          if (!d.ok) {
+            buildsList.innerHTML =
+              '<div class="empty-state"><div class="es-icon">📦</div><div class="es-text">' + escHtml(d.error || "Failed") + '</div></div>';
+            buildsCount.textContent = "";
+            return;
+          }
+          cachedBuilds = d.builds || [];
+          renderBuilds(cachedBuilds);
+        })
+        .catch(e => {
+          console.error("builds fetch error:", e);
+          const buildsList = document.getElementById("buildsList");
+          if(buildsList) buildsList.innerHTML =
+            '<div class="empty-state"><div class="es-icon">⚠️</div><div class="es-text">Network error — check console</div></div>';
+        });
+    }
+
+    setInterval(() => { if (cachedBuilds.length) renderBuilds(cachedBuilds); }, 60000);
+
+    function loadMemory() {
+      fetch("/api/brain")
+        .then(r => r.json())
+        .then(d => {
+          const body = document.getElementById("memoryBody");
+          const totalEl = document.getElementById("memTotal");
+          const brainEl = document.getElementById("sc-brain");
+          const brainSub = document.getElementById("sc-brain-sub");
+          if(!body || !totalEl || !brainEl || !brainSub) return;
+          
+          if (!d.ok) {
+            body.innerHTML = '<div class="empty-state"><div class="es-icon">🧠</div><div class="es-text">' + escHtml(d.error || "Brain unavailable") + '</div></div>';
+            brainEl.innerHTML = '<span class="badge badge-red">OFFLINE</span>';
+            brainSub.textContent = d.error || "";
+            return;
+          }
+
+          const totals = d.totals || {};
+          const total = (totals.projects || 0) + (totals.preferences || 0) + (totals.patterns || 0) + (totals.mistakes || 0) + (totals.snippets || 0);
+
+          totalEl.textContent = total + " memories";
+          brainEl.innerHTML = '<span class="badge badge-green"><span class="dot"></span>ONLINE</span>';
+          brainSub.textContent = total + " records";
+          if (!d.categories || !d.categories.length) {
+            body.innerHTML = '<div class="empty-state"><div class="es-text">No data</div></div>';
+            return;
+          }
+          let maxCount = 0;
+          d.categories.forEach(c => {
+            const count = parseInt(c.count) || 0;
+            if (count > maxCount) maxCount = count;
+          });
+
+          const rows = ['<div class="mem-total">Memory breakdown</div>'];
+          d.categories.forEach(cat => {
+            const pct = maxCount > 0 ? Math.round((parseInt(cat.count) / maxCount) * 100) : 0;
+            rows.push(
+              '<div class="mem-stat-row">' +
+              '<div class="mem-cat">' + escHtml(cat.category || "uncategorized") + '</div>' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<div class="mem-bar-wrap"><div class="mem-bar" style="width:' + pct + '%"></div></div>' +
+              '<div class="mem-count">' + escHtml(String(cat.count)) + '</div>' +
+              '</div></div>'
+            );
+          });
+          body.innerHTML = rows.join("");
+        })
+        .catch(() => {
+          const memoryBody = document.getElementById("memoryBody");
+          if(memoryBody) memoryBody.innerHTML = '<div class="empty-state"><div class="es-text">Failed to load brain</div></div>';
+          const scBrain = document.getElementById("sc-brain");
+          if(scBrain) scBrain.innerHTML = '<span class="badge badge-red">ERROR</span>';
+        });
+    }
+
+    function loadLogs() {
+      const body = document.getElementById("logBody");
+      if(!body) return;
+      body.innerHTML = '<div class="loading-row"><div class="spinner"></div>Fetching logs…</div>';
+      fetch("/api/dashboard/logs")
+        .then(r => r.json())
+        .then(d => {
+          const logCount = document.getElementById("logCount");
+          if(logCount) logCount.textContent = d.lines ? d.lines.length + " lines" : "";
+          if (!d.ok || !d.lines || !d.lines.length) {
+            body.innerHTML = '<div class="empty-state"><div class="es-text">' + escHtml(d.error || "No logs") + '</div></div>';
+            return;
+          }
+          const html = d.lines.map(line => {
+            let cls = "log-line";
+            if (/error/i.test(line)) cls += " err";
+            else if (/warn/i.test(line)) cls += " warn";
+            else if (/info|start|listen|deploy/i.test(line)) cls += " info";
+            return '<div class="' + cls + '">' + escHtml(line) + '</div>';
+          });
+          body.innerHTML = html.join("");
+          body.scrollTop = body.scrollHeight;
+        })
+        .catch(() => {
+          body.innerHTML = '<div class="empty-state"><div class="es-text">Failed to fetch logs</div></div>';
+        });
+    }
+
+    function refreshAll() { loadStatus(); loadBuilds(); loadMemory(); loadLogs(); }
+
+    const redeployBtn = document.getElementById("btnRedeploy");
+    if(redeployBtn) redeployBtn.addEventListener("click", function() {
+      const btn = this;
+      btn.disabled = true;
+      const label = btn.querySelector(".ab-label");
+      if(label) label.textContent = "Deploying…";
+      fetch("/api/dashboard/redeploy", { method: "POST", headers: { "Content-Type": "application/json" } })
+        .then(r => r.json())
+        .then(d => {
+          btn.disabled = false;
+          if(label) label.textContent = "Redeploy";
+          if (d.ok) toast("Redeploy triggered — " + (d.deployId || ""), "ok");
+          else toast("Redeploy failed: " + (d.error || "unknown"), "err");
+        })
+        .catch(() => {
+          btn.disabled = false;
+          if(label) label.textContent = "Redeploy";
+          toast("Network error", "err");
+        });
+    });
+
+    const refreshLogsBtn = document.getElementById("btnRefreshLogs");
+    if(refreshLogsBtn) refreshLogsBtn.addEventListener("click", () => { loadLogs(); toast("Fetching logs…", "ok"); });
+    
+    const refreshBtn = document.getElementById("refreshBtn");
+    if(refreshBtn) refreshBtn.addEventListener("click", () => { refreshAll(); toast("Dashboard refreshed", "ok"); });
+
     refreshAll();
     const interval = setInterval(refreshAll, 30000);
     return () => clearInterval(interval);
-  }, [refreshAll]);
-
-  const handleRedeploy = async () => {
-    setRedeploying(true);
-    try {
-      const res = await fetch("/api/dashboard/redeploy", { method: "POST" });
-      const data = await res.json();
-      if (data.ok) { setTimeout(loadStatus, 3000); }
-    } finally {
-      setRedeploying(false);
-    }
-  };
-  
-  const handleRefreshLogs = () => {
-    setRefreshingLogs(true);
-    loadLogs();
-  };
-
-  // Status computation matching Mission Control exactly
-  let forgeBadge = <span className="mc-badge mc-badge-gray"><span className="mc-dot"></span>LOADING</span>;
-  let forgeSub = "\u00A0";
-  if (status?.forge) {
-    if (status.forge.alive) {
-      forgeBadge = <span className="mc-badge mc-badge-green"><span className="mc-dot"></span>LIVE</span>;
-      forgeSub = status.forge.latencyMs ? `${status.forge.latencyMs}ms` : "online";
-    } else {
-      forgeBadge = <span className="mc-badge mc-badge-red"><span className="mc-dot"></span>UNREACHABLE</span>;
-      forgeSub = "ping failed";
-    }
-  }
-
-  let renderBadge = <span className="mc-badge mc-badge-gray"><span className="mc-dot"></span>LOADING</span>;
-  let renderSub = "\u00A0";
-  if (status?.render) {
-    const rState = status.render.state;
-    if (rState === "live" || rState === "not_suspended" || rState === "available" || status?.service?.status === "live" || status?.service?.status === "running") {
-      renderBadge = <span className="mc-badge mc-badge-green"><span className="mc-dot"></span>LIVE</span>;
-    } else if (rState === "no-key") {
-      renderBadge = <span className="mc-badge mc-badge-gray">NO KEY</span>;
-    } else if (rState === "suspended" || rState === "deactivated" || rState === "unavailable") {
-      renderBadge = <span className="mc-badge mc-badge-red"><span className="mc-dot"></span>{rState.toUpperCase()}</span>;
-    } else if (rState === "deploying" || rState === "build_in_progress" || status?.service?.status === "deploying") {
-      renderBadge = <span className="mc-badge mc-badge-yellow"><span className="mc-dot"></span>DEPLOYING</span>;
-    } else {
-      renderBadge = <span className="mc-badge mc-badge-yellow"><span className="mc-dot"></span>{rState?.toUpperCase() || status?.service?.status?.toUpperCase() || "UNKNOWN"}</span>;
-    }
-    
-    // Support the older endpoint structure too (from current Dashboard.tsx)
-    const updatedAt = status.render.updatedAt || status?.service?.updatedAt;
-    if (updatedAt) {
-      const diff = (Date.now() - new Date(updatedAt).getTime()) / 1000;
-      if (diff < 60) renderSub = Math.round(diff) + "s ago";
-      else if (diff < 3600) renderSub = Math.round(diff / 60) + "m ago";
-      else if (diff < 86400) renderSub = Math.round(diff / 3600) + "h ago";
-      else renderSub = Math.round(diff / 86400) + "d ago";
-    }
-  }
-
-  let credsBadge = <span className="mc-badge mc-badge-gray"><span className="mc-dot"></span>LOADING</span>;
-  let credsSub = "\u00A0";
-  const creds = status?.credentials || status?.checks;
-  if (creds) {
-    const keys = Object.keys(creds);
-    const setCount = keys.filter(k => creds[k]).length;
-    if (setCount === keys.length) {
-      credsBadge = <span className="mc-badge mc-badge-green"><span className="mc-dot"></span>ALL SET</span>;
-    } else {
-      credsBadge = <span className="mc-badge mc-badge-yellow"><span className="mc-dot"></span>{setCount}/{keys.length} SET</span>;
-    }
-    const missing = keys.filter(k => !creds[k]);
-    credsSub = missing.length ? "missing: " + missing.join(", ") : "all credentials present";
-  }
-
-  let brainBadge = <span className="mc-badge mc-badge-gray"><span className="mc-dot"></span>LOADING</span>;
-  let brainSub = "\u00A0";
-  if (memory?.stats) {
-    brainBadge = <span className="mc-badge mc-badge-green"><span className="mc-dot"></span>ONLINE</span>;
-    brainSub = `${memory.stats.total || 0} records`;
-  } else if (memory && !memory.ok) {
-    brainBadge = <span className="mc-badge mc-badge-red">ERROR</span>;
-    brainSub = memory.error || "unavailable";
-  }
-
-  const maxMemCount = memory?.categories?.reduce((max, c) => Math.max(max, c.count), 0) || 0;
+  }, []);
 
   return (
-    <div className="mc-dashboard">
-      <div className="mc-status-row">
-        <div className="mc-status-card">
-          <div className="mc-sc-label">ForgeOS Production</div>
-          <div className="mc-sc-value">{forgeBadge}</div>
-          <div className="mc-sc-sub">{forgeSub}</div>
+    <div dangerouslySetInnerHTML={{ __html: `
+      <div class="shell">
+        <div class="status-row" id="statusRow">
+          <div class="status-card"><div class="sc-label">ForgeOS Production</div><div class="sc-value" id="sc-forge">…</div><div class="sc-sub" id="sc-forge-sub">&nbsp;</div></div>
+          <div class="status-card"><div class="sc-label">Render Service</div><div class="sc-value" id="sc-render">…</div><div class="sc-sub" id="sc-render-sub">&nbsp;</div></div>
+          <div class="status-card"><div class="sc-label">Credentials</div><div class="sc-value" id="sc-creds">…</div><div class="sc-sub" id="sc-creds-sub">&nbsp;</div></div>
+          <div class="status-card"><div class="sc-label">Brain DB</div><div class="sc-value" id="sc-brain">…</div><div class="sc-sub" id="sc-brain-sub">&nbsp;</div></div>
         </div>
-        <div className="mc-status-card">
-          <div className="mc-sc-label">Render Service</div>
-          <div className="mc-sc-value">{renderBadge}</div>
-          <div className="mc-sc-sub">{renderSub}</div>
-        </div>
-        <div className="mc-status-card">
-          <div className="mc-sc-label">Credentials</div>
-          <div className="mc-sc-value">{credsBadge}</div>
-          <div className="mc-sc-sub">{credsSub}</div>
-        </div>
-        <div className="mc-status-card">
-          <div className="mc-sc-label">Brain DB</div>
-          <div className="mc-sc-value">{brainBadge}</div>
-          <div className="mc-sc-sub">{brainSub}</div>
-        </div>
-      </div>
-
-      <div className="mc-main-area">
-        <div className="mc-panel-header">
-          <span className="mc-panel-title">Recent Commits — ForgeOS</span>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span className="mc-panel-live"><span className="mc-panel-live-dot"></span>Live</span>
-            <span className="mc-panel-count">{builds.length ? `${builds.length} commits` : ""}</span>
+        <div class="main-area">
+          <div class="panel-header">
+            <span class="panel-title">Recent Commits — ${GITHUB_OWNER}/${GITHUB_REPO}</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="panel-live"><span class="panel-live-dot"></span>Live</span>
+              <span class="panel-count" id="buildsCount"></span>
+            </div>
+          </div>
+          <div class="builds-list" id="buildsList">
+            <div class="loading-row"><div class="spinner"></div>Fetching commits…</div>
           </div>
         </div>
-        <div className="mc-builds-list">
-          {loadingBuilds ? (
-            <div className="mc-loading-row"><div className="mc-spinner"></div>Fetching commits…</div>
-          ) : builds.length > 0 ? (
-            builds.map((b, i) => {
-              let diff = "";
-              if (b.date) {
-                 const d = (Date.now() - new Date(b.date).getTime()) / 1000;
-                 if (d < 60) diff = Math.round(d) + "s ago";
-                 else if (d < 3600) diff = Math.round(d / 60) + "m ago";
-                 else if (d < 86400) diff = Math.round(d / 3600) + "h ago";
-                 else diff = Math.round(d / 86400) + "d ago";
-              }
-              return (
-                <a key={i} className="mc-build-row" href={b.url || "#"} target="_blank" rel="noopener noreferrer">
-                  <div className="mc-build-sha">{b.sha?.slice(0, 7) || "?"}</div>
-                  <div className="mc-build-info">
-                    <div className="mc-build-message">{b.message?.split("\n")[0]?.slice(0, 90) || "(no message)"}</div>
-                    <div className="mc-build-meta">{b.author || "unknown"} &middot; {diff}</div>
-                  </div>
-                </a>
-              );
-            })
-          ) : (
-            <div className="mc-empty-state"><div className="mc-es-icon">📦</div><div className="mc-es-text">No commits found</div></div>
-          )}
-        </div>
-      </div>
-
-      <div className="mc-sidebar">
-        <div className="mc-memory-section">
-          <div className="mc-panel-header">
-            <span className="mc-panel-title">Brain Memory</span>
-            <span className="mc-panel-count">{memory?.stats?.total ? `${memory.stats.total} memories` : ""}</span>
+        <div class="sidebar">
+          <div class="memory-section">
+            <div class="panel-header">
+              <span class="panel-title">Brain Memory</span>
+              <span class="panel-count" id="memTotal"></span>
+            </div>
+            <div class="memory-body" id="memoryBody">
+              <div class="loading-row"><div class="spinner"></div>Loading…</div>
+            </div>
           </div>
-          <div className="mc-memory-body">
-            {loadingMemory ? (
-              <div className="mc-loading-row"><div className="mc-spinner"></div>Loading…</div>
-            ) : memory?.categories?.length ? (
-              <>
-                <div className="mc-mem-total">Memory breakdown</div>
-                {memory.categories.map((cat, i) => {
-                  const pct = maxMemCount > 0 ? Math.round((cat.count / maxMemCount) * 100) : 0;
-                  return (
-                    <div key={i} className="mc-mem-stat-row">
-                      <div className="mc-mem-cat">{cat.category || "uncategorized"}</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div className="mc-mem-bar-wrap"><div className="mc-mem-bar" style={{ width: `${pct}%` }}></div></div>
-                        <div className="mc-mem-count">{cat.count}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </>
-            ) : (
-              <div className="mc-empty-state"><div className="mc-es-text">No data</div></div>
-            )}
+          <div class="actions-section">
+            <div class="actions-title">Quick Actions</div>
+            <div class="actions-grid">
+              <button class="action-btn" id="btnRedeploy"><span class="ab-icon">🚀</span><span class="ab-label">Redeploy</span></button>
+              <button class="action-btn" id="btnRefreshLogs"><span class="ab-icon">📋</span><span class="ab-label">Fetch Logs</span></button>
+              <a class="action-btn action-link" href="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}" target="_blank" rel="noopener"><span class="ab-icon">📦</span><span class="ab-label">GitHub Repo</span></a>
+              <a class="action-btn action-link" href="https://forge-os.ai" target="_blank" rel="noopener"><span class="ab-icon">🌐</span><span class="ab-label">ForgeOS Live</span></a>
+            </div>
           </div>
         </div>
-        <div className="mc-actions-section">
-          <div className="mc-actions-title">Quick Actions</div>
-          <div className="mc-actions-grid">
-            <button className="mc-action-btn" onClick={handleRedeploy} disabled={redeploying}>
-              <span className="mc-ab-icon">🚀</span>
-              <span className="mc-ab-label">{redeploying ? "Deploying\u2026" : "Redeploy"}</span>
-            </button>
-            <button className="mc-action-btn" onClick={handleRefreshLogs} disabled={refreshingLogs}>
-              <span className="mc-ab-icon">📋</span>
-              <span className="mc-ab-label">Fetch Logs</span>
-            </button>
-            <a className="mc-action-btn mc-action-link" href="https://github.com/BrianBMorgan/ForgeOS" target="_blank" rel="noopener noreferrer">
-              <span className="mc-ab-icon">📦</span><span className="mc-ab-label">GitHub Repo</span>
-            </a>
-            <a className="mc-action-btn mc-action-link" href="https://forge-os.ai" target="_blank" rel="noopener noreferrer">
-              <span className="mc-ab-icon">🌐</span><span className="mc-ab-label">ForgeOS Live</span>
-            </a>
+        <div class="log-section">
+          <div class="panel-header">
+            <span class="panel-title">Render Logs</span>
+            <span class="panel-count" id="logCount"></span>
+          </div>
+          <div class="log-body" id="logBody">
+            <div class="loading-row"><div class="spinner"></div>Loading logs…</div>
           </div>
         </div>
       </div>
-
-      <div className="mc-log-section">
-        <div className="mc-panel-header">
-          <span className="mc-panel-title">Render Logs</span>
-          <span className="mc-panel-count">{logs?.lines?.length ? `${logs.lines.length} lines` : ""}</span>
-        </div>
-        <div className="mc-log-body">
-          {loadingLogs ? (
-            <div className="mc-loading-row"><div className="mc-spinner"></div>Loading logs…</div>
-          ) : logs?.lines?.length ? (
-            logs.lines.map((line, i) => {
-              let cls = "mc-log-line";
-              if (/error/i.test(line)) cls += " err";
-              else if (/warn/i.test(line)) cls += " warn";
-              else if (/info|start|listen|deploy/i.test(line)) cls += " info";
-              return <div key={i} className={cls}>{line}</div>;
-            })
-          ) : (
-            <div className="mc-empty-state"><div className="mc-es-text">{logs?.error || "No logs"}</div></div>
-          )}
-        </div>
-      </div>
-    </div>
+      <div class="toast" id="toast"></div>
+    ` }} />
   );
 }
