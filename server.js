@@ -2,6 +2,7 @@ var express = require('express');
 var path = require('path');
 var axios = require('axios');
 var { neon } = require('@neondatabase/serverless');
+var showdown = require('showdown');
 
 var app = express();
 var PORT = process.env.PORT || 3000;
@@ -501,9 +502,12 @@ app.post('/api/submissions/:id/enrich', async function (req, res) {
 
     var systemPrompt = `You are a world-class content editor for a tech conference. Your task is to refine the provided abstract to be clearer, more impactful, and better aligned with the event's audience, without changing the core technical message.\n\nEvent context for audience and theme alignment:\n${event.context_profile}`;
 
-    var enriched_abstract = await callGemini(systemPrompt, submission.abstract, false);
+    var enriched_abstract_markdown = await callGemini(systemPrompt, submission.abstract, false);
+    
+    var converter = new showdown.Converter();
+    var enriched_abstract_html = converter.makeHtml(enriched_abstract_markdown);
 
-    res.json({ ok: true, enriched_abstract: enriched_abstract });
+    res.json({ ok: true, enriched_abstract: enriched_abstract_html });
   } catch (err) {
     console.error('[submissions/enrich]', err.message);
     res.status(500).json({ ok: false, error: err.message });
