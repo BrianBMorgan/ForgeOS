@@ -83,6 +83,9 @@ tr:hover td{background:#f9f9f9;}
 .alert-error{background:#fff0f0;border:1px solid #CC0000;color:#CC0000;}
 .alert-success{background:#f0fff4;border:1px solid #007A3D;color:#007A3D;}
 .loading{color:#888;font-size:13px;padding:20px 0;}
+#enriched-text p { margin-bottom: 1em; } 
+#enriched-text ul, #enriched-text ol { margin-left: 1.5em; margin-bottom: 1em; } 
+#enriched-text li { margin-bottom: 0.5em; }
 </style>
 <script>(function(){
   var active=false,overlay=null,lastEl=null;
@@ -671,7 +674,7 @@ async function enrichAbstract(id) {
           '<h4 style="font-weight:700;font-size:14px;">AI Enriched Abstract</h4>' +
           '<button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="copyEnrichedAbstract()">Copy</button>' +
         '</div>' +
-        '<p id="enriched-text" style="font-size:13px;color:#444">' + enrichedAbstract + '</p>' +
+        '<div id="enriched-text" style="font-size:13px;color:#444">' + enrichedAbstract + '</div>' +
       '</div>';
   } catch (err) {
     container.innerHTML = '<div class="alert alert-error">An unexpected error occurred while enriching the abstract.</div>';
@@ -684,8 +687,16 @@ function copyEnrichedAbstract() {
     alert('Could not find enriched text to copy.');
     return;
   }
-  var textToCopy = textElement.innerText;
-  navigator.clipboard.writeText(textToCopy).then(function() {
+  
+  var html = textElement.innerHTML;
+  var text = textElement.innerText;
+
+  navigator.clipboard.write([
+    new ClipboardItem({
+      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/plain': new Blob([text], { type: 'text/plain' })
+    })
+  ]).then(function() {
     alert('Enriched abstract copied to clipboard!');
   }, function(err) {
     alert('Failed to copy text: ' + err);
@@ -883,6 +894,14 @@ window.closePanel = closePanel;
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderEventsList();
 addTopbarBtn('New Event', showNewEventForm);
-</script>
+</script><script>
+  (function(){
+    var active=false,hl=null;
+    function sel(el){var p=[],e=el;while(e&&e!==document.body){var s=e.tagName.toLowerCase();if(e.id)s+='#'+e.id;else if(e.className)s+='.'+String(e.className).trim().split(/\s+/).slice(0,2).join('.');p.unshift(s);e=e.parentElement;}return p.join(' > ');}
+    document.addEventListener('mousemove',function(e){if(!active)return;var t=document.elementFromPoint(e.clientX,e.clientY);if(!t||t===document.body)return;if(!hl){hl=document.createElement('div');hl.style.cssText='position:fixed;pointer-events:none;z-index:99999;background:rgba(99,102,241,0.15);border:2px solid #6366f1;box-sizing:border-box;';document.body.appendChild(hl);}var r=t.getBoundingClientRect();Object.assign(hl.style,{display:'block',top:r.top+'px',left:r.left+'px',width:r.width+'px',height:r.height+'px'});},true);
+    document.addEventListener('click',function(e){if(!active)return;e.preventDefault();e.stopPropagation();var t=e.target;window.parent.postMessage({type:'forge:inspect:selection',outerHTML:t.outerHTML.slice(0,800),textContent:(t.textContent||'').trim().slice(0,200),selector:sel(t)},'*');active=false;if(hl)hl.style.display='none';},true);
+    window.addEventListener('message',function(e){if(e.data&&e.data.type==='forge:inspect:activate'){active=true;}if(e.data&&e.data.type==='forge:inspect:deactivate'){active=false;if(hl)hl.style.display='none';}});
+  })();
+  </script>
 </body>
 </html>
