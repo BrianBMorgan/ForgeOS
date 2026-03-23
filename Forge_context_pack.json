@@ -1,11 +1,11 @@
 {
   "version": "7.0.1",
   "updated": "2026-03-23",
-  "current_state": "Architecture v2.1 is live. ForgeOS is now powered exclusively by Gemini 2.5 Pro. The local-to-cloud autonomous maintenance loop is operational and verified.",
+  "current_state": "Architecture v2.1 is LIVE. ForgeOS is now powered exclusively by Gemini 2.5 Pro via a persistent Cloud Architect MCP on Google Cloud Run. Frank (Planner) and Gemini (Writer) are unified. The mobile-native cloud bridge is operational and verified.",
   "next_steps": [
-    "Formalize architect.py into the core repository structure.",
-    "Stress test Gemini 2.5 Pro reasoning on complex multi-file app builds.",
-    "Expand the local toolset for more granular filesystem control."
+    "Carbon-copy the Mission Control Dashboard UI (https://mission-control.forge-os.ai/) into the ForgeOS sidebar 'Mission Control' tab.",
+    "Refine the Cloud Architect toolset for deeper repo management (e.g., list_files, grep).",
+    "Build the first 'Cloud-Native' micro-app from iPhone via AI Studio."
   ],
   "architecture": {
     "model": "ForgeOS v2 \u2014 Frank (Claude) architects + delegates to Gemini 2.5 Pro via write_code tool. GitHub is the filesystem. Render is the runtime.",
@@ -277,7 +277,11 @@
         "Countdown timer: first Frank + Gemini production build",
         "Brain: POST /api/brain/memory endpoint added",
         "publish/manager.js: updateAppStatus() added",
-        "package.json overwrite bug found and fixed \u2014 main branch absolute protection"
+        "package.json overwrite bug found and fixed \u2014 main branch absolute protection"},
+    {
+      "date": "2026-03-23",
+      "summary": "Successfully sunset Claude-3.5-Sonnet. Unified the orchestration logic in 'server/index.js' to use the 'google-genai' SDK and 'gemini-2.5-pro' for both Planner and Writer roles. Deployed a persistent Cloud Architect to Google Cloud Run (https://forge-architect-866738438421.us-central1.run.app) for autonomous maintenance. Established the Architecture v2.1 mobile-native handshake. Fixed tool schema mismatch (input_schema to parameters)."
+    },
       ],
       "decisions": [
         "Frank is the architect \u2014 plans, specs, delegates. Never writes code.",
