@@ -42,5 +42,6 @@
             "state": "opened",
             "noItemText": "The project has no merge requests"
         }
-    ]
+    ],
+    "IDX.agenticWorkspace": false
 }
