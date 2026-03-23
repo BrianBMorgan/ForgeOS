@@ -571,18 +571,37 @@ async function viewSubmission(id) {
       '<textarea id="notes-field" rows="3" style="margin-top:4px">' + (s.reviewer_notes||'') + '</textarea>' +
       '<button class="btn-secondary" style="margin-top:8px" id="btn-save-notes">Save Notes</button>' +
     '</div>' +
-    '<div style="margin-top:12px;display:flex;gap:8px">' +
+    '<div id="action-buttons" style="margin-top:12px;display:flex;gap:8px">' +
       '<button class="btn-primary" id="btn-run-score">Run AI Score</button>' +
-      '<button class="btn-secondary" id="btn-enrich-abstract">Enrich Abstract</button>' +
     '</div>' +
     scoreHtml;
+  
+  if (!s.enriched_abstract) {
+    var enrichBtn = document.createElement('button');
+    enrichBtn.id = 'btn-enrich-abstract';
+    enrichBtn.className = 'btn-secondary';
+    enrichBtn.textContent = 'Enrich Abstract';
+    enrichBtn.onclick = function() { enrichAbstract(id); };
+    document.getElementById('action-buttons').appendChild(enrichBtn);
+  } else {
+    document.getElementById('enrich-container').innerHTML = 
+      '<div style="padding:12px;background:#f9f9f9;border:1px solid #EAEAEA">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+          '<h4 style="font-weight:700;font-size:14px;">AI Enriched Abstract</h4>' +
+          '<button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="copyEnrichedAbstract()">Copy</button>' +
+        '</div>' +
+        '<div id="enriched-text" style="font-size:13px;color:#444">' + s.enriched_abstract + '</div>' +
+      '</div>';
+  }
+
   document.getElementById('btn-save-notes').addEventListener('click', function() {
     saveNotes(id, document.getElementById('notes-field').value);
   });
   document.getElementById('btn-run-score').addEventListener('click', function() { scoreSubmission(id); });
-  document.getElementById('btn-enrich-abstract').addEventListener('click', function() { enrichAbstract(id); });
+  
   openPanel();
 }
+
 
 async function saveNotes(id, notes) {
   await api('PUT', '/api/submissions/' + id, { reviewer_notes: notes });
@@ -667,19 +686,34 @@ async function enrichAbstract(id) {
       return;
     }
     
-    var enrichedAbstract = r.enriched_abstract || 'No content returned.';
+    var updatedSubmission = r.submission;
+    if (!updatedSubmission || !updatedSubmission.enriched_abstract) {
+        container.innerHTML = '<div class="alert alert-error">Enrichment failed to return content.</div>';
+        return;
+    }
+
+    var index = allSubmissions.findIndex(function(s){ return s.id === id; });
+    if (index !== -1) {
+        allSubmissions[index] = updatedSubmission;
+    }
+
     container.innerHTML = 
       '<div style="padding:12px;background:#f9f9f9;border:1px solid #EAEAEA">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
           '<h4 style="font-weight:700;font-size:14px;">AI Enriched Abstract</h4>' +
           '<button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="copyEnrichedAbstract()">Copy</button>' +
         '</div>' +
-        '<div id="enriched-text" style="font-size:13px;color:#444">' + enrichedAbstract + '</div>' +
+        '<div id="enriched-text" style="font-size:13px;color:#444">' + updatedSubmission.enriched_abstract + '</div>' +
       '</div>';
+    
+    var enrichBtn = document.getElementById('btn-enrich-abstract');
+    if (enrichBtn) enrichBtn.remove();
+
   } catch (err) {
     container.innerHTML = '<div class="alert alert-error">An unexpected error occurred while enriching the abstract.</div>';
   }
 }
+
 
 function copyEnrichedAbstract() {
   var textElement = document.getElementById('enriched-text');
