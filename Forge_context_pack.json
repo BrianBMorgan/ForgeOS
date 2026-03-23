@@ -1,6 +1,6 @@
 {
-  "version": "7.0.0",
-  "updated": "2026-03-22",
+  "version": "7.0.1",
+  "updated": "2026-03-23",
   "current_state": "Architecture v2.1 is live. ForgeOS is now powered exclusively by Gemini 2.5 Pro. The local-to-cloud autonomous maintenance loop is operational and verified.",
   "next_steps": [
     "Formalize architect.py into the core repository structure.",
@@ -20,7 +20,7 @@
   },
   "two_agent_system": {
     "frank": {
-      "model": "claude-sonnet-4-6",
+      "model": "gemini-2.5-pro",
       "role": "Architect and engineering partner. Thinks before delegating. Never writes code directly.",
       "tools": [
         "github_create_branch",
