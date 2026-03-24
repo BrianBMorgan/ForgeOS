@@ -792,29 +792,14 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
       </div>
 
       {appUrl && (
-        <div className="render-v2-url-card">
-          <div className="render-v2-url-label">Live URL</div>
-          <div className="render-v2-url-row">
-            <a href={appUrl} target="_blank" rel="noopener noreferrer" className="render-v2-url-link">
-              {appUrl}
-            </a>
-            <button
-              className="pub-copy-btn"
-              onClick={() => { navigator.clipboard.writeText(appUrl); }}
-            >
-              Copy
-            </button>
-            <a href={appUrl} target="_blank" rel="noopener noreferrer" className="render-v2-open-btn">
-              Open ↗
-            </a>
-          </div>
-        </div>
-      )}
-
-      {appUrl && (
         <div className="render-v2-iframe-wrap">
-          <div className="render-v2-iframe-bar" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <span style={{fontSize:11,color:"#888",fontFamily:"monospace"}}>{appUrl}</span>
+          <div className="render-v2-iframe-bar" style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6}}>
+            <a
+              href={appUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{fontSize:11,padding:"2px 8px",cursor:"pointer",background:"transparent",color:"#aaa",border:"1px solid #444",borderRadius:3,textDecoration:"none",lineHeight:"1.6"}}
+            >Open ↗</a>
             <button
               onClick={() => setInspectMode(m => !m)}
               style={{fontSize:11,padding:"2px 8px",cursor:"pointer",background:inspectMode?"#6366f1":"transparent",color:inspectMode?"white":"#aaa",border:"1px solid",borderColor:inspectMode?"#6366f1":"#444",borderRadius:3}}
