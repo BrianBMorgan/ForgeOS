@@ -596,12 +596,24 @@ app.get('/api/speakers', async function(req, res) {
       return res.status(400).json({ ok: false, error: 'event_id query parameter is required' });
     }
     var speakers = await sql`
-      SELECT id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+      SELECT id, event_id, full_name, title, company, email, bio, created_at, headshot
       FROM speakers
       WHERE event_id = ${event_id}
       ORDER BY full_name ASC
     `;
-    res.json({ ok: true, speakers: speakers });
+
+    var processedSpeakers = speakers.map(speaker => {
+      if (speaker.headshot && Buffer.isBuffer(speaker.headshot)) {
+        const base64Image = speaker.headshot.toString('base64');
+        // Assuming jpeg for simplicity. A more robust solution might inspect the file header.
+        speaker.headshot = `data:image/jpeg;base64,${base64Image}`;
+      } else {
+        speaker.headshot = null;
+      }
+      return speaker;
+    });
+
+    res.json({ ok: true, speakers: processedSpeakers });
   } catch (err) {
     console.error('[api/speakers GET]', err.message);
     res.status(500).json({ ok: false, error: err.message });
@@ -621,10 +633,18 @@ app.post('/api/speakers', upload.single('headshot'), async function(req, res) {
     var result = await sql`
       INSERT INTO speakers (event_id, full_name, title, company, email, bio, headshot)
       VALUES (${b.event_id}, ${b.full_name}, ${b.title || ''}, ${b.company || ''}, ${b.email || ''}, ${b.bio || ''}, ${headshot})
-      RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+      RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot
     `;
+    
+    var speaker = result[0];
+    if (speaker.headshot && Buffer.isBuffer(speaker.headshot)) {
+        const base64Image = speaker.headshot.toString('base64');
+        speaker.headshot = `data:image/jpeg;base64,${base64Image}`;
+    } else {
+        speaker.headshot = null;
+    }
 
-    res.status(201).json({ ok: true, speaker: result[0] });
+    res.status(201).json({ ok: true, speaker: speaker });
   } catch (err) {
     console.error('[api/speakers POST]', err.message);
     res.status(500).json({ ok: false, error: err.message });
@@ -649,18 +669,26 @@ app.put('/api/speakers/:id', upload.single('headshot'), async function(req, res)
         UPDATE speakers
         SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}, headshot=${headshot}
         WHERE id = ${id}
-        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot
       `;
     } else {
       result = await sql`
         UPDATE speakers
         SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}
         WHERE id = ${id}
-        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot
       `;
     }
 
-    res.json({ ok: true, speaker: result[0] });
+    var speaker = result[0];
+    if (speaker.headshot && Buffer.isBuffer(speaker.headshot)) {
+        const base64Image = speaker.headshot.toString('base64');
+        speaker.headshot = `data:image/jpeg;base64,${base64Image}`;
+    } else {
+        speaker.headshot = null;
+    }
+
+    res.json({ ok: true, speaker: speaker });
   } catch (err) {
     console.error('[api/speakers PUT]', err.message);
     res.status(500).json({ ok: false, error: err.message });
@@ -678,23 +706,6 @@ app.delete('/api/speakers/:id', async function(req, res) {
     res.json({ ok: true });
   } catch (err) {
     console.error('[api/speakers DELETE]', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get('/api/speakers/:id/headshot', async function(req, res) {
-  try {
-    var sql = getDb();
-    var id = req.params.id;
-    var result = await sql`SELECT headshot FROM speakers WHERE id = ${id}`;
-    if (result.length === 0 || !result[0].headshot) {
-      return res.status(404).send('Headshot not found');
-    }
-    res.setHeader('Content-Type', 'image/jpeg'); // Assuming jpeg, could be png etc.
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.send(result[0].headshot);
-  } catch (err) {
-    console.error('[api/speakers/:id/headshot GET]', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
