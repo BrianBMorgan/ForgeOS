@@ -155,6 +155,20 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
+  // Add headshot_mimetype column to speakers table if it doesn't exist
+  try {
+    var colCheckSpeakers = await sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'speakers' AND column_name = 'headshot_mimetype' AND table_schema = 'public'`;
+    if (colCheckSpeakers.length === 0) {
+      console.log('Adding headshot_mimetype column to speakers table...');
+      await sql`ALTER TABLE speakers ADD COLUMN headshot_mimetype TEXT`;
+      console.log('headshot_mimetype column added.');
+    }
+  } catch (addColErr) {
+    console.log('headshot_mimetype column check skipped:', addColErr.message);
+  }
+
   // Migrate ai_score to JSONB if it was previously created as INTEGER
   try {
     var colCheck = await sql`
@@ -596,17 +610,25 @@ app.get('/api/speakers', async function(req, res) {
       return res.status(400).json({ ok: false, error: 'event_id query parameter is required' });
     }
     var speakers = await sql`
-      SELECT id, event_id, full_name, title, company, email, bio, created_at, headshot
+      SELECT id, event_id, full_name, title, company, email, bio, created_at, headshot, headshot_mimetype
       FROM speakers
       WHERE event_id = ${event_id}
       ORDER BY full_name ASC
     `;
 
     var processedSpeakers = speakers.map(speaker => {
-      if (speaker.headshot && Buffer.isBuffer(speaker.headshot)) {
-        const base64Image = speaker.headshot.toString('base64');
-        // Assuming jpeg for simplicity. A more robust solution might inspect the file header.
-        speaker.headshot = `data:image/jpeg;base64,${base64Image}`;
+      var headshotBuffer = null;
+      // bytea can be returned as a hex string from the DB driver
+      if (speaker.headshot && typeof speaker.headshot === 'string' && speaker.headshot.startsWith('\\x')) {
+        headshotBuffer = Buffer.from(speaker.headshot.substring(2), 'hex');
+      } else if (speaker.headshot && Buffer.isBuffer(speaker.headshot)) {
+        // Or it can be a Buffer
+        headshotBuffer = speaker.headshot;
+      }
+
+      if (headshotBuffer && speaker.headshot_mimetype) {
+        const base64Image = headshotBuffer.toString('base64');
+        speaker.headshot = `data:${speaker.headshot_mimetype};base64,${base64Image}`;
       } else {
         speaker.headshot = null;
       }
@@ -625,21 +647,22 @@ app.post('/api/speakers', upload.single('headshot'), async function(req, res) {
     var sql = getDb();
     var b = req.body;
     var headshot = req.file ? req.file.buffer : null;
+    var headshot_mimetype = req.file ? req.file.mimetype : null;
     
     if (!b.event_id || !b.full_name) {
       return res.status(400).json({ ok: false, error: 'event_id and full_name are required' });
     }
 
     var result = await sql`
-      INSERT INTO speakers (event_id, full_name, title, company, email, bio, headshot)
-      VALUES (${b.event_id}, ${b.full_name}, ${b.title || ''}, ${b.company || ''}, ${b.email || ''}, ${b.bio || ''}, ${headshot})
-      RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot
+      INSERT INTO speakers (event_id, full_name, title, company, email, bio, headshot, headshot_mimetype)
+      VALUES (${b.event_id}, ${b.full_name}, ${b.title || ''}, ${b.company || ''}, ${b.email || ''}, ${b.bio || ''}, ${headshot}, ${headshot_mimetype})
+      RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot, headshot_mimetype
     `;
     
     var speaker = result[0];
-    if (speaker.headshot && Buffer.isBuffer(speaker.headshot)) {
+    if (speaker.headshot && Buffer.isBuffer(speaker.headshot) && speaker.headshot_mimetype) {
         const base64Image = speaker.headshot.toString('base64');
-        speaker.headshot = `data:image/jpeg;base64,${base64Image}`;
+        speaker.headshot = `data:${speaker.headshot_mimetype};base64,${base64Image}`;
     } else {
         speaker.headshot = null;
     }
@@ -657,8 +680,9 @@ app.put('/api/speakers/:id', upload.single('headshot'), async function(req, res)
     var id = req.params.id;
     var b = req.body;
     var headshot = req.file ? req.file.buffer : null;
+    var headshot_mimetype = req.file ? req.file.mimetype : null;
 
-    var current = await sql`SELECT * FROM speakers WHERE id = ${id}`;
+    var current = await sql`SELECT id FROM speakers WHERE id = ${id}`;
     if (current.length === 0) {
         return res.status(404).json({ ok: false, error: 'Speaker not found' });
     }
@@ -667,23 +691,32 @@ app.put('/api/speakers/:id', upload.single('headshot'), async function(req, res)
     if (headshot) {
       result = await sql`
         UPDATE speakers
-        SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}, headshot=${headshot}
+        SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}, headshot=${headshot}, headshot_mimetype=${headshot_mimetype}
         WHERE id = ${id}
-        RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot, headshot_mimetype
       `;
     } else {
       result = await sql`
         UPDATE speakers
         SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}
         WHERE id = ${id}
-        RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot, headshot_mimetype
       `;
     }
 
     var speaker = result[0];
-    if (speaker.headshot && Buffer.isBuffer(speaker.headshot)) {
-        const base64Image = speaker.headshot.toString('base64');
-        speaker.headshot = `data:image/jpeg;base64,${base64Image}`;
+    var headshotBuffer = null;
+    if (speaker.headshot) {
+      if (typeof speaker.headshot === 'string' && speaker.headshot.startsWith('\\x')) {
+        headshotBuffer = Buffer.from(speaker.headshot.substring(2), 'hex');
+      } else if (Buffer.isBuffer(speaker.headshot)) {
+        headshotBuffer = speaker.headshot;
+      }
+    }
+
+    if (headshotBuffer && speaker.headshot_mimetype) {
+        const base64Image = headshotBuffer.toString('base64');
+        speaker.headshot = `data:${speaker.headshot_mimetype};base64,${base64Image}`;
     } else {
         speaker.headshot = null;
     }
