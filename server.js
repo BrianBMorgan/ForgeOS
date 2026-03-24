@@ -572,18 +572,31 @@ app.post('/api/submissions', async function (req, res) {
     var result = await sql`
       INSERT INTO submissions (
         event_id, title, content_lead, bu, track, format, duration,
-        speaker_id, abstract, key_topics, demos,
+        abstract, key_topics, demos,
         featured_products, business_challenge, partner_highlights, new_launches
       ) VALUES (
         ${b.event_id}, ${b.title || ''}, ${b.content_lead || ''}, ${b.bu || ''},
         ${b.track || ''}, ${b.format || ''}, ${b.duration || ''},
-        ${b.speaker_id || null}, ${b.abstract || ''},
+        ${b.abstract || ''},
         ${b.key_topics || ''}, ${b.demos || ''}, ${b.featured_products || ''},
         ${b.business_challenge || ''}, ${b.partner_highlights || ''}, ${b.new_launches || ''}
       )
       RETURNING *
     `;
-    res.json({ ok: true, submission: result[0] });
+    var submission = result[0];
+    
+    // Handle speaker_ids array for multi-speaker support
+    var speakerIds = b.speaker_ids || [];
+    if (!Array.isArray(speakerIds)) speakerIds = speakerIds ? [speakerIds] : [];
+    
+    for (var i = 0; i < speakerIds.length; i++) {
+      var spkId = parseInt(speakerIds[i], 10);
+      if (spkId) {
+        await sql`INSERT INTO submission_speakers (submission_id, speaker_id) VALUES (${submission.id}, ${spkId})`;
+      }
+    }
+    
+    res.json({ ok: true, submission: submission });
   } catch (err) {
     console.error('[api/submissions POST]', err.message);
     res.status(500).json({ ok: false, error: err.message });
