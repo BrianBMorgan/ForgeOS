@@ -1,7 +1,7 @@
 "use strict";
 
+const { v4: uuidv4 } = require("uuid");
 const { neon } = require("@neondatabase/serverless");
-const uuidImport = import("uuid");
 
 const dbUrl = process.env.NEON_DATABASE_URL;
 if (!dbUrl) {
@@ -90,7 +90,6 @@ function generateProjectName(prompt) {
 
 async function createProject(prompt) {
   await loadFromDb();
-  const { v4: uuidv4 } = await uuidImport;
   const id = uuidv4().slice(0, 8);
   const name = generateProjectName(prompt);
   const now = Date.now();
