@@ -1636,7 +1636,7 @@ app.get("/api/dashboard/status", async (_req, res) => {
     neon: !!process.env.NEON_DATABASE_URL,
   };
   try {
-    const [renderRes, forgeRes] = await Promise.all([
+    const [renderResult, forgeResult] = await Promise.all([
       fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}`, {
         headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json" }
       }).then(async r => {
@@ -1657,50 +1657,9 @@ app.get("/api/dashboard/status", async (_req, res) => {
         } catch { return { alive: false, latencyMs: null }; }
       })()
     ]);
-    res.json({ ok: true, credentials: checks, render: renderRes, forge: forgeRes, timestamp: new Date().toISOString() });
+    res.json({ ok: true, credentials: checks, render: renderResult, forge: forgeResult, timestamp: new Date().toISOString() });
   } catch (err) {
     res.json({ ok: false, credentials: checks, error: err.message });
-  }
-});
-
-app.get("/api/dashboard/builds", async (_req, res) => {
-  res.set("Cache-Control", "no-store");
-  const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
-  const checks = {
-    anthropic: !!process.env.ANTHROPIC_API_KEY,
-    github: !!process.env.GITHUB_TOKEN,
-    render: !!process.env.RENDER_API_KEY,
-    neon: !!process.env.NEON_DATABASE_URL,
-    gemini: !!process.env.GEMINI_API_KEY,
-  };
-  try {
-    const [svcRes, depRes] = await Promise.all([
-      fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}`, {
-        headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json" }
-      }),
-      fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys?limit=3`, {
-        headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json" }
-      })
-    ]);
-    const svc = await svcRes.json();
-    const deps = await depRes.json();
-    const service = svc.service || svc;
-    res.json({
-      ok: true,
-      checks,
-      service: {
-        name: service.name,
-        status: (deps[0]?.deploy || deps[0])?.status || service.serviceDetails?.status || "unknown",
-        branch: service.branch || "main",
-        updatedAt: service.updatedAt || new Date().toISOString(),
-      },
-      deploys: deps.slice(0, 3).map((d) => {
-        const dep = d.deploy || d;
-        return { status: dep.status, createdAt: dep.createdAt, commit: dep.commit };
-      }),
-    });
-  } catch (err) {
-    res.json({ ok: false, checks, error: err.message });
   }
 });
 
@@ -1767,7 +1726,7 @@ app.get("/api/dashboard/logs", async (_req, res) => {
     );
     if (logsRes.status !== 200) return res.json({ ok: false, error: `Logs API ${logsRes.status}`, lines: [] });
     const parsed = await logsRes.json();
-    const lines = (parsed.logs || []).map((e) => e.message || "").filter(Boolean);
+    const lines = (parsed.logs || []).map(e => e.message || "").filter(Boolean);
     res.json({ ok: true, lines });
   } catch (err) {
     res.json({ ok: false, error: err.message, lines: [] });
@@ -1784,9 +1743,7 @@ app.post("/api/dashboard/redeploy", async (_req, res) => {
       headers: { Authorization: `Bearer ${key}`, Accept: "application/json", "Content-Type": "application/json" }
     });
     const data = await r.json();
-    if (r.status === 200 || r.status === 201) {
-      return res.json({ ok: true, deployId: data.id || data.deploy?.id || "" });
-    }
+    if (r.status === 200 || r.status === 201) return res.json({ ok: true, deployId: data.id || data.deploy?.id || "" });
     res.json({ ok: false, error: `Render responded ${r.status}` });
   } catch (err) {
     res.json({ ok: false, error: err.message });
