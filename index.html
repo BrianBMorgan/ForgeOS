@@ -531,10 +531,16 @@ function renderSubTable() {
   document.getElementById('sub-table').innerHTML = html;
 }
 
-async function populateSpeakerDropdown(selectedSpeakerId) {
+async function populateSpeakerDropdown(selectedSpeakerIds) {
   const select = document.getElementById('sf-speaker_id');
   if (!select) return;
-  select.innerHTML = '<option value="">-- No Speaker --</option>'; // Reset
+  select.innerHTML = ''; // Reset for multi-select
+  
+  // Normalize selectedSpeakerIds to array
+  var selectedIds = selectedSpeakerIds || [];
+  if (!Array.isArray(selectedIds)) selectedIds = selectedIds ? [selectedIds] : [];
+  selectedIds = selectedIds.map(function(id) { return String(id); });
+  
   try {
     const data = await api('GET', `/api/speakers?event_id=${currentEventId}`);
     const speakers = data.speakers || [];
@@ -542,7 +548,7 @@ async function populateSpeakerDropdown(selectedSpeakerId) {
       const option = document.createElement('option');
       option.value = speaker.id;
       option.textContent = `${speaker.full_name} (${speaker.company || 'N/A'})`;
-      if (String(speaker.id) === String(selectedSpeakerId)) {
+      if (selectedIds.indexOf(String(speaker.id)) !== -1) {
         option.selected = true;
       }
       select.appendChild(option);
