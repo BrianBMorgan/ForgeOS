@@ -686,7 +686,6 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
           lastDeploy: data.publishedAt ? new Date(data.publishedAt).toLocaleString() : "—",
           commit: data.github?.commitSha?.slice(0, 7) || "—",
         });
-        // Stop polling once live
         if (status === "running" && pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
@@ -700,15 +699,12 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
     setLoading(false);
   }, [projectId, appUrl, refreshKey]);
 
-  // Initial fetch + start polling if deploying; stop when live
-  // Send activate/deactivate to iframe via postMessage when inspect mode changes
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage(
       { type: inspectMode ? "forge:inspect:activate" : "forge:inspect:deactivate" }, "*"
     );
   }, [inspectMode]);
 
-  // Receive selections from iframe
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type !== "forge:inspect:selection") return;
@@ -723,7 +719,6 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
 
   useEffect(() => {
     fetchStatus();
-    // Poll every 5s — fetchStatus will self-terminate the interval when live
     pollRef.current = setInterval(fetchStatus, 5000);
     return () => {
       if (pollRef.current) {
@@ -738,7 +733,6 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
     setRedeploying(true);
     try {
       await fetch(`/api/projects/${projectId}/publish`, { method: "POST" });
-      // Start polling again after redeploy
       if (!pollRef.current) {
         pollRef.current = setInterval(fetchStatus, 5000);
       }
@@ -819,10 +813,7 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
 
       {appUrl && (
         <div className="render-v2-iframe-wrap">
-          <div className="render-v2-iframe-bar">
-            <span className="render-v2-iframe-url">{appUrl}</span>
-          </div>
-          <div className="render-v2-iframe-bar" style={{marginTop:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div className="render-v2-iframe-bar" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <span style={{fontSize:11,color:"#888",fontFamily:"monospace"}}>{appUrl}</span>
             <button
               onClick={() => setInspectMode(m => !m)}
@@ -1131,7 +1122,6 @@ export default function Workspace({ projectData }: WorkspaceProps) {
 
   useEffect(() => {
     const tabHandler = (e: CustomEvent) => setActiveTab(e.detail);
-    // Refresh all tabs when a file is committed or build is complete
     const commitHandler = () => setRefreshKey(k => k + 1);
     const buildHandler = () => setRefreshKey(k => k + 1);
     window.addEventListener("forgeos:switch-tab", tabHandler as EventListener);
@@ -1146,7 +1136,6 @@ export default function Workspace({ projectData }: WorkspaceProps) {
 
   const projectId = projectData?.id || null;
 
-  // Fetch slug from publish status — slug lives in published_apps, not projects table
   useEffect(() => {
     if (!projectId) { setResolvedSlug(null); return; }
     fetch(`/api/projects/${projectId}/publish`)
