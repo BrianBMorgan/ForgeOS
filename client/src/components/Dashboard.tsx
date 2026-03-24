@@ -38,6 +38,13 @@ interface LogData {
   error?: string;
 }
 
+interface UsageData {
+  ok: boolean;
+  totals?: { inputTokens: number; outputTokens: number; costUsd: number };
+  byModel?: { model: string; inputTokens: number; outputTokens: number; costUsd: number; calls: number }[];
+  error?: string;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function timeAgo(iso: string): string {
@@ -66,6 +73,7 @@ export default function Dashboard() {
   const [logs, setLogs] = useState<LogData | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const [redeploying, setRedeploying] = useState(false);
+  const [usage, setUsage] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadStatus = useCallback(async () => {
@@ -97,12 +105,19 @@ export default function Dashboard() {
     } catch { setLogs({ ok: false, error: "Network error" }); }
   }, []);
 
+  const loadUsage = useCallback(async () => {
+    try {
+      const r = await fetch("/api/dashboard/usage");
+      setUsage(await r.json());
+    } catch { setUsage({ ok: false, error: "Network error" }); }
+  }, []);
+
   const refreshAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadStatus(), loadBuilds(), loadMemory(), loadLogs()]);
+    await Promise.all([loadStatus(), loadBuilds(), loadMemory(), loadLogs(), loadUsage()]);
     setLastUpdated(new Date().toTimeString().slice(0, 8));
     setLoading(false);
-  }, [loadStatus, loadBuilds, loadMemory, loadLogs]);
+  }, [loadStatus, loadBuilds, loadMemory, loadLogs, loadUsage]);
 
   useEffect(() => {
     refreshAll();
@@ -290,6 +305,49 @@ export default function Dashboard() {
                         : "";
                       return <div key={i} className={`dash-log-line ${cls}`}>{line}</div>;
                     })
+              }
+            </div>
+          </div>
+
+          {/* Usage & Cost */}
+          <div className="dash-panel">
+            <div className="dash-panel-header">
+              <span className="dash-panel-title">Anthropic Usage</span>
+              <span className="dash-panel-count">
+                {usage?.totals ? `$${usage.totals.costUsd.toFixed(4)}` : ""}
+              </span>
+            </div>
+            <div className="dash-usage-body">
+              {!usage
+                ? <div className="dash-empty">Loading…</div>
+                : !usage.ok
+                  ? <div className="dash-empty dash-error">{usage.error}</div>
+                  : <>
+                      <div className="dash-usage-totals">
+                        <div className="dash-usage-stat">
+                          <div className="dash-usage-val">{(usage.totals?.inputTokens ?? 0).toLocaleString()}</div>
+                          <div className="dash-usage-lbl">Input tokens</div>
+                        </div>
+                        <div className="dash-usage-stat">
+                          <div className="dash-usage-val">{(usage.totals?.outputTokens ?? 0).toLocaleString()}</div>
+                          <div className="dash-usage-lbl">Output tokens</div>
+                        </div>
+                        <div className="dash-usage-stat dash-usage-cost">
+                          <div className="dash-usage-val">${(usage.totals?.costUsd ?? 0).toFixed(4)}</div>
+                          <div className="dash-usage-lbl">Total cost</div>
+                        </div>
+                      </div>
+                      {(usage.byModel || []).map((m, i) => (
+                        <div key={i} className="dash-usage-row">
+                          <div className="dash-usage-model">{m.model.replace("claude-", "").replace("-4-5", "").replace("-4-6", "")}</div>
+                          <div className="dash-usage-calls">{m.calls} calls</div>
+                          <div className="dash-usage-tokens">{((m.inputTokens + m.outputTokens) / 1000).toFixed(1)}k tok</div>
+                          <div className="dash-usage-price">${m.costUsd.toFixed(4)}</div>
+                        </div>
+                      ))}
+                      {(!usage.byModel || usage.byModel.length === 0) &&
+                        <div className="dash-empty">No usage yet — start a build</div>}
+                    </>
               }
             </div>
           </div>
