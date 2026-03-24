@@ -1623,16 +1623,7 @@ app.get("/api/github/commits", async (req, res) => {
 const clientDist = path.join(__dirname, "..", "client", "dist");
 try {
   const fs = require("fs");
-  if (fs.existsSync(path.join(clientDist, "index.html"))) {
-    app.use(express.static(clientDist));
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(clientDist, "index.html"));
-    });
-    console.log("[static] Serving client from", clientDist);
-  }
-} catch {}
-
-// ── Dashboard routes — mirrored from Mission Control ─────────────────────────
+  // ── Dashboard routes — mirrored from Mission Control ─────────────────────────
 
 app.get("/api/dashboard/status", async (_req, res) => {
   res.set("Cache-Control", "no-store");
@@ -1801,6 +1792,15 @@ app.post("/api/dashboard/redeploy", async (_req, res) => {
     res.json({ ok: false, error: err.message });
   }
 });
+
+if (fs.existsSync(path.join(clientDist, "index.html"))) {
+    app.use(express.static(clientDist));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(clientDist, "index.html"));
+    });
+    console.log("[static] Serving client from", clientDist);
+  }
+} catch {}
 
 
 app.listen(PORT, "0.0.0.0", async () => {
