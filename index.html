@@ -87,16 +87,7 @@ tr:hover td{background:#f9f9f9;}
 #enriched-text ul, #enriched-text ol { margin-left: 1.5em; margin-bottom: 1em; } 
 #enriched-text li { margin-bottom: 0.5em; }
 </style>
-<script>(function(){
-  var active=false,overlay=null,lastEl=null;
-  function sel(el){var parts=[];var e=el;for(var i=0;i<4&&e&&e!==document.body;i++){var s=e.tagName.toLowerCase();if(e.id)s+='#'+e.id;else if(e.className&&typeof e.className==='string')s+='.'+e.className.trim().split(/\s+/).slice(0,2).join('.');parts.unshift(s);e=e.parentElement;}return parts.join(' > ');}
-  function trim(s,n){return s&&s.length>n?s.slice(0,n)+'...':s||'';}
-  function show(el){if(!overlay){overlay=document.createElement('div');overlay.style.cssText='position:fixed;pointer-events:none;outline:2px solid #6366f1;outline-offset:1px;background:rgba(99,102,241,0.1);z-index:2147483647;transition:all 0.05s';document.body.appendChild(overlay);}var r=el.getBoundingClientRect();overlay.style.top=r.top+'px';overlay.style.left=r.left+'px';overlay.style.width=r.width+'px';overlay.style.height=r.height+'px';overlay.style.display='block';}
-  function hide(){if(overlay)overlay.style.display='none';}
-  document.addEventListener('mousemove',function(e){if(!active)return;var el=document.elementFromPoint(e.clientX,e.clientY);if(el&&el!==overlay){lastEl=el;show(el);}},true);
-  document.addEventListener('click',function(e){if(!active)return;e.preventDefault();e.stopPropagation();var el=lastEl||e.target;window.parent.postMessage({type:'forge:inspect:selection',outerHTML:trim(el.outerHTML,600),textContent:trim((el.textContent||'').trim(),200),selector:sel(el)},'*');},true);
-  window.addEventListener('message',function(e){if(!e.data)return;if(e.data.type==='forge:inspect:activate'){active=true;document.body.style.cursor='crosshair';}if(e.data.type==='forge:inspect:deactivate'){active=false;hide();document.body.style.cursor='';}});
-})();</script>
+<script>(function(){(function(){var e,t=null,n=null;function o(e){var t=[];for(var n=e,r=0;r<4&&n&&n!==document.body;r++){var o=n.tagName.toLowerCase();n.id?o+="#"+n.id:n.className&&"string"==typeof n.className&&(o+="."+n.className.trim().split(/\s+/).slice(0,2).join("."));t.unshift(o);n=n.parentElement}return t.join(" > ")}function i(e,t){return e&&e.length>t?e.slice(0,t)+"...":e||""}function d(e){if(!t){(t=document.createElement("div")).style.cssText="position:fixed;pointer-events:none;outline:2px solid #6366f1;outline-offset:1px;background:rgba(99,102,241,0.1);z-index:2147483647;transition:all 0.05s";document.body.appendChild(t)}var n=e.getBoundingClientRect();t.style.top=n.top+"px";t.style.left=n.left+"px";t.style.width=n.width+"px";t.style.height=n.height+"px";t.style.display="block"}function a(){t&&(t.style.display="none")}document.addEventListener("mousemove",function(t){if(!e)return;var o=document.elementFromPoint(t.clientX,t.clientY);o&&o!==t&&(n=o,d(o))},!0);document.addEventListener("click",function(t){if(!e)return;t.preventDefault();t.stopPropagation();var d=n||t.target;window.parent.postMessage({type:"forge:inspect:selection",outerHTML:i(d.outerHTML,600),textContent:i((d.textContent||"").trim(),200),selector:o(d)},"*")},!0);window.addEventListener("message",function(t){if(t.data){if("forge:inspect:activate"===t.data.type){e=!0;document.body.style.cursor="crosshair"}if("forge:inspect:deactivate"===t.data.type){e=!1;a();document.body.style.cursor=""}}})})()})()</script>
 </head>
 <body>
 <div id="sidebar">
@@ -105,6 +96,7 @@ tr:hover td{background:#f9f9f9;}
     <a class="active" onclick="showSection('events')">Events</a>
     <a onclick="showSection('submissions')">Submissions</a>
     <a onclick="showSection('review')">Review</a>
+    <a onclick="showSection('speakers')">Speakers</a>
   </nav>
   <div class="event-selector">
     <label>Current Event</label>
@@ -129,6 +121,10 @@ tr:hover td{background:#f9f9f9;}
     <div id="section-review" class="section">
       <div id="review-content"></div>
     </div>
+    <!-- SPEAKERS SECTION -->
+    <div id="section-speakers" class="section">
+      <div id="speakers-content"></div>
+    </div>
   </div>
 </div>
 
@@ -152,13 +148,14 @@ function showSection(name) {
   document.querySelectorAll('.section').forEach(function(s){s.classList.remove('active');});
   document.getElementById('section-' + name).classList.add('active');
   document.querySelectorAll('#sidebar nav a').forEach(function(a,i){
-    a.classList.toggle('active', ['events','submissions','review'][i] === name);
+    a.classList.toggle('active', ['events','submissions','review','speakers'][i] === name);
   });
   document.getElementById('page-title').textContent = name.charAt(0).toUpperCase() + name.slice(1);
   document.getElementById('topbar-action').innerHTML = '';
   if (name === 'events') { renderEventsList(); addTopbarBtn('New Event', showNewEventForm); }
   if (name === 'submissions') { renderSubmissions(); }
   if (name === 'review') { renderReview(); }
+  if (name === 'speakers') { renderSpeakers(); addTopbarBtn('Add Speaker', () => showSpeakerForm()); }
 }
 
 function addTopbarBtn(label, fn) {
@@ -193,6 +190,7 @@ function onEventChange() {
   var sect = document.querySelector('.section.active');
   if (sect && sect.id === 'section-submissions') renderSubmissions();
   if (sect && sect.id === 'section-review') renderReview();
+  if (sect && sect.id === 'section-speakers') renderSpeakers();
 }
 
 async function renderEventsList() {
@@ -888,6 +886,166 @@ function renderCompareTable() {
   el.innerHTML = html;
 }
 
+// ── Speakers ──────────────────────────────────────────────────────────────────
+async function renderSpeakers() {
+    if (!currentEventId) { 
+        document.getElementById('speakers-content').innerHTML = '<div class="loading">Select an event first.</div>'; 
+        return; 
+    }
+    const el = document.getElementById('speakers-content');
+    el.innerHTML = '<div class="loading">Loading speakers...</div>';
+
+    try {
+        const data = await api('GET', `/api/speakers?event_id=${currentEventId}`);
+        const speakers = data.speakers || [];
+
+        if (speakers.length === 0) {
+            el.innerHTML = '<div class="loading">No speakers added for this event yet.</div>';
+            return;
+        }
+
+        let tableHtml = '<table><thead><tr><th>Headshot</th><th>Name</th><th>Title</th><th>Company</th><th>Actions</th></tr></thead><tbody>';
+        speakers.forEach(speaker => {
+            tableHtml += `
+                <tr>
+                    <td style="width: 60px; vertical-align: middle;">
+                        <img src="/api/speakers/${speaker.id}/headshot?v=${Date.now()}" 
+                             alt="${speaker.full_name}" 
+                             style="width:40px;height:40px;border-radius:50%;object-fit:cover;background-color:#f0f0f0;"
+                             onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NjYyI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyYzAgMS4xLjkgMiAyIDJoMTRjMS4xIDAgMi0uOSAyLTJ2LTJjMC0yLjY2LTUuMzMtNC04LTR6Ii8+PC9wYXRoPjwvc3ZnPg==';">
+                    </td>
+                    <td style="vertical-align: middle;">${speaker.full_name || ''}</td>
+                    <td style="vertical-align: middle;">${speaker.title || ''}</td>
+                    <td style="vertical-align: middle;">${speaker.company || ''}</td>
+                    <td class="actions" style="vertical-align: middle;">
+                        <a onclick="editSpeakerById(${speaker.id})">Edit</a>
+                        <a onclick="deleteSpeaker(${speaker.id})">Delete</a>
+                    </td>
+                </tr>
+            `;
+        });
+        tableHtml += '</tbody></table>';
+        el.innerHTML = tableHtml;
+    } catch (error) {
+        el.innerHTML = '<div class="alert alert-error">Failed to load speakers.</div>';
+        console.error('Error fetching speakers:', error);
+    }
+}
+
+async function editSpeakerById(id) {
+    // This is a placeholder as the full speaker object is not returned in the list.
+    // A dedicated GET /api/speakers/:id would be better, but for now we re-fetch.
+    const data = await api('GET', `/api/speakers?event_id=${currentEventId}`);
+    const speaker = (data.speakers || []).find(s => s.id === id);
+    if (speaker) {
+        showSpeakerForm(speaker);
+    } else {
+        alert('Could not find speaker details.');
+    }
+}
+
+function showSpeakerForm(speaker) {
+    const isEdit = !!speaker;
+    const panel = document.getElementById('slide-panel');
+    panel.innerHTML = `
+        <h2>${isEdit ? 'Edit Speaker' : 'Add Speaker'}</h2>
+        <form id="speaker-form" onsubmit="handleSpeakerSubmit(event, ${isEdit ? speaker.id : null})">
+            <div class="form-group">
+                <label for="sp-full_name">Full Name *</label>
+                <input type="text" id="sp-full_name" name="full_name" required value="${(speaker && speaker.full_name) || ''}">
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="sp-title">Title</label>
+                    <input type="text" id="sp-title" name="title" value="${(speaker && speaker.title) || ''}">
+                </div>
+                <div class="form-group">
+                    <label for="sp-company">Company</label>
+                    <input type="text" id="sp-company" name="company" value="${(speaker && speaker.company) || ''}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="sp-email">Email</label>
+                <input type="email" id="sp-email" name="email" value="${(speaker && speaker.email) || ''}">
+            </div>
+            <div class="form-group">
+                <label for="sp-bio">Bio</label>
+                <textarea id="sp-bio" name="bio" rows="5">${(speaker && speaker.bio) || ''}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="sp-headshot">Headshot</label>
+                <input type="file" id="sp-headshot" name="headshot" accept="image/*">
+                ${isEdit && speaker.has_headshot ? `
+                    <div style="margin-top:8px;">
+                        <img src="/api/speakers/${speaker.id}/headshot?t=${new Date().getTime()}" style="max-width:100px;max-height:100px;object-fit:cover;" onerror="this.style.display='none'">
+                        <p style="font-size:11px;color:#666">Current headshot. Upload a new file to replace it.</p>
+                    </div>
+                ` : ''}
+            </div>
+            <button type="submit" class="btn-primary">${isEdit ? 'Save Changes' : 'Add Speaker'}</button>
+            <button type="button" class="btn-secondary" onclick="closePanel()" style="margin-left:8px;">Cancel</button>
+        </form>
+    `;
+    openPanel();
+}
+
+async function handleSpeakerSubmit(event, speakerId) {
+    event.preventDefault();
+    const form = document.getElementById('speaker-form');
+    const formData = new FormData(form);
+
+    if (!speakerId) {
+         formData.append('event_id', currentEventId);
+    }
+
+    const method = speakerId ? 'PUT' : 'POST';
+    const url = speakerId ? `/api/speakers/${speakerId}` : '/api/speakers';
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Saving...';
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+
+        await response.json();
+        closePanel();
+        renderSpeakers();
+    } catch (error) {
+        alert('Error saving speaker: ' + error.message);
+        console.error('Error:', error);
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+    }
+}
+
+async function deleteSpeaker(id) {
+    if (confirm('Are you sure you want to delete this speaker? This cannot be undone.')) {
+        try {
+            const response = await fetch(`/api/speakers/${id}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+            renderSpeakers();
+        } catch (error) {
+            alert('Error deleting speaker: ' + error.message);
+            console.error('Error:', error);
+        }
+    }
+}
+
+
 // ── Panel helpers ─────────────────────────────────────────────────────────────
 function openPanel() { document.getElementById('panel-overlay').classList.add('open'); document.getElementById('slide-panel').classList.add('open'); }
 function closePanel() { document.getElementById('panel-overlay').classList.remove('open'); document.getElementById('slide-panel').classList.remove('open'); }
@@ -922,20 +1080,17 @@ window.renderReview = renderReview;
 window.reviewTab = reviewTab;
 window.toggleCompare = toggleCompare;
 window.scoreAllUnscored = scoreAllUnscored;
+window.renderSpeakers = renderSpeakers;
+window.showSpeakerForm = showSpeakerForm;
+window.editSpeakerById = editSpeakerById;
+window.handleSpeakerSubmit = handleSpeakerSubmit;
+window.deleteSpeaker = deleteSpeaker;
 window.openPanel = openPanel;
 window.closePanel = closePanel;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderEventsList();
 addTopbarBtn('New Event', showNewEventForm);
-</script><script>
-  (function(){
-    var active=false,hl=null;
-    function sel(el){var p=[],e=el;while(e&&e!==document.body){var s=e.tagName.toLowerCase();if(e.id)s+='#'+e.id;else if(e.className)s+='.'+String(e.className).trim().split(/\s+/).slice(0,2).join('.');p.unshift(s);e=e.parentElement;}return p.join(' > ');}
-    document.addEventListener('mousemove',function(e){if(!active)return;var t=document.elementFromPoint(e.clientX,e.clientY);if(!t||t===document.body)return;if(!hl){hl=document.createElement('div');hl.style.cssText='position:fixed;pointer-events:none;z-index:99999;background:rgba(99,102,241,0.15);border:2px solid #6366f1;box-sizing:border-box;';document.body.appendChild(hl);}var r=t.getBoundingClientRect();Object.assign(hl.style,{display:'block',top:r.top+'px',left:r.left+'px',width:r.width+'px',height:r.height+'px'});},true);
-    document.addEventListener('click',function(e){if(!active)return;e.preventDefault();e.stopPropagation();var t=e.target;window.parent.postMessage({type:'forge:inspect:selection',outerHTML:t.outerHTML.slice(0,800),textContent:(t.textContent||'').trim().slice(0,200),selector:sel(t)},'*');active=false;if(hl)hl.style.display='none';},true);
-    window.addEventListener('message',function(e){if(e.data&&e.data.type==='forge:inspect:activate'){active=true;}if(e.data&&e.data.type==='forge:inspect:deactivate'){active=false;if(hl)hl.style.display='none';}});
-  })();
-  </script>
+</script>
 </body>
 </html>
