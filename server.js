@@ -623,6 +623,15 @@ app.get('/api/speakers', async function(req, res) {
   }
 });
 
+app.get('/api/speakers/:id/headshot-debug', async function(req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var result = await sql`SELECT id, headshot_mimetype, (headshot IS NOT NULL) as has_headshot, octet_length(headshot) as headshot_bytes, LEFT(encode(headshot, 'hex'), 20) as headshot_hex_prefix FROM speakers WHERE id = ${id}`;
+    res.json({ result: result[0] || null });
+  } catch(err) { res.json({ error: err.message }); }
+});
+
 app.get('/api/speakers/:id/headshot', async function(req, res) {
   try {
     var sql = getDb();
@@ -630,6 +639,12 @@ app.get('/api/speakers/:id/headshot', async function(req, res) {
     var result = await sql`
       SELECT headshot, headshot_mimetype FROM speakers WHERE id = ${id}
     `;
+    console.log('[headshot] row count:', result.length);
+    if (result.length > 0) {
+      var raw = result[0].headshot;
+      console.log('[headshot] type:', typeof raw, Array.isArray(raw) ? 'array' : (raw && raw.constructor ? raw.constructor.name : 'n/a'));
+      console.log('[headshot] truthy:', !!raw, 'length:', raw ? (raw.length || raw.byteLength || 'no-len') : 'null');
+    }
     if (result.length === 0 || !result[0].headshot || !result[0].headshot_mimetype) {
       return res.status(404).send('Not found');
     }
