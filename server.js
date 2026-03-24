@@ -635,163 +635,19 @@ app.get('/api/speakers/:id/headshot-debug', async function(req, res) {
 app.get('/api/speakers/:id/headshot', async function(req, res) {
   try {
     var sql = getDb();
-    var id = req.params.id;
-    var result = await sql`
-      SELECT headshot, headshot_mimetype FROM speakers WHERE id = ${id}
-    `;
-    if (result.length === 0 || !result[0].headshot) {
-      return res.status(404).send('Not found');
-    }
-    var speaker = result[0];
-    var raw = speaker.headshot;
-    var buf;
-
-    // Normalize whatever Neon returns for BYTEA into a Buffer
-    if (Buffer.isBuffer(raw)) {
-      buf = raw;
-    } else if (raw instanceof Uint8Array) {
-      buf = Buffer.from(raw);
-    } else if (typeof raw === 'string') {
-      // Could be hex (\x prefix), JSON-stringified Buffer, or base64
-      var trimmed = raw.trim();
-      if (trimmed.slice(0, 2) === String.fromCharCode(92) + 'x') {
-        // Neon hex format: \xDEADBEEF
-        buf = Buffer.from(trimmed.slice(2), 'hex');
-      } else if (trimmed[0] === '{' || trimmed[0] === '[') {
-        // JSON-stringified Buffer: {"type":"Buffer","data":[...]} or [...]
-        try {
-          var parsed = JSON.parse(trimmed);
-          if (parsed && parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
-            buf = Buffer.from(parsed.data);
-          } else if (Array.isArray(parsed)) {
-            buf = Buffer.from(parsed);
-          } else {
-            buf = Buffer.from(trimmed);
-          }
-        } catch(e) { buf = Buffer.from(trimmed); }
-      } else {
-        buf = Buffer.from(trimmed);
-      }
-    } else if (raw && typeof raw === 'object') {
-      if (raw.type === 'Buffer' && Array.isArray(raw.data)) {
-        buf = Buffer.from(raw.data);
-      } else {
-        buf = Buffer.from(Object.values(raw));
-      }
-    } else {
-      buf = Buffer.from(String(raw));
-    }
-
-    // Infer mimetype from magic bytes if not stored
-    var mime = speaker.headshot_mimetype;
-    if (!mime && buf.length > 4) {
-      if (buf[0] === 0xFF && buf[1] === 0xD8) mime = 'image/jpeg';
-      else if (buf[0] === 0x89 && buf[1] === 0x50) mime = 'image/png';
-      else if (buf[0] === 0x47 && buf[1] === 0x49) mime = 'image/gif';
-      else if (buf[0] === 0x52 && buf[1] === 0x49) mime = 'image/webp';
-      else mime = 'image/jpeg';
-    }
-    if (!mime) return res.status(404).send('Not found');
-
+    var result = await sql`SELECT headshot, headshot_mimetype FROM speakers WHERE id = ${req.params.id}`;
+    if (!result.length || !result[0].headshot) return res.status(404).send('Not found');
+    var raw = result[0].headshot;
+    // Data is stored as JSON string: {"data":[255,216,255,...]}
+    var parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    var buf = Buffer.from(parsed.data || parsed);
+    var mime = result[0].headshot_mimetype || (buf[0] === 0xFF && buf[1] === 0xD8 ? 'image/jpeg' : 'image/png');
     res.setHeader('Content-Type', mime);
     res.setHeader('Content-Length', buf.length);
     res.end(buf);
   } catch (err) {
-    console.error('[api/speakers/:id/headshot GET]', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    console.error('[headshot]', err.message);
+    res.status(500).send('Error');
   }
 });
 
-app.post('/api/speakers', upload.single('headshot'), async function(req, res) {
-  try {
-    var sql = getDb();
-    var b = req.body;
-    var headshot = req.file ? req.file.buffer : null;
-    var headshot_mimetype = req.file ? req.file.mimetype : null;
-    
-    if (!b.event_id || !b.full_name) {
-      return res.status(400).json({ ok: false, error: 'event_id and full_name are required' });
-    }
-
-    var result = await sql`
-      INSERT INTO speakers (event_id, full_name, title, company, email, bio, headshot, headshot_mimetype)
-      VALUES (${b.event_id}, ${b.full_name}, ${b.title || ''}, ${b.company || ''}, ${b.email || ''}, ${b.bio || ''}, ${headshot}, ${headshot_mimetype})
-      RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
-    `;
-    
-    var speaker = result[0];
-    res.status(201).json({ ok: true, speaker: speaker });
-  } catch (err) {
-    console.error('[api/speakers POST]', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.put('/api/speakers/:id', upload.single('headshot'), async function(req, res) {
-  try {
-    var sql = getDb();
-    var id = req.params.id;
-    var b = req.body;
-    var headshot = req.file ? req.file.buffer : null;
-    var headshot_mimetype = req.file ? req.file.mimetype : null;
-
-    var current = await sql`SELECT id FROM speakers WHERE id = ${id}`;
-    if (current.length === 0) {
-        return res.status(404).json({ ok: false, error: 'Speaker not found' });
-    }
-
-    var result;
-    if (headshot) {
-      result = await sql`
-        UPDATE speakers
-        SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}, headshot=${headshot}, headshot_mimetype=${headshot_mimetype}
-        WHERE id = ${id}
-        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
-      `;
-    } else {
-      result = await sql`
-        UPDATE speakers
-        SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}
-        WHERE id = ${id}
-        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
-      `;
-    }
-
-    var speaker = result[0];
-    res.json({ ok: true, speaker: speaker });
-  } catch (err) {
-    console.error('[api/speakers PUT]', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.delete('/api/speakers/:id', async function(req, res) {
-  try {
-    var sql = getDb();
-    var id = req.params.id;
-    var result = await sql`DELETE FROM speakers WHERE id = ${id} RETURNING id`;
-    if (result.length === 0) {
-      return res.status(404).json({ ok: false, error: 'Speaker not found' });
-    }
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[api/speakers DELETE]', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-
-// ─── FRONTEND ─────────────────────────────────────────────────────────────────
-
-app.get('/', function (req, res) {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// ─── START ────────────────────────────────────────────────────────────────────
-
-app.listen(PORT, '0.0.0.0', function () {
-  console.log('[server] listening on port ' + PORT);
-  ensureSchema()
-    .then(function () { return seedData(); })
-    .catch(function (err) { console.error('[startup] DB error:', err.message); });
-});
