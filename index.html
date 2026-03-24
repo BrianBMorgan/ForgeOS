@@ -586,7 +586,7 @@ function submissionForm(s) {
       return `<div class="form-group"><label>${label}</label><textarea id="sf-${id}" rows="3">${val}</textarea></div>`;
     }
     if (type === 'select') {
-      return `<div class="form-group"><label for="sf-${id}">${label}</label><select id="sf-${id}"><option value="">-- No Speaker --</option></select></div>`;
+      return `<div class="form-group"><label for="sf-${id}">${label}</label><select id="sf-${id}" multiple style="height:120px"></select><div style="font-size:11px;color:#888;margin-top:4px">Hold Ctrl/Cmd to select multiple speakers</div></div>`;
     }
     return `<div class="form-group"><label>${label}</label><input id="sf-${id}" value="${val.toString().replace(/"/g,'&quot;')}"></div>`;
   }).join('');
