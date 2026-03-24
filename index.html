@@ -976,7 +976,7 @@ function showSpeakerForm(speaker) {
                 <input type="file" id="sp-headshot" name="headshot" accept="image/*">
                 ${isEdit && speaker.headshot ? `
                     <div style="margin-top:8px;">
-                        <img src="${speaker.headshot}" style="max-width:100px;max-height:100px;object-fit:cover;" onerror="this.style.display='none'">
+                        <img src="${speaker.headshot}" style="max-width:100px;max-height:100px;object-fit:cover;">
                         <p style="font-size:11px;color:#666">Current headshot. Upload a new file to replace it.</p>
                     </div>
                 ` : ''}
