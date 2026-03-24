@@ -719,23 +719,9 @@ async function saveEditedSubmission(id) {
   delete data.event_id;
   var r = await api('PUT', '/api/submissions/' + id, data);
   if (r.error) { alert(r.error); return; }
-  var idx = allSubmissions.findIndex(function(x){return x.id===id;});
-  if (idx >= 0) { 
-      var updatedSubmission = r.submission;
-      // manually join speaker name for immediate UI update
-      var speakerId = updatedSubmission.speaker_id;
-      if (speakerId) {
-          // this is inefficient, better if PUT returned joined data
-          const speakerData = await api('GET', `/api/speakers?event_id=${currentEventId}`);
-          const speaker = (speakerData.speakers || []).find(sp => sp.id === speakerId);
-          updatedSubmission.speaker_name = speaker ? speaker.full_name : null;
-      } else {
-          updatedSubmission.speaker_name = null;
-      }
-      allSubmissions[idx] = updatedSubmission;
-  }
+  // Refresh the full submissions list to get speaker_names populated
   closePanel();
-  renderSubTable();
+  renderSubmissions();
 }
 
 function editStatus(id) {
