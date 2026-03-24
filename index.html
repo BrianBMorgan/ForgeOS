@@ -519,7 +519,7 @@ function renderSubTable() {
     if (subFilters.status && s.status !== subFilters.status) return false;
     return true;
   });
-  var html = '<table><thead><tr><th>Title</th><th>BU</th><th>Track</th><th>Format</th><th>Speaker</th><th>Demo</th><th>Status</th><th>AI Score</th><th>Actions</th></tr></thead><tbody>';
+  var html = '<table><thead><tr><th>Title</th><th>BU</th><th>Track</th><th>Format</th><th>Speakers</th><th>Demo</th><th>Status</th><th>AI Score</th><th>Actions</th></tr></thead><tbody>';
   filtered.forEach(function(s){
     var score = s.ai_score ? (s.ai_score.overall_score != null ? s.ai_score.overall_score : s.ai_score.overall) : null;
     var scoreBadge = score !== null ? '<span class="badge ' + (score>=80?'score-high':score>=60?'score-mid':'score-low') + '">Score: ' + score + '</span>' : '<span class="badge score-none">Not Scored</span>';
