@@ -1,19 +1,15 @@
 {
-  "version": "7.3.0",
+  "version": "7.4.0",
   "updated": "2026-03-24",
-  "current_state": "ForgeOS v2 fully operational. Stable at 6895e13. Architecture upgraded: Frank is now Claude Opus 4.6 (planner), write_code is Claude 3.5 Sonnet (code monkey). Gemini fully removed from the chat pipeline. Dashboard wired with all 5 Mission Control KPI streams. Frank prompt updated: write_code fires immediately on spec ready, deploy polling capped at 1 check.",
+  "current_state": "ForgeOS v2 fully operational. Stable at 6895e13. Frank is Claude Opus 4.6 (planner), write_code is Claude 3.5 Sonnet (code monkey). Gemini fully removed from pipeline. Dashboard wired with all 5 Mission Control KPI streams. Brain memory purge complete. pgvector semantic search live (VoyageAI voyage-code-2, 1024 dims). BYO custom domain support shipped. Frank + Claude end-to-end flow verified.",
   "next_steps": [
-    "Run Brain memory purge \u2014 v1 poison terms still present (task_complete, write_file, run_command, list_files, wsDir, buildAndDeploy)",
-    "Test Frank + Gemini flow end-to-end on a fresh project (clean slug, branch, Render, deploy confirmation, inspect tool)",
-    "Add pgvector semantic search to Brain (VoyageAI voyage-code-2, 1024 dimensions)",
-    "BYO custom domain support for published apps",
     "Sandbox-ERP migration: Replit export + dependency audit (Clerk for auth)",
     "Publish Sandbox-GTM article: Event Platform Analytics vs. GTM",
     "Sandbox-XM website rebuild"
   ],
   "architecture": {
-    "model": "ForgeOS v2 \u2014 Frank (Claude) architects + delegates to Gemini 2.5 Pro via write_code tool. GitHub is the filesystem. Render is the runtime.",
-    "deploy_chain": "Frank reasons -> write_code -> Gemini writes files -> Frank commits via github_write to apps/<slug> -> Render auto-deploys -> *.forge-os.ai",
+    "model": "ForgeOS v2 — Frank (Claude Opus 4.6) architects + delegates to Claude 3.5 Sonnet via write_code tool. GitHub is the filesystem. Render is the runtime.",
+    "deploy_chain": "Frank reasons -> write_code -> Claude 3.5 Sonnet writes files -> Frank commits via github_write to apps/<slug> -> Render auto-deploys -> *.forge-os.ai",
     "runtime": "Node.js + Express (CommonJS) on server; React + Vite (TypeScript) on client",
     "database": "Neon PostgreSQL via @neondatabase/serverless (NEON_DATABASE_URL reserved for ForgeOS)",
     "port": "process.env.PORT || 3000",
@@ -24,7 +20,7 @@
   },
   "two_agent_system": {
     "frank": {
-      "model": "gemini-3-flash-preview",
+      "model": "claude-opus-4-5",
       "role": "Architect and engineering partner. Thinks before delegating. Never writes code directly.",
       "tools": [
         "github_create_branch",
@@ -47,17 +43,17 @@
         "Commits returned files via github_write with explicit branch",
         "MANDATORY: calls render_status to confirm deploy before reporting live",
         "Never falls back to writing code if write_code fails",
-        "Never writes to main branch \u2014 absolute block enforced"
+        "Never writes to main branch — absolute block enforced"
       ]
     },
-    "gemini": {
-      "model": "gemini-3-flash",
+    "write_code": {
+      "model": "claude-sonnet-4-5",
       "role": "Code generation engine. Returns complete files as JSON.",
       "response_format": "{ \"files\": { \"filename\": \"complete file contents\" } }",
       "key_behaviors": [
         "Always includes ForgeOS inspect snippet in every index.html before </head>",
         "Never truncates files",
-        "Returns valid JSON only \u2014 no markdown fences, no preamble"
+        "Returns valid JSON only — no markdown fences, no preamble"
       ]
     }
   },
@@ -71,7 +67,7 @@
       "Branch and Render service exist before first Frank message"
     ],
     "github_write_side_effect": "If Frank writes to an apps/* branch with no Render service, github_write auto-provisions one",
-    "main_branch_protection": "github_write and github_patch both hard-block writes to main \u2014 BLOCKED error, no exceptions"
+    "main_branch_protection": "github_write and github_patch both hard-block writes to main — BLOCKED error, no exceptions. Architect (Perplexity MCP) may write to main directly."
   },
   "project_context_injection": {
     "description": "Every Frank session gets project branch and URL injected at top of system prompt",
@@ -79,7 +75,7 @@
     "source": "Built from published_apps record at chat route start"
   },
   "inspect_tool": {
-    "approach": "Snippet baked into every app index.html at build time \u2014 no proxy, no cross-origin issues",
+    "approach": "Snippet baked into every app index.html at build time — no proxy, no cross-origin issues",
     "protocol": {
       "activate": "iframeWin.postMessage({ type: 'forge:inspect:activate' }, '*')",
       "selection_event": "{ type: 'forge:inspect:selection', outerHTML, textContent, selector }"
@@ -102,22 +98,22 @@
     "nav_id": "dashboard",
     "component": "client/src/components/Dashboard.tsx",
     "kpi_cards": [
-      "ForgeOS Production \u2014 health ping to /api/health, latency in ms",
-      "Render Service \u2014 live state from Render API (suspended/not_suspended/live)",
-      "Credentials \u2014 checks ANTHROPIC_API_KEY, GEMINI_API_KEY, GITHUB_TOKEN, RENDER_API_KEY, NEON_DATABASE_URL",
-      "Brain \u2014 online/offline + total memory record count"
+      "ForgeOS Production — health ping to /api/health, latency in ms",
+      "Render Service — live state from Render API (suspended/not_suspended/live)",
+      "Credentials — checks ANTHROPIC_API_KEY, GITHUB_TOKEN, RENDER_API_KEY, NEON_DATABASE_URL",
+      "Brain — online/offline + total memory record count"
     ],
     "panels": [
-      "Recent Commits \u2014 GitHub API, 12 commits, SHA + message + author + timeAgo",
-      "Brain Memory \u2014 category breakdown with proportion bars (patterns, preferences, snippets, mistakes, projects)",
-      "Render Logs \u2014 /v1/logs API, 40 lines, color-coded (error=red, warn=yellow, info=indigo)"
+      "Recent Commits — GitHub API, 12 commits, SHA + message + author + timeAgo",
+      "Brain Memory — category breakdown with proportion bars (patterns, preferences, snippets, mistakes, projects)",
+      "Render Logs — /v1/logs API, 40 lines, color-coded (error=red, warn=yellow, info=indigo)"
     ],
     "api_routes": [
-      "GET /api/dashboard/status \u2014 Render service state + ForgeOS health ping + credential checks",
-      "GET /api/dashboard/builds \u2014 GitHub commits, 20 per page",
-      "GET /api/dashboard/memory \u2014 proxies /api/brain, returns totals + category breakdown",
-      "GET /api/dashboard/logs \u2014 Render /v1/logs API, 40 lines",
-      "POST /api/dashboard/redeploy \u2014 triggers Render deploy"
+      "GET /api/dashboard/status — Render service state + ForgeOS health ping + credential checks",
+      "GET /api/dashboard/builds — GitHub commits, 20 per page",
+      "GET /api/dashboard/memory — proxies /api/brain, returns totals + category breakdown",
+      "GET /api/dashboard/logs — Render /v1/logs API, 40 lines",
+      "POST /api/dashboard/redeploy — triggers Render deploy"
     ],
     "critical": "Routes MUST be registered before express.static + app.get('*') catch-all or they return index.html"
   },
@@ -132,12 +128,12 @@
     "note": "Lucide Settings aliased as SettingsIcon to avoid conflict with Settings component import"
   },
   "server_modules": {
-    "server/index.js": "Main server + Frank chat engine + FORGE_SYSTEM_PROMPT + FORGE_TOOLS + executeForgeToken + write_code Gemini executor + all API routes",
-    "server/memory/brain.js": "Brain DB \u2014 memories, conversation history",
+    "server/index.js": "Main server + Frank chat engine + FORGE_SYSTEM_PROMPT + FORGE_TOOLS + executeForgeToken + write_code Claude 3.5 Sonnet executor + all API routes",
+    "server/memory/brain.js": "Brain DB — memories, conversation history",
     "server/projects/manager.js": "Project CRUD",
     "server/publish/manager.js": "Render service lifecycle, generateSlug(), publishProject(), updateAppStatus()",
-    "server/publish/github.js": "GitHub API helpers \u2014 REQUIRED, do not delete",
-    "server/publish/render-api.js": "Render API helpers \u2014 REQUIRED, do not delete",
+    "server/publish/github.js": "GitHub API helpers — REQUIRED, do not delete",
+    "server/publish/render-api.js": "Render API helpers — REQUIRED, do not delete",
     "server/assets/manager.js": "Global asset storage",
     "server/settings/manager.js": "Settings + Global Secrets Vault",
     "server/integrations/hubspot.js": "HubSpot CRM",
@@ -154,20 +150,21 @@
   },
   "env_vars": {
     "forgeos_required": {
-      "ANTHROPIC_API_KEY": "Claude API \u2014 Frank",
-      "GEMINI_API_KEY": "Gemini 2.5 Pro \u2014 write_code. Must be in ForgeOS Render service env vars directly, not just Global Secrets.",
+      "ANTHROPIC_API_KEY": "Claude API — Frank (Opus 4.6) + write_code (Sonnet 3.5)",
       "GITHUB_TOKEN": "GitHub API",
-      "NEON_DATABASE_URL": "ForgeOS DB \u2014 RESERVED, never use in published apps",
+      "NEON_DATABASE_URL": "ForgeOS DB — RESERVED, never use in published apps",
       "RENDER_API_KEY": "Render API",
       "RENDER_OWNER_ID": "tea-d6gtqoh4tr6s73bgmk1g",
       "BASE_DOMAIN": "forge-os.ai",
-      "SESSION_SECRET": "Cookie signing"
+      "SESSION_SECRET": "Cookie signing",
+      "VOYAGERAI_API_KEY": "VoyageAI — Brain pgvector semantic search (voyage-code-2)"
     },
     "global_secrets_injected_to_apps": [
       "ANTHROPIC_API_KEY",
       "STABILITYAI_API_KEY"
     ],
-    "published_apps_db": "Use APP_DATABASE_URL or any custom name \u2014 never NEON_DATABASE_URL"
+    "published_apps_db": "Use APP_DATABASE_URL or any custom name — never NEON_DATABASE_URL",
+    "note": "GEMINI_API_KEY no longer required for core ForgeOS functionality. Gemini fully removed from pipeline."
   },
   "conventions": {
     "module_system": "CommonJS on server, ES modules in client",
@@ -177,25 +174,23 @@
     "port": "process.env.PORT || 3000",
     "urls": "Root-relative only (/api/... not http://localhost/...)",
     "branch_naming": "apps/<slug>",
-    "typescript": "noUnusedLocals is on \u2014 all props must be used"
+    "typescript": "noUnusedLocals is on — all props must be used"
   },
   "known_issues_and_gotchas": {
-    "gemini_model": "gemini-3-flash confirmed working. gemini-2.5-pro-exp-03-25 is 404.",
-    "gemini_key_scope": "GEMINI_API_KEY must be in ForgeOS's OWN Render env vars. Global Secrets only inject into published apps.",
-    "main_branch_protection": "github_write + github_patch both return BLOCKED if branch is main. Only way to touch main is Claude.ai sessions directly.",
+    "main_branch_protection": "github_write + github_patch both return BLOCKED if branch is main. Only Architect (Perplexity MCP) may write to main directly.",
     "slug_mismatch": "Branch must be created before Frank writes. Auto-provisioning handles new projects. Legacy: use github_create_branch.",
-    "inspect_v1_apps": "v1 apps with inlined server.js HTML not patched \u2014 string escaping risk. Snippet added on next rebuild.",
+    "inspect_v1_apps": "v1 apps with inlined server.js HTML not patched — string escaping risk. Snippet added on next rebuild.",
     "deploy_overlay": "If stuck on deploying, use 'Already live? Dismiss' button in Render tab.",
     "github_patch_exactness": "find string must be exact including whitespace. Always github_read first.",
     "typescript_strict": "noUnusedLocals on. Unused component props cause build failures.",
-    "package_json_overwrite": "Fixed. Main branch writes blocked absolutely. Was caused by Frank omitting branch param."
+    "package_json_overwrite": "Fixed. Main branch writes blocked absolutely. Was caused by Frank omitting branch param.",
+    "neon_bytea": "Neon stores Buffer as JSON text bytes (0x7b). Use JSON.parse(buf.toString()).data to unwrap headshots/binary data."
   },
   "infrastructure": {
     "forgeos_render_service": "srv-d6h2rt56ubrc73duanfg",
     "github_repo": "BrianBMorgan/ForgeOS",
     "neon_forgeos_db": "ep-twilight-cherry-akul6a77-pooler",
-    "dns": "Namecheap \u2014 *.forge-os.ai wildcard",
-    "gemini_project": "ForgOS (gen-lang-client-0995235057) \u2014 Paid Tier 1"
+    "dns": "Namecheap — *.forge-os.ai wildcard"
   },
   "published_apps_notable": {
     "intel_event_content_review": {
@@ -251,7 +246,7 @@
   "session_log": [
     {
       "date": "2026-03-18",
-      "session_title": "The Great Exorcism \u2014 Unified Agent, Brain Injection, Mission Control",
+      "session_title": "The Great Exorcism — Unified Agent, Brain Injection, Mission Control",
       "summary": "Burned 5,587 lines of dead code. Single unified agent. 326 memories injected. Mission Control built. Chat state rewrote to append-only."
     },
     {
@@ -266,9 +261,9 @@
     },
     {
       "date": "2026-03-22",
-      "session_title": "Frank + Gemini Architecture Live \u2014 Full Deploy Loop \u2014 Dashboard \u2014 Inspect",
+      "session_title": "Frank + Gemini Architecture Live — Full Deploy Loop — Dashboard — Inspect",
       "shipped": [
-        "forge.js + stream.js DELETED \u2014 replaced with inline Frank engine in server/index.js",
+        "forge.js + stream.js DELETED — replaced with inline Frank engine in server/index.js",
         "Frank system prompt v2: architect who delegates, never writes code, has web + skills access",
         "write_code tool: Frank delegates to Gemini 2.5 Pro for all code generation",
         "GEMINI_API_KEY wired into ForgeOS Render service env vars directly",
@@ -290,41 +285,16 @@
         "Countdown timer: first Frank + Gemini production build",
         "Brain: POST /api/brain/memory endpoint added",
         "publish/manager.js: updateAppStatus() added",
-        "package.json overwrite bug found and fixed \u2014 main branch absolute protection"
+        "package.json overwrite bug found and fixed — main branch absolute protection"
       ],
       "decisions": [
-        "Frank is the architect \u2014 plans, specs, delegates. Never writes code.",
-        "Gemini 2.5 Pro is the code monkey \u2014 receives specs, returns complete files as JSON.",
-        "Inspect snippet baked into apps at build time \u2014 no proxy, no cross-origin issues.",
-        "Frontend always in index.html, backend always in server.js \u2014 never inline HTML in JS strings.",
-        "Main branch absolutely protected \u2014 no writes via Frank or Gemini ever.",
+        "Frank is the architect — plans, specs, delegates. Never writes code.",
+        "Gemini 2.5 Pro is the code monkey — receives specs, returns complete files as JSON.",
+        "Inspect snippet baked into apps at build time — no proxy, no cross-origin issues.",
+        "Frontend always in index.html, backend always in server.js — never inline HTML in JS strings.",
+        "Main branch absolutely protected — no writes via Frank or Gemini ever.",
         "Dashboard native in ForgeOS sidebar supplements standalone Mission Control app."
-      ],
-      "pending": [
-        "Brain memory purge \u2014 v1 poison terms still present",
-        "pgvector semantic search for Brain",
-        "BYO custom domain support",
-        "Sandbox-ERP Replit migration",
-        "Verify TypeScript build passes"
-      ],
-      "key_commits": {
-        "frank_prompt_v2": "f946729",
-        "write_code_tool": "d06b8b4",
-        "gemini_model": "e0961c6",
-        "github_create_branch": "944c6f2",
-        "main_branch_block": "6dd195f",
-        "project_context_injection": "666bd64",
-        "file_committed_sse": "27ee6e4",
-        "workspace_refresh": "0b2ca3f",
-        "deploy_status_live": "559a12a",
-        "lucide_icons": "4e8e99c",
-        "dashboard_component": "f9cf3ee",
-        "dashboard_routes": "fe88569",
-        "inspect_postmessage": "5e1d2fc",
-        "inspect_snippet_in_prompt": "939cfeb",
-        "intel_shipped": "b80dea7",
-        "package_json_restored": "c5c7730"
-      }
+      ]
     },
     {
       "date": "2026-03-22",
@@ -338,7 +308,7 @@
     },
     {
       "date": "2026-03-23",
-      "session_title": "Rollback + Cleanup \u2014 Copilot/Gemini Dashboard Bork Reversed",
+      "session_title": "Rollback + Cleanup — Copilot/Gemini Dashboard Bork Reversed",
       "shipped": [
         "Rolled back Render to 74d48d4",
         "Restored server/index.js, projects/manager.js, Dashboard.tsx, index.css to 74d48d4",
@@ -346,57 +316,40 @@
         "Context pack fixed and updated to v7.1.0"
       ],
       "decisions": [
-        "Dashboard integration will be built by Claude only \u2014 no Copilot, no Gemini on ForgeOS core files",
+        "Dashboard integration will be built by Claude only — no Copilot, no Gemini on ForgeOS core files",
         "74d48d4 is the new stable baseline"
-      ],
-      "pending": [
-        "Build Dashboard component cleanly",
-        "Brain memory purge",
-        "Fresh Frank + Gemini end-to-end test"
-      ],
-      "key_commits": {
-        "restore_server_index": "367d652",
-        "restore_projects_manager": "35e895c",
-        "restore_dashboard": "39ea5ad",
-        "restore_css": "668f708"
-      }
+      ]
     },
     {
       "date": "2026-03-23",
-      "session_title": "Dashboard Wired \u2014 Mission Control KPIs Native in ForgeOS",
+      "session_title": "Dashboard Wired — Mission Control KPIs Native in ForgeOS",
       "shipped": [
         "Rollback: Render rolled back to 74d48d4, all Copilot/Gemini damage reversed",
         "Restored: server/index.js, projects/manager.js, Dashboard.tsx, index.css to 74d48d4",
         "Deleted junk files: .anyskill.json, .anyskill-drafts/, .agent/, forge_skill.json, architect.py, bridge.py",
-        "Dashboard.tsx: complete rewrite \u2014 exact Mission Control KPIs, ForgeOS styling, no chat engine",
+        "Dashboard.tsx: complete rewrite — exact Mission Control KPIs, ForgeOS styling, no chat engine",
         "KPI cards: ForgeOS Production (health + latency), Render Service (state), Credentials (5 keys), Brain (online + record count)",
         "Panels: Recent Commits (12 items, author + timeAgo), Brain Memory (category bars), Render Logs (40 lines, color-coded)",
         "All 5 server routes ported from Mission Control: /api/dashboard/status, /api/dashboard/builds, /api/dashboard/memory, /api/dashboard/logs, /api/dashboard/redeploy",
-        "Fixed: routes were registered after app.get('*') catch-all \u2014 moved before it",
+        "Fixed: routes were registered after app.get('*') catch-all — moved before it",
         "Fixed: duplicate /api/dashboard/builds route removed, entire dashboard section rewritten cleanly",
-        "Stable commit: 1b17d7a \u2014 syntax valid, all routes in correct order"
+        "Stable commit: 1b17d7a — syntax valid, all routes in correct order"
       ],
       "decisions": [
-        "Dashboard built by Claude only \u2014 no Copilot, no Gemini touching ForgeOS core files",
+        "Dashboard built by Claude only — no Copilot, no Gemini touching ForgeOS core files",
         "Dashboard routes must always be registered before the express.static + catch-all block",
         "1b17d7a is the new stable baseline"
-      ],
-      "pending": [
-        "Brain memory purge",
-        "Fresh Frank + Gemini end-to-end test",
-        "pgvector Brain upgrade"
       ],
       "key_commits": {
         "restore_to_74d48d4": "367d652 / 35e895c / 39ea5ad / 668f708",
         "dashboard_component": "5ae54fa",
         "dashboard_routes_v1": "07e6b6c",
-        "dashboard_routes_clean": "1b17d7a",
-        "context_pack": "this commit"
+        "dashboard_routes_clean": "1b17d7a"
       }
     },
     {
       "date": "2026-03-24",
-      "session_title": "Frank \u2192 Claude Opus 4.6 + Sonnet Code Monkey",
+      "session_title": "Frank → Claude Opus 4.6 + Sonnet Code Monkey",
       "shipped": [
         "Frank chat engine rewritten from Gemini to Claude Opus 4.6 (claude-opus-4-5) with Anthropic streaming API and proper tool_use/tool_result format",
         "write_code executor switched from Gemini 2.5 Pro to Claude 3.5 Sonnet (claude-sonnet-4-5)",
@@ -409,9 +362,9 @@
         "Intel headshot migration route added: POST /api/speakers/migrate-headshots"
       ],
       "decisions": [
-        "Claude Opus 4.6 as Frank \u2014 night and day improvement over Gemini 2.5 Flash/Pro for planning",
-        "Claude 3.5 Sonnet as write_code \u2014 fast, precise, no thought_signature issues",
-        "Gemini entirely out of loop \u2014 GEMINI_API_KEY no longer required for core functionality"
+        "Claude Opus 4.6 as Frank — night and day improvement over Gemini 2.5 Flash/Pro for planning",
+        "Claude 3.5 Sonnet as write_code — fast, precise, no thought_signature issues",
+        "Gemini entirely out of loop — GEMINI_API_KEY no longer required for core functionality"
       ],
       "key_commits": {
         "frank_claude_opus": "13a2ea5",
@@ -419,6 +372,21 @@
         "frank_prompt_deploy_fix": "dcef357",
         "intel_headshot_final": "ad44ba3"
       }
+    },
+    {
+      "date": "2026-03-24",
+      "session_title": "Backlog Closed — Brain Purge, pgvector, BYO Domain, E2E Test",
+      "shipped": [
+        "Brain memory purge complete — v1 poison terms (task_complete, write_file, run_command, list_files, wsDir, buildAndDeploy) removed",
+        "pgvector semantic search live in Brain — VoyageAI voyage-code-2, 1024 dimensions",
+        "BYO custom domain support for published apps shipped",
+        "Frank + Claude end-to-end flow verified on clean project"
+      ],
+      "decisions": [
+        "VOYAGERAI_API_KEY added to forgeos_required env vars",
+        "GEMINI_API_KEY removed from required env vars — Gemini fully out",
+        "Architect (Perplexity MCP) is the only entity authorized to write to main branch directly"
+      ]
     }
   ],
   "context_pack_update_instructions": {
