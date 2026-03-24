@@ -998,7 +998,7 @@ const FORGE_TOOLS = [
   },
   {
     name: "write_code",
-    description: "Hand off a coding task to Gemini 2.5 Flash. Use this whenever you need to write or substantially rewrite files. Read the relevant files first with github_read, then call write_code with full file context and precise requirements. Take what it returns and commit with github_write. Do not write code directly in your responses.",
+    description: "Hand off a coding task to Gemini 2.5 Pro. Use this whenever you need to write or substantially rewrite files. Read the relevant files first with github_read, then call write_code with full file context and precise requirements. Take what it returns and commit with github_write. Do not write code directly in your responses.",
     parameters: {
       type: "object",
       properties: {
@@ -1258,11 +1258,11 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         const geminiKey = process.env.GEMINI_API_KEY;
         if (!geminiKey) return "Error: GEMINI_API_KEY not set";
         const genAI = new GoogleGenerativeAI(geminiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
         const systemPrompt = "You are a code generation engine. Return complete file contents only.\nRules:\n- Return complete files. Never truncate. Never use placeholder comments.\n- No explanation. No preamble. No markdown fences.\n- Return valid JSON only: { \"files\": { \"filename\": \"complete file contents\" } }\n- If a file is not changing, omit it.\n- CommonJS on server (require/module.exports). No dotenv. PORT = process.env.PORT || 3000.";
         const filesBlock = Object.entries(toolInput.files_context || {}).map(function(e) { return "=== " + e[0] + " ===\n" + e[1]; }).join("\n\n");
         const userPrompt = "TASK: " + toolInput.task + "\n\nREQUIREMENTS:\n" + (toolInput.requirements || []).map(function(r, i) { return (i+1) + ". " + r; }).join("\n") + "\n\nEXISTING FILES:\n" + filesBlock + "\n\nOUTPUT FILES NEEDED: " + (toolInput.output_files || []).join(", ") + "\n\nReturn JSON only: { \"files\": { \"filename\": \"complete contents\" } }";
-        if (sendEvent) sendEvent({ type: "tool_status", content: "Sending to Gemini 2.5 Flash..." });
+        if (sendEvent) sendEvent({ type: "tool_status", content: "Sending to Gemini 2.5 Pro..." });
         const result = await model.generateContent({
           contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }]
         });
@@ -1341,7 +1341,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     const systemPrompt = sysParts.join("\n\n");
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
     });
 
