@@ -456,21 +456,29 @@ function parseAiScore(s) {
 }
 
 async function renderSubmissions() {
-  if (!currentEventId) { document.getElementById('submissions-content').innerHTML = '<div class="loading">Select an event first.</div>'; return; }
   var el = document.getElementById('submissions-content');
-  el.innerHTML = '<div class="loading">Loading...</div>';
-  var event = allEvents.find(function(e){return String(e.id)===String(currentEventId);});
-  var data = await api('GET', '/api/submissions?event_id=' + currentEventId);
-  allSubmissions = (data.submissions || data || []).map(parseAiScore);
-  var tracks = [...new Set(allSubmissions.map(function(s){return s.track;}).filter(Boolean))];
-  var bus = [...new Set(allSubmissions.map(function(s){return s.bu;}).filter(Boolean))];
-  var slots = event ? event.total_slots || 12 : 12;
-  var used = allSubmissions.length;
-  var pct = Math.min(100, Math.round(used/slots*100));
-  el.innerHTML = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="flex:1"><div class="slot-bar"><div class="slot-bar-fill" style="width:' + pct + '%"></div></div><div style="font-size:12px;color:#888;margin-top:4px">' + used + ' / ' + slots + ' slots used</div></div><button class="btn-primary" onclick="showAddSubmission()">+ Add Submission</button><button class="btn-secondary" onclick="exportCSV()">Export CSV</button></div>' +
-    '<div class="filter-bar"><input placeholder="Search title / speaker..." oninput="subFilters.search=this.value;renderSubTable()" value="' + subFilters.search + '"><select onchange="subFilters.track=this.value;renderSubTable()"><option value="">All Tracks</option>' + tracks.map(function(t){return '<option value="' + t + '"' + (subFilters.track===t?' selected':'') + '>' + t + '</option>';}).join('') + '</select><select onchange="subFilters.bu=this.value;renderSubTable()"><option value="">All BUs</option>' + bus.map(function(b){return '<option value="' + b + '"' + (subFilters.bu===b?' selected':'') + '>' + b + '</option>';}).join('') + '</select><select onchange="subFilters.status=this.value;renderSubTable()"><option value="">All Status</option><option value="submitted">Submitted</option><option value="under_review">Under Review</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="needs_revision">Needs Revision</option></select></div>' +
-    '<div id="sub-table"></div>';
-  renderSubTable();
+  if (!currentEventId) { 
+    el.innerHTML = '<div class="loading">Select an event first.</div>'; 
+    return; 
+  }
+  try {
+    el.innerHTML = '<div class="loading">Loading...</div>';
+    var event = allEvents.find(function(e){return String(e.id)===String(currentEventId);});
+    var data = await api('GET', '/api/submissions?event_id=' + currentEventId);
+    if (!data.ok || !data.submissions) throw new Error(data.error || 'API request failed or returned invalid data');
+    allSubmissions = (data.submissions || []).map(parseAiScore);
+    var tracks = [...new Set(allSubmissions.map(function(s){return s.track;}).filter(Boolean))];
+    var bus = [...new Set(allSubmissions.map(function(s){return s.bu;}).filter(Boolean))];
+    var slots = event ? event.slot_count || 12 : 12;
+    var used = allSubmissions.length;
+    var pct = Math.min(100, Math.round(used/slots*100));
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="flex:1"><div class="slot-bar"><div class="slot-bar-fill" style="width:' + pct + '%"></div></div><div style="font-size:12px;color:#888;margin-top:4px">' + used + ' / ' + slots + ' slots used</div></div><button class="btn-primary" onclick="showAddSubmission()">+ Add Submission</button><button class="btn-secondary" onclick="exportCSV()">Export CSV</button></div>' +
+      '<div class="filter-bar"><input placeholder="Search title / speaker..." oninput="subFilters.search=this.value;renderSubTable()" value="' + subFilters.search + '"><select onchange="subFilters.track=this.value;renderSubTable()"><option value="">All Tracks</option>' + tracks.map(function(t){return '<option value="' + t + '"' + (subFilters.track===t?' selected':'') + '>' + t + '</option>';}).join('') + '</select><select onchange="subFilters.bu=this.value;renderSubTable()"><option value="">All BUs</option>' + bus.map(function(b){return '<option value="' + b + '"' + (subFilters.bu===b?' selected':'') + '>' + b + '</option>';}).join('') + '</select><select onchange="subFilters.status=this.value;renderSubTable()"><option value="">All Status</option><option value="submitted">Submitted</option><option value="under_review">Under Review</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="needs_revision">Needs Revision</option></select></div>' +
+      '<div id="sub-table"></div>';
+    renderSubTable();
+  } catch (err) {
+    el.innerHTML = '<div class="alert alert-error">Failed to load submissions: ' + err.message + '</div>';
+  }
 }
 
 function renderSubTable() {
@@ -802,88 +810,96 @@ function exportCSV() {
 var compareIds = [];
 
 async function renderReview() {
-  if (!currentEventId) { document.getElementById('review-content').innerHTML = '<div class="loading">Select an event first.</div>'; return; }
   var el = document.getElementById('review-content');
-  el.innerHTML = '<div class="loading">Loading...</div>';
-  var data = await api('GET', '/api/submissions?event_id=' + currentEventId);
-  allSubmissions = (data.submissions || data || []).map(parseAiScore);
-  var scored = allSubmissions.filter(function(s){return s.ai_score;});
-  var unscored = allSubmissions.filter(function(s){return !s.ai_score;});
-  var tracks = {};
-  allSubmissions.forEach(function(s){ if (s.track) { if (!tracks[s.track]) tracks[s.track] = []; tracks[s.track].push(s); } });
-  var sortedSubs = scored.slice().sort(function(a,b){return (b.ai_score.overall_score||0)-(a.ai_score.overall_score||0);});
-
-  var html = '';
-  html += '<div class="grid-3" style="margin-bottom:20px">';
-  html += '<div class="stat-card"><div class="num">' + allSubmissions.length + '</div><div class="lbl">Total Submissions</div></div>';
-  html += '<div class="stat-card"><div class="num">' + scored.length + '</div><div class="lbl">Scored</div></div>';
-  html += '<div class="stat-card"><div class="num">' + unscored.length + '</div><div class="lbl">Unscored</div></div>';
-  html += '</div>';
-  html += '<div style="margin-bottom:20px">';
-  html += '<button class="btn-primary" onclick="scoreAllUnscored()">Score All Unscored (' + unscored.length + ')</button> ';
-  html += '<button class="btn-secondary" onclick="exportCSV()">Export CSV</button>';
-  html += '</div>';
-  html += '<div class="tabs">';
-  html += '<div class="tab active" id="tab-ranked" onclick="reviewTab(this, &quot;ranked&quot;)">Ranked</div>';
-  html += '<div class="tab" id="tab-tracks" onclick="reviewTab(this, &quot;tracks&quot;)">By Track</div>';
-  html += '<div class="tab" id="tab-compare" onclick="reviewTab(this, &quot;compare&quot;)">Compare</div>';
-  html += '</div>';
-
-  html += '<div id="review-ranked">';
-  html += '<h3 style="font-weight:700;margin-bottom:12px">All Submissions by Score</h3>';
-  if (sortedSubs.length === 0) {
-    html += '<div class="loading">No scored submissions yet. Run scoring first.</div>';
-  } else {
-    sortedSubs.forEach(function(s) {
-      var sc = s.ai_score;
-      var scoreNum = (sc && sc.overall_score !== null && sc.overall_score !== undefined) ? sc.overall_score : null;
-      var cls = scoreNum !== null ? (scoreNum >= 80 ? 'score-high' : scoreNum >= 60 ? 'score-mid' : 'score-low') : 'score-none';
-      var scoreText = scoreNum !== null ? 'Score: ' + scoreNum : 'Not Scored';
-      html += '<div class="card" style="display:flex;justify-content:space-between;align-items:flex-start">';
-      html += '<div style="flex:1"><div style="font-weight:700">' + (s.title||'') + '</div>';
-      html += '<div style="font-size:12px;color:#888">' + (s.bu||'') + ' | ' + (s.track||'') + '</div>';
-      html += '<div style="font-size:12px;margin-top:4px;color:#444">' + (sc ? (sc.recommendation||'') : '') + '</div></div>';
-      html += '<div style="text-align:right;margin-left:16px">';
-      html += '<span class="badge ' + cls + '" style="font-size:18px;padding:6px 12px">' + scoreText + '</span>';
-      html += '<div style="margin-top:8px"><a style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View Details</a></div>';
-      html += '</div></div>';
-    });
+  if (!currentEventId) { 
+    el.innerHTML = '<div class="loading">Select an event first.</div>'; 
+    return; 
   }
-  html += '</div>';
+  try {
+    el.innerHTML = '<div class="loading">Loading...</div>';
+    var data = await api('GET', '/api/submissions?event_id=' + currentEventId);
+    if (!data.ok || !data.submissions) throw new Error(data.error || 'API request failed or returned invalid data');
+    allSubmissions = (data.submissions || []).map(parseAiScore);
+    var scored = allSubmissions.filter(function(s){return s.ai_score;});
+    var unscored = allSubmissions.filter(function(s){return !s.ai_score;});
+    var tracks = {};
+    allSubmissions.forEach(function(s){ if (s.track) { if (!tracks[s.track]) tracks[s.track] = []; tracks[s.track].push(s); } });
+    var sortedSubs = scored.slice().sort(function(a,b){return (b.ai_score.overall_score||0)-(a.ai_score.overall_score||0);});
 
-  html += '<div id="review-tracks" style="display:none">';
-  Object.keys(tracks).forEach(function(track) {
-    var ts = tracks[track].slice().sort(function(a,b){return ((b.ai_score&&b.ai_score.overall_score)||0)-((a.ai_score&&a.ai_score.overall_score)||0);});
+    var html = '';
+    html += '<div class="grid-3" style="margin-bottom:20px">';
+    html += '<div class="stat-card"><div class="num">' + allSubmissions.length + '</div><div class="lbl">Total Submissions</div></div>';
+    html += '<div class="stat-card"><div class="num">' + scored.length + '</div><div class="lbl">Scored</div></div>';
+    html += '<div class="stat-card"><div class="num">' + unscored.length + '</div><div class="lbl">Unscored</div></div>';
+    html += '</div>';
     html += '<div style="margin-bottom:20px">';
-    html += '<h3 style="font-weight:700;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid #00AAE8">' + track + ' (' + ts.length + ')</h3>';
-    ts.forEach(function(s) {
-      var sc = s.ai_score;
-      var scoreNum = (sc && sc.overall_score !== null && sc.overall_score !== undefined) ? sc.overall_score : null;
-      var cls = scoreNum !== null ? (scoreNum >= 80 ? 'score-high' : scoreNum >= 60 ? 'score-mid' : 'score-low') : 'score-none';
-      var scoreVal = scoreNum !== null ? 'Score: ' + scoreNum : 'Not Scored';
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #EAEAEA">';
-      html += '<div><div style="font-weight:500">' + (s.title||'').slice(0,70) + '</div>';
-      html += '<div style="font-size:11px;color:#888">' + (s.bu||'') + '</div></div>';
-      html += '<div style="display:flex;align-items:center;gap:8px">';
-      html += '<span class="badge ' + cls + '">' + scoreVal + '</span>';
-      html += '<a style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View</a>';
-      html += '</div></div>';
+    html += '<button class="btn-primary" onclick="scoreAllUnscored()">Score All Unscored (' + unscored.length + ')</button> ';
+    html += '<button class="btn-secondary" onclick="exportCSV()">Export CSV</button>';
+    html += '</div>';
+    html += '<div class="tabs">';
+    html += '<div class="tab active" id="tab-ranked" onclick="reviewTab(this, &quot;ranked&quot;)">Ranked</div>';
+    html += '<div class="tab" id="tab-tracks" onclick="reviewTab(this, &quot;tracks&quot;)">By Track</div>';
+    html += '<div class="tab" id="tab-compare" onclick="reviewTab(this, &quot;compare&quot;)">Compare</div>';
+    html += '</div>';
+
+    html += '<div id="review-ranked">';
+    html += '<h3 style="font-weight:700;margin-bottom:12px">All Submissions by Score</h3>';
+    if (sortedSubs.length === 0) {
+      html += '<div class="loading">No scored submissions yet. Run scoring first.</div>';
+    } else {
+      sortedSubs.forEach(function(s) {
+        var sc = s.ai_score;
+        var scoreNum = (sc && sc.overall_score !== null && sc.overall_score !== undefined) ? sc.overall_score : null;
+        var cls = scoreNum !== null ? (scoreNum >= 80 ? 'score-high' : scoreNum >= 60 ? 'score-mid' : 'score-low') : 'score-none';
+        var scoreText = scoreNum !== null ? 'Score: ' + scoreNum : 'Not Scored';
+        html += '<div class="card" style="display:flex;justify-content:space-between;align-items:flex-start">';
+        html += '<div style="flex:1"><div style="font-weight:700">' + (s.title||'') + '</div>';
+        html += '<div style="font-size:12px;color:#888">' + (s.bu||'') + ' | ' + (s.track||'') + '</div>';
+        html += '<div style="font-size:12px;margin-top:4px;color:#444">' + (sc ? (sc.recommendation||'') : '') + '</div></div>';
+        html += '<div style="text-align:right;margin-left:16px">';
+        html += '<span class="badge ' + cls + '" style="font-size:18px;padding:6px 12px">' + scoreText + '</span>';
+        html += '<div style="margin-top:8px"><a style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View Details</a></div>';
+        html += '</div></div>';
+      });
+    }
+    html += '</div>';
+
+    html += '<div id="review-tracks" style="display:none">';
+    Object.keys(tracks).forEach(function(track) {
+      var ts = tracks[track].slice().sort(function(a,b){return ((b.ai_score&&b.ai_score.overall_score)||0)-((a.ai_score&&a.ai_score.overall_score)||0);});
+      html += '<div style="margin-bottom:20px">';
+      html += '<h3 style="font-weight:700;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid #00AAE8">' + track + ' (' + ts.length + ')</h3>';
+      ts.forEach(function(s) {
+        var sc = s.ai_score;
+        var scoreNum = (sc && sc.overall_score !== null && sc.overall_score !== undefined) ? sc.overall_score : null;
+        var cls = scoreNum !== null ? (scoreNum >= 80 ? 'score-high' : scoreNum >= 60 ? 'score-mid' : 'score-low') : 'score-none';
+        var scoreVal = scoreNum !== null ? 'Score: ' + scoreNum : 'Not Scored';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #EAEAEA">';
+        html += '<div><div style="font-weight:500">' + (s.title||'').slice(0,70) + '</div>';
+        html += '<div style="font-size:11px;color:#888">' + (s.bu||'') + '</div></div>';
+        html += '<div style="display:flex;align-items:center;gap:8px">';
+        html += '<span class="badge ' + cls + '">' + scoreVal + '</span>';
+        html += '<a style="color:#00AAE8;cursor:pointer;font-size:12px" onclick="viewSubmission(' + s.id + ')">View</a>';
+        html += '</div></div>';
+      });
+      html += '</div>';
     });
     html += '</div>';
-  });
-  html += '</div>';
 
-  html += '<div id="review-compare" style="display:none">';
-  html += '<div style="margin-bottom:12px;font-size:13px;color:#666">Select 2-3 submissions to compare:</div>';
-  html += '<div id="compare-picks" style="margin-bottom:16px">';
-  allSubmissions.forEach(function(s) {
-    html += '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">';
-    html += '<input type="checkbox" value="' + s.id + '" onchange="toggleCompare(' + s.id + ')"> ';
-    html += (s.title||'').slice(0,80) + '</label>';
-  });
-  html += '</div><div id="compare-table"></div></div>';
+    html += '<div id="review-compare" style="display:none">';
+    html += '<div style="margin-bottom:12px;font-size:13px;color:#666">Select 2-3 submissions to compare:</div>';
+    html += '<div id="compare-picks" style="margin-bottom:16px">';
+    allSubmissions.forEach(function(s) {
+      html += '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">';
+      html += '<input type="checkbox" value="' + s.id + '" onchange="toggleCompare(' + s.id + ')"> ';
+      html += (s.title||'').slice(0,80) + '</label>';
+    });
+    html += '</div><div id="compare-table"></div></div>';
 
-  el.innerHTML = html;
+    el.innerHTML = html;
+  } catch(err) {
+    el.innerHTML = '<div class="alert alert-error">Failed to load review data: ' + err.message + '</div>';
+  }
 }
 
 async function scoreAllUnscored() {
@@ -947,15 +963,15 @@ function renderCompareTable() {
 
 // ── Speakers ──────────────────────────────────────────────────────────────────
 async function renderSpeakers() {
+    const el = document.getElementById('speakers-content');
     if (!currentEventId) { 
-        document.getElementById('speakers-content').innerHTML = '<div class="loading">Select an event first.</div>'; 
+        el.innerHTML = '<div class="loading">Select an event first.</div>'; 
         return; 
     }
-    const el = document.getElementById('speakers-content');
-    el.innerHTML = '<div class="loading">Loading speakers...</div>';
-
     try {
+        el.innerHTML = '<div class="loading">Loading speakers...</div>';
         const data = await api('GET', `/api/speakers?event_id=${currentEventId}`);
+        if (!data.ok || !data.speakers) throw new Error(data.error || 'API request failed or returned invalid data');
         const speakers = data.speakers || [];
 
         if (speakers.length === 0) {
@@ -987,7 +1003,7 @@ async function renderSpeakers() {
         tableHtml += '</tbody></table>';
         el.innerHTML = tableHtml;
     } catch (error) {
-        el.innerHTML = '<div class="alert alert-error">Failed to load speakers.</div>';
+        el.innerHTML = '<div class="alert alert-error">Failed to load speakers: ' + error.message + '</div>';
         console.error('Error fetching speakers:', error);
     }
 }
