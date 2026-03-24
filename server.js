@@ -899,9 +899,22 @@ app.get('/', function (req, res) {
 
 // ─── START ────────────────────────────────────────────────────────────────────
 
-app.listen(PORT, '0.0.0.0', function () {
-  console.log('[server] listening on port ' + PORT);
-  ensureSchema()
-    .then(function () { return seedData(); })
-    .catch(function (err) { console.error('[startup] DB error:', err.message); });
-});
+// Run schema migration BEFORE accepting requests
+ensureSchema()
+  .then(function () {
+    console.log('[startup] Schema ready, seeding data...');
+    return seedData();
+  })
+  .then(function () {
+    console.log('[startup] Data seeded, starting server...');
+    app.listen(PORT, '0.0.0.0', function () {
+      console.log('[server] listening on port ' + PORT);
+    });
+  })
+  .catch(function (err) {
+    console.error('[startup] DB error:', err.message);
+    // Start server anyway for graceful degradation
+    app.listen(PORT, '0.0.0.0', function () {
+      console.log('[server] listening on port ' + PORT + ' (DB migration failed)');
+    });
+  });
