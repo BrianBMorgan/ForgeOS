@@ -1371,6 +1371,8 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     }));
 
     let fullAssistantMessage = "";
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
     const MAX_ROUNDS = 20;
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -1399,6 +1401,12 @@ app.post("/api/projects/:id/chat", async (req, res) => {
       }
 
       const finalMsg = await stream.finalMessage();
+
+      // Accumulate token usage across rounds
+      if (finalMsg.usage) {
+        totalInputTokens += finalMsg.usage.input_tokens || 0;
+        totalOutputTokens += finalMsg.usage.output_tokens || 0;
+      }
 
       // Extract text and tool_use blocks
       const textBlocks = finalMsg.content.filter(b => b.type === "text");
@@ -1431,6 +1439,23 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
     brain.appendConversation(project.id, "assistant", fullAssistantMessage).catch(() => {});
     brain.extractMemory({ projectId: project.id, userRequest: message.trim(), buildSummary: fullAssistantMessage.slice(0, 500), files: [] }).catch(() => {});
+
+    // Persist usage to Neon
+    if (totalInputTokens > 0 || totalOutputTokens > 0) {
+      try {
+        const { neon } = require("@neondatabase/serverless");
+        const usageSql = neon(process.env.NEON_DATABASE_URL);
+        // Pricing: Opus 4.6 $15/$75 per 1M tokens (input/output)
+        const inputCost = (totalInputTokens / 1_000_000) * 15;
+        const outputCost = (totalOutputTokens / 1_000_000) * 75;
+        await usageSql`
+          INSERT INTO forge_usage (model, input_tokens, output_tokens, cost_usd, project_id, created_at)
+          VALUES (${"claude-opus-4-5"}, ${totalInputTokens}, ${totalOutputTokens}, ${inputCost + outputCost}, ${project.id}, ${Date.now()})
+          ON CONFLICT DO NOTHING
+        `;
+        send({ type: "usage", inputTokens: totalInputTokens, outputTokens: totalOutputTokens, costUsd: inputCost + outputCost });
+      } catch(e) { console.error("[usage]", e.message); }
+    }
 
     send({ type: "done", role: "assistant", content: fullAssistantMessage, building: false, createdAt: Date.now() });
 
@@ -1606,7 +1631,24 @@ app.get("/api/github/commits", async (req, res) => {
 const clientDist = path.join(__dirname, "..", "client", "dist");
 try {
   const fs = require("fs");
-  // ── Dashboard routes — mirrored from Mission Control ─────────────────────────
+  // ── Usage table ─────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const { neon } = require("@neondatabase/serverless");
+    const s = neon(process.env.NEON_DATABASE_URL);
+    await s`CREATE TABLE IF NOT EXISTS forge_usage (
+      id SERIAL PRIMARY KEY,
+      model TEXT NOT NULL,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      cost_usd NUMERIC(10,6) DEFAULT 0,
+      project_id TEXT,
+      created_at BIGINT
+    )`;
+  } catch(e) { console.error("[usage schema]", e.message); }
+})();
+
+// ── Dashboard routes — mirrored from Mission Control ─────────────────────────
 
 app.get("/api/dashboard/status", async (_req, res) => {
   res.set("Cache-Control", "no-store");
@@ -1728,6 +1770,44 @@ app.post("/api/dashboard/redeploy", async (_req, res) => {
     const data = await r.json();
     if (r.status === 200 || r.status === 201) return res.json({ ok: true, deployId: data.id || data.deploy?.id || "" });
     res.json({ ok: false, error: `Render responded ${r.status}` });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+app.get("/api/dashboard/usage", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    const { neon } = require("@neondatabase/serverless");
+    const s = neon(process.env.NEON_DATABASE_URL);
+    const [totals, recent, byModel] = await Promise.all([
+      s`SELECT SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens, SUM(cost_usd) as cost_usd FROM forge_usage`,
+      s`SELECT model, input_tokens, output_tokens, cost_usd, project_id, created_at FROM forge_usage ORDER BY created_at DESC LIMIT 20`,
+      s`SELECT model, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens, SUM(cost_usd) as cost_usd, COUNT(*) as calls FROM forge_usage GROUP BY model ORDER BY cost_usd DESC`,
+    ]);
+    res.json({
+      ok: true,
+      totals: {
+        inputTokens: parseInt(totals[0]?.input_tokens || 0),
+        outputTokens: parseInt(totals[0]?.output_tokens || 0),
+        costUsd: parseFloat(totals[0]?.cost_usd || 0),
+      },
+      byModel: byModel.map(r => ({
+        model: r.model,
+        inputTokens: parseInt(r.input_tokens),
+        outputTokens: parseInt(r.output_tokens),
+        costUsd: parseFloat(r.cost_usd),
+        calls: parseInt(r.calls),
+      })),
+      recent: recent.map(r => ({
+        model: r.model,
+        inputTokens: r.input_tokens,
+        outputTokens: r.output_tokens,
+        costUsd: parseFloat(r.cost_usd),
+        projectId: r.project_id,
+        createdAt: r.created_at,
+      })),
+    });
   } catch (err) {
     res.json({ ok: false, error: err.message });
   }
