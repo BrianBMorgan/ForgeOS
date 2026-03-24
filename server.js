@@ -466,7 +466,13 @@ app.get('/api/submissions', async function (req, res) {
     var event_id = req.query.event_id;
     if (!event_id) return res.status(400).json({ ok: false, error: 'event_id is required' });
     var rows = await sql`
-      SELECT s.*, sp.full_name as speaker_name
+      SELECT
+        s.id, s.event_id, s.speaker_id, s.title, s.content_lead, s.bu, s.track,
+        s.format, s.duration, s.abstract, s.key_topics, s.demos,
+        s.featured_products, s.business_challenge, s.partner_highlights,
+        s.new_launches, s.reviewer_notes, s.status, s.ai_score,
+        s.enriched_abstract, s.created_at,
+        sp.full_name as speaker_name
       FROM submissions s
       LEFT JOIN speakers sp ON s.speaker_id = sp.id
       WHERE s.event_id = ${event_id}
@@ -510,7 +516,13 @@ app.post('/api/submissions/:id/score', async function (req, res) {
     var sql = getDb();
     var id = req.params.id;
     var subResult = await sql`
-      SELECT s.*, sp.full_name as speaker_name
+      SELECT
+        s.id, s.event_id, s.speaker_id, s.title, s.content_lead, s.bu, s.track,
+        s.format, s.duration, s.abstract, s.key_topics, s.demos,
+        s.featured_products, s.business_challenge, s.partner_highlights,
+        s.new_launches, s.reviewer_notes, s.status, s.ai_score,
+        s.enriched_abstract, s.created_at,
+        sp.full_name as speaker_name
       FROM submissions s
       LEFT JOIN speakers sp ON s.speaker_id = sp.id
       WHERE s.id = ${id}
