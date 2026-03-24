@@ -590,7 +590,7 @@ function submissionForm(s) {
     var val = f[id] || '';
     if (type === 'textarea') {
       if (id === 'abstract') {
-        return `<div class="form-group"><label>${label}</label><textarea id="sf-${id}" rows="3" maxlength="650" oninput="updateAbstractCounter()">${val}</textarea><div style="font-size:11px;color:#888;margin-top:4px"><span id="abstract-counter">${val.length}</span> / <span id="abstract-limit">650</span> characters</div><div style="display:flex;align-items:center;gap:6px;margin-top:8px"><input type="checkbox" id="abstract-override" onchange="toggleAbstractOverride()" style="margin:0;cursor:pointer"><label for="abstract-override" style="cursor:pointer;font-size:12px;font-weight:400;margin:0">Override (allow 1000 characters)</label></div></div>`;
+        return `<div class="form-group"><label>${label}</label><textarea id="sf-${id}" rows="3" maxlength="650" oninput="updateAbstractCounter()">${val}</textarea><div style="font-size:11px;color:#888;margin-top:4px"><span id="abstract-counter">${val.length}</span> / <span id="abstract-limit">650</span> characters</div><div style="display:flex;align-items:center;gap:4px;margin-top:8px;justify-content:flex-start"><input type="checkbox" id="abstract-override" onchange="toggleAbstractOverride()" style="margin:0;cursor:pointer;width:auto"><span style="font-size:12px;font-weight:400;cursor:pointer" onclick="document.getElementById('abstract-override').click()">Override (allow 1000 characters)</span></div></div>`;
       }
       return `<div class="form-group"><label>${label}</label><textarea id="sf-${id}" rows="3">${val}</textarea></div>`;
     }
