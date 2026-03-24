@@ -513,7 +513,7 @@ async function renderSubmissions() {
 
 function renderSubTable() {
   var filtered = allSubmissions.filter(function(s){
-    if (subFilters.search) { var q = subFilters.search.toLowerCase(); if (!(s.title||'').toLowerCase().includes(q) && !(s.speaker_name||'').toLowerCase().includes(q) && !(s.content_lead||'').toLowerCase().includes(q)) return false; }
+    if (subFilters.search) { var q = subFilters.search.toLowerCase(); if (!(s.title||'').toLowerCase().includes(q) && !(s.speaker_names||'').toLowerCase().includes(q) && !(s.content_lead||'').toLowerCase().includes(q)) return false; }
     if (subFilters.track && s.track !== subFilters.track) return false;
     if (subFilters.bu && s.bu !== subFilters.bu) return false;
     if (subFilters.status && s.status !== subFilters.status) return false;
