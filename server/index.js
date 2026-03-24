@@ -998,7 +998,7 @@ const FORGE_TOOLS = [
   },
   {
     name: "write_code",
-    description: "Hand off a coding task to Gemini 2.5 Pro. Use this whenever you need to write or substantially rewrite files. Read the relevant files first with github_read, then call write_code with full file context and precise requirements. Take what it returns and commit with github_write. Do not write code directly in your responses.",
+    description: "Hand off a coding task to Claude 3.5 Sonnet. Use this whenever you need to write or substantially rewrite files. Read the relevant files first with github_read, then call write_code with full file context and precise requirements. Take what it returns and commit with github_write. Do not write code directly in your responses.",
     parameters: {
       type: "object",
       properties: {
@@ -1042,7 +1042,7 @@ You do not write code. You think, plan, spec, and delegate.
 - memory_search — search past builds for patterns and lessons
 - fetch_url — fetch any URL: web pages, documentation, APIs, or /api/skills to load skill instructions
 - ask_user — ask Brian a question when you genuinely need clarification
-- write_code — hand off a coding task to an external code generation agent (Gemini 2.5 Pro). You are not writing the code — you are specifying precisely what needs to be built and providing full context. The agent returns complete files. You commit them.
+- write_code — hand off a coding task to Claude 3.5 Sonnet. You are not writing the code — you are specifying precisely what needs to be built and providing full context. The agent returns complete files. You commit them.
 
 ## HOW TO BUILD
 
