@@ -501,7 +501,12 @@ app.get('/api/submissions/export', async function (req, res) {
     var submissions = await sql`
       SELECT 
         s.id, s.title, s.bu, s.track, s.format, 
-        (SELECT full_name FROM speakers WHERE id = s.speaker_id) as speaker_name, 
+        (
+          SELECT string_agg(sp.full_name, ', ' ORDER BY sp.full_name)
+          FROM submission_speakers ss
+          JOIN speakers sp ON sp.id = ss.speaker_id
+          WHERE ss.submission_id = s.id
+        ) as speaker_names, 
         s.status, s.ai_score
       FROM submissions s
       WHERE s.event_id = ${event_id} ORDER BY s.title ASC
