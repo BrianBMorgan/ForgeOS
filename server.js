@@ -632,7 +632,6 @@ app.get('/api/speakers/:id/headshot-debug', async function(req, res) {
   } catch(err) { res.json({ error: err.message }); }
 });
 
-// One-time migration: fix JSON-serialized headshots in DB
 app.post('/api/speakers/migrate-headshots', async function(req, res) {
   try {
     var sql = getDb();
@@ -664,16 +663,123 @@ app.get('/api/speakers/:id/headshot', async function(req, res) {
     var result = await sql`SELECT headshot, headshot_mimetype FROM speakers WHERE id = ${req.params.id}`;
     if (!result.length || !result[0].headshot) return res.status(404).send('Not found');
     var raw = result[0].headshot;
-    // Data is stored as JSON string: {"data":[255,216,255,...]}
-    var parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    var buf = Buffer.from(parsed.data || parsed);
-    var mime = result[0].headshot_mimetype || (buf[0] === 0xFF && buf[1] === 0xD8 ? 'image/jpeg' : 'image/png');
+    var trimmed = typeof raw === 'string' ? raw.trim() : null;
+    var buf;
+    if (Buffer.isBuffer(raw)) {
+      buf = raw;
+    } else if (raw instanceof Uint8Array) {
+      buf = Buffer.from(raw);
+    } else if (trimmed && (trimmed[0] === '{' || trimmed[0] === '[')) {
+      var parsed = JSON.parse(trimmed);
+      buf = Buffer.from(parsed.data || parsed);
+    } else if (trimmed && trimmed.slice(0, 2) === String.fromCharCode(92) + 'x') {
+      buf = Buffer.from(trimmed.slice(2), 'hex');
+    } else {
+      buf = Buffer.from(raw);
+    }
+    var mime = result[0].headshot_mimetype ||
+      (buf[0] === 0xFF && buf[1] === 0xD8 ? 'image/jpeg' :
+       buf[0] === 0x89 && buf[1] === 0x50 ? 'image/png' : 'image/jpeg');
     res.setHeader('Content-Type', mime);
     res.setHeader('Content-Length', buf.length);
     res.end(buf);
   } catch (err) {
     console.error('[headshot]', err.message);
-    res.status(500).send('Error');
+    res.status(500).send('Error: ' + err.message);
   }
 });
 
+
+app.post('/api/speakers', upload.single('headshot'), async function(req, res) {
+  try {
+    var sql = getDb();
+    var b = req.body;
+    var headshot = req.file ? req.file.buffer : null;
+    var headshot_mimetype = req.file ? req.file.mimetype : null;
+    
+    if (!b.event_id || !b.full_name) {
+      return res.status(400).json({ ok: false, error: 'event_id and full_name are required' });
+    }
+
+    var result = await sql`
+      INSERT INTO speakers (event_id, full_name, title, company, email, bio, headshot, headshot_mimetype)
+      VALUES (${b.event_id}, ${b.full_name}, ${b.title || ''}, ${b.company || ''}, ${b.email || ''}, ${b.bio || ''}, ${headshot}, ${headshot_mimetype})
+      RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+    `;
+    
+    var speaker = result[0];
+    res.status(201).json({ ok: true, speaker: speaker });
+  } catch (err) {
+    console.error('[api/speakers POST]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.put('/api/speakers/:id', upload.single('headshot'), async function(req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var b = req.body;
+    var headshot = req.file ? req.file.buffer : null;
+    var headshot_mimetype = req.file ? req.file.mimetype : null;
+
+    var current = await sql`SELECT id FROM speakers WHERE id = ${id}`;
+    if (current.length === 0) {
+        return res.status(404).json({ ok: false, error: 'Speaker not found' });
+    }
+
+    var result;
+    if (headshot) {
+      result = await sql`
+        UPDATE speakers
+        SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}, headshot=${headshot}, headshot_mimetype=${headshot_mimetype}
+        WHERE id = ${id}
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+      `;
+    } else {
+      result = await sql`
+        UPDATE speakers
+        SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}
+        WHERE id = ${id}
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+      `;
+    }
+
+    var speaker = result[0];
+    res.json({ ok: true, speaker: speaker });
+  } catch (err) {
+    console.error('[api/speakers PUT]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.delete('/api/speakers/:id', async function(req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var result = await sql`DELETE FROM speakers WHERE id = ${id} RETURNING id`;
+    if (result.length === 0) {
+      return res.status(404).json({ ok: false, error: 'Speaker not found' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[api/speakers DELETE]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
+// ─── FRONTEND ─────────────────────────────────────────────────────────────────
+
+app.get('/', function (req, res) {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ─── START ────────────────────────────────────────────────────────────────────
+
+app.listen(PORT, '0.0.0.0', function () {
+  console.log('[server] listening on port ' + PORT);
+  ensureSchema()
+    .then(function () { return seedData(); })
+    .catch(function (err) { console.error('[startup] DB error:', err.message); });
+});
