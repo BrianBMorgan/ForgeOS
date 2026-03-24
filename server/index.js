@@ -1632,9 +1632,47 @@ try {
   }
 } catch {}
 
-// ── Dashboard routes ──────────────────────────────────────────────────────────
+// ── Dashboard routes — mirrored from Mission Control ─────────────────────────
 
 app.get("/api/dashboard/status", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
+  const checks = {
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    gemini: !!process.env.GEMINI_API_KEY,
+    github: !!process.env.GITHUB_TOKEN,
+    render: !!process.env.RENDER_API_KEY,
+    neon: !!process.env.NEON_DATABASE_URL,
+  };
+  try {
+    const [renderRes, forgeRes] = await Promise.all([
+      fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}`, {
+        headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json" }
+      }).then(async r => {
+        if (r.status !== 200) return { state: "error", name: "ForgeOS", updatedAt: null };
+        const d = await r.json();
+        const topSuspended = d.suspended;
+        let state;
+        if (topSuspended === "suspended") state = "suspended";
+        else if (topSuspended === "not_suspended") state = d.serviceDetails?.status || "live";
+        else state = "unknown";
+        return { state, name: d.name || "ForgeOS", updatedAt: d.updatedAt || null };
+      }).catch(() => ({ state: "unreachable", name: "ForgeOS", updatedAt: null })),
+      (async () => {
+        const start = Date.now();
+        try {
+          const r = await fetch("https://forge-os.ai/api/health", { signal: AbortSignal.timeout(5000) });
+          return { alive: r.status === 200, latencyMs: Date.now() - start };
+        } catch { return { alive: false, latencyMs: null }; }
+      })()
+    ]);
+    res.json({ ok: true, credentials: checks, render: renderRes, forge: forgeRes, timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.json({ ok: false, credentials: checks, error: err.message });
+  }
+});
+
+app.get("/api/dashboard/builds", async (_req, res) => {
   res.set("Cache-Control", "no-store");
   const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
   const checks = {
@@ -1679,31 +1717,86 @@ app.get("/api/dashboard/builds", async (_req, res) => {
   res.set("Cache-Control", "no-store");
   try {
     const r = await fetch("https://api.github.com/repos/BrianBMorgan/ForgeOS/commits?per_page=20", {
-      headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json", "User-Agent": "ForgeOS/2.0" }
+      headers: { Authorization: `token ${process.env.GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json", "User-Agent": "ForgeOS/2.0" }
     });
-    const data = await r.json();
-    const commits = (data || []).map((c) => ({
-      sha: c.sha,
-      message: c.commit?.message || "",
-      author: c.commit?.author?.name || "",
-      date: c.commit?.author?.date || "",
-      url: c.html_url,
+    if (r.status === 403 || r.status === 429) return res.json({ ok: false, error: `GitHub ${r.status} — rate limit`, builds: [] });
+    if (r.status !== 200) return res.json({ ok: false, error: `GitHub ${r.status}`, builds: [] });
+    const commits = await r.json();
+    if (!Array.isArray(commits)) return res.json({ ok: false, error: "Unexpected response", builds: [] });
+    const builds = commits.map(c => ({
+      sha: c.sha ? c.sha.slice(0, 7) : "?",
+      message: c.commit?.message ? c.commit.message.split("\n")[0].slice(0, 90) : "(no message)",
+      author: c.commit?.author?.name || "unknown",
+      date: c.commit?.author?.date || null,
+      url: c.html_url || null,
     }));
-    res.json({ ok: true, commits });
+    res.json({ ok: true, builds });
   } catch (err) {
-    res.json({ ok: false, commits: [], error: err.message });
+    res.json({ ok: false, builds: [], error: err.message });
+  }
+});
+
+app.get("/api/dashboard/memory", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    const r = await fetch("https://forge-os.ai/api/brain", { headers: { Accept: "application/json" } });
+    if (r.status !== 200) return res.json({ ok: false, error: `Brain returned ${r.status}`, stats: null, categories: [] });
+    const data = await r.json();
+    const totals = data.totals || {};
+    const total = (totals.projects || 0) + (totals.preferences || 0) + (totals.patterns || 0) + (totals.mistakes || 0) + (totals.snippets || 0);
+    const categories = [
+      { category: "patterns",    count: totals.patterns    || 0 },
+      { category: "preferences", count: totals.preferences || 0 },
+      { category: "snippets",    count: totals.snippets    || 0 },
+      { category: "mistakes",    count: totals.mistakes    || 0 },
+      { category: "projects",    count: totals.projects    || 0 },
+    ].filter(c => c.count > 0);
+    res.json({ ok: true, stats: { total }, categories, topMemories: data.topMistakes || [] });
+  } catch (err) {
+    res.json({ ok: false, error: err.message, stats: null, categories: [] });
+  }
+});
+
+app.get("/api/dashboard/logs", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
+  const key = process.env.RENDER_API_KEY || "";
+  if (!key) return res.json({ ok: false, error: "RENDER_API_KEY not set", lines: [] });
+  try {
+    const svcRes = await fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}`, {
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" }
+    });
+    if (svcRes.status !== 200) return res.json({ ok: false, error: `Service fetch ${svcRes.status}`, lines: [] });
+    const svc = await svcRes.json();
+    const ownerId = svc.ownerId || "";
+    if (!ownerId) return res.json({ ok: false, error: "Could not determine ownerId", lines: [] });
+    const logsRes = await fetch(
+      `https://api.render.com/v1/logs?ownerId=${encodeURIComponent(ownerId)}&resource=${encodeURIComponent(RENDER_SERVICE_ID)}&limit=40&direction=backward`,
+      { headers: { Authorization: `Bearer ${key}`, Accept: "application/json" } }
+    );
+    if (logsRes.status !== 200) return res.json({ ok: false, error: `Logs API ${logsRes.status}`, lines: [] });
+    const parsed = await logsRes.json();
+    const lines = (parsed.logs || []).map((e) => e.message || "").filter(Boolean);
+    res.json({ ok: true, lines });
+  } catch (err) {
+    res.json({ ok: false, error: err.message, lines: [] });
   }
 });
 
 app.post("/api/dashboard/redeploy", async (_req, res) => {
   const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
+  const key = process.env.RENDER_API_KEY || "";
+  if (!key) return res.json({ ok: false, error: "RENDER_API_KEY not set" });
   try {
     const r = await fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys`, {
       method: "POST", body: JSON.stringify({ clearCache: false }),
-      headers: { Authorization: `Bearer ${process.env.RENDER_API_KEY}`, Accept: "application/json", "Content-Type": "application/json" }
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json", "Content-Type": "application/json" }
     });
     const data = await r.json();
-    res.json({ ok: r.ok, deploy: data });
+    if (r.status === 200 || r.status === 201) {
+      return res.json({ ok: true, deployId: data.id || data.deploy?.id || "" });
+    }
+    res.json({ ok: false, error: `Render responded ${r.status}` });
   } catch (err) {
     res.json({ ok: false, error: err.message });
   }
