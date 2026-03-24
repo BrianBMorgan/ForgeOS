@@ -1254,23 +1254,25 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
 
     case "write_code": {
       try {
-        const { GoogleGenerativeAI } = require("@google/generative-ai");
-        const geminiKey = process.env.GEMINI_API_KEY;
-        if (!geminiKey) return "Error: GEMINI_API_KEY not set";
-        const genAI = new GoogleGenerativeAI(geminiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+        const Anthropic = require("@anthropic-ai/sdk");
+        const anthropicKey = process.env.ANTHROPIC_API_KEY;
+        if (!anthropicKey) return "Error: ANTHROPIC_API_KEY not set";
+        const client = new Anthropic.default({ apiKey: anthropicKey });
         const systemPrompt = "You are a code generation engine. Return complete file contents only.\nRules:\n- Return complete files. Never truncate. Never use placeholder comments.\n- No explanation. No preamble. No markdown fences.\n- Return valid JSON only: { \"files\": { \"filename\": \"complete file contents\" } }\n- If a file is not changing, omit it.\n- CommonJS on server (require/module.exports). No dotenv. PORT = process.env.PORT || 3000.";
         const filesBlock = Object.entries(toolInput.files_context || {}).map(function(e) { return "=== " + e[0] + " ===\n" + e[1]; }).join("\n\n");
         const userPrompt = "TASK: " + toolInput.task + "\n\nREQUIREMENTS:\n" + (toolInput.requirements || []).map(function(r, i) { return (i+1) + ". " + r; }).join("\n") + "\n\nEXISTING FILES:\n" + filesBlock + "\n\nOUTPUT FILES NEEDED: " + (toolInput.output_files || []).join(", ") + "\n\nReturn JSON only: { \"files\": { \"filename\": \"complete contents\" } }";
-        if (sendEvent) sendEvent({ type: "tool_status", content: "Sending to Gemini 2.5 Pro..." });
-        const result = await model.generateContent({
-          contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }]
+        if (sendEvent) sendEvent({ type: "tool_status", content: "Sending to Claude 3.5 Sonnet..." });
+        const result = await client.messages.create({
+          model: "claude-sonnet-4-5",
+          max_tokens: 32000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
         });
-        const raw = result.response.text();
+        const raw = result.content[0].text;
         const clean = raw.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
         var parsed;
         try { parsed = JSON.parse(clean); } catch (parseErr) {
-          return "write_code error: Gemini returned invalid JSON. Raw: " + raw.slice(0, 500);
+          return "write_code error: Claude returned invalid JSON. Raw: " + raw.slice(0, 500);
         }
         const fileNames = Object.keys(parsed.files || {});
         if (sendEvent) sendEvent({ type: "tool_status", content: "\u2713 Code ready: " + fileNames.join(", ") });
@@ -1317,7 +1319,8 @@ app.post("/api/projects/:id/chat", async (req, res) => {
   function send(evt) { res.write("data: " + JSON.stringify(evt) + "\n\n"); }
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const Anthropic = require("@anthropic-ai/sdk");
+    const client = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     // Memory context
     let memoryBlock = "";
@@ -1340,94 +1343,90 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     sysParts.push(FORGE_SYSTEM_PROMPT);
     const systemPrompt = sysParts.join("\n\n");
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-pro",
-      systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
-    });
+    // Build Anthropic messages array from history
+    const anthropicMessages = history.map(msg => ({
+      role: msg.role === "assistant" ? "assistant" : "user",
+      content: typeof msg.content === "string" ? msg.content :
+        (Array.isArray(msg.content) ? msg.content.find(c => c.type === "text")?.text || "" : ""),
+    })).filter(m => m.content);
 
-    // Convert Anthropic-formatted history to Gemini format for the API call
-    // This is a simplified conversion and may not perfectly handle complex tool histories.
-    const geminiMessages = history.map(msg => {
-      const role = msg.role === 'assistant' ? 'model' : 'user';
-      if (typeof msg.content === 'string') {
-        return { role, parts: [{ text: msg.content }] };
-      }
-      // For now, we only take the text part of complex messages from history.
-      const textContent = (Array.isArray(msg.content) ? msg.content.find(c => c.type === 'text')?.text : '') || '';
-      return { role, parts: [{ text: textContent }] };
-    }).filter(m => m.parts[0].text);
-
-    // Add current user message
-    const userParts = [{ text: message.trim() }];
+    // Add current user message with optional attachments
+    const userContent = [];
     if (attachments && attachments.length > 0) {
       for (const att of attachments) {
-        userParts.push({
-          inlineData: {
-            mimeType: att.mimeType || "image/png",
-            data: att.dataUrl.split(",")[1] || att.dataUrl,
-          }
+        userContent.push({
+          type: "image",
+          source: { type: "base64", media_type: att.mimeType || "image/png", data: att.dataUrl.split(",")[1] || att.dataUrl },
         });
       }
     }
-    geminiMessages.push({ role: "user", parts: userParts });
+    userContent.push({ type: "text", text: message.trim() });
+    anthropicMessages.push({ role: "user", content: userContent });
+
+    // Convert FORGE_TOOLS (Gemini format) to Anthropic tool format
+    const anthropicTools = FORGE_TOOLS.map(t => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.parameters || { type: "object", properties: {}, required: [] },
+    }));
 
     let fullAssistantMessage = "";
     const MAX_ROUNDS = 20;
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const result = await model.generateContentStream({
-        contents: geminiMessages,
-        tools: [{ functionDeclarations: FORGE_TOOLS }],
+      let streamText = "";
+      const toolUses = [];
+
+      const stream = await client.messages.stream({
+        model: "claude-opus-4-5",
+        max_tokens: 16000,
+        system: systemPrompt,
+        tools: anthropicTools,
+        messages: anthropicMessages,
       });
 
-      let responseText = "";
-      let functionCalls = [];
-
-      for await (const chunk of result.stream) {
-        const text = chunk.text();
-        if (text) {
-          responseText += text;
-          send({ type: "thinking", content: responseText });
-        }
-        const fcs = chunk.functionCalls();
-        if (fcs) {
-          functionCalls.push(...fcs);
+      for await (const event of stream) {
+        if (event.type === "content_block_delta") {
+          if (event.delta.type === "text_delta") {
+            streamText += event.delta.text;
+            send({ type: "thinking", content: streamText });
+          }
+        } else if (event.type === "content_block_stop") {
+          // captured via accumulation
+        } else if (event.type === "message_delta" && event.delta.stop_reason) {
+          // handled below
         }
       }
 
-      const modelResponseParts = [];
-      if (responseText) {
-        modelResponseParts.push({ text: responseText });
-      }
-      if (functionCalls.length > 0) {
-        functionCalls.forEach(fc => modelResponseParts.push({ functionCall: fc }));
+      const finalMsg = await stream.finalMessage();
+
+      // Extract text and tool_use blocks
+      const textBlocks = finalMsg.content.filter(b => b.type === "text");
+      const toolBlocks = finalMsg.content.filter(b => b.type === "tool_use");
+      const assistantText = textBlocks.map(b => b.text).join("").trim();
+
+      // Add assistant turn to history
+      anthropicMessages.push({ role: "assistant", content: finalMsg.content });
+
+      if (toolBlocks.length === 0) {
+        fullAssistantMessage = assistantText;
+        break;
       }
 
-      if (modelResponseParts.length > 0) {
-        geminiMessages.push({ role: 'model', parts: modelResponseParts });
-      }
-
-      if (functionCalls.length === 0) {
-        fullAssistantMessage = responseText;
-        break; // End of conversation turn
-      }
-
-      // Execute tools
-      const toolResultsParts = [];
-      for (const call of functionCalls) {
-        console.log(`[forge] round=${round} tool=${call.name}`, JSON.stringify(call.args).slice(0, 120));
-        const toolResultContent = await executeForgeToken(call.name, call.args, send);
-        toolResultsParts.push({
-          functionResponse: {
-            name: call.name,
-            response: { content: String(toolResultContent) },
-          },
+      // Execute tools and collect results
+      const toolResults = [];
+      for (const toolUse of toolBlocks) {
+        console.log(`[forge] round=${round} tool=${toolUse.name}`, JSON.stringify(toolUse.input).slice(0, 120));
+        if (send) send({ type: "tool_status", content: toolUse.name + "..." });
+        const result = await executeForgeToken(toolUse.name, toolUse.input, send);
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: String(result),
         });
       }
 
-      if (toolResultsParts.length > 0) {
-        geminiMessages.push({ role: 'function', parts: toolResultsParts });
-      }
+      anthropicMessages.push({ role: "user", content: toolResults });
     }
 
     brain.appendConversation(project.id, "assistant", fullAssistantMessage).catch(() => {});
