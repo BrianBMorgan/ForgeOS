@@ -24,7 +24,7 @@
   },
   "two_agent_system": {
     "frank": {
-      "model": "gemini-3-flash",
+      "model": "gemini-3-flash-preview",
       "role": "Architect and engineering partner. Thinks before delegating. Never writes code directly.",
       "tools": [
         "github_create_branch",
