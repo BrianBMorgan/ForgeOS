@@ -667,9 +667,10 @@ app.post('/api/speakers/migrate-headshots', async function(req, res) {
     var fixed = 0;
     for (var s of speakers) {
       var raw = s.headshot;
-      if (typeof raw !== 'string') continue;
-      var trimmed = raw.trim();
-      if (trimmed[0] !== '{' && trimmed[0] !== '[') continue;
+      var buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+      // Check if buffer contains JSON text
+      if (buf[0] !== 0x7b && buf[0] !== 0x5b) continue;
+      var trimmed = buf.toString('utf8');
       try {
         var parsed = JSON.parse(trimmed);
         var arr = parsed.data || parsed;
@@ -691,20 +692,18 @@ app.get('/api/speakers/:id/headshot', async function(req, res) {
     var result = await sql`SELECT headshot, headshot_mimetype FROM speakers WHERE id = ${req.params.id}`;
     if (!result.length || !result[0].headshot) return res.status(404).send('Not found');
     var raw = result[0].headshot;
-    var trimmed = typeof raw === 'string' ? raw.trim() : null;
-    var buf;
-    if (Buffer.isBuffer(raw)) {
-      buf = raw;
-    } else if (raw instanceof Uint8Array) {
-      buf = Buffer.from(raw);
-    } else if (trimmed && (trimmed[0] === '{' || trimmed[0] === '[')) {
-      var parsed = JSON.parse(trimmed);
-      buf = Buffer.from(parsed.data || parsed);
-    } else if (trimmed && trimmed.slice(0, 2) === String.fromCharCode(92) + 'x') {
-      buf = Buffer.from(trimmed.slice(2), 'hex');
-    } else {
-      buf = Buffer.from(raw);
+
+    // Normalize to Buffer
+    var buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+
+    // If the buffer contains JSON text (first byte is '{'), unwrap it
+    if (buf[0] === 0x7b || buf[0] === 0x5b) {
+      try {
+        var parsed = JSON.parse(buf.toString('utf8'));
+        buf = Buffer.from(parsed.data || parsed);
+      } catch(e) { /* not JSON, use as-is */ }
     }
+
     var mime = result[0].headshot_mimetype ||
       (buf[0] === 0xFF && buf[1] === 0xD8 ? 'image/jpeg' :
        buf[0] === 0x89 && buf[1] === 0x50 ? 'image/png' : 'image/jpeg');
