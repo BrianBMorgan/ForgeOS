@@ -1,7 +1,7 @@
 {
-  "version": "7.2.0",
-  "updated": "2026-03-23",
-  "current_state": "ForgeOS v2 fully operational. Stable baseline at commit 1b17d7a. Frank + Gemini two-agent architecture live and tested. Dashboard fully wired \u2014 all 5 Mission Control KPI streams (status, builds, memory, logs, redeploy) ported into native ForgeOS sidebar panel with ForgeOS styling. Dashboard routes correctly positioned before catch-all wildcard. Intel Event Content Review live. Inspect tool live across 14 apps. Full deploy loop (commit -> SSE -> Workspace refresh -> Render poll -> iframe reload) operational.",
+  "version": "7.3.0",
+  "updated": "2026-03-24",
+  "current_state": "ForgeOS v2 fully operational. Stable at 6895e13. Architecture upgraded: Frank is now Claude Opus 4.6 (planner), write_code is Claude 3.5 Sonnet (code monkey). Gemini fully removed from the chat pipeline. Dashboard wired with all 5 Mission Control KPI streams. Frank prompt updated: write_code fires immediately on spec ready, deploy polling capped at 1 check.",
   "next_steps": [
     "Run Brain memory purge \u2014 v1 poison terms still present (task_complete, write_file, run_command, list_files, wsDir, buildAndDeploy)",
     "Test Frank + Gemini flow end-to-end on a fresh project (clean slug, branch, Render, deploy confirmation, inspect tool)",
@@ -392,6 +392,32 @@
         "dashboard_routes_v1": "07e6b6c",
         "dashboard_routes_clean": "1b17d7a",
         "context_pack": "this commit"
+      }
+    },
+    {
+      "date": "2026-03-24",
+      "session_title": "Frank \u2192 Claude Opus 4.6 + Sonnet Code Monkey",
+      "shipped": [
+        "Frank chat engine rewritten from Gemini to Claude Opus 4.6 (claude-opus-4-5) with Anthropic streaming API and proper tool_use/tool_result format",
+        "write_code executor switched from Gemini 2.5 Pro to Claude 3.5 Sonnet (claude-sonnet-4-5)",
+        "Gemini removed entirely from the chat pipeline",
+        "Frank prompt updated: write_code fires immediately, deploy polling capped at 1 check, no rambling",
+        "Tool descriptions updated to reference Claude instead of Gemini",
+        "Headshot BYTEA fix: Neon stores Buffer as JSON text bytes (0x7b), JSON.parse(buf.toString()).data to unwrap",
+        "Brain memories 1851-1853 written with correct Neon BYTEA upload/serve pattern",
+        "brain/memory endpoint fixed: type NOT NULL, created_at is bigint (Date.now() not NOW())",
+        "Intel headshot migration route added: POST /api/speakers/migrate-headshots"
+      ],
+      "decisions": [
+        "Claude Opus 4.6 as Frank \u2014 night and day improvement over Gemini 2.5 Flash/Pro for planning",
+        "Claude 3.5 Sonnet as write_code \u2014 fast, precise, no thought_signature issues",
+        "Gemini entirely out of loop \u2014 GEMINI_API_KEY no longer required for core functionality"
+      ],
+      "key_commits": {
+        "frank_claude_opus": "13a2ea5",
+        "tool_descriptions": "6895e13",
+        "frank_prompt_deploy_fix": "dcef357",
+        "intel_headshot_final": "ad44ba3"
       }
     }
   ],
