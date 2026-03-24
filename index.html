@@ -475,6 +475,7 @@ function parseAiScore(s) {
 }
 
 async function renderSubmissions() {
+  console.log('[renderSubmissions] START, currentEventId:', currentEventId);
   var el = document.getElementById('submissions-content');
   if (!currentEventId) { 
     el.innerHTML = '<div class="loading">Select an event first.</div>'; 
@@ -483,8 +484,17 @@ async function renderSubmissions() {
   try {
     el.innerHTML = '<div class="loading">Loading...</div>';
     var event = allEvents.find(function(e){return String(e.id)===String(currentEventId);});
+    console.log('[renderSubmissions] Calling API...');
     var data = await api('GET', '/api/submissions?event_id=' + currentEventId);
-    if (!data.ok || !data.submissions) throw new Error(data.error || 'API request failed or returned invalid data');
+    console.log('[renderSubmissions] API returned:', JSON.stringify(data).slice(0, 500));
+    if (!data) {
+      throw new Error('API returned null/undefined');
+    }
+    if (data.ok === false) {
+      throw new Error(data.error || 'API returned ok:false');
+    }
+    if (!data.submissions) {
+      throw new Error('No submissions array in response. Keys: ' + Object.keys(data).join(', '));
     allSubmissions = (data.submissions || []).map(parseAiScore);
     var tracks = [...new Set(allSubmissions.map(function(s){return s.track;}).filter(Boolean))];
     var bus = [...new Set(allSubmissions.map(function(s){return s.bu;}).filter(Boolean))];
