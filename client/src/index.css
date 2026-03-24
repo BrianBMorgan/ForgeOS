@@ -6098,52 +6098,6 @@ body {
 }
 .render-goto-publish:hover { background: rgba(99,102,241,0.08); }
 
-.render-v2-url-card {
-  margin: 6px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px 14px;
-}
-
-.render-v2-url-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
-}
-
-.render-v2-url-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.render-v2-url-link {
-  font-size: 13px;
-  color: var(--accent);
-  text-decoration: none;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.render-v2-url-link:hover { text-decoration: underline; }
-
-.render-v2-open-btn {
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 11px;
-  padding: 3px 10px;
-  cursor: pointer;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.render-v2-open-btn:hover { background: var(--accent-hover); }
-
 .render-v2-iframe-wrap {
   flex: 1;
   display: flex;
