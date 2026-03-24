@@ -117,17 +117,29 @@ async function ensureSchema() {
     )
   `;
   await sql`
+    CREATE TABLE IF NOT EXISTS speakers (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      full_name TEXT,
+      title TEXT,
+      company TEXT,
+      email TEXT,
+      bio TEXT,
+      headshot BYTEA,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`
     CREATE TABLE IF NOT EXISTS submissions (
       id SERIAL PRIMARY KEY,
       event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      speaker_id INTEGER REFERENCES speakers(id) ON DELETE SET NULL,
       title TEXT,
       content_lead TEXT,
       bu TEXT,
       track TEXT,
       format TEXT,
       duration TEXT,
-      intel_speakers TEXT,
-      partner_speakers TEXT,
       abstract TEXT,
       key_topics TEXT,
       demos TEXT,
@@ -139,19 +151,6 @@ async function ensureSchema() {
       status TEXT DEFAULT 'submitted',
       ai_score JSONB,
       enriched_abstract TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS speakers (
-      id SERIAL PRIMARY KEY,
-      event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
-      full_name TEXT,
-      title TEXT,
-      company TEXT,
-      email TEXT,
-      bio TEXT,
-      headshot BYTEA,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
@@ -199,6 +198,15 @@ async function ensureSchema() {
     }
   } catch (addColErr) {
     console.log('enriched_abstract column check skipped:', addColErr.message);
+  }
+  
+  // Drop intel_speakers and partner_speakers if they exist
+  try {
+    await sql`ALTER TABLE submissions DROP COLUMN IF EXISTS intel_speakers`;
+    await sql`ALTER TABLE submissions DROP COLUMN IF EXISTS partner_speakers`;
+    console.log('Old speaker columns removed if they existed.');
+  } catch (dropErr) {
+    console.log('Old speaker column drop check skipped:', dropErr.message);
   }
 
   console.log('Schema is ready.');
@@ -274,42 +282,36 @@ async function seedData() {
         title: 'Agentic AI at the Tactical Edge: Autonomous Decision Support for DoD',
         bu: 'DCAI',
         track: 'Agentic AI',
-        intel_speakers: 'Dr. Sarah Chen (Intel DCAI), Col. James Harrington (US Army, ret.)',
         abstract: 'This session presents Intel\'s Gaudi 3-powered agentic AI framework deployed in a classified Army logistics optimization pilot. We demonstrate how multi-agent systems running on Intel silicon achieve sub-second decision latency for resupply routing in GPS-denied environments, reducing mission planner cognitive load by 40%. Architecture deep-dive covers inference pipeline, security isolation via Intel TDX, and integration with existing C2 systems.'
       },
       {
         title: 'Building Trustworthy AI Agents for Intelligence Analysis Workflows',
         bu: 'DCAI',
         track: 'Agentic AI',
-        intel_speakers: 'Maya Patel (Intel AI Research), Thomas Nguyen (Intel Federal Solutions)',
         abstract: 'Intelligence analysts face an explosion of multi-source data requiring rapid synthesis. This session covers Intel\'s reference architecture for deploying agentic AI pipelines in air-gapped IC environments, using open-weight LLMs on Xeon 6 with Intel AMX acceleration. Topics include agent orchestration patterns, hallucination mitigation for high-stakes decisions, provenance tracking, and audit logging for compliance with IC data handling directives.'
       },
       {
         title: 'Intel Core Ultra at the Edge: AI Inference in SWaP-Constrained Platforms',
         bu: 'NEX',
         track: 'Edge & Embedded Systems',
-        intel_speakers: 'Kevin Park (Intel NEX), Dr. Lisa Torres (Intel Labs)',
         abstract: 'Forward-deployed ISR platforms demand AI inference capabilities within strict SWaP envelopes. Intel Core Ultra\'s integrated NPU delivers 34 TOPS within a 15W TDP, enabling real-time object detection, signals classification, and sensor fusion directly on the platform. This session covers thermal management, security hardening via BootGuard, ruggedization considerations, and a case study from a SOCOM-adjacent program.'
       },
       {
         title: 'Modernizing the DoD Data Center: Xeon 6 for Classified HPC Workloads',
         bu: 'DCAI',
         track: 'Data Center/HPC',
-        intel_speakers: 'Robert Kim (Intel Data Center Group), Jennifer Walsh (Intel Federal)',
         abstract: 'The Department of Defense operates hundreds of data centers supporting classified modeling, simulation, and intelligence processing workloads that cannot move to commercial cloud. Intel Xeon 6 with P-cores delivers 2.1x the performance-per-watt of prior generation for HPC workloads while Intel TDX enables confidential computing enclaves for multi-tenant classified environments. Session covers ATO considerations, migration path from legacy infrastructure, and JWICS/SIPRNet integration.'
       },
       {
         title: 'Zero Trust Device Identity: Intel vPro and Hardware-Rooted Security for Federal Fleets',
         bu: 'CCG',
         track: 'Commercial Client',
-        intel_speakers: 'Amanda Foster (Intel vPro Product), David Chen (Intel Security Solutions)',
         abstract: 'Federal agencies managing large device fleets under CISA zero trust mandates require hardware-rooted identity and remote attestation capabilities beyond software MDM. Intel vPro with Hardware Shield provides silicon-level platform attestation, below-OS threat detection, and remote remediation. Session covers NIST SP 800-155 alignment, integration with Microsoft SCCM and Intune for federal M365 tenants, FedRAMP implications, and practical deployment guidance.'
       },
       {
         title: 'AI-Assisted Code Modernization for Legacy Defense Systems',
         bu: 'CCG',
         track: 'Commercial Client',
-        intel_speakers: 'Brian Taylor (Intel Software Division)',
         abstract: 'Defense software teams maintain millions of lines of COBOL, Ada, and legacy C++ in mission-critical systems. This workshop explores using Intel-optimized LLMs running locally on Core Ultra developer workstations to assist with code analysis, documentation generation, and controlled modernization without sending sensitive source code to external APIs. Covers toolchain setup, model selection, Intel OpenVINO integration, and lessons from a pilot with a prime integrator.'
       }
     ];
@@ -317,8 +319,8 @@ async function seedData() {
     for (var i = 0; i < submissions.length; i++) {
       var sub = submissions[i];
       await sql`
-        INSERT INTO submissions (event_id, title, bu, track, intel_speakers, abstract, status)
-        VALUES (${eventId}, ${sub.title}, ${sub.bu}, ${sub.track}, ${sub.intel_speakers}, ${sub.abstract}, 'submitted')
+        INSERT INTO submissions (event_id, title, bu, track, abstract, status)
+        VALUES (${eventId}, ${sub.title}, ${sub.bu}, ${sub.track}, ${sub.abstract}, 'submitted')
       `;
     }
     console.log('Database seeded successfully.');
@@ -430,12 +432,13 @@ app.get('/api/submissions/export', async function (req, res) {
     var event_id = req.query.event_id;
     if (!event_id) return res.status(400).json({ ok: false, error: 'event_id is required' });
     var submissions = await sql`
-      SELECT id, title, bu, track, format, intel_speakers, partner_speakers, status, ai_score
-      FROM submissions WHERE event_id = ${event_id} ORDER BY title ASC
+      SELECT s.id, s.title, s.bu, s.track, s.format, sp.full_name as speaker_name, s.status, s.ai_score
+      FROM submissions s
+      LEFT JOIN speakers sp ON s.speaker_id = sp.id
+      WHERE s.event_id = ${event_id} ORDER BY s.title ASC
     `;
-    var csv = 'ID,Title,BU,Track,Format,Speakers,Status,AI Score\n';
+    var csv = 'ID,Title,BU,Track,Format,Speaker,Status,AI Score\n';
     submissions.forEach(function (sub) {
-      var speakers = [sub.intel_speakers, sub.partner_speakers].filter(Boolean).join('; ');
       var aiScore = (sub.ai_score && sub.ai_score.overall) ? sub.ai_score.overall : '';
       csv += [
         sub.id,
@@ -443,7 +446,7 @@ app.get('/api/submissions/export', async function (req, res) {
         '"' + (sub.bu || '').replace(/"/g, '""') + '"',
         '"' + (sub.track || '').replace(/"/g, '""') + '"',
         '"' + (sub.format || '').replace(/"/g, '""') + '"',
-        '"' + speakers.replace(/"/g, '""') + '"',
+        '"' + (sub.speaker_name || '').replace(/"/g, '""') + '"',
         sub.status || 'submitted',
         aiScore
       ].join(',') + '\n';
@@ -462,7 +465,13 @@ app.get('/api/submissions', async function (req, res) {
     var sql = getDb();
     var event_id = req.query.event_id;
     if (!event_id) return res.status(400).json({ ok: false, error: 'event_id is required' });
-    var rows = await sql`SELECT * FROM submissions WHERE event_id = ${event_id} ORDER BY created_at DESC`;
+    var rows = await sql`
+      SELECT s.*, sp.full_name as speaker_name
+      FROM submissions s
+      LEFT JOIN speakers sp ON s.speaker_id = sp.id
+      WHERE s.event_id = ${event_id}
+      ORDER BY s.created_at DESC
+    `;
     res.json({ ok: true, submissions: rows });
   } catch (err) {
     console.error('[api/submissions GET]', err.message);
@@ -477,12 +486,12 @@ app.post('/api/submissions', async function (req, res) {
     var result = await sql`
       INSERT INTO submissions (
         event_id, title, content_lead, bu, track, format, duration,
-        intel_speakers, partner_speakers, abstract, key_topics, demos,
+        speaker_id, abstract, key_topics, demos,
         featured_products, business_challenge, partner_highlights, new_launches
       ) VALUES (
         ${b.event_id}, ${b.title || ''}, ${b.content_lead || ''}, ${b.bu || ''},
         ${b.track || ''}, ${b.format || ''}, ${b.duration || ''},
-        ${b.intel_speakers || ''}, ${b.partner_speakers || ''}, ${b.abstract || ''},
+        ${b.speaker_id || null}, ${b.abstract || ''},
         ${b.key_topics || ''}, ${b.demos || ''}, ${b.featured_products || ''},
         ${b.business_challenge || ''}, ${b.partner_highlights || ''}, ${b.new_launches || ''}
       )
@@ -500,7 +509,12 @@ app.post('/api/submissions/:id/score', async function (req, res) {
   try {
     var sql = getDb();
     var id = req.params.id;
-    var subResult = await sql`SELECT * FROM submissions WHERE id = ${id}`;
+    var subResult = await sql`
+      SELECT s.*, sp.full_name as speaker_name
+      FROM submissions s
+      LEFT JOIN speakers sp ON s.speaker_id = sp.id
+      WHERE s.id = ${id}
+    `;
     if (!subResult.length) return res.status(404).json({ ok: false, error: 'Submission not found' });
     var sub = subResult[0];
     var evtResult = await sql`SELECT * FROM events WHERE id = ${sub.event_id}`;
@@ -515,7 +529,7 @@ app.post('/api/submissions/:id/score', async function (req, res) {
       'Key Topics: ' + (sub.key_topics || ''),
       'Featured Products: ' + (sub.featured_products || ''),
       'Business Challenge: ' + (sub.business_challenge || ''),
-      'Intel Speakers: ' + (sub.intel_speakers || '')
+      'Speaker: ' + (sub.speaker_name || 'N/A')
     ].join('\n');
     var scorecard = await callGemini(evt.ai_system_prompt, userPrompt, true);
     await sql`UPDATE submissions SET ai_score = ${scorecard} WHERE id = ${id}`;
@@ -575,7 +589,7 @@ app.put('/api/submissions/:id', async function (req, res) {
     var updates = req.body;
     var allowedFields = [
       'title', 'content_lead', 'bu', 'track', 'format', 'duration',
-      'intel_speakers', 'partner_speakers', 'abstract', 'key_topics', 'demos',
+      'speaker_id', 'abstract', 'key_topics', 'demos',
       'featured_products', 'business_challenge', 'partner_highlights',
       'new_launches', 'reviewer_notes', 'status'
     ];
