@@ -643,7 +643,7 @@ app.post('/api/submissions/:id/score', async function (req, res) {
       'Key Topics: ' + (sub.key_topics || ''),
       'Featured Products: ' + (sub.featured_products || ''),
       'Business Challenge: ' + (sub.business_challenge || ''),
-      'Speaker: ' + (sub.speaker_name || 'N/A')
+      'Speakers: ' + (sub.speaker_names || 'N/A')
     ].join('\n');
     var scorecard = await callGemini(evt.ai_system_prompt, userPrompt, true);
     await sql`UPDATE submissions SET ai_score = ${scorecard} WHERE id = ${id}`;
