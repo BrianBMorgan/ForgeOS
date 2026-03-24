@@ -351,7 +351,7 @@ app.post("/api/brain/memory", async (req, res) => {
     const { neon } = require("@neondatabase/serverless");
     const memSql = neon(process.env.NEON_DATABASE_URL);
     const result = await memSql`INSERT INTO forge_memory (category, content, source_project_id, created_at)
-      VALUES (${category||"pattern"}, ${memContent}, ${source||null}, NOW()) RETURNING id`;
+      VALUES (${category||"pattern"}, ${memContent}, ${source||null}, ${Date.now()}) RETURNING id`;
     res.json({ id: result[0].id, saved: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
