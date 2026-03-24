@@ -612,9 +612,18 @@ async function deleteCustomDomain(projectId) {
 async function updateAppStatus(projectId, status) {
   const { neon } = require("@neondatabase/serverless");
   const sql = neon(process.env.NEON_DATABASE_URL);
-  await sql`UPDATE published_apps SET status = ${status} WHERE project_id = ${projectId}`;
+  const now = Date.now();
+  if (status === "running") {
+    await sql`UPDATE published_apps SET status = ${status}, published_at = ${now} WHERE project_id = ${projectId}`;
+  } else {
+    await sql`UPDATE published_apps SET status = ${status} WHERE project_id = ${projectId}`;
+  }
   // Update in-memory cache too
-  if (publishedApps[projectId]) publishedApps[projectId].status = status;
+  const cached = publishedApps.get(projectId);
+  if (cached) {
+    cached.status = status;
+    if (status === "running") cached.publishedAt = now;
+  }
 }
 
 module.exports = {
