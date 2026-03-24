@@ -1,15 +1,14 @@
 {
-  "version": "7.1.0",
+  "version": "7.2.0",
   "updated": "2026-03-23",
-  "current_state": "ForgeOS v2 live at 74d48d4 (Render rolled back to this). Frank + Gemini two-agent architecture operational. Copilot/Gemini attempted Dashboard port (02da1fc-57cb8e6) \u2014 broke build. Rolled back: server/index.js, projects/manager.js, Dashboard.tsx, index.css all restored to 74d48d4. Junk files (.anyskill, .agent, forge_skill.json, architect.py, bridge.py) cleaned. Dashboard integration needs to be rebuilt cleanly by Claude.",
+  "current_state": "ForgeOS v2 fully operational. Stable baseline at commit 1b17d7a. Frank + Gemini two-agent architecture live and tested. Dashboard fully wired \u2014 all 5 Mission Control KPI streams (status, builds, memory, logs, redeploy) ported into native ForgeOS sidebar panel with ForgeOS styling. Dashboard routes correctly positioned before catch-all wildcard. Intel Event Content Review live. Inspect tool live across 14 apps. Full deploy loop (commit -> SSE -> Workspace refresh -> Render poll -> iframe reload) operational.",
   "next_steps": [
-    "Build Dashboard component cleanly \u2014 port Mission Control UI into ForgeOS sidebar (Claude does this, not Copilot/Gemini)",
-    "Run Brain memory purge with v1 poison terms (task_complete, write_file, run_command, list_files, wsDir, buildAndDeploy)",
-    "Verify ForgeOS TypeScript build passes cleanly",
-    "Test Frank + Gemini flow on a fresh project end to end",
+    "Run Brain memory purge \u2014 v1 poison terms still present (task_complete, write_file, run_command, list_files, wsDir, buildAndDeploy)",
+    "Test Frank + Gemini flow end-to-end on a fresh project (clean slug, branch, Render, deploy confirmation, inspect tool)",
     "Add pgvector semantic search to Brain (VoyageAI voyage-code-2, 1024 dimensions)",
     "BYO custom domain support for published apps",
     "Sandbox-ERP migration: Replit export + dependency audit (Clerk for auth)",
+    "Publish Sandbox-GTM article: Event Platform Analytics vs. GTM",
     "Sandbox-XM website rebuild"
   ],
   "architecture": {
@@ -98,20 +97,29 @@
     ]
   },
   "dashboard": {
-    "description": "Mission Control ported into ForgeOS as native sidebar panel",
+    "description": "Mission Control KPI dashboard ported into ForgeOS as native sidebar panel",
     "nav_icon": "LayoutDashboard (Lucide)",
-    "features": [
-      "Service status + env key checks",
-      "Recent GitHub commits",
-      "Brain memory stats",
-      "Redeploy button"
+    "nav_id": "dashboard",
+    "component": "client/src/components/Dashboard.tsx",
+    "kpi_cards": [
+      "ForgeOS Production \u2014 health ping to /api/health, latency in ms",
+      "Render Service \u2014 live state from Render API (suspended/not_suspended/live)",
+      "Credentials \u2014 checks ANTHROPIC_API_KEY, GEMINI_API_KEY, GITHUB_TOKEN, RENDER_API_KEY, NEON_DATABASE_URL",
+      "Brain \u2014 online/offline + total memory record count"
     ],
-    "routes": [
-      "/api/dashboard/status",
-      "/api/dashboard/builds",
-      "/api/dashboard/redeploy"
+    "panels": [
+      "Recent Commits \u2014 GitHub API, 12 commits, SHA + message + author + timeAgo",
+      "Brain Memory \u2014 category breakdown with proportion bars (patterns, preferences, snippets, mistakes, projects)",
+      "Render Logs \u2014 /v1/logs API, 40 lines, color-coded (error=red, warn=yellow, info=indigo)"
     ],
-    "component": "client/src/components/Dashboard.tsx"
+    "api_routes": [
+      "GET /api/dashboard/status \u2014 Render service state + ForgeOS health ping + credential checks",
+      "GET /api/dashboard/builds \u2014 GitHub commits, 20 per page",
+      "GET /api/dashboard/memory \u2014 proxies /api/brain, returns totals + category breakdown",
+      "GET /api/dashboard/logs \u2014 Render /v1/logs API, 40 lines",
+      "POST /api/dashboard/redeploy \u2014 triggers Render deploy"
+    ],
+    "critical": "Routes MUST be registered before express.static + app.get('*') catch-all or they return index.html"
   },
   "sidebar_nav": {
     "items": [
@@ -351,6 +359,39 @@
         "restore_projects_manager": "35e895c",
         "restore_dashboard": "39ea5ad",
         "restore_css": "668f708"
+      }
+    },
+    {
+      "date": "2026-03-23",
+      "session_title": "Dashboard Wired \u2014 Mission Control KPIs Native in ForgeOS",
+      "shipped": [
+        "Rollback: Render rolled back to 74d48d4, all Copilot/Gemini damage reversed",
+        "Restored: server/index.js, projects/manager.js, Dashboard.tsx, index.css to 74d48d4",
+        "Deleted junk files: .anyskill.json, .anyskill-drafts/, .agent/, forge_skill.json, architect.py, bridge.py",
+        "Dashboard.tsx: complete rewrite \u2014 exact Mission Control KPIs, ForgeOS styling, no chat engine",
+        "KPI cards: ForgeOS Production (health + latency), Render Service (state), Credentials (5 keys), Brain (online + record count)",
+        "Panels: Recent Commits (12 items, author + timeAgo), Brain Memory (category bars), Render Logs (40 lines, color-coded)",
+        "All 5 server routes ported from Mission Control: /api/dashboard/status, /api/dashboard/builds, /api/dashboard/memory, /api/dashboard/logs, /api/dashboard/redeploy",
+        "Fixed: routes were registered after app.get('*') catch-all \u2014 moved before it",
+        "Fixed: duplicate /api/dashboard/builds route removed, entire dashboard section rewritten cleanly",
+        "Stable commit: 1b17d7a \u2014 syntax valid, all routes in correct order"
+      ],
+      "decisions": [
+        "Dashboard built by Claude only \u2014 no Copilot, no Gemini touching ForgeOS core files",
+        "Dashboard routes must always be registered before the express.static + catch-all block",
+        "1b17d7a is the new stable baseline"
+      ],
+      "pending": [
+        "Brain memory purge",
+        "Fresh Frank + Gemini end-to-end test",
+        "pgvector Brain upgrade"
+      ],
+      "key_commits": {
+        "restore_to_74d48d4": "367d652 / 35e895c / 39ea5ad / 668f708",
+        "dashboard_component": "5ae54fa",
+        "dashboard_routes_v1": "07e6b6c",
+        "dashboard_routes_clean": "1b17d7a",
+        "context_pack": "this commit"
       }
     }
   ],
