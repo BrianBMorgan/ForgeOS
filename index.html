@@ -589,6 +589,9 @@ function submissionForm(s) {
     var id = fd[0], label = fd[1], type = fd[2];
     var val = f[id] || '';
     if (type === 'textarea') {
+      if (id === 'abstract') {
+        return `<div class="form-group"><label>${label}</label><textarea id="sf-${id}" rows="3" maxlength="650" oninput="updateAbstractCounter()">${val}</textarea><div style="font-size:11px;color:#888;margin-top:4px"><span id="abstract-counter">${val.length}</span> / <span id="abstract-limit">650</span> characters</div><label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;font-size:12px;font-weight:400"><input type="checkbox" id="abstract-override" onchange="toggleAbstractOverride()"> Override (allow 1000 characters)</label></div>`;
+      }
       return `<div class="form-group"><label>${label}</label><textarea id="sf-${id}" rows="3">${val}</textarea></div>`;
     }
     if (type === 'select') {
