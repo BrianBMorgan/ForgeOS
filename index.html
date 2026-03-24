@@ -475,22 +475,44 @@ async function renderSubmissions() {
 
 function renderSubTable() {
   var filtered = allSubmissions.filter(function(s){
-    if (subFilters.search) { var q = subFilters.search.toLowerCase(); if (!(s.title||'').toLowerCase().includes(q) && !(s.intel_speakers||'').toLowerCase().includes(q) && !(s.content_lead||'').toLowerCase().includes(q)) return false; }
+    if (subFilters.search) { var q = subFilters.search.toLowerCase(); if (!(s.title||'').toLowerCase().includes(q) && !(s.speaker_name||'').toLowerCase().includes(q) && !(s.content_lead||'').toLowerCase().includes(q)) return false; }
     if (subFilters.track && s.track !== subFilters.track) return false;
     if (subFilters.bu && s.bu !== subFilters.bu) return false;
     if (subFilters.status && s.status !== subFilters.status) return false;
     return true;
   });
-  var html = '<table><thead><tr><th>Title</th><th>BU</th><th>Track</th><th>Format</th><th>Speakers</th><th>Demo</th><th>Partner</th><th>Status</th><th>AI Score</th><th>Actions</th></tr></thead><tbody>';
+  var html = '<table><thead><tr><th>Title</th><th>BU</th><th>Track</th><th>Format</th><th>Speaker</th><th>Demo</th><th>Status</th><th>AI Score</th><th>Actions</th></tr></thead><tbody>';
   filtered.forEach(function(s){
     var score = s.ai_score ? (s.ai_score.overall_score != null ? s.ai_score.overall_score : s.ai_score.overall) : null;
     var scoreBadge = score !== null ? '<span class="badge ' + (score>=80?'score-high':score>=60?'score-mid':'score-low') + '">Score: ' + score + '</span>' : '<span class="badge score-none">Not Scored</span>';
     var statusBadge = '<span class="badge badge-' + (s.status||'submitted') + '">' + toTitleCase(s.status||'submitted') + '</span>';
-    html += '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'') + '">' + (s.title||'').slice(0,55) + (s.title&&s.title.length>55?'...':'') + '</td><td>' + (s.bu||'&mdash;') + '</td><td>' + (s.track||'&mdash;') + '</td><td>' + (s.format||'&mdash;') + '</td><td style="font-size:11px">' + (s.intel_speakers||'&mdash;').slice(0,40) + '</td><td style="text-align:center">' + (s.demos&&s.demos!=='None'&&s.demos!=='TBD'?'&#10003;':'&mdash;') + '</td><td style="text-align:center">' + (s.partner_speakers&&s.partner_speakers!=='TBD'?'&#10003;':'&mdash;') + '</td><td>' + statusBadge + '</td><td>' + scoreBadge + '</td><td class="actions"><a onclick="viewSubmission(' + s.id + ')">View</a><a onclick="scoreSubmission(' + s.id + ')">Score</a><a onclick="editStatus(' + s.id + ')">Status</a><a onclick="editSubmission(' + s.id + ')">Edit</a></td></tr>';
+    html += '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'') + '">' + (s.title||'').slice(0,55) + (s.title&&s.title.length>55?'...':'') + '</td><td>' + (s.bu||'&mdash;') + '</td><td>' + (s.track||'&mdash;') + '</td><td>' + (s.format||'&mdash;') + '</td><td>' + (s.speaker_name||'&mdash;') + '</td><td style="text-align:center">' + (s.demos&&s.demos!=='None'&&s.demos!=='TBD'?'&#10003;':'&mdash;') + '</td><td>' + statusBadge + '</td><td>' + scoreBadge + '</td><td class="actions"><a onclick="viewSubmission(' + s.id + ')">View</a><a onclick="scoreSubmission(' + s.id + ')">Score</a><a onclick="editStatus(' + s.id + ')">Status</a><a onclick="editSubmission(' + s.id + ')">Edit</a></td></tr>';
   });
   html += '</tbody></table>';
   if (!filtered.length) html = '<div class="loading">No submissions match filters.</div>';
   document.getElementById('sub-table').innerHTML = html;
+}
+
+async function populateSpeakerDropdown(selectedSpeakerId) {
+  const select = document.getElementById('sf-speaker_id');
+  if (!select) return;
+  select.innerHTML = '<option value="">-- No Speaker --</option>'; // Reset
+  try {
+    const data = await api('GET', `/api/speakers?event_id=${currentEventId}`);
+    const speakers = data.speakers || [];
+    speakers.forEach(speaker => {
+      const option = document.createElement('option');
+      option.value = speaker.id;
+      option.textContent = `${speaker.full_name} (${speaker.company || 'N/A'})`;
+      if (String(speaker.id) === String(selectedSpeakerId)) {
+        option.selected = true;
+      }
+      select.appendChild(option);
+    });
+  } catch (error) {
+    console.error('Failed to populate speaker dropdown:', error);
+    select.innerHTML = '<option value="">Error loading speakers</option>';
+  }
 }
 
 function showAddSubmission() {
@@ -498,22 +520,46 @@ function showAddSubmission() {
   panel.innerHTML = '<h2>Add Submission</h2>' + submissionForm(null) + '<button class="btn-primary" id="btn-save-sub">Save Submission</button>';
   document.getElementById('btn-save-sub').addEventListener('click', saveNewSubmission);
   openPanel();
+  populateSpeakerDropdown();
 }
 
 function submissionForm(s) {
   var f = s || {};
-  var fields = [['title','Title'],['content_lead','Content Lead'],['bu','BU'],['track','Track'],['format','Format'],['duration','Duration'],['intel_speakers','Intel Speakers'],['partner_speakers','Partner Speakers'],['abstract','Abstract','textarea'],['key_topics','Key Topics','textarea'],['demos','Demos'],['featured_products','Featured Products'],['business_challenge','Business Challenge'],['partner_highlights','Partner Highlights'],['new_launches','New Launches']];
+  var fields = [
+    ['title','Title'],
+    ['content_lead','Content Lead'],
+    ['bu','BU'],
+    ['track','Track'],
+    ['format','Format'],
+    ['duration','Duration'],
+    ['speaker_id', 'Speaker', 'select'],
+    ['abstract','Abstract','textarea'],
+    ['key_topics','Key Topics','textarea'],
+    ['demos','Demos'],
+    ['featured_products','Featured Products'],
+    ['business_challenge','Business Challenge'],
+    ['partner_highlights','Partner Highlights'],
+    ['new_launches','New Launches']
+  ];
   return fields.map(function(fd){
-    var val = f[fd[0]] || '';
-    if (fd[2]==='textarea') return '<div class="form-group"><label>' + fd[1] + '</label><textarea id="sf-' + fd[0] + '" rows="3">' + val + '</textarea></div>';
-    return '<div class="form-group"><label>' + fd[1] + '</label><input id="sf-' + fd[0] + '" value="' + val.toString().replace(/"/g,'&quot;') + '"></div>';
+    var id = fd[0], label = fd[1], type = fd[2];
+    var val = f[id] || '';
+    if (type === 'textarea') {
+      return `<div class="form-group"><label>${label}</label><textarea id="sf-${id}" rows="3">${val}</textarea></div>`;
+    }
+    if (type === 'select') {
+      return `<div class="form-group"><label for="sf-${id}">${label}</label><select id="sf-${id}"><option value="">-- No Speaker --</option></select></div>`;
+    }
+    return `<div class="form-group"><label>${label}</label><input id="sf-${id}" value="${val.toString().replace(/"/g,'&quot;')}"></div>`;
   }).join('');
 }
 
 function getSubmissionFormData() {
-  var fields = ['title','content_lead','bu','track','format','duration','intel_speakers','partner_speakers','abstract','key_topics','demos','featured_products','business_challenge','partner_highlights','new_launches'];
+  var fields = ['title','content_lead','bu','track','format','duration','abstract','key_topics','demos','featured_products','business_challenge','partner_highlights','new_launches'];
   var data = { event_id: currentEventId };
   fields.forEach(function(f){ data[f] = (document.getElementById('sf-' + f)||{}).value || ''; });
+  var speakerId = (document.getElementById('sf-speaker_id') || {}).value;
+  data.speaker_id = speakerId ? parseInt(speakerId, 10) : null;
   return data;
 }
 
@@ -558,8 +604,7 @@ async function viewSubmission(id) {
       '<div><b>Format:</b> ' + (s.format||'&mdash;') + '</div>' +
       '<div><b>Duration:</b> ' + (s.duration||'&mdash;') + '</div>' +
     '</div>' +
-    '<div style="margin-top:12px"><b>Intel Speakers:</b> ' + (s.intel_speakers||'&mdash;') + '</div>' +
-    '<div style="margin-top:8px"><b>Partner Speakers:</b> ' + (s.partner_speakers||'&mdash;') + '</div>' +
+    '<div style="margin-top:12px"><b>Speaker:</b> ' + (s.speaker_name||'&mdash;') + '</div>' +
     '<div style="margin-top:8px"><b>Abstract:</b><p style="font-size:13px;margin-top:4px;color:#444">' + (s.abstract||'&mdash;') + '</p></div>' +
     '<div id="enrich-container" style="margin-top:16px;"></div>' +
     '<div style="margin-top:8px"><b>Key Topics:</b> ' + (s.key_topics||'&mdash;') + '</div>' +
@@ -612,6 +657,7 @@ function editSubmission(id) {
   panel.innerHTML = '<h2>Edit Submission</h2>' + submissionForm(s) + '<button class="btn-primary" id="btn-save-edit-sub">Save Changes</button>';
   document.getElementById('btn-save-edit-sub').addEventListener('click', function() { saveEditedSubmission(id); });
   openPanel();
+  populateSpeakerDropdown(s.speaker_id);
 }
 
 async function saveEditedSubmission(id) {
@@ -620,7 +666,20 @@ async function saveEditedSubmission(id) {
   var r = await api('PUT', '/api/submissions/' + id, data);
   if (r.error) { alert(r.error); return; }
   var idx = allSubmissions.findIndex(function(x){return x.id===id;});
-  if (idx >= 0) { Object.assign(allSubmissions[idx], r.submission || data); }
+  if (idx >= 0) { 
+      var updatedSubmission = r.submission;
+      // manually join speaker name for immediate UI update
+      var speakerId = updatedSubmission.speaker_id;
+      if (speakerId) {
+          // this is inefficient, better if PUT returned joined data
+          const speakerData = await api('GET', `/api/speakers?event_id=${currentEventId}`);
+          const speaker = (speakerData.speakers || []).find(sp => sp.id === speakerId);
+          updatedSubmission.speaker_name = speaker ? speaker.full_name : null;
+      } else {
+          updatedSubmission.speaker_name = null;
+      }
+      allSubmissions[idx] = updatedSubmission;
+  }
   closePanel();
   renderSubTable();
 }
@@ -1088,6 +1147,7 @@ window.handleSpeakerSubmit = handleSpeakerSubmit;
 window.deleteSpeaker = deleteSpeaker;
 window.openPanel = openPanel;
 window.closePanel = closePanel;
+window.populateSpeakerDropdown = populateSpeakerDropdown;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderEventsList();
