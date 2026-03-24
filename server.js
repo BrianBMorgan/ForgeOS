@@ -3,9 +3,14 @@ var path = require('path');
 var axios = require('axios');
 var { neon } = require('@neondatabase/serverless');
 var showdown = require('showdown');
+var multer = require('multer');
 
 var app = express();
 var PORT = process.env.PORT || 3000;
+
+// Multer configuration for in-memory file storage
+var storage = multer.memoryStorage();
+var upload = multer({ storage: storage });
 
 function getDb() {
   return neon(process.env.APP_DATABASE_URL);
@@ -58,7 +63,7 @@ async function callGemini(systemPrompt, userPrompt, isJson) {
     system_instruction: {
       parts: [{ text: systemPrompt }]
     },
-    contents: [{
+    contents: [{ 
       parts: [{ text: userPrompt }]
     }],
     generationConfig: {}
@@ -134,6 +139,19 @@ async function ensureSchema() {
       status TEXT DEFAULT 'submitted',
       ai_score JSONB,
       enriched_abstract TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS speakers (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      full_name TEXT,
+      title TEXT,
+      company TEXT,
+      email TEXT,
+      bio TEXT,
+      headshot BYTEA,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
@@ -567,6 +585,120 @@ app.put('/api/submissions/:id', async function (req, res) {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// ─── SPEAKERS API ───────────────────────────────────────────────────────────
+
+app.get('/api/speakers', async function(req, res) {
+  try {
+    var sql = getDb();
+    var event_id = req.query.event_id;
+    if (!event_id) {
+      return res.status(400).json({ ok: false, error: 'event_id query parameter is required' });
+    }
+    var speakers = await sql`
+      SELECT id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+      FROM speakers
+      WHERE event_id = ${event_id}
+      ORDER BY full_name ASC
+    `;
+    res.json({ ok: true, speakers: speakers });
+  } catch (err) {
+    console.error('[api/speakers GET]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/speakers', upload.single('headshot'), async function(req, res) {
+  try {
+    var sql = getDb();
+    var b = req.body;
+    var headshot = req.file ? req.file.buffer : null;
+    
+    if (!b.event_id || !b.full_name) {
+      return res.status(400).json({ ok: false, error: 'event_id and full_name are required' });
+    }
+
+    var result = await sql`
+      INSERT INTO speakers (event_id, full_name, title, company, email, bio, headshot)
+      VALUES (${b.event_id}, ${b.full_name}, ${b.title || ''}, ${b.company || ''}, ${b.email || ''}, ${b.bio || ''}, ${headshot})
+      RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+    `;
+
+    res.status(201).json({ ok: true, speaker: result[0] });
+  } catch (err) {
+    console.error('[api/speakers POST]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.put('/api/speakers/:id', upload.single('headshot'), async function(req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var b = req.body;
+    var headshot = req.file ? req.file.buffer : null;
+
+    var current = await sql`SELECT * FROM speakers WHERE id = ${id}`;
+    if (current.length === 0) {
+        return res.status(404).json({ ok: false, error: 'Speaker not found' });
+    }
+
+    var result;
+    if (headshot) {
+      result = await sql`
+        UPDATE speakers
+        SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}, headshot=${headshot}
+        WHERE id = ${id}
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+      `;
+    } else {
+      result = await sql`
+        UPDATE speakers
+        SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}
+        WHERE id = ${id}
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
+      `;
+    }
+
+    res.json({ ok: true, speaker: result[0] });
+  } catch (err) {
+    console.error('[api/speakers PUT]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.delete('/api/speakers/:id', async function(req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var result = await sql`DELETE FROM speakers WHERE id = ${id} RETURNING id`;
+    if (result.length === 0) {
+      return res.status(404).json({ ok: false, error: 'Speaker not found' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[api/speakers DELETE]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/speakers/:id/headshot', async function(req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var result = await sql`SELECT headshot FROM speakers WHERE id = ${id}`;
+    if (result.length === 0 || !result[0].headshot) {
+      return res.status(404).send('Headshot not found');
+    }
+    res.setHeader('Content-Type', 'image/jpeg'); // Assuming jpeg, could be png etc.
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(result[0].headshot);
+  } catch (err) {
+    console.error('[api/speakers/:id/headshot GET]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 
 // ─── FRONTEND ─────────────────────────────────────────────────────────────────
 
