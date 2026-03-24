@@ -223,18 +223,40 @@ async function ensureSchema() {
     console.log('speaker_id column check failed:', addSpeakerIdErr.message);
   }
 
-  // Add content_lead column to submissions table if it doesn't exist
-  try {
-    var colCheckContentLead = await sql`
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'submissions' AND column_name = 'content_lead' AND table_schema = 'public'`;
-    if (colCheckContentLead.length === 0) {
-      console.log('Adding content_lead column to submissions table...');
-      await sql`ALTER TABLE submissions ADD COLUMN content_lead TEXT`;
-      console.log('content_lead column added.');
+  // Comprehensive column migration for submissions table
+  var submissionColumns = [
+    { name: 'title', type: 'TEXT' },
+    { name: 'content_lead', type: 'TEXT' },
+    { name: 'bu', type: 'TEXT' },
+    { name: 'track', type: 'TEXT' },
+    { name: 'format', type: 'TEXT' },
+    { name: 'duration', type: 'TEXT' },
+    { name: 'abstract', type: 'TEXT' },
+    { name: 'key_topics', type: 'TEXT' },
+    { name: 'demos', type: 'TEXT' },
+    { name: 'featured_products', type: 'TEXT' },
+    { name: 'business_challenge', type: 'TEXT' },
+    { name: 'partner_highlights', type: 'TEXT' },
+    { name: 'new_launches', type: 'TEXT' },
+    { name: 'reviewer_notes', type: 'TEXT' },
+    { name: 'status', type: 'TEXT DEFAULT \'submitted\'' },
+    { name: 'enriched_abstract', type: 'TEXT' }
+  ];
+
+  for (var i = 0; i < submissionColumns.length; i++) {
+    var col = submissionColumns[i];
+    try {
+      var colExists = await sql`
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'submissions' AND column_name = ${col.name} AND table_schema = 'public'`;
+      if (colExists.length === 0) {
+        console.log('Adding ' + col.name + ' column to submissions table...');
+        await sql.unsafe('ALTER TABLE submissions ADD COLUMN ' + col.name + ' ' + col.type);
+        console.log(col.name + ' column added.');
+      }
+    } catch (colErr) {
+      console.log(col.name + ' column check failed:', colErr.message);
     }
-  } catch (addContentLeadErr) {
-    console.log('content_lead column check failed:', addContentLeadErr.message);
   }
 
   console.log('Schema is ready.');
