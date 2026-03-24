@@ -252,12 +252,28 @@ async function ensureSchema() {
         WHERE table_name = 'submissions' AND column_name = ${col.name} AND table_schema = 'public'`;
       if (colExists.length === 0) {
         console.log('Adding ' + col.name + ' column to submissions table...');
-        await sql.unsafe('ALTER TABLE submissions ADD COLUMN ' + col.name + ' ' + col.type);
-        console.log(col.name + ' column added.');
+        await sql.unsafe('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS ' + col.name + ' ' + col.type);
+        console.log(col.name + ' column added successfully.');
+      } else {
+        console.log(col.name + ' column already exists.');
       }
     } catch (colErr) {
-      console.log(col.name + ' column check failed:', colErr.message);
+      console.error('[MIGRATION ERROR] ' + col.name + ' column failed:', colErr.message);
     }
+  }
+
+  // Also ensure ai_score exists as JSONB
+  try {
+    var aiScoreExists = await sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'submissions' AND column_name = 'ai_score' AND table_schema = 'public'`;
+    if (aiScoreExists.length === 0) {
+      console.log('Adding ai_score column to submissions table...');
+      await sql.unsafe('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS ai_score JSONB');
+      console.log('ai_score column added.');
+    }
+  } catch (aiErr) {
+    console.error('[MIGRATION ERROR] ai_score column failed:', aiErr.message);
   }
 
   console.log('Schema is ready.');
