@@ -632,6 +632,32 @@ app.get('/api/speakers/:id/headshot-debug', async function(req, res) {
   } catch(err) { res.json({ error: err.message }); }
 });
 
+// One-time migration: fix JSON-serialized headshots in DB
+app.post('/api/speakers/migrate-headshots', async function(req, res) {
+  try {
+    var sql = getDb();
+    var speakers = await sql`SELECT id, headshot, headshot_mimetype FROM speakers WHERE headshot IS NOT NULL`;
+    var fixed = 0;
+    for (var s of speakers) {
+      var raw = s.headshot;
+      if (typeof raw !== 'string') continue;
+      var trimmed = raw.trim();
+      if (trimmed[0] !== '{' && trimmed[0] !== '[') continue;
+      try {
+        var parsed = JSON.parse(trimmed);
+        var arr = parsed.data || parsed;
+        var buf = Buffer.from(arr);
+        var mime = s.headshot_mimetype || (buf[0] === 0xFF && buf[1] === 0xD8 ? 'image/jpeg' : 'image/png');
+        await sql`UPDATE speakers SET headshot = ${buf}, headshot_mimetype = ${mime} WHERE id = ${s.id}`;
+        fixed++;
+      } catch(e) { console.error('migrate speaker', s.id, e.message); }
+    }
+    res.json({ ok: true, fixed: fixed, total: speakers.length });
+  } catch(err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/api/speakers/:id/headshot', async function(req, res) {
   try {
     var sql = getDb();
