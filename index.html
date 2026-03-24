@@ -711,7 +711,7 @@ function editSubmission(id) {
   panel.innerHTML = '<h2>Edit Submission</h2>' + submissionForm(s) + '<button class="btn-primary" id="btn-save-edit-sub">Save Changes</button>';
   document.getElementById('btn-save-edit-sub').addEventListener('click', function() { saveEditedSubmission(id); });
   openPanel();
-  populateSpeakerDropdown(s.speaker_id);
+  populateSpeakerDropdown(s.speaker_ids || []);
 }
 
 async function saveEditedSubmission(id) {
