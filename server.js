@@ -223,6 +223,20 @@ async function ensureSchema() {
     console.log('speaker_id column check failed:', addSpeakerIdErr.message);
   }
 
+  // Add content_lead column to submissions table if it doesn't exist
+  try {
+    var colCheckContentLead = await sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'submissions' AND column_name = 'content_lead' AND table_schema = 'public'`;
+    if (colCheckContentLead.length === 0) {
+      console.log('Adding content_lead column to submissions table...');
+      await sql`ALTER TABLE submissions ADD COLUMN content_lead TEXT`;
+      console.log('content_lead column added.');
+    }
+  } catch (addContentLeadErr) {
+    console.log('content_lead column check failed:', addContentLeadErr.message);
+  }
+
   console.log('Schema is ready.');
 }
 
