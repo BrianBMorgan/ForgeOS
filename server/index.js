@@ -1341,7 +1341,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     const systemPrompt = sysParts.join("\n\n");
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash",
+      model: "gemini-3-flash-preview",
       systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
     });
 
