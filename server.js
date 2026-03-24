@@ -641,8 +641,8 @@ app.get('/api/speakers/:id/headshot', async function(req, res) {
     } else if (raw instanceof Uint8Array) {
       buf = Buffer.from(raw);
     } else if (typeof raw === 'string') {
-      // Neon serverless returns BYTEA as hex string prefixed with \x
-      var hex = raw.startsWith('\\x') ? raw.slice(2) : raw.startsWith('\x') ? raw.slice(2) : raw;
+      // Neon serverless returns BYTEA as hex string prefixed with backslash-x
+      var hex = raw.slice(0, 2) === String.fromCharCode(92) + 'x' ? raw.slice(2) : raw;
       buf = Buffer.from(hex, 'hex');
     } else {
       buf = Buffer.from(raw);
