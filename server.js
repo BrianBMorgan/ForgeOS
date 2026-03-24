@@ -617,18 +617,8 @@ app.get('/api/speakers', async function(req, res) {
     `;
 
     var processedSpeakers = speakers.map(speaker => {
-      var headshotBuffer = null;
-      // bytea can be returned as a hex string from the DB driver
-      if (speaker.headshot && typeof speaker.headshot === 'string' && speaker.headshot.startsWith('\\x')) {
-        headshotBuffer = Buffer.from(speaker.headshot.substring(2), 'hex');
-      } else if (speaker.headshot && Buffer.isBuffer(speaker.headshot)) {
-        // Or it can be a Buffer
-        headshotBuffer = speaker.headshot;
-      }
-
-      if (headshotBuffer && speaker.headshot_mimetype) {
-        const base64Image = headshotBuffer.toString('base64');
-        speaker.headshot = `data:${speaker.headshot_mimetype};base64,${base64Image}`;
+      if (speaker.headshot && speaker.headshot_mimetype) {
+        speaker.headshot = `data:${speaker.headshot_mimetype};base64,${Buffer.from(speaker.headshot).toString('base64')}`;
       } else {
         speaker.headshot = null;
       }
@@ -660,11 +650,10 @@ app.post('/api/speakers', upload.single('headshot'), async function(req, res) {
     `;
     
     var speaker = result[0];
-    if (speaker.headshot && Buffer.isBuffer(speaker.headshot) && speaker.headshot_mimetype) {
-        const base64Image = speaker.headshot.toString('base64');
-        speaker.headshot = `data:${speaker.headshot_mimetype};base64,${base64Image}`;
+    if (speaker.headshot && speaker.headshot_mimetype) {
+      speaker.headshot = `data:${speaker.headshot_mimetype};base64,${Buffer.from(speaker.headshot).toString('base64')}`;
     } else {
-        speaker.headshot = null;
+      speaker.headshot = null;
     }
 
     res.status(201).json({ ok: true, speaker: speaker });
@@ -705,20 +694,10 @@ app.put('/api/speakers/:id', upload.single('headshot'), async function(req, res)
     }
 
     var speaker = result[0];
-    var headshotBuffer = null;
-    if (speaker.headshot) {
-      if (typeof speaker.headshot === 'string' && speaker.headshot.startsWith('\\x')) {
-        headshotBuffer = Buffer.from(speaker.headshot.substring(2), 'hex');
-      } else if (Buffer.isBuffer(speaker.headshot)) {
-        headshotBuffer = speaker.headshot;
-      }
-    }
-
-    if (headshotBuffer && speaker.headshot_mimetype) {
-        const base64Image = headshotBuffer.toString('base64');
-        speaker.headshot = `data:${speaker.headshot_mimetype};base64,${base64Image}`;
+    if (speaker.headshot && speaker.headshot_mimetype) {
+      speaker.headshot = `data:${speaker.headshot_mimetype};base64,${Buffer.from(speaker.headshot).toString('base64')}`;
     } else {
-        speaker.headshot = null;
+      speaker.headshot = null;
     }
 
     res.json({ ok: true, speaker: speaker });
