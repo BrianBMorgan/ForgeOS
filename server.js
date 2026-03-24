@@ -231,6 +231,7 @@ async function ensureSchema() {
     { name: 'track', type: 'TEXT' },
     { name: 'format', type: 'TEXT' },
     { name: 'duration', type: 'TEXT' },
+    { name: 'speaker_id', type: 'INTEGER REFERENCES speakers(id) ON DELETE SET NULL' },
     { name: 'abstract', type: 'TEXT' },
     { name: 'key_topics', type: 'TEXT' },
     { name: 'demos', type: 'TEXT' },
