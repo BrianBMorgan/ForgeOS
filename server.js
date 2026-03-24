@@ -209,6 +209,20 @@ async function ensureSchema() {
     console.log('Old speaker column drop check skipped:', dropErr.message);
   }
 
+  // Add speaker_id column to submissions table if it doesn't exist
+  try {
+    var colCheckSpeakerId = await sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'submissions' AND column_name = 'speaker_id' AND table_schema = 'public'`;
+    if (colCheckSpeakerId.length === 0) {
+      console.log('Adding speaker_id column to submissions table...');
+      await sql`ALTER TABLE submissions ADD COLUMN speaker_id INTEGER REFERENCES speakers(id) ON DELETE SET NULL`;
+      console.log('speaker_id column added.');
+    }
+  } catch (addSpeakerIdErr) {
+    console.log('speaker_id column check failed:', addSpeakerIdErr.message);
+  }
+
   console.log('Schema is ready.');
 }
 
