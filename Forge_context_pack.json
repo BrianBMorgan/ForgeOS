@@ -51,7 +51,7 @@
       ]
     },
     "gemini": {
-      "model": "gemini-2.5-pro",
+      "model": "gemini-3-flash",
       "role": "Code generation engine. Returns complete files as JSON.",
       "response_format": "{ \"files\": { \"filename\": \"complete file contents\" } }",
       "key_behaviors": [
@@ -180,7 +180,7 @@
     "typescript": "noUnusedLocals is on \u2014 all props must be used"
   },
   "known_issues_and_gotchas": {
-    "gemini_model": "gemini-2.5-pro confirmed working. gemini-2.5-pro-exp-03-25 is 404.",
+    "gemini_model": "gemini-3-flash confirmed working. gemini-2.5-pro-exp-03-25 is 404.",
     "gemini_key_scope": "GEMINI_API_KEY must be in ForgeOS's OWN Render env vars. Global Secrets only inject into published apps.",
     "main_branch_protection": "github_write + github_patch both return BLOCKED if branch is main. Only way to touch main is Claude.ai sessions directly.",
     "slug_mismatch": "Branch must be created before Frank writes. Auto-provisioning handles new projects. Legacy: use github_create_branch.",
@@ -272,7 +272,7 @@
         "Frank system prompt v2: architect who delegates, never writes code, has web + skills access",
         "write_code tool: Frank delegates to Gemini 2.5 Pro for all code generation",
         "GEMINI_API_KEY wired into ForgeOS Render service env vars directly",
-        "gemini-2.5-pro confirmed as correct model (exp-03-25 deprecated)",
+        "gemini-3-flash confirmed as correct model (exp-03-25 deprecated)",
         "github_create_branch added to Frank's tools",
         "Absolute block on github_write + github_patch to main branch",
         "Project branch + URL injected into every Frank session at runtime",
