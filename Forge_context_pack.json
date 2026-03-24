@@ -1,10 +1,16 @@
 {
-  "version": "7.0.1",
+  "version": "7.1.0",
   "updated": "2026-03-23",
-  "current_state": "Mission Control Dashboard UI is completely ported to ForgeOS native sidebar (component matched 1-to-1). Architecture v2.1 is LIVE.",
+  "current_state": "ForgeOS v2 live at 74d48d4 (Render rolled back to this). Frank + Gemini two-agent architecture operational. Copilot/Gemini attempted Dashboard port (02da1fc-57cb8e6) \u2014 broke build. Rolled back: server/index.js, projects/manager.js, Dashboard.tsx, index.css all restored to 74d48d4. Junk files (.anyskill, .agent, forge_skill.json, architect.py, bridge.py) cleaned. Dashboard integration needs to be rebuilt cleanly by Claude.",
   "next_steps": [
-    "Refine the Cloud Architect toolset for deeper repo management (e.g., list_files, grep).",
-    "Build the first 'Cloud-Native' micro-app from iPhone via AI Studio."
+    "Build Dashboard component cleanly \u2014 port Mission Control UI into ForgeOS sidebar (Claude does this, not Copilot/Gemini)",
+    "Run Brain memory purge with v1 poison terms (task_complete, write_file, run_command, list_files, wsDir, buildAndDeploy)",
+    "Verify ForgeOS TypeScript build passes cleanly",
+    "Test Frank + Gemini flow on a fresh project end to end",
+    "Add pgvector semantic search to Brain (VoyageAI voyage-code-2, 1024 dimensions)",
+    "BYO custom domain support for published apps",
+    "Sandbox-ERP migration: Replit export + dependency audit (Clerk for auth)",
+    "Sandbox-XM website rebuild"
   ],
   "architecture": {
     "model": "ForgeOS v2 \u2014 Frank (Claude) architects + delegates to Gemini 2.5 Pro via write_code tool. GitHub is the filesystem. Render is the runtime.",
@@ -321,6 +327,31 @@
       "date": "2026-03-23",
       "session_title": "Porting Mission Control Dashboard UI",
       "summary": "Carbon-copied the standalone Mission Control dashboard into client/src/components/Dashboard.tsx. Re-implemented grid layout and scoped CSS to .mc-dashboard to prevent Global CSS pollution. Cleaned up old styles from index.css. TS checks passed. Changes pushed direct to ForgeOS main branch on GitHub."
+    },
+    {
+      "date": "2026-03-23",
+      "session_title": "Rollback + Cleanup \u2014 Copilot/Gemini Dashboard Bork Reversed",
+      "shipped": [
+        "Rolled back Render to 74d48d4",
+        "Restored server/index.js, projects/manager.js, Dashboard.tsx, index.css to 74d48d4",
+        "Deleted junk files: .anyskill.json, .anyskill-drafts/, .agent/, forge_skill.json",
+        "Context pack fixed and updated to v7.1.0"
+      ],
+      "decisions": [
+        "Dashboard integration will be built by Claude only \u2014 no Copilot, no Gemini on ForgeOS core files",
+        "74d48d4 is the new stable baseline"
+      ],
+      "pending": [
+        "Build Dashboard component cleanly",
+        "Brain memory purge",
+        "Fresh Frank + Gemini end-to-end test"
+      ],
+      "key_commits": {
+        "restore_server_index": "367d652",
+        "restore_projects_manager": "35e895c",
+        "restore_dashboard": "39ea5ad",
+        "restore_css": "668f708"
+      }
     }
   ],
   "context_pack_update_instructions": {
