@@ -602,8 +602,18 @@ function getSubmissionFormData() {
   var fields = ['title','content_lead','bu','track','format','duration','abstract','key_topics','demos','featured_products','business_challenge','partner_highlights','new_launches'];
   var data = { event_id: currentEventId };
   fields.forEach(function(f){ data[f] = (document.getElementById('sf-' + f)||{}).value || ''; });
-  var speakerId = (document.getElementById('sf-speaker_id') || {}).value;
-  data.speaker_id = speakerId ? parseInt(speakerId, 10) : null;
+  
+  // Collect multiple selected speakers from multi-select
+  var speakerSelect = document.getElementById('sf-speaker_id');
+  var speakerIds = [];
+  if (speakerSelect) {
+    for (var i = 0; i < speakerSelect.options.length; i++) {
+      if (speakerSelect.options[i].selected) {
+        speakerIds.push(parseInt(speakerSelect.options[i].value, 10));
+      }
+    }
+  }
+  data.speaker_ids = speakerIds;
   return data;
 }
 
