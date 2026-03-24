@@ -345,13 +345,13 @@ app.get("/api/published", async (_req, res) => {
 
 // ── Brain purge — delete memories matching terms ─────────────────────────────
 app.post("/api/brain/memory", async (req, res) => {
-  const { category, content: memContent, source } = req.body;
+  const { type, category, content: memContent, source } = req.body;
   if (!memContent) return res.status(400).json({ error: "content required" });
   try {
     const { neon } = require("@neondatabase/serverless");
     const memSql = neon(process.env.NEON_DATABASE_URL);
-    const result = await memSql`INSERT INTO forge_memory (category, content, source_project_id, created_at)
-      VALUES (${category||"pattern"}, ${memContent}, ${source||null}, ${Date.now()}) RETURNING id`;
+    const result = await memSql`INSERT INTO forge_memory (type, category, content, source_project_id, created_at)
+      VALUES (${type||category||"pattern"}, ${category||type||"general"}, ${memContent}, ${source||null}, ${Date.now()}) RETURNING id`;
     res.json({ id: result[0].id, saved: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
