@@ -620,7 +620,12 @@ app.post('/api/submissions/:id/score', async function (req, res) {
         s.featured_products, s.business_challenge, s.partner_highlights,
         s.new_launches, s.reviewer_notes, s.status, s.ai_score,
         s.enriched_abstract, s.created_at,
-        (SELECT full_name FROM speakers WHERE id = s.speaker_id) as speaker_name
+        (
+          SELECT string_agg(sp.full_name, ', ' ORDER BY sp.full_name)
+          FROM submission_speakers ss
+          JOIN speakers sp ON sp.id = ss.speaker_id
+          WHERE ss.submission_id = s.id
+        ) as speaker_names
       FROM submissions s
       WHERE s.id = ${id}
     `;
