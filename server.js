@@ -247,6 +247,35 @@ async function ensureSchema() {
   
   console.log('[MIGRATION] Column check complete.');
 
+  // Create submission_speakers junction table for many-to-many relationship
+  console.log('[MIGRATION] Creating submission_speakers junction table...');
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS submission_speakers (
+        id SERIAL PRIMARY KEY,
+        submission_id INTEGER REFERENCES submissions(id) ON DELETE CASCADE,
+        speaker_id INTEGER REFERENCES speakers(id) ON DELETE CASCADE,
+        UNIQUE(submission_id, speaker_id)
+      )
+    `;
+    console.log('[OK] submission_speakers table');
+  } catch(e) { console.log('[SKIP] submission_speakers:', e.message); }
+
+  // Migrate existing speaker_id data to submission_speakers
+  console.log('[MIGRATION] Migrating legacy speaker_id to submission_speakers...');
+  try {
+    await sql`
+      INSERT INTO submission_speakers (submission_id, speaker_id)
+      SELECT id, speaker_id FROM submissions 
+      WHERE speaker_id IS NOT NULL 
+      AND NOT EXISTS (
+        SELECT 1 FROM submission_speakers ss 
+        WHERE ss.submission_id = submissions.id AND ss.speaker_id = submissions.speaker_id
+      )
+    `;
+    console.log('[OK] Legacy speaker_id migration');
+  } catch(e) { console.log('[SKIP] Legacy migration:', e.message); }
+
   console.log('Schema is ready.');
 }
 
