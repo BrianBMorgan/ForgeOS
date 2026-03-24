@@ -432,9 +432,11 @@ app.get('/api/submissions/export', async function (req, res) {
     var event_id = req.query.event_id;
     if (!event_id) return res.status(400).json({ ok: false, error: 'event_id is required' });
     var submissions = await sql`
-      SELECT s.id, s.title, s.bu, s.track, s.format, sp.full_name as speaker_name, s.status, s.ai_score
+      SELECT 
+        s.id, s.title, s.bu, s.track, s.format, 
+        (SELECT full_name FROM speakers WHERE id = s.speaker_id) as speaker_name, 
+        s.status, s.ai_score
       FROM submissions s
-      LEFT JOIN speakers sp ON s.speaker_id = sp.id
       WHERE s.event_id = ${event_id} ORDER BY s.title ASC
     `;
     var csv = 'ID,Title,BU,Track,Format,Speaker,Status,AI Score\n';
@@ -472,9 +474,8 @@ app.get('/api/submissions', async function (req, res) {
         s.featured_products, s.business_challenge, s.partner_highlights,
         s.new_launches, s.reviewer_notes, s.status, s.ai_score,
         s.enriched_abstract, s.created_at,
-        sp.full_name as speaker_name
+        (SELECT full_name FROM speakers WHERE id = s.speaker_id) as speaker_name
       FROM submissions s
-      LEFT JOIN speakers sp ON s.speaker_id = sp.id
       WHERE s.event_id = ${event_id}
       ORDER BY s.created_at DESC
     `;
@@ -522,9 +523,8 @@ app.post('/api/submissions/:id/score', async function (req, res) {
         s.featured_products, s.business_challenge, s.partner_highlights,
         s.new_launches, s.reviewer_notes, s.status, s.ai_score,
         s.enriched_abstract, s.created_at,
-        sp.full_name as speaker_name
+        (SELECT full_name FROM speakers WHERE id = s.speaker_id) as speaker_name
       FROM submissions s
-      LEFT JOIN speakers sp ON s.speaker_id = sp.id
       WHERE s.id = ${id}
     `;
     if (!subResult.length) return res.status(404).json({ ok: false, error: 'Submission not found' });
