@@ -6331,3 +6331,17 @@ body {
   .dash-kpi-row { grid-template-columns: repeat(2, 1fr); }
   .dash-grid { grid-template-columns: 1fr; }
 }
+
+/* Usage panel */
+.dash-usage-body { padding: 12px 16px; }
+.dash-usage-totals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #1e293b; }
+.dash-usage-stat { text-align: center; }
+.dash-usage-val { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+.dash-usage-lbl { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+.dash-usage-cost .dash-usage-val { color: #818cf8; }
+.dash-usage-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #0f172a; font-size: 11px; }
+.dash-usage-row:last-child { border-bottom: none; }
+.dash-usage-model { color: #94a3b8; font-weight: 500; text-transform: capitalize; }
+.dash-usage-calls { color: #475569; }
+.dash-usage-tokens { color: #475569; }
+.dash-usage-price { color: #818cf8; font-weight: 600; font-family: monospace; }
