@@ -610,24 +610,34 @@ app.get('/api/speakers', async function(req, res) {
       return res.status(400).json({ ok: false, error: 'event_id query parameter is required' });
     }
     var speakers = await sql`
-      SELECT id, event_id, full_name, title, company, email, bio, created_at, headshot, headshot_mimetype
+      SELECT id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
       FROM speakers
       WHERE event_id = ${event_id}
       ORDER BY full_name ASC
     `;
 
-    var processedSpeakers = speakers.map(speaker => {
-      if (speaker.headshot && speaker.headshot_mimetype) {
-        speaker.headshot = `data:${speaker.headshot_mimetype};base64,${Buffer.from(speaker.headshot).toString('base64')}`;
-      } else {
-        speaker.headshot = null;
-      }
-      return speaker;
-    });
-
-    res.json({ ok: true, speakers: processedSpeakers });
+    res.json({ ok: true, speakers: speakers });
   } catch (err) {
     console.error('[api/speakers GET]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/speakers/:id/headshot', async function(req, res) {
+  try {
+    var sql = getDb();
+    var id = req.params.id;
+    var result = await sql`
+      SELECT headshot, headshot_mimetype FROM speakers WHERE id = ${id}
+    `;
+    if (result.length === 0 || !result[0].headshot || !result[0].headshot_mimetype) {
+      return res.status(404).send('Not found');
+    }
+    var speaker = result[0];
+    res.setHeader('Content-Type', speaker.headshot_mimetype);
+    res.send(speaker.headshot);
+  } catch (err) {
+    console.error('[api/speakers/:id/headshot GET]', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
@@ -646,16 +656,10 @@ app.post('/api/speakers', upload.single('headshot'), async function(req, res) {
     var result = await sql`
       INSERT INTO speakers (event_id, full_name, title, company, email, bio, headshot, headshot_mimetype)
       VALUES (${b.event_id}, ${b.full_name}, ${b.title || ''}, ${b.company || ''}, ${b.email || ''}, ${b.bio || ''}, ${headshot}, ${headshot_mimetype})
-      RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot, headshot_mimetype
+      RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
     `;
     
     var speaker = result[0];
-    if (speaker.headshot && speaker.headshot_mimetype) {
-      speaker.headshot = `data:${speaker.headshot_mimetype};base64,${Buffer.from(speaker.headshot).toString('base64')}`;
-    } else {
-      speaker.headshot = null;
-    }
-
     res.status(201).json({ ok: true, speaker: speaker });
   } catch (err) {
     console.error('[api/speakers POST]', err.message);
@@ -682,24 +686,18 @@ app.put('/api/speakers/:id', upload.single('headshot'), async function(req, res)
         UPDATE speakers
         SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}, headshot=${headshot}, headshot_mimetype=${headshot_mimetype}
         WHERE id = ${id}
-        RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot, headshot_mimetype
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
       `;
     } else {
       result = await sql`
         UPDATE speakers
         SET full_name=${b.full_name}, title=${b.title}, company=${b.company}, email=${b.email}, bio=${b.bio}
         WHERE id = ${id}
-        RETURNING id, event_id, full_name, title, company, email, bio, created_at, headshot, headshot_mimetype
+        RETURNING id, event_id, full_name, title, company, email, bio, created_at, (headshot IS NOT NULL) as has_headshot
       `;
     }
 
     var speaker = result[0];
-    if (speaker.headshot && speaker.headshot_mimetype) {
-      speaker.headshot = `data:${speaker.headshot_mimetype};base64,${Buffer.from(speaker.headshot).toString('base64')}`;
-    } else {
-      speaker.headshot = null;
-    }
-
     res.json({ ok: true, speaker: speaker });
   } catch (err) {
     console.error('[api/speakers PUT]', err.message);
