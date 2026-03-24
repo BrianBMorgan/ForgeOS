@@ -639,30 +639,49 @@ app.get('/api/speakers/:id/headshot', async function(req, res) {
     var result = await sql`
       SELECT headshot, headshot_mimetype FROM speakers WHERE id = ${id}
     `;
-    console.log('[headshot] row count:', result.length);
-    if (result.length > 0) {
-      var raw = result[0].headshot;
-      console.log('[headshot] type:', typeof raw, Array.isArray(raw) ? 'array' : (raw && raw.constructor ? raw.constructor.name : 'n/a'));
-      console.log('[headshot] truthy:', !!raw, 'length:', raw ? (raw.length || raw.byteLength || 'no-len') : 'null');
-    }
-    if (result.length === 0 || !result[0].headshot || !result[0].headshot_mimetype) {
+    if (result.length === 0 || !result[0].headshot) {
       return res.status(404).send('Not found');
     }
     var speaker = result[0];
     var raw = speaker.headshot;
     var buf;
+
+    // Neon/multer may store Buffer as JSON {type:'Buffer',data:[...]} or as Uint8Array/Buffer/hex
     if (Buffer.isBuffer(raw)) {
       buf = raw;
     } else if (raw instanceof Uint8Array) {
       buf = Buffer.from(raw);
     } else if (typeof raw === 'string') {
-      // Neon serverless returns BYTEA as hex string prefixed with backslash-x
       var hex = raw.slice(0, 2) === String.fromCharCode(92) + 'x' ? raw.slice(2) : raw;
       buf = Buffer.from(hex, 'hex');
+    } else if (raw && typeof raw === 'object' && raw.type === 'Buffer' && Array.isArray(raw.data)) {
+      buf = Buffer.from(raw.data);
+    } else if (raw && typeof raw === 'object') {
+      // Try JSON parse — Neon may return BYTEA as stringified JSON buffer
+      try {
+        var parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (parsed && parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
+          buf = Buffer.from(parsed.data);
+        } else {
+          buf = Buffer.from(raw);
+        }
+      } catch(e) { buf = Buffer.from(raw); }
     } else {
       buf = Buffer.from(raw);
     }
-    res.setHeader('Content-Type', speaker.headshot_mimetype);
+
+    // Infer mimetype from magic bytes if not stored
+    var mime = speaker.headshot_mimetype;
+    if (!mime && buf.length > 4) {
+      if (buf[0] === 0xFF && buf[1] === 0xD8) mime = 'image/jpeg';
+      else if (buf[0] === 0x89 && buf[1] === 0x50) mime = 'image/png';
+      else if (buf[0] === 0x47 && buf[1] === 0x49) mime = 'image/gif';
+      else if (buf[0] === 0x52 && buf[1] === 0x49) mime = 'image/webp';
+      else mime = 'image/jpeg';
+    }
+    if (!mime) return res.status(404).send('Not found');
+
+    res.setHeader('Content-Type', mime);
     res.setHeader('Content-Length', buf.length);
     res.end(buf);
   } catch (err) {
