@@ -166,10 +166,29 @@ function addTopbarBtn(label, fn) {
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 async function api(method, path, body) {
+  console.log('[api] Request:', method, path);
   var opts = { method: method, headers: {'Content-Type':'application/json'} };
   if (body) opts.body = JSON.stringify(body);
-  var r = await fetch(path, opts);
-  return r.json();
+  try {
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 30000);
+    opts.signal = controller.signal;
+    var r = await fetch(path, opts);
+    clearTimeout(timeoutId);
+    console.log('[api] Response status:', r.status);
+    if (!r.ok) {
+      var errText = await r.text();
+      console.error('[api] Error response:', errText);
+      try { return JSON.parse(errText); } catch(e) { return { ok: false, error: 'HTTP ' + r.status + ': ' + errText }; }
+    }
+    var data = await r.json();
+    console.log('[api] Response data:', data);
+    return data;
+  } catch (err) {
+    console.error('[api] Fetch error:', err);
+    if (err.name === 'AbortError') return { ok: false, error: 'Request timed out after 30 seconds' };
+    return { ok: false, error: err.message };
+  }
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
