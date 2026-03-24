@@ -327,7 +327,8 @@ app.get("/api/projects/:id/publish", async (req, res) => {
         const renderStatus = latest?.status;
         if (renderStatus === "live") {
           await publishManager.updateAppStatus(req.params.id, "running");
-          return res.json({ published: true, ...app, status: "running" });
+          const updatedApp = publishManager.getPublishedApp(req.params.id);
+          return res.json({ published: true, ...(updatedApp || app), status: "running" });
         } else if (renderStatus === "build_failed" || renderStatus === "deactivated") {
           await publishManager.updateAppStatus(req.params.id, "failed");
           return res.json({ published: true, ...app, status: "failed" });
