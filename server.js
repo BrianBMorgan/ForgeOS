@@ -223,58 +223,29 @@ async function ensureSchema() {
     console.log('speaker_id column check failed:', addSpeakerIdErr.message);
   }
 
-  // Comprehensive column migration for submissions table
-  var submissionColumns = [
-    { name: 'title', type: 'TEXT' },
-    { name: 'content_lead', type: 'TEXT' },
-    { name: 'bu', type: 'TEXT' },
-    { name: 'track', type: 'TEXT' },
-    { name: 'format', type: 'TEXT' },
-    { name: 'duration', type: 'TEXT' },
-    { name: 'speaker_id', type: 'INTEGER REFERENCES speakers(id) ON DELETE SET NULL' },
-    { name: 'abstract', type: 'TEXT' },
-    { name: 'key_topics', type: 'TEXT' },
-    { name: 'demos', type: 'TEXT' },
-    { name: 'featured_products', type: 'TEXT' },
-    { name: 'business_challenge', type: 'TEXT' },
-    { name: 'partner_highlights', type: 'TEXT' },
-    { name: 'new_launches', type: 'TEXT' },
-    { name: 'reviewer_notes', type: 'TEXT' },
-    { name: 'status', type: 'TEXT DEFAULT \'submitted\'' },
-    { name: 'enriched_abstract', type: 'TEXT' }
-  ];
-
-  for (var i = 0; i < submissionColumns.length; i++) {
-    var col = submissionColumns[i];
-    try {
-      var colExists = await sql`
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'submissions' AND column_name = ${col.name} AND table_schema = 'public'`;
-      if (colExists.length === 0) {
-        console.log('Adding ' + col.name + ' column to submissions table...');
-        await sql.unsafe('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS ' + col.name + ' ' + col.type);
-        console.log(col.name + ' column added successfully.');
-      } else {
-        console.log(col.name + ' column already exists.');
-      }
-    } catch (colErr) {
-      console.error('[MIGRATION ERROR] ' + col.name + ' column failed:', colErr.message);
-    }
-  }
-
-  // Also ensure ai_score exists as JSONB
-  try {
-    var aiScoreExists = await sql`
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'submissions' AND column_name = 'ai_score' AND table_schema = 'public'`;
-    if (aiScoreExists.length === 0) {
-      console.log('Adding ai_score column to submissions table...');
-      await sql.unsafe('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS ai_score JSONB');
-      console.log('ai_score column added.');
-    }
-  } catch (aiErr) {
-    console.error('[MIGRATION ERROR] ai_score column failed:', aiErr.message);
-  }
+  // Direct column additions - no check, just add if not exists
+  console.log('[MIGRATION] Adding missing columns to submissions table...');
+  
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS title TEXT`; console.log('[OK] title'); } catch(e) { console.log('[SKIP] title:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS content_lead TEXT`; console.log('[OK] content_lead'); } catch(e) { console.log('[SKIP] content_lead:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS bu TEXT`; console.log('[OK] bu'); } catch(e) { console.log('[SKIP] bu:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS track TEXT`; console.log('[OK] track'); } catch(e) { console.log('[SKIP] track:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS format TEXT`; console.log('[OK] format'); } catch(e) { console.log('[SKIP] format:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS duration TEXT`; console.log('[OK] duration'); } catch(e) { console.log('[SKIP] duration:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS abstract TEXT`; console.log('[OK] abstract'); } catch(e) { console.log('[SKIP] abstract:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS key_topics TEXT`; console.log('[OK] key_topics'); } catch(e) { console.log('[SKIP] key_topics:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS demos TEXT`; console.log('[OK] demos'); } catch(e) { console.log('[SKIP] demos:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS featured_products TEXT`; console.log('[OK] featured_products'); } catch(e) { console.log('[SKIP] featured_products:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS business_challenge TEXT`; console.log('[OK] business_challenge'); } catch(e) { console.log('[SKIP] business_challenge:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS partner_highlights TEXT`; console.log('[OK] partner_highlights'); } catch(e) { console.log('[SKIP] partner_highlights:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS new_launches TEXT`; console.log('[OK] new_launches'); } catch(e) { console.log('[SKIP] new_launches:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS reviewer_notes TEXT`; console.log('[OK] reviewer_notes'); } catch(e) { console.log('[SKIP] reviewer_notes:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'submitted'`; console.log('[OK] status'); } catch(e) { console.log('[SKIP] status:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS enriched_abstract TEXT`; console.log('[OK] enriched_abstract'); } catch(e) { console.log('[SKIP] enriched_abstract:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS ai_score JSONB`; console.log('[OK] ai_score'); } catch(e) { console.log('[SKIP] ai_score:', e.message); }
+  try { await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS speaker_id INTEGER REFERENCES speakers(id) ON DELETE SET NULL`; console.log('[OK] speaker_id'); } catch(e) { console.log('[SKIP] speaker_id:', e.message); }
+  
+  console.log('[MIGRATION] Column check complete.');
 
   console.log('Schema is ready.');
 }
