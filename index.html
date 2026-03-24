@@ -495,6 +495,7 @@ async function renderSubmissions() {
     }
     if (!data.submissions) {
       throw new Error('No submissions array in response. Keys: ' + Object.keys(data).join(', '));
+    }
     allSubmissions = (data.submissions || []).map(parseAiScore);
     var tracks = [...new Set(allSubmissions.map(function(s){return s.track;}).filter(Boolean))];
     var bus = [...new Set(allSubmissions.map(function(s){return s.bu;}).filter(Boolean))];
