@@ -520,7 +520,7 @@ app.get('/api/submissions/export', async function (req, res) {
         '"' + (sub.bu || '').replace(/"/g, '""') + '"',
         '"' + (sub.track || '').replace(/"/g, '""') + '"',
         '"' + (sub.format || '').replace(/"/g, '""') + '"',
-        '"' + (sub.speaker_name || '').replace(/"/g, '""') + '"',
+        '"' + (sub.speaker_names || '').replace(/"/g, '""') + '"',
         sub.status || 'submitted',
         aiScore
       ].join(',') + '\n';
