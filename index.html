@@ -1199,6 +1199,34 @@ window.deleteSpeaker = deleteSpeaker;
 window.openPanel = openPanel;
 window.closePanel = closePanel;
 window.populateSpeakerDropdown = populateSpeakerDropdown;
+window.updateAbstractCounter = updateAbstractCounter;
+window.toggleAbstractOverride = toggleAbstractOverride;
+
+function updateAbstractCounter() {
+  var textarea = document.getElementById('sf-abstract');
+  var counter = document.getElementById('abstract-counter');
+  if (textarea && counter) {
+    counter.textContent = textarea.value.length;
+  }
+}
+
+function toggleAbstractOverride() {
+  var checkbox = document.getElementById('abstract-override');
+  var textarea = document.getElementById('sf-abstract');
+  var limitSpan = document.getElementById('abstract-limit');
+  if (!checkbox || !textarea || !limitSpan) return;
+  if (checkbox.checked) {
+    textarea.maxLength = 1000;
+    limitSpan.textContent = '1000';
+  } else {
+    textarea.maxLength = 650;
+    limitSpan.textContent = '650';
+    if (textarea.value.length > 650) {
+      textarea.value = textarea.value.slice(0, 650);
+      updateAbstractCounter();
+    }
+  }
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderEventsList();
