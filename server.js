@@ -646,28 +646,40 @@ app.get('/api/speakers/:id/headshot', async function(req, res) {
     var raw = speaker.headshot;
     var buf;
 
-    // Neon/multer may store Buffer as JSON {type:'Buffer',data:[...]} or as Uint8Array/Buffer/hex
+    // Normalize whatever Neon returns for BYTEA into a Buffer
     if (Buffer.isBuffer(raw)) {
       buf = raw;
     } else if (raw instanceof Uint8Array) {
       buf = Buffer.from(raw);
     } else if (typeof raw === 'string') {
-      var hex = raw.slice(0, 2) === String.fromCharCode(92) + 'x' ? raw.slice(2) : raw;
-      buf = Buffer.from(hex, 'hex');
-    } else if (raw && typeof raw === 'object' && raw.type === 'Buffer' && Array.isArray(raw.data)) {
-      buf = Buffer.from(raw.data);
+      // Could be hex (\x prefix), JSON-stringified Buffer, or base64
+      var trimmed = raw.trim();
+      if (trimmed.slice(0, 2) === String.fromCharCode(92) + 'x') {
+        // Neon hex format: \xDEADBEEF
+        buf = Buffer.from(trimmed.slice(2), 'hex');
+      } else if (trimmed[0] === '{' || trimmed[0] === '[') {
+        // JSON-stringified Buffer: {"type":"Buffer","data":[...]} or [...]
+        try {
+          var parsed = JSON.parse(trimmed);
+          if (parsed && parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
+            buf = Buffer.from(parsed.data);
+          } else if (Array.isArray(parsed)) {
+            buf = Buffer.from(parsed);
+          } else {
+            buf = Buffer.from(trimmed);
+          }
+        } catch(e) { buf = Buffer.from(trimmed); }
+      } else {
+        buf = Buffer.from(trimmed);
+      }
     } else if (raw && typeof raw === 'object') {
-      // Try JSON parse — Neon may return BYTEA as stringified JSON buffer
-      try {
-        var parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (parsed && parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
-          buf = Buffer.from(parsed.data);
-        } else {
-          buf = Buffer.from(raw);
-        }
-      } catch(e) { buf = Buffer.from(raw); }
+      if (raw.type === 'Buffer' && Array.isArray(raw.data)) {
+        buf = Buffer.from(raw.data);
+      } else {
+        buf = Buffer.from(Object.values(raw));
+      }
     } else {
-      buf = Buffer.from(raw);
+      buf = Buffer.from(String(raw));
     }
 
     // Infer mimetype from magic bytes if not stored
