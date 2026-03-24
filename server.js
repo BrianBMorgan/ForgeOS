@@ -632,6 +632,34 @@ app.get('/api/speakers/:id/headshot-debug', async function(req, res) {
   } catch(err) { res.json({ error: err.message }); }
 });
 
+app.get('/api/speakers/:id/headshot-inspect', async function(req, res) {
+  try {
+    var sql = getDb();
+    var result = await sql`SELECT headshot, headshot_mimetype FROM speakers WHERE id = ${req.params.id}`;
+    if (!result.length) return res.json({ found: false });
+    var raw = result[0].headshot;
+    var info = {
+      type: typeof raw,
+      constructor: raw && raw.constructor ? raw.constructor.name : 'null',
+      isBuffer: Buffer.isBuffer(raw),
+      isUint8Array: raw instanceof Uint8Array,
+      length: raw ? (raw.length || raw.byteLength || 'no-len') : null,
+      first4: null
+    };
+    try {
+      if (Buffer.isBuffer(raw) || raw instanceof Uint8Array) {
+        info.first4 = Buffer.from(raw).slice(0,4).toString('hex');
+      } else if (typeof raw === 'string') {
+        info.first20chars = raw.slice(0, 20);
+      } else if (raw && typeof raw === 'object') {
+        info.keys = Object.keys(raw).slice(0, 5);
+        info.first4ofData = raw.data ? raw.data.slice(0,4) : null;
+      }
+    } catch(e) { info.inspectError = e.message; }
+    res.json(info);
+  } catch(err) { res.json({ error: err.message }); }
+});
+
 app.post('/api/speakers/migrate-headshots', async function(req, res) {
   try {
     var sql = getDb();
