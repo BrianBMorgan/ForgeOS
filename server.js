@@ -466,6 +466,7 @@ app.get('/api/submissions', async function (req, res) {
   try {
     var sql = getDb();
     var event_id = req.query.event_id;
+    console.log('[api/submissions] Fetching for event_id:', event_id);
     if (!event_id) return res.status(400).json({ ok: false, error: 'event_id is required' });
     var rows = await sql`
       SELECT
@@ -479,9 +480,10 @@ app.get('/api/submissions', async function (req, res) {
       WHERE s.event_id = ${event_id}
       ORDER BY s.created_at DESC
     `;
+    console.log('[api/submissions] Found', rows.length, 'submissions');
     res.json({ ok: true, submissions: rows });
   } catch (err) {
-    console.error('[api/submissions GET]', err.message);
+    console.error('[api/submissions GET] Error:', err.message, err.stack);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
