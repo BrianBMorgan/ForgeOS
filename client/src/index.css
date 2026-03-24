@@ -6034,7 +6034,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 6px 14px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -6099,7 +6099,7 @@ body {
 .render-goto-publish:hover { background: rgba(99,102,241,0.08); }
 
 .render-v2-url-card {
-  margin: 12px 14px;
+  margin: 6px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
