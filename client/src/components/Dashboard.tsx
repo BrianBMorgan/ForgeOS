@@ -309,7 +309,10 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Usage & Cost */}
+        </div>
+
+        {/* Third column: Usage & Cost */}
+        <div className="dash-usage-col">
           <div className="dash-panel">
             <div className="dash-panel-header">
               <span className="dash-panel-title">Anthropic Usage</span>
@@ -351,7 +354,6 @@ export default function Dashboard() {
               }
             </div>
           </div>
-
         </div>
       </div>
     </div>
