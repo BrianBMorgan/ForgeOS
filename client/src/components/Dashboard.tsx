@@ -129,8 +129,6 @@ export default function Dashboard() {
 
   // ── Render state ───────────────────────────────────────────────────────────
   const renderState = status?.render?.state || "unknown";
-  const renderLive = renderState === "live" || renderState === "not_suspended" || renderState === "available";
-
   // ── Brain state ────────────────────────────────────────────────────────────
   const brainTotal = memory?.stats?.total || 0;
   const brainOnline = memory?.ok === true;
