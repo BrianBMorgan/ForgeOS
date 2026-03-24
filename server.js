@@ -634,8 +634,22 @@ app.get('/api/speakers/:id/headshot', async function(req, res) {
       return res.status(404).send('Not found');
     }
     var speaker = result[0];
+    var raw = speaker.headshot;
+    var buf;
+    if (Buffer.isBuffer(raw)) {
+      buf = raw;
+    } else if (raw instanceof Uint8Array) {
+      buf = Buffer.from(raw);
+    } else if (typeof raw === 'string') {
+      // Neon serverless returns BYTEA as hex string prefixed with \x
+      var hex = raw.startsWith('\\x') ? raw.slice(2) : raw.startsWith('\x') ? raw.slice(2) : raw;
+      buf = Buffer.from(hex, 'hex');
+    } else {
+      buf = Buffer.from(raw);
+    }
     res.setHeader('Content-Type', speaker.headshot_mimetype);
-    res.send(speaker.headshot);
+    res.setHeader('Content-Length', buf.length);
+    res.end(buf);
   } catch (err) {
     console.error('[api/speakers/:id/headshot GET]', err.message);
     res.status(500).json({ ok: false, error: err.message });
