@@ -89,8 +89,18 @@ export function BrandBriefTab({ briefJson, onBriefChange, onGenerate, parsedBrie
         </div>
       </div>
 
+      {!briefJson.trim() && (
+        <div className="empty-state-panel">
+          <div className="empty-state-icon">📋</div>
+          <h3>No Brand Brief Loaded</h3>
+          <p>Paste your brand brief JSON above, or load our sample brief to explore how Forge Canvas generates a complete brand system.</p>
+          <button className="btn btn-primary" onClick={handleLoadSample}>
+            Load Sample Brief
+          </button>
+        </div>
+      )}
+
       {parsedBrief && (
-        <div className="parsed-preview">
           <h2>Brief Summary</h2>
           <div className="preview-grid">
             <Card title="Company" subtitle={parsedBrief.company.name}>
