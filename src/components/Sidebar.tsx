@@ -94,8 +94,15 @@ export function Sidebar() {
     <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
         <div className="sidebar-brand">
-          <span className="sidebar-logo">{icons.diamond}</span>
-          {!sidebarCollapsed && <span className="sidebar-title">Forge</span>}
+          {!sidebarCollapsed ? (
+            <img 
+              src="/api/assets/Forge_Intelligence.png" 
+              alt="Forge Intelligence" 
+              className="sidebar-logo-img"
+            />
+          ) : (
+            <span className="sidebar-logo-collapsed">{icons.diamond}</span>
+          )}
         </div>
         <button 
           className="sidebar-toggle"
