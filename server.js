@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import axios from 'axios';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,13 +14,12 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // Asset proxy for ForgeOS assets
 app.get('/api/assets/:filename', async function(req, res) {
   try {
-    const response = await axios.get(
-      'https://forge-os.ai/api/assets/' + req.params.filename,
-      { responseType: 'arraybuffer', timeout: 15000 }
-    );
-    res.set('Content-Type', response.headers['content-type']);
+    const response = await fetch('https://forge-os.ai/api/assets/' + req.params.filename);
+    if (!response.ok) throw new Error('Not found');
+    const buffer = await response.arrayBuffer();
+    res.set('Content-Type', response.headers.get('content-type'));
     res.set('Cache-Control', 'public, max-age=86400');
-    res.send(response.data);
+    res.send(Buffer.from(buffer));
   } catch (err) {
     res.status(404).send('Asset not found');
   }
