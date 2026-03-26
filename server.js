@@ -2,14 +2,14 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, 'dist')));
+// Serve the built assets under /context-agent
+app.use('/context-agent', express.static(path.join(__dirname, 'dist')));
 
 // Asset proxy for ForgeOS assets
 app.get('/api/assets/:filename', async function(req, res) {
@@ -25,7 +25,13 @@ app.get('/api/assets/:filename', async function(req, res) {
   }
 });
 
-app.get('*', function(req, res) {
+// Redirect root to /context-agent
+app.get('/', function(req, res) {
+  res.redirect(301, '/context-agent');
+});
+
+// SPA catch-all: any /context-agent/* route serves index.html
+app.get('/context-agent/*', function(req, res) {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
