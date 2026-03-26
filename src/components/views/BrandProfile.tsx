@@ -2,6 +2,31 @@ import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import './BrandProfile.css';
 
+// Lucide-style icons
+const icons = {
+  layers: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+      <polyline points="2 17 12 22 22 17"/>
+      <polyline points="2 12 12 17 22 12"/>
+    </svg>
+  ),
+  download: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" x2="12" y1="15" y2="3"/>
+    </svg>
+  ),
+  save: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+      <polyline points="17 21 17 13 7 13 7 21"/>
+      <polyline points="7 3 7 8 15 8"/>
+    </svg>
+  )
+};
+
 type TabType = 'voice' | 'personas' | 'signals' | 'gaps';
 
 export function BrandProfile() {
@@ -11,7 +36,7 @@ export function BrandProfile() {
   if (!brandProfile) {
     return (
       <div className="brand-profile empty-state">
-        <div className="empty-icon">◈</div>
+        <div className="empty-icon">{icons.layers}</div>
         <h2 className="empty-title">No Brand Profile Available</h2>
         <p className="empty-description">
           Run a new analysis to generate a brand intelligence profile.
@@ -43,6 +68,13 @@ export function BrandProfile() {
     URL.revokeObjectURL(url);
   };
 
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'var(--color-success)';
+    if (score >= 80) return 'var(--color-accent)';
+    if (score >= 70) return 'rgba(59, 130, 246, 0.7)';
+    return 'var(--color-warning)';
+  };
+
   return (
     <div className="brand-profile">
       <div className="profile-header">
@@ -67,9 +99,11 @@ export function BrandProfile() {
         </div>
         <div className="profile-actions">
           <button className="btn-action" onClick={handleExportJSON}>
+            <span className="btn-icon">{icons.download}</span>
             Export JSON
           </button>
           <button className="btn-action primary">
+            <span className="btn-icon">{icons.save}</span>
             Save Version
           </button>
         </div>
@@ -111,18 +145,21 @@ export function BrandProfile() {
             </div>
 
             <div className="tone-attributes">
-              <h3 className="section-subtitle">Tone Attributes</h3>
+              <h3 className="section-label">TONE ATTRIBUTES</h3>
               <div className="attributes-grid">
                 {brandProfile.voiceProfile.toneAttributes.map((attr) => (
                   <div key={attr.attribute} className="attribute-card">
                     <div className="attribute-header">
                       <span className="attribute-name">{attr.attribute}</span>
-                      <span className="attribute-score">{attr.score}</span>
+                      <span className="attribute-score" style={{ color: getScoreColor(attr.score) }}>{attr.score}</span>
                     </div>
                     <div className="attribute-bar">
                       <div 
                         className="attribute-fill" 
-                        style={{ width: `${attr.score}%` }}
+                        style={{ 
+                          width: `${attr.score}%`,
+                          background: getScoreColor(attr.score)
+                        }}
                       />
                     </div>
                     <p className="attribute-description">{attr.description}</p>
@@ -215,7 +252,10 @@ export function BrandProfile() {
                       <div className="confidence-indicator">
                         <div 
                           className="confidence-fill" 
-                          style={{ width: `${signal.confidence}%` }}
+                          style={{ 
+                            width: `${signal.confidence}%`,
+                            background: getScoreColor(signal.confidence)
+                          }}
                         />
                         <span className="confidence-text">{signal.confidence}%</span>
                       </div>
