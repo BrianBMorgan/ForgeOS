@@ -101,7 +101,11 @@ export function Sidebar() {
               className="sidebar-logo-img"
             />
           ) : (
-            <span className="sidebar-logo-collapsed">{icons.diamond}</span>
+            <img 
+              src="/api/assets/Forge_Intelligence.png" 
+              alt="Forge Intelligence" 
+              className="sidebar-logo-collapsed-img"
+            />
           )}
         </div>
         <button 
