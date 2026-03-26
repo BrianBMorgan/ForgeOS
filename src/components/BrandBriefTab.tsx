@@ -101,6 +101,7 @@ export function BrandBriefTab({ briefJson, onBriefChange, onGenerate, parsedBrie
       )}
 
       {parsedBrief && (
+        <div className="brief-preview">
           <h2>Brief Summary</h2>
           <div className="preview-grid">
             <Card title="Company" subtitle={parsedBrief.company.name}>
