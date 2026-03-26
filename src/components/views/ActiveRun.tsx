@@ -2,6 +2,33 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import './ActiveRun.css';
 
+// Lucide-style icons
+const icons = {
+  check: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  ),
+  alertCircle: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" x2="12" y1="8" y2="12"/>
+      <line x1="12" x2="12.01" y1="16" y2="16"/>
+    </svg>
+  ),
+  brain: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.54"/>
+      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.54"/>
+    </svg>
+  ),
+  zap: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  )
+};
+
 const stageMessages: Record<string, string[]> = {
   ingest: [
     'Initializing signal collectors...',
@@ -83,7 +110,7 @@ export function ActiveRun() {
           </p>
         </div>
         <div className="elapsed-time">
-          <span className="time-label">Elapsed</span>
+          <span className="time-label">ELAPSED</span>
           <span className="time-value">{formatTime(elapsedTime)}</span>
         </div>
       </div>
@@ -99,15 +126,15 @@ export function ActiveRun() {
       </div>
 
       <div className="stages-section">
-        <h3 className="section-title">Processing Stages</h3>
+        <h3 className="section-label">PROCESSING STAGES</h3>
         <div className="stages-list">
           {processingStages.map((stage, index) => (
             <div key={stage.id} className={`stage-item ${stage.status}`}>
               <div className="stage-indicator">
-                {stage.status === 'complete' && <span className="stage-check">✓</span>}
+                {stage.status === 'complete' && <span className="stage-check">{icons.check}</span>}
                 {stage.status === 'running' && <span className="stage-spinner" />}
                 {stage.status === 'pending' && <span className="stage-number">{index + 1}</span>}
-                {stage.status === 'error' && <span className="stage-error">!</span>}
+                {stage.status === 'error' && <span className="stage-error">{icons.alertCircle}</span>}
               </div>
               <div className="stage-content">
                 <span className="stage-name">{stage.name}</span>
@@ -124,7 +151,7 @@ export function ActiveRun() {
       </div>
 
       <div className="activity-section">
-        <h3 className="section-title">Activity Log</h3>
+        <h3 className="section-label">ACTIVITY LOG</h3>
         <div className="activity-log">
           {activityLog.length === 0 ? (
             <div className="activity-empty">Waiting for activity...</div>
@@ -142,7 +169,7 @@ export function ActiveRun() {
       {analysisInput.checkBrainFirst && (
         <div className="brain-check-panel">
           <div className="panel-header">
-            <span className="panel-icon">◉</span>
+            <span className="panel-icon">{icons.brain}</span>
             <span className="panel-title">Brain Check</span>
           </div>
           <div className="panel-content">
@@ -151,7 +178,10 @@ export function ActiveRun() {
             </p>
             {completedCount >= 2 && (
               <div className="cache-result">
-                <span className="cache-badge new">No Cache Hit</span>
+                <span className="cache-badge new">
+                  <span className="badge-icon">{icons.zap}</span>
+                  No Cache Hit
+                </span>
                 <span className="cache-message">Running fresh analysis</span>
               </div>
             )}
@@ -160,7 +190,7 @@ export function ActiveRun() {
       )}
 
       <div className="signals-section">
-        <h3 className="section-title">Retrieved Signals</h3>
+        <h3 className="section-label">RETRIEVED SIGNALS</h3>
         <div className="signals-grid">
           {completedCount >= 1 && (
             <div className="signal-card fade-in">
