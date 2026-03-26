@@ -63,8 +63,8 @@
   display: inline-flex;
   padding: 8px 14px;
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
   font-size: 12px;
   font-weight: 500;
   color: var(--color-text-secondary);
@@ -95,9 +95,10 @@
 
 .matrix-card {
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: all var(--transition-fast);
 }
 
@@ -144,7 +145,7 @@
   padding: 3px 8px;
   font-size: 10px;
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
 }
 
 .impact-badge.high {
@@ -190,9 +191,10 @@
 
 .messaging-card {
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .messaging-source {
@@ -227,8 +229,9 @@
   gap: 16px;
   padding: 16px 20px;
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: all var(--transition-fast);
 }
 
@@ -258,9 +261,10 @@
 
 .category-group {
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .category-title {
@@ -320,10 +324,11 @@
 .action-item {
   display: flex;
   gap: 16px;
-  padding: 20px;
+  padding: 20px 24px;
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: all var(--transition-fast);
 }
 
@@ -377,7 +382,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
 }
 
 .action-priority.high {
@@ -405,12 +410,15 @@
 }
 
 .btn-export {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 500;
   background: var(--color-accent);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 10px;
   color: white;
   cursor: pointer;
   transition: all var(--transition-fast);
