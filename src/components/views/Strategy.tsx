@@ -1,13 +1,30 @@
 import { useApp } from '../../context/AppContext';
 import './Strategy.css';
 
+// Lucide-style icons
+const icons = {
+  compass: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+    </svg>
+  ),
+  download: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" x2="12" y1="15" y2="3"/>
+    </svg>
+  )
+};
+
 export function Strategy() {
   const { brandProfile } = useApp();
 
   if (!brandProfile) {
     return (
       <div className="strategy empty-state">
-        <div className="empty-icon">◇</div>
+        <div className="empty-icon">{icons.compass}</div>
         <h2 className="empty-title">No Strategy Available</h2>
         <p className="empty-description">
           Complete a brand analysis to generate strategic recommendations.
@@ -110,7 +127,7 @@ export function Strategy() {
 
       {/* Priority Matrix */}
       <section className="strategy-section">
-        <h3 className="section-title">Priority Matrix</h3>
+        <h3 className="section-label">PRIORITY MATRIX</h3>
         <div className="priority-matrix">
           {brandProfile.strategicRecommendations.map((rec) => (
             <div 
@@ -137,7 +154,7 @@ export function Strategy() {
 
       {/* Messaging Opportunities */}
       <section className="strategy-section">
-        <h3 className="section-title">Messaging Opportunities</h3>
+        <h3 className="section-label">MESSAGING OPPORTUNITIES</h3>
         <div className="messaging-grid">
           {messagingOpportunities.map((opp, idx) => (
             <div key={idx} className="messaging-card">
@@ -151,7 +168,7 @@ export function Strategy() {
 
       {/* Content Themes */}
       <section className="strategy-section">
-        <h3 className="section-title">Suggested Content Themes</h3>
+        <h3 className="section-label">SUGGESTED CONTENT THEMES</h3>
         <div className="content-themes">
           {contentThemes.map((theme, idx) => (
             <div key={idx} className="theme-item">
@@ -164,7 +181,7 @@ export function Strategy() {
 
       {/* Recommendations by Category */}
       <section className="strategy-section">
-        <h3 className="section-title">Recommendations by Category</h3>
+        <h3 className="section-label">RECOMMENDATIONS BY CATEGORY</h3>
         <div className="category-groups">
           {Object.entries(groupedRecs).map(([category, recs]) => (
             <div key={category} className="category-group">
@@ -187,7 +204,7 @@ export function Strategy() {
 
       {/* Next Actions */}
       <section className="strategy-section">
-        <h3 className="section-title">Recommended Next Actions</h3>
+        <h3 className="section-label">RECOMMENDED NEXT ACTIONS</h3>
         <div className="actions-list">
           {nextActions.map((action, idx) => (
             <div key={idx} className={`action-item priority-${action.priority}`}>
@@ -209,6 +226,7 @@ export function Strategy() {
       {/* Export Section */}
       <div className="strategy-actions">
         <button className="btn-export">
+          <span className="btn-icon">{icons.download}</span>
           Export Strategy Brief
         </button>
       </div>
