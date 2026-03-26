@@ -4,7 +4,7 @@ import { HistoryEntry } from '../../types';
 import './BrainHistory.css';
 
 export function BrainHistory() {
-  const { historyEntries, setHistoryEntries, setBrandProfile, setCurrentView } = useApp();
+  const { historyEntries, setHistoryEntries, setCurrentView } = useApp();
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
   const [filterBrand, setFilterBrand] = useState<string>('');
 
