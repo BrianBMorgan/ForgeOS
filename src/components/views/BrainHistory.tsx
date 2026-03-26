@@ -3,6 +3,37 @@ import { useApp } from '../../context/AppContext';
 import { HistoryEntry } from '../../types';
 import './BrainHistory.css';
 
+// Lucide-style icons
+const icons = {
+  database: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M3 5V19A9 3 0 0 0 21 19V5"/>
+      <path d="M3 12A9 3 0 0 0 21 12"/>
+    </svg>
+  ),
+  arrowRight: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14"/>
+      <path d="m12 5 7 7-7 7"/>
+    </svg>
+  ),
+  checkCircle: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <path d="m9 11 3 3L22 4"/>
+    </svg>
+  ),
+  compareArrows: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m16 3 4 4-4 4"/>
+      <path d="M20 7H4"/>
+      <path d="m8 21-4-4 4-4"/>
+      <path d="M4 17h16"/>
+    </svg>
+  )
+};
+
 export function BrainHistory() {
   const { historyEntries, setHistoryEntries, setCurrentView } = useApp();
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
@@ -76,7 +107,7 @@ export function BrainHistory() {
   if (historyEntries.length === 0) {
     return (
       <div className="brain-history empty-state">
-        <div className="empty-icon">◉</div>
+        <div className="empty-icon">{icons.database}</div>
         <h2 className="empty-title">No Brain History Yet</h2>
         <p className="empty-description">
           Run your first brand analysis to start building your intelligence memory.
