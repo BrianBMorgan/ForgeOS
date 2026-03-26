@@ -11,5 +11,5 @@ app.get('*', function(req, res) {
 });
 
 app.listen(PORT, '0.0.0.0', function() {
-  console.log('Forge Intelligence workspace running on port ' + PORT);
+  console.log('Forge Intelligence Context Agent Workspace running on port ' + PORT);
 });
