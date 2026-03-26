@@ -1,0 +1,148 @@
+.brand-brief-tab {
+  max-width: 1000px;
+}
+
+.brief-input-section {
+  margin-bottom: 40px;
+}
+
+.input-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.input-header label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.input-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.brief-textarea {
+  width: 100%;
+  height: 320px;
+  padding: 16px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  resize: vertical;
+  transition: border-color var(--transition-fast);
+}
+
+.brief-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.brief-textarea.has-error {
+  border-color: var(--color-error);
+}
+
+.brief-textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--color-error);
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius-md);
+}
+
+.error-icon {
+  font-size: 14px;
+}
+
+.generate-section {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-generate {
+  padding: 12px 32px;
+  font-size: 15px;
+}
+
+.generate-hint {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.parsed-preview {
+  padding-top: 32px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.parsed-preview h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: var(--color-text);
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.trait-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.color-preview {
+  display: flex;
+  gap: 12px;
+}
+
+.color-swatch {
+  flex: 1;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+}
+
+.color-swatch span {
+  font-size: 10px;
+  font-weight: 500;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+@media (max-width: 768px) {
+  .input-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .brief-textarea {
+    height: 240px;
+  }
+
+  .preview-grid {
+    grid-template-columns: 1fr;
+  }
+}
