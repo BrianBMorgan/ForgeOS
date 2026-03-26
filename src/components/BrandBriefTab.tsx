@@ -100,6 +100,25 @@ export function BrandBriefTab({ briefJson, onBriefChange, onGenerate, parsedBrie
         </div>
       )}
 
+      {briefJson.trim() && isValid && !parsedBrief && (
+        <div className="empty-state-panel">
+          <div className="empty-state-icon">✨</div>
+          <h3>Brief Ready</h3>
+          <p>Your brand brief JSON is valid and ready to go. Click the button below to generate your complete brand system.</p>
+          <button className="btn btn-primary" onClick={onGenerate}>
+            Generate Brand System
+          </button>
+        </div>
+      )}
+
+      {briefJson.trim() && !isValid && !error && (
+        <div className="empty-state-panel">
+          <div className="empty-state-icon">⏳</div>
+          <h3>Validating...</h3>
+          <p>Checking your JSON structure.</p>
+        </div>
+      )}
+
       {parsedBrief && (
         <div className="brief-preview">
           <h2>Brief Summary</h2>
