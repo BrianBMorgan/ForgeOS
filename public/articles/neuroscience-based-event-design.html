@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neuroscience-Based Event Design &mdash; The Sandbox</title>
+  <link rel="icon" type="image/png" href="/api/assets/Icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .article-hero {
+      background: linear-gradient(135deg, #0F3460 0%, #16213E 100%);
+      padding: 10rem 2rem 5rem;
+      text-align: center;
+    }
+
+    .article-hero-eyebrow {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #E94560;
+      margin-bottom: 1rem;
+      display: inline-block;
+      background: rgba(233,69,96,0.1);
+      border: 1px solid rgba(233,69,96,0.25);
+      border-radius: 3px;
+      padding: 0.25rem 0.6rem;
+    }
+
+    .article-hero h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      color: #f0f0f0;
+      max-width: 760px;
+      margin: 1rem auto 1.5rem;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    .article-meta {
+      font-size: 0.88rem;
+      color: #888888;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .article-hero-image {
+      max-width: 900px;
+      margin: 3rem auto 0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    }
+
+    .article-hero-image img {
+      width: 100%;
+      height: 420px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .article-body-section {
+      background: #16213E;
+      padding: 5rem 2rem 6rem;
+    }
+
+    .article-body {
+      max-width: 720px;
+      margin: 0 auto;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.05rem;
+      color: #cccccc;
+      line-height: 1.85;
+    }
+
+    .article-body p {
+      margin-bottom: 1.6rem;
+    }
+
+    .article-body h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+      line-height: 1.25;
+    }
+
+    .article-body h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 2.25rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.3;
+    }
+
+    .article-body ul,
+    .article-body ol {
+      padding-left: 1.5rem;
+      margin-bottom: 1.6rem;
+    }
+
+    .article-body li {
+      margin-bottom: 0.6rem;
+      color: #cccccc;
+    }
+
+    .article-body blockquote {
+      border-left: 3px solid #E94560;
+      padding: 0.75rem 1.5rem;
+      margin: 2rem 0;
+      background: rgba(233,69,96,0.05);
+      border-radius: 0 4px 4px 0;
+    }
+
+    .article-body blockquote p {
+      color: #e0e0e0;
+      font-style: italic;
+      margin-bottom: 0;
+    }
+
+    .article-body strong {
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .article-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #E94560;
+      text-decoration: none;
+      margin-bottom: 3rem;
+      transition: color 0.2s;
+    }
+
+    .article-back:hover {
+      color: #ffffff;
+      text-decoration: none;
+    }
+
+    .article-back::before {
+      content: '\2190';
+    }
+
+    .article-cta-section {
+      margin-top: 4rem;
+      padding: 2.5rem;
+      background: rgba(233,69,96,0.06);
+      border: 1px solid rgba(233,69,96,0.2);
+      border-radius: 8px;
+    }
+
+    .article-cta-section h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 1rem;
+      line-height: 1.25;
+    }
+
+    .article-cta-section p {
+      color: #cccccc;
+      margin-bottom: 1.5rem;
+    }
+
+    .article-cta-section .article-back {
+      margin-bottom: 0;
+    }
+
+    .article-cta-section .article-back::before {
+      content: '';
+    }
+
+    .article-cta-section .article-back::after {
+      content: ' \2192';
+    }
+
+    @media (max-width: 768px) {
+      .article-hero {
+        padding: 8rem 1.5rem 4rem;
+      }
+
+      .article-hero-image img {
+        height: 240px;
+      }
+
+      .article-body-section {
+        padding: 3rem 1.5rem 4rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="/" class="nav-logo">Sandbox-<span style="color: #E94560;">XM</span></a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="/#services">Services</a></li>
+        <li><a href="/#about">About</a></li>
+        <li><a href="/#contact">Contact</a></li>
+        <li><a href="/sandbox.html">The Sandbox</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Article Hero -->
+  <section class="article-hero">
+    <span class="article-hero-eyebrow">Experience Strategy</span>
+    <h1>Neuroscience-Based Event Design: How Brain Science Creates Measurable Engagement</h1>
+    <p class="article-meta">By Sandbox-XM &mdash; June 2025 &mdash; 8 min read</p>
+    <div class="article-hero-image">
+      <img src="/api/assets/neuroscience-event-design.png" alt="Neuroscience-based event design" />
+    </div>
+  </section>
+
+  <!-- Article Body -->
+  <section class="article-body-section">
+    <div class="article-body">
+      <a href="/sandbox.html" class="article-back">Back to The Sandbox</a>
+
+      <p>Rachel&#8217;s CEO just returned from a three-day leadership summit. His feedback: &#8220;I remember the hotel lobby and the closing dinner. Everything else is a blur.&#8221; She&#8217;d spent six months planning that event. Coordinated 14 vendors. Delivered under budget. But what her executive actually retained could fit on a cocktail napkin.</p>
+
+      <p>The problem isn&#8217;t logistics. It&#8217;s neuroscience.</p>
+
+      <p>Most corporate events are designed for information delivery, not memory formation. They ignore how the brain processes experience, manages attention under cognitive load, and determines what gets stored in long-term memory versus what gets discarded on the drive home.</p>
+
+      <p>When Fortune 500 companies invest $500K to $2M in annual leadership summits, they&#8217;re not buying venue space and catering. They&#8217;re buying neural real estate&#8212;the ability to create experiences that attendees remember, act on, and attribute to the brand months later. Yet most event design operates without any understanding of the cognitive architecture that determines which moments get encoded and which get forgotten.</p>
+
+      <h2>The Cognitive Architecture of Memorable Events</h2>
+
+      <p>The human brain processes approximately 11 million bits of sensory information per second but can consciously attend to only 40 to 50 bits. At a typical corporate event&#8212;with keynote presentations, breakout sessions, networking receptions, and vendor expo halls&#8212;attendees face exponential information overload. Their brains engage a predictable filtering mechanism: discard the routine, encode the emotionally salient.</p>
+
+      <p>This filtering isn&#8217;t a bug. It&#8217;s survival architecture. The hippocampus and amygdala work together to determine what experiences warrant long-term storage based on emotional intensity, novelty, and relevance to existing mental models. Events designed without this understanding produce what neuroscientists call &#8220;cognitive shallow processing&#8221;&#8212;attendees are present but not encoding.</p>
+
+      <p>Three core principles govern event memory formation:</p>
+
+      <p><strong>Emotional Tagging:</strong> The amygdala flags experiences with emotional significance for preferential encoding. A keynote that delivers pure information without emotional resonance gets processed in working memory and discarded. A moment that triggers genuine surprise, inspiration, or connection gets tagged for consolidation into long-term memory during sleep that night.</p>
+
+      <p><strong>The Peak-End Rule:</strong> Nobel laureate Daniel Kahneman&#8217;s research demonstrates that people judge experiences almost entirely based on emotional peaks and endings, not duration or average quality. A three-day summit with consistently good content but no memorable peaks will be rated lower than a two-day event with one extraordinary moment and a strong closing experience.</p>
+
+      <p><strong>Pattern Interruption:</strong> The brain&#8217;s novelty detection system&#8212;driven by dopamine release&#8212;prioritizes unexpected stimuli. Events that follow predictable formats (panel-keynote-breakout-repeat) fail to activate this system. Strategic pattern breaks&#8212;a surprise outdoor session, an unconventional speaker format, a sensory experience that disrupts expectations&#8212;create encoding opportunities.</p>
+
+      <p>The operational implication: event design must account for attention as a finite resource and memory formation as an engineered outcome, not a hopeful byproduct.</p>
+
+      <h2>7 Neuroscience-Validated Design Principles for Corporate Events</h2>
+
+      <p>Translating brain science into execution discipline requires a framework that event teams can operationalize without neuroscience PhDs. These seven principles synthesize cognitive psychology research into design imperatives for corporate summits, product launches, and leadership retreats.</p>
+
+      <h3>Cognitive Load Budgeting</h3>
+
+      <p>The working memory capacity constraint is real and measurable. Design each session with explicit cognitive load assessment: How many new concepts are being introduced? How much prior knowledge is assumed? Where are the processing breaks? High-stakes content (strategic vision, product roadmaps) should never follow cognitively demanding sessions. Schedule intensive learning in morning hours when prefrontal cortex function peaks, reserve afternoons for application and integration.</p>
+
+      <h3>Multi-Sensory Anchoring</h3>
+
+      <p>Memory formation strengthens when multiple sensory modalities are engaged simultaneously. A keynote message delivered through slides and voice activates limited neural pathways. The same message delivered with spatial movement (speaker navigating the stage), olfactory cues (signature scent in the room), and tactile elements (physical objects attendees hold) creates redundant encoding pathways. Sandbox-XM&#8217;s hospitality-first approach recognizes that taste, texture, and environmental design aren&#8217;t luxury additions&#8212;they&#8217;re memory architecture.</p>
+
+      <h3>Dopamine-Driven Surprise Sequencing</h3>
+
+      <p>Dopamine release triggered by unexpected positive experiences enhances memory consolidation. But novelty must be strategic, not random. Schedule one engineered surprise per day: an unannounced guest speaker, a location reveal, a format disruption. The surprise should connect thematically to core content, not distract from it. The goal is controlled unpredictability that keeps the novelty detection system engaged without creating chaos.</p>
+
+      <h3>Social Encoding Amplification</h3>
+
+      <p>Experiences shared with others get encoded more deeply due to social brain network activation. Design explicit collaborative moments&#8212;not generic networking, but structured shared experiences that require attendees to work together, create together, or solve together. Post-event memory retrieval is significantly enhanced when attendees can anchor recall to &#8220;remember when we...&#8221; social moments.</p>
+
+      <h3>Narrative Arc Construction</h3>
+
+      <p>The brain is a story-processing machine. Events designed as disconnected sessions fail to activate narrative comprehension networks. Construct a clear story arc across the full event: What&#8217;s the challenge introduced on day one? What&#8217;s the transformation journey? What&#8217;s the resolution or call-to-action at closing? Even product launches benefit from narrative structure: the problem landscape, the innovation journey, the future enabled.</p>
+
+      <h3>Attention Recovery Intervals</h3>
+
+      <p>Sustained attention depletes cognitive resources measurably. Research shows attention span deterioration after 45-60 minutes of continuous focus. Build mandatory recovery intervals: silent reflection periods, walking breaks outdoors, guided breathing exercises. These aren&#8217;t schedule padding&#8212;they&#8217;re neurological hygiene that enables subsequent content to be processed effectively.</p>
+
+      <h3>Peak Moment Engineering</h3>
+
+      <p>Given the Peak-End Rule&#8217;s dominance in memory formation, the highest-investment design effort should focus on creating 2-3 extraordinary peaks and one exceptional closing. Identify in advance: What will be the signature moments attendees discuss six months later? These peaks need emotional intensity, not just production value. A founder sharing vulnerable failure lessons creates stronger peaks than elaborate staging without emotional resonance.</p>
+
+      <p>These principles aren&#8217;t theoretical. They translate directly into run-of-show decisions, vendor briefings, and budget allocation that prioritize neurological impact over conventional event metrics.</p>
+
+      <h2>Attention Economics: Designing for the Corporate Brain Under Information Overload</h2>
+
+      <p>David, the VP of Marketing planning a three-day customer summit, faces a different neuroscience challenge than Rachel&#8217;s CEO summit. His attendees arrive already maxed on information consumption&#8212;they&#8217;ve spent the morning in back-to-back Zoom calls, processed 147 Slack messages, and triaged 89 emails before boarding their flight. Their prefrontal cortex arrives depleted, their attention reserves already spent.</p>
+
+      <p>Traditional event design ignores this context. It assumes attendees arrive with full cognitive capacity and treats each session as an isolated unit competing only with other sessions. The reality: every moment of your event competes with the smartphone in their pocket, the work emergency brewing back at the office, and the cognitive fatigue from their existing overload.</p>
+
+      <p>Attention economics requires understanding three forms of attentional capacity:</p>
+
+      <p><strong>Selective Attention:</strong> The ability to focus on one stimulus while filtering distractions. This capacity depletes rapidly in high-distraction environments. Implications: Main stage sessions need stronger stimulus intensity (visual, auditory, emotional) than would be required in a low-distraction context. Generic PowerPoint presentations lose the selective attention battle to email every time.</p>
+
+      <p><strong>Sustained Attention:</strong> The ability to maintain focus over extended periods. Corporate executives attending multi-day events show measurable sustained attention decline across the event arc. Day three attention capacity is significantly lower than day one. Implications: Schedule your most critical content and decision-making sessions early. Reserve day three for application, integration, and lighter cognitive loads.</p>
+
+      <p><strong>Divided Attention:</strong> The attempt to process multiple information streams simultaneously. Despite popular belief in multitasking, neuroscience shows task-switching carries significant cognitive cost. Implications: Events that layer multiple simultaneous information channels (slides + speaker notes + audience chat + live polling) actually reduce total information retention compared to single-channel focus with strategic pauses.</p>
+
+      <p>Sandbox-XM&#8217;s approach to attention economics centers on strategic information sequencing and environmental design that reduces ambient cognitive load. This means curating experiences beyond information delivery: creating spaces where attendees can fully disengage from work context before re-engaging with event content, designing transitions that signal cognitive mode shifts, and building agenda architecture that respects attention as the limiting resource it is.</p>
+
+      <p>The competitive differentiation: most corporate events optimize for content volume. Neuroscience-informed design optimizes for encoding effectiveness. It&#8217;s the difference between delivering 40 sessions attendees half-process versus 20 sessions they fully encode and act on post-event.</p>
+
+      <h2>Sensory Sequencing: Multi-Modal Experiences That Activate Long-Term Memory</h2>
+
+      <p>A product launch event for a Fortune 500 technology client presented a specific encoding challenge: how do you create lasting memory associations for abstract enterprise software concepts? The product had no physical form, no sensory qualities attendees could naturally anchor to. Yet post-event brand recall and product understanding needed to persist through a six-month sales cycle.</p>
+
+      <p>The solution required deliberate sensory architecture&#8212;engineering multi-modal experiences that gave the brain multiple retrieval pathways for abstract concepts. This is where most corporate events fail: they rely almost entirely on visual and auditory channels (slides and voice) while ignoring olfactory, gustatory, and tactile encoding opportunities.</p>
+
+      <p>Neuroscience research demonstrates that olfactory memory has unique properties: scent memories form quickly, last longer, and trigger more emotional recall than other sensory modalities. Strategic scent design&#8212;a signature fragrance associated with key product messaging moments&#8212;creates olfactory anchors that can trigger full memory retrieval weeks later when encountered again.</p>
+
+      <p>For product launches and leadership summits, effective sensory sequencing follows this framework:</p>
+
+      <h3>Arrival: Environmental Priming</h3>
+
+      <p>Before attendees process any content, their sensory environment establishes encoding context. Temperature, lighting quality, acoustic environment, and spatial layout all influence cognitive state. A cold, brightly-lit ballroom with hard acoustic surfaces creates alertness but reduces emotional openness. Warmer lighting, acoustic dampening, and temperature management 2-3 degrees warmer than standard creates physiological conditions more conducive to emotional encoding.</p>
+
+      <h3>Content Delivery: Multi-Channel Reinforcement</h3>
+
+      <p>For each core message that must be retained, design reinforcement across at least three sensory channels. A strategic vision message might combine: (1) visual metaphor through environmental staging, (2) auditory anchor through signature music or sound design, (3) tactile element through physical objects attendees hold while hearing the message, and (4) olfactory cue through environmental scent. The redundancy creates multiple retrieval pathways.</p>
+
+      <h3>Integration: Kinesthetic Encoding</h3>
+
+      <p>Physical movement enhances memory consolidation. Content that attendees encode while walking, building physical objects, or engaging in spatial tasks shows enhanced retention compared to seated passive reception. This is why Sandbox-XM designs often include walking sessions outdoors, hands-on collaborative builds, or movement-integrated presentations rather than lecture-hall formats.</p>
+
+      <h3>Closing: Peak Sensory Experience</h3>
+
+      <p>Given the Peak-End Rule&#8217;s dominance, closing experiences should be peak sensory moments. A closing dinner isn&#8217;t just hospitality&#8212;it&#8217;s memory engineering. Taste and smell are the most emotionally evocative senses. A carefully curated multi-course experience where each dish connects thematically to event content creates powerful encoding associations attendees will retrieve months later.</p>
+
+      <p>The tactical discipline: treat sensory design with the same rigor as content development. Brief vendors on specific sensory objectives. Budget for signature scent development or custom culinary programming the same way you budget for keynote speakers. The attendee brain doesn&#8217;t distinguish between &#8220;content&#8221; and &#8220;environment&#8221;&#8212;it encodes the total experience or discards it.</p>
+
+      <h2>Engineering Memory Requires Operational Rigor, Not Just Creative Vision</h2>
+
+      <p>Christine, the Chief of Staff managing an upcoming board retreat, doesn&#8217;t need another vendor promising &#8220;unforgettable experiences.&#8221; She needs a partner who understands that memory formation is an engineering discipline requiring specific inputs, measurable processes, and predictable outcomes.</p>
+
+      <p>Neuroscience-informed event design demands execution precision most creative agencies can&#8217;t deliver. It requires:</p>
+
+      <ul>
+        <li>Disciplined cognitive load budgeting across the full event arc</li>
+        <li>Vendor coordination that extends to sensory design objectives, not just logistics</li>
+        <li>Content sequencing based on attention science, not convenient scheduling</li>
+        <li>Measurement frameworks that connect encoding effectiveness to business outcomes</li>
+        <li>Stakeholder communication that translates brain science into operational decisions</li>
+      </ul>
+
+      <p>Sandbox-XM&#8217;s methodology synthesizes neuroscience principles with hospitality-first execution discipline. We don&#8217;t deliver mood boards and hope for memorability. We engineer specific encoding outcomes through operational rigor: detailed run-of-show design accounting for cognitive state changes, vendor briefings with explicit sensory objectives, and post-event measurement that validates memory retention and business impact.</p>
+
+      <p>If your next leadership summit, customer experience event, or product launch requires attendees to remember and act six months later&#8212;not just show up and leave satisfied&#8212;the design requirements are fundamentally different.</p>
+
+      <p>The question isn&#8217;t whether neuroscience should inform your event strategy. The question is whether your current partner has the expertise and execution discipline to translate brain science into reliable outcomes.</p>
+
+      <p>For corporate event leaders managing high-stakes experiences where memory retention and business attribution matter more than production spectacle, a conversation about neuroscience-informed design methodology makes strategic sense. Connect with Sandbox-XM to explore how cognitive psychology principles translate into your specific event objectives and measurable outcomes.</p>
+
+      <div class="article-cta-section">
+        <h2>Ready to design events that attendees actually remember?</h2>
+        <p>Memory formation isn&#8217;t a happy accident&#8212;it&#8217;s an engineering discipline. If your next summit, product launch, or leadership retreat needs to drive action months later, let&#8217;s talk about neuroscience-informed design.</p>
+        <a href="/#contact" class="article-back">Start a conversation</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p>&copy; 2025 Sandbox-XM. Part of <a href="#">Sandbox Group</a>. All rights reserved.</p>
+  </footer>
+
+  <script>
+    var navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 40) {
+        navbar.classList.add('scrolled');
+      } else {
+        navbar.classList.remove('scrolled');
+      }
+    });
+
+    var navToggle = document.getElementById('navToggle');
+    var navLinks = document.getElementById('navLinks');
+    navToggle.addEventListener('click', function() {
+      navLinks.classList.toggle('open');
+      navToggle.classList.toggle('open');
+    });
+  </script>
+
+<script>
+(function() {
+  var PROJECT_ID = "sandbox-xm";
+  var FORGE_ORIGIN = "https://forge-os.ai";
+  var ENDPOINT = FORGE_ORIGIN + '/api/analytics/events';
+  var BATCH_INTERVAL = 4000;
+  var MAX_BATCH = 30;
+
+  function uid() {
+    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+  var visitorId = (function() {
+    try {
+      var k = '_fvid';
+      var v = localStorage.getItem(k);
+      if (!v) { v = uid(); localStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+  var sessionId = (function() {
+    try {
+      var k = '_fsid';
+      var v = sessionStorage.getItem(k);
+      if (!v) { v = uid(); sessionStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+
+  function parseUA(ua) {
+    var browser = 'Other', os = 'Other';
+    if (/Edg//.test(ua)) browser = 'Edge';
+    else if (/OPR/|Opera/.test(ua)) browser = 'Opera';
+    else if (/Chrome//.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+    else if (/Firefox//.test(ua)) browser = 'Firefox';
+    else if (/Safari//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+    else if (/Chromium//.test(ua)) browser = 'Chromium';
+    else if (/MSIE|Trident/.test(ua)) browser = 'IE';
+
+    if (/Windows/.test(ua)) os = 'Windows';
+    else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+    else if (/Mac OS X/.test(ua)) os = 'macOS';
+    else if (/Android/.test(ua)) os = 'Android';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    else if (/CrOS/.test(ua)) os = 'ChromeOS';
+
+    var deviceType = /Mobi|Android|iPhone|iPad|iPod|Touch/.test(ua) ? 'mobile' : 'desktop';
+    if (/iPad|Tablet/.test(ua)) deviceType = 'tablet';
+
+    return { browser: browser, os: os, deviceType: deviceType };
+  }
+
+  var queue = [];
+  function push(type, props) {
+    queue.push({
+      type: type,
+      sessionId: sessionId,
+      visitorId: visitorId,
+      url: location.href,
+      referrer: document.referrer || '',
+      properties: props || {},
+      ts: Date.now()
+    });
+    if (queue.length >= MAX_BATCH) flush();
+  }
+
+  function flush() {
+    if (queue.length === 0) return;
+    var batch = queue.splice(0);
+    var payload = JSON.stringify({ projectId: PROJECT_ID, events: batch });
+    try {
+      if (navigator.sendBeacon) {
+        var blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(ENDPOINT, blob);
+      } else {
+        fetch(ENDPOINT, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+      }
+    } catch(e) {}
+  }
+
+  setInterval(flush, BATCH_INTERVAL);
+  window.addEventListener('pagehide', flush);
+  window.addEventListener('beforeunload', flush);
+
+  window.forge_track = function(name, props) { push(name, props || {}); };
+
+  var uaInfo = parseUA(navigator.userAgent);
+  push('session_start', {
+    browser: uaInfo.browser,
+    os: uaInfo.os,
+    deviceType: uaInfo.deviceType,
+    viewport: window.innerWidth + 'x' + window.innerHeight,
+    screen: screen.width + 'x' + screen.height,
+    dpr: window.devicePixelRatio || 1,
+    language: navigator.language || '',
+    timezone: (function() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) { return ''; } })(),
+    connection: (function() { try { return (navigator.connection || navigator.mozConnection || navigator.webkitConnection || {}).effectiveType || ''; } catch(e) { return ''; } })(),
+    touch: (('ontouchstart' in window) || navigator.maxTouchPoints > 0)
+  });
+
+  var pageEnterTs = Date.now();
+  push('pageview', { title: document.title });
+
+  (function() {
+    var lastUrl = location.href;
+    function onNav() {
+      if (location.href !== lastUrl) {
+        if (pageEnterTs) push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+        lastUrl = location.href;
+        pageEnterTs = Date.now();
+        push('pageview', { title: document.title });
+      }
+    }
+    var origPush = history.pushState.bind(history);
+    var origReplace = history.replaceState.bind(history);
+    history.pushState = function() { origPush.apply(this, arguments); onNav(); };
+    history.replaceState = function() { origReplace.apply(this, arguments); onNav(); };
+    window.addEventListener('popstate', onNav);
+  })();
+
+  window.addEventListener('pagehide', function() {
+    push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+  });
+
+  (function() {
+    var marks = { 25: false, 50: false, 75: false, 100: false };
+    function onScroll() {
+      var el = document.documentElement;
+      var scrolled = el.scrollTop + el.clientHeight;
+      var total = el.scrollHeight;
+      if (total <= el.clientHeight) return;
+      var pct = Math.round((scrolled / total) * 100);
+      [25, 50, 75, 100].forEach(function(mark) {
+        if (!marks[mark] && pct >= mark) {
+          marks[mark] = true;
+          push('scroll_depth', { depth: String(mark) });
+        }
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+
+  document.addEventListener('visibilitychange', function() {
+    push('visibility', { state: document.visibilityState });
+  });
+
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    var depth = 0;
+    while (el && depth < 5) {
+      if (el.tagName && /^(A|BUTTON|INPUT|SELECT|TEXTAREA|LABEL|LI)$/.test(el.tagName)) break;
+      el = el.parentElement;
+      depth++;
+    }
+    if (!el || !el.tagName) return;
+    push('click', {
+      tag: el.tagName.toLowerCase(),
+      id: el.id || null,
+      text: (el.textContent || '').trim().slice(0, 100),
+      href: el.href || null,
+      classes: (el.className && typeof el.className === 'string') ? el.className.slice(0, 100) : null
+    });
+  }, true);
+
+  document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM') return;
+    var fields = Array.from(form.elements)
+      .filter(function(f) { return f.name && f.type !== 'password' && f.type !== 'hidden'; })
+      .map(function(f) { return f.name; });
+    push('form_submit', { formId: form.id || null, action: form.action || null, fields: fields });
+  }, true);
+
+  document.addEventListener('copy', function() {
+    var sel = window.getSelection ? window.getSelection().toString().slice(0, 200) : '';
+    push('copy', { text: sel });
+  });
+
+  window.addEventListener('error', function(e) {
+    push('js_error', {
+      message: (e.message || '').slice(0, 500),
+      source: (e.filename || '').slice(0, 300),
+      line: e.lineno,
+      col: e.colno,
+      stack: (e.error && e.error.stack ? e.error.stack.slice(0, 1000) : null)
+    });
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    var msg = '';
+    try { msg = String(e.reason && e.reason.message ? e.reason.message : e.reason); } catch(_) {}
+    push('unhandled_rejection', { message: msg.slice(0, 500) });
+  });
+
+  (function() {
+    var origFetch = window.fetch;
+    window.fetch = function(resource, init) {
+      var url = typeof resource === 'string' ? resource : (resource.url || '');
+      if (url.indexOf(FORGE_ORIGIN) !== -1) return origFetch.apply(this, arguments);
+      var t0 = Date.now();
+      var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+      return origFetch.apply(this, arguments).then(function(resp) {
+        push('fetch', { url: url.slice(0, 300), method: method, status: resp.status, duration: Date.now() - t0 });
+        return resp;
+      }, function(err) {
+        push('fetch_error', { url: url.slice(0, 300), method: method, error: String(err).slice(0, 200), duration: Date.now() - t0 });
+        throw err;
+      });
+    };
+
+    var origOpen = XMLHttpRequest.prototype.open;
+    var origSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._fa_method = method;
+      this._fa_url = url;
+      this._fa_t0 = null;
+      return origOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function() {
+      var xhr = this;
+      xhr._fa_t0 = Date.now();
+      xhr.addEventListener('loadend', function() {
+        var url = String(xhr._fa_url || '');
+        if (url.indexOf(FORGE_ORIGIN) === -1) {
+          push('xhr', { url: url.slice(0, 300), method: xhr._fa_method || 'GET', status: xhr.status, duration: Date.now() - xhr._fa_t0 });
+        }
+      });
+      return origSend.apply(this, arguments);
+    };
+  })();
+
+  (function() {
+    var vitals = {};
+    function reportVitals() {
+      if (Object.keys(vitals).length > 0) {
+        push('web_vitals', vitals);
+        vitals = {};
+      }
+    }
+    function observe(type, cb) {
+      try {
+        var po = new PerformanceObserver(function(list) {
+          list.getEntries().forEach(cb);
+        });
+        po.observe({ type: type, buffered: true });
+      } catch(e) {}
+    }
+
+    observe('largest-contentful-paint', function(e) {
+      vitals.LCP = Math.round(e.startTime);
+    });
+    observe('first-input', function(e) {
+      vitals.FID = Math.round(e.processingStart - e.startTime);
+    });
+    var clsVal = 0;
+    observe('layout-shift', function(e) {
+      if (!e.hadRecentInput) clsVal += e.value;
+      vitals.CLS = Math.round(clsVal * 1000) / 1000;
+    });
+    observe('paint', function(e) {
+      if (e.name === 'first-contentful-paint') vitals.FCP = Math.round(e.startTime);
+    });
+    observe('event', function(e) {
+      if (e.duration > (vitals.INP || 0)) vitals.INP = Math.round(e.duration);
+    });
+
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        try {
+          var nav = performance.getEntriesByType('navigation')[0];
+          if (nav) vitals.TTFB = Math.round(nav.responseStart - nav.requestStart);
+        } catch(e) {}
+        reportVitals();
+      }, 0);
+    });
+  })();
+
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      try {
+        var nav = performance.getEntriesByType('navigation')[0];
+        if (!nav) return;
+        push('page_load', {
+          loadTime: Math.round(nav.loadEventEnd - nav.startTime),
+          domContentLoaded: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+          ttfb: Math.round(nav.responseStart - nav.requestStart),
+          transferSize: nav.transferSize || 0
+        });
+      } catch(e) {}
+    }, 100);
+  });
+
+})();
+</script>
+</body>
+</html>
