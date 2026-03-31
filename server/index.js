@@ -987,6 +987,26 @@ const FORGE_TOOLS = [
     },
   },
   {
+    name: "fetch_url",
+    description: "Fetch the contents of any URL — web pages, documentation, external APIs, or internal ForgeOS endpoints like /api/assets or /api/skills. Use this to inspect live app pages, check asset lists, or load skill instructions.",
+    parameters: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "Full URL to fetch. For internal ForgeOS endpoints use https://forge-os.ai/api/... e.g. https://forge-os.ai/api/assets to list all assets." },
+      },
+      required: ["url"],
+    },
+  },
+  {
+    name: "list_assets",
+    description: "List all assets stored in the ForgeOS asset library. Returns filenames, mimetypes, and sizes. Use this to check what images or files are available before referencing them in an app.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+  {
     name: "ask_user",
     description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
     parameters: {
@@ -1041,7 +1061,8 @@ You do not write code. You think, plan, spec, and delegate.
 - github_patch — surgical find/replace for small targeted changes
 - render_status — check deploy status and get the live URL
 - memory_search — search past builds for patterns and lessons
-- fetch_url — fetch any URL: web pages, documentation, APIs, or /api/skills to load skill instructions
+- fetch_url — fetch any URL: web pages, documentation, live app pages, or internal ForgeOS APIs. Use https://forge-os.ai/api/assets to inspect available assets, https://forge-os.ai/api/skills to load skill instructions
+- list_assets — list all files in the ForgeOS asset library (filenames, mimetypes, sizes). Always use this before referencing an image or file in an app
 - ask_user — ask Brian a question when you genuinely need clarification
 - write_code — hand off a coding task to Claude 3.5 Sonnet. You are not writing the code — you are specifying precisely what needs to be built and providing full context. The agent returns complete files. You commit them.
 
@@ -1280,6 +1301,29 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         return JSON.stringify(parsed);
       } catch (err) {
         return "write_code error: " + err.message + (err.cause ? " | cause: " + err.cause : "");
+      }
+    }
+
+    case "fetch_url": {
+      try {
+        const targetUrl = toolInput.url;
+        const resp = await fetch(targetUrl, { headers: { "Accept": "text/html,application/json,*/*" } });
+        const contentType = resp.headers.get("content-type") || "";
+        const text = await resp.text();
+        // Truncate large responses to avoid overwhelming context
+        const truncated = text.length > 8000 ? text.slice(0, 8000) + "\n\n[truncated — " + text.length + " total chars]" : text;
+        return JSON.stringify({ status: resp.status, contentType, body: truncated });
+      } catch (err) {
+        return "fetch_url error: " + err.message;
+      }
+    }
+
+    case "list_assets": {
+      try {
+        const assets = await assetsManager.listAssets();
+        return JSON.stringify(assets.map(a => ({ filename: a.filename, mimetype: a.mimetype, size: a.size })));
+      } catch (err) {
+        return "list_assets error: " + err.message;
       }
     }
 
