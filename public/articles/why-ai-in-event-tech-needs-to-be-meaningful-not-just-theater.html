@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Why AI in Event Tech Needs to Be Meaningful, Not Just Theater &mdash; The Sandbox</title>
+  <meta name="description" content="Corporate event planners face AI tools promising transformation but delivering theater. Here's how to distinguish meaningful AI application from vendor spectacle." />
+  <link rel="icon" type="image/png" href="/api/assets/Icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .article-hero {
+      background: linear-gradient(135deg, #0F3460 0%, #16213E 100%);
+      padding: 10rem 2rem 5rem;
+      text-align: center;
+    }
+
+    .article-hero-eyebrow {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #E94560;
+      margin-bottom: 1rem;
+      display: inline-block;
+      background: rgba(233,69,96,0.1);
+      border: 1px solid rgba(233,69,96,0.25);
+      border-radius: 3px;
+      padding: 0.25rem 0.6rem;
+    }
+
+    .article-hero h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      color: #f0f0f0;
+      max-width: 760px;
+      margin: 1rem auto 1.5rem;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    .article-meta {
+      font-size: 0.88rem;
+      color: #888888;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .article-hero-image {
+      max-width: 900px;
+      margin: 3rem auto 0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    }
+
+    .article-hero-image img {
+      width: 100%;
+      height: 420px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .article-body-section {
+      background: #16213E;
+      padding: 5rem 2rem 6rem;
+    }
+
+    .article-body {
+      max-width: 720px;
+      margin: 0 auto;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.05rem;
+      color: #cccccc;
+      line-height: 1.85;
+    }
+
+    .article-body p {
+      margin-bottom: 1.6rem;
+    }
+
+    .article-body h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+      line-height: 1.25;
+    }
+
+    .article-body h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 2.25rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.3;
+    }
+
+    .article-body ul,
+    .article-body ol {
+      padding-left: 1.5rem;
+      margin-bottom: 1.6rem;
+    }
+
+    .article-body li {
+      margin-bottom: 0.6rem;
+      color: #cccccc;
+    }
+
+    .article-body blockquote {
+      border-left: 3px solid #E94560;
+      padding: 0.75rem 1.5rem;
+      margin: 2rem 0;
+      background: rgba(233,69,96,0.05);
+      border-radius: 0 4px 4px 0;
+    }
+
+    .article-body blockquote p {
+      color: #e0e0e0;
+      font-style: italic;
+      margin-bottom: 0;
+    }
+
+    .article-body strong {
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .article-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #E94560;
+      text-decoration: none;
+      margin-bottom: 3rem;
+      transition: color 0.2s;
+    }
+
+    .article-back:hover {
+      color: #ffffff;
+      text-decoration: none;
+    }
+
+    .article-back::before {
+      content: '\2190';
+    }
+
+    .article-cta-section {
+      margin-top: 4rem;
+      padding: 2.5rem;
+      background: rgba(233,69,96,0.06);
+      border: 1px solid rgba(233,69,96,0.2);
+      border-radius: 8px;
+    }
+
+    .article-cta-section h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 1rem;
+      line-height: 1.25;
+    }
+
+    .article-cta-section p {
+      color: #cccccc;
+      margin-bottom: 1.5rem;
+    }
+
+    .article-cta-section .article-back {
+      margin-bottom: 0;
+    }
+
+    .article-cta-section .article-back::before {
+      content: '';
+    }
+
+    .article-cta-section .article-back::after {
+      content: ' \2192';
+    }
+
+    @media (max-width: 768px) {
+      .article-hero {
+        padding: 8rem 1.5rem 4rem;
+      }
+
+      .article-hero-image img {
+        height: 240px;
+      }
+
+      .article-body-section {
+        padding: 3rem 1.5rem 4rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="/" class="nav-logo">Sandbox-<span style="color: #E94560;">XM</span></a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="/#services">Services</a></li>
+        <li><a href="/#about">About</a></li>
+        <li><a href="/#contact">Contact</a></li>
+        <li><a href="/sandbox.html">The Sandbox</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Article Hero -->
+  <section class="article-hero">
+    <span class="article-hero-eyebrow">Thought Leadership</span>
+    <h1>Why AI in Event Tech Needs to Be Meaningful, Not Just Theater</h1>
+    <p class="article-meta">By Sandbox-XM &mdash; June 2025 &mdash; 9 min read</p>
+    <div class="article-hero-image">
+      <img src="/api/assets/ai-in-event-tech.jpg" alt="Why AI in Event Tech Needs to Be Meaningful, Not Just Theater" />
+    </div>
+  </section>
+
+  <!-- Article Body -->
+  <section class="article-body-section">
+    <div class="article-body">
+      <a href="/sandbox.html" class="article-back">Back to The Sandbox</a>
+
+      <p>Your CEO just returned from a competitor&#8217;s product launch. The feedback: &#8220;They used AI to personalize every attendee&#8217;s agenda in real-time. Why aren&#8217;t we doing that?&#8221;</p>
+
+      <p>You&#8217;ve seen the vendor demos. Chatbots that hallucinate speaker bios. &#8220;AI-powered networking&#8221; that&#8217;s really just LinkedIn scraping with a gradient interface. Recommendation engines that suggest the same three breakout sessions to everyone.</p>
+
+      <p>The gap between AI marketing promises and operational reality has never been wider in corporate event technology. And for directors managing high-stakes experiences where executive reputations are on the line, distinguishing meaningful AI application from vendor theater isn&#8217;t just a procurement decision&#8212;it&#8217;s a risk management imperative.</p>
+
+      <p>The question isn&#8217;t whether to use AI in your events. It&#8217;s whether the AI you&#8217;re considering actually solves a problem your attendees experience, or simply creates new work for your team while generating impressive-sounding metrics no one will act on.</p>
+
+      <h2>The Theater Problem: When AI Becomes Another Vanity Metric</h2>
+
+      <p>Event technology vendors have discovered that &#8220;AI-powered&#8221; commands a 30-40% pricing premium over identical features without the label. The result is a market flooded with theatrical AI&#8212;tools designed to impress procurement committees in demos but collapse under the operational demands of actual event execution.</p>
+
+      <p>Theater AI shares three consistent characteristics:</p>
+
+      <p><strong>It solves problems attendees don&#8217;t have.</strong> A facial recognition check-in system that saves 8 seconds per attendee but requires 40 hours of pre-event photo collection and consent management. An AI networking algorithm that matches people based on job titles when your attendees already know exactly who they need to meet and are frustrated by forced randomization.</p>
+
+      <p><strong>It creates transparency gaps your team inherits.</strong> &#8220;The AI recommended this session because...&#8221; trails off into proprietary algorithm explanations. When an executive asks why their direct report was routed to the wrong breakout, you can&#8217;t explain the logic. The vendor&#8217;s response: &#8220;Trust the AI.&#8221;</p>
+
+      <p><strong>It generates metrics disconnected from outcomes.</strong> Dashboards showing &#8220;AI engagement scores&#8221; and &#8220;predictive networking coefficient&#8221; that sound sophisticated in post-event reports but provide zero actionable intelligence for improving future experiences. Your CFO asks how AI impacted pipeline conversion. You have 47 slides of AI activity. No answer.</p>
+
+      <p>The neuroscience research on attention economics is clear: novelty captures attention briefly, but sustained engagement requires relevance. Theater AI optimizes for the demo moment&#8212;the gasp in the procurement meeting&#8212;not the attendee journey three hours into day two when cognitive load is high and people need clarity, not algorithmic complexity.</p>
+
+      <h2>Five Criteria for Meaningful AI in Corporate Events</h2>
+
+      <p>Meaningful AI passes a simple operational test: it either reduces cognitive load on your team, improves a specific attendee friction point, or surfaces insight that changes a decision you would have made differently. Theater AI does none of these.</p>
+
+      <h3>1. The Invisibility Principle</h3>
+
+      <p>The best AI applications are invisible to attendees and transparent to operators. Real-time language translation that seamlessly supports multilingual Q&amp;A sessions. Acoustic analysis that alerts your AV team when a microphone is failing before attendees notice degraded audio quality. Sentiment detection in post-session surveys that flags concerning patterns your team should investigate.</p>
+
+      <p>These tools don&#8217;t announce themselves. Attendees experience better outcomes. Your team gains operational leverage. No one writes &#8220;amazing AI&#8221; on the feedback form&#8212;they write &#8220;flawless execution.&#8221;</p>
+
+      <h3>2. The Failure Mode Test</h3>
+
+      <p>Ask your vendor: &#8220;Walk me through what happens when your AI fails mid-event.&#8221; Meaningful AI degrades gracefully. The system falls back to manual processes your team already understands. Theater AI creates crisis escalation paths that didn&#8217;t exist before because no one planned for algorithmic failure during your CEO&#8217;s keynote.</p>
+
+      <p>If the vendor&#8217;s answer involves &#8220;99.9% uptime&#8221; statistics rather than degradation protocols, you&#8217;re looking at theater.</p>
+
+      <h3>3. The Operator Transparency Requirement</h3>
+
+      <p>You should be able to explain AI decisions to any stakeholder in under 60 seconds without using the phrase &#8220;machine learning.&#8221; Why did the system recommend moving the product demo to the larger room? &#8220;Registration velocity in the target attendee segment exceeded historical patterns by 40%, indicating higher-than-expected interest.&#8221;</p>
+
+      <p>Black box explanations&#8212;&#8220;the algorithm optimized for engagement&#8221;&#8212;are theater. Clear decision logic is meaningful.</p>
+
+      <h3>4. The Integration Reality Check</h3>
+
+      <p>Theater AI exists as a standalone platform requiring new data inputs, custom workflows, and integration projects that consume weeks of your team&#8217;s bandwidth. Meaningful AI plugs into systems you already use and enhances existing workflows.</p>
+
+      <p>If adopting the AI tool requires abandoning your current event management platform or creating parallel data collection processes, operational friction will exceed any theoretical benefit.</p>
+
+      <h3>5. The Outcome Specificity Standard</h3>
+
+      <p>Meaningful AI ties to specific, measurable attendee outcomes or operational efficiencies. &#8220;AI reduced venue cost by 12% through optimized space allocation based on validated attendance patterns.&#8221; &#8220;Post-event survey completion increased 28% using AI-timed survey delivery matched to attendee engagement curves.&#8221;</p>
+
+      <p>Theater AI offers vague promises of &#8220;enhanced engagement&#8221; and &#8220;personalized experiences&#8221; without defining what changes, for whom, or how you&#8217;ll measure it.</p>
+
+      <h2>Where AI Actually Adds Value in Event Execution</h2>
+
+      <p>Strip away the marketing theater and AI delivers genuine value in three domains of corporate event management:</p>
+
+      <h3>Pre-Event Intelligence</h3>
+
+      <p>AI excels at pattern recognition across historical data. Which session topics drive highest post-event satisfaction scores? What registration velocity patterns predict no-show rates? How do weather forecasts correlate with outdoor breakout attendance?</p>
+
+      <p>This isn&#8217;t flashy. It doesn&#8217;t generate demo gasps. But it enables your team to make better decisions earlier&#8212;adjusting catering orders, re-allocating room assignments, and briefing executives on realistic attendance expectations before they commit to specific talking points.</p>
+
+      <h3>Real-Time Operations</h3>
+
+      <p>The operational value of AI emerges when it augments human judgment during live execution. Badge scan velocity analysis that predicts session overflow 15 minutes before it occurs&#8212;giving your team time to open additional seating or redirect attendees. Acoustic monitoring that detects audio degradation before audience complaints reach your production team.</p>
+
+      <p>These applications share a common characteristic: they surface information your team couldn&#8217;t access otherwise, then get out of the way while humans make decisions.</p>
+
+      <h3>Post-Event Analysis</h3>
+
+      <p>AI&#8217;s natural language processing capabilities transform post-event analysis from manual survey coding to pattern extraction at scale. Sentiment analysis across 2,000 open-ended survey responses that identifies emerging themes your team would miss in manual review. Session recording transcription with topic clustering that reveals which product features generated the most questions&#8212;intelligence your product team actually uses.</p>
+
+      <p>The pattern: AI adds value when it processes information at scales humans can&#8217;t match, then presents findings in forms humans can act on.</p>
+
+      <h2>The GTM Integration Gap: Why Event AI Fails to Impact Pipeline</h2>
+
+      <p>Sarah, a VP of Marketing at a mid-market SaaS company, invested $180,000 in an &#8220;AI-powered event intelligence platform&#8221; for her annual user conference. The vendor promised real-time intent signals, predictive lead scoring, and automated sales routing.</p>
+
+      <p>Post-event reality: The AI generated 847 &#8220;high-intent&#8221; lead flags. Her sales team could action 12. Why?</p>
+
+      <p>The AI had no context for her company&#8217;s ICP. It couldn&#8217;t distinguish between a current customer exploring expansion from a competitor&#8217;s employee gathering competitive intelligence. It flagged &#8220;booth dwell time&#8221; as intent signal without understanding that attendees lingering at the demo station were waiting for the adjacent coffee service.</p>
+
+      <p>This is the GTM integration gap&#8212;AI systems that generate activity metrics disconnected from commercial outcomes because they operate in isolation from your actual sales process.</p>
+
+      <p>Meaningful event AI integrates with your existing go-to-market infrastructure:</p>
+
+      <ul>
+        <li>CRM integration that enriches contact records rather than creating duplicate &#8220;event leads&#8221; your sales team ignores</li>
+        <li>Signal definitions calibrated to your specific sales cycle&#8212;what constitutes intent for your product at your price point</li>
+        <li>Attribution models that connect event interactions to pipeline outcomes your CFO recognizes</li>
+      </ul>
+
+      <p>Theater AI operates in a silo, generating impressive standalone dashboards. Meaningful AI disappears into your existing workflows, surfacing only when it has something useful to say.</p>
+
+      <h2>Questions to Ask Before Adopting Event AI</h2>
+
+      <p>Before your next AI vendor evaluation, pressure-test claims against these operational realities:</p>
+
+      <p><strong>&#8220;What problem does this solve that my current process doesn&#8217;t?&#8221;</strong></p>
+
+      <p>If the answer requires inventing a problem&#8212;&#8220;You&#8217;re missing intent signals you don&#8217;t currently track&#8221;&#8212;rather than addressing a pain point your team experiences, proceed with skepticism.</p>
+
+      <p><strong>&#8220;Show me the failure mode.&#8221;</strong></p>
+
+      <p>Demand a walkthrough of system failure during live event execution. If the vendor can&#8217;t demonstrate graceful degradation, they haven&#8217;t built for production reliability.</p>
+
+      <p><strong>&#8220;How do I explain AI decisions to my CEO?&#8221;</strong></p>
+
+      <p>If the vendor&#8217;s answer involves technical jargon or appeals to algorithmic complexity, you&#8217;ll be exposed when leadership asks why the AI made a specific recommendation.</p>
+
+      <p><strong>&#8220;What changes in my team&#8217;s daily workflow?&#8221;</strong></p>
+
+      <p>Meaningful AI reduces operational burden. Theater AI adds new dashboards to check, new data to export, new processes to manage. Understand the true operational cost before adoption.</p>
+
+      <p><strong>&#8220;Show me outcomes at comparable companies.&#8221;</strong></p>
+
+      <p>Case studies should specify: company size, event type, specific metric improved, and magnitude of improvement. &#8220;Increased engagement&#8221; is not an outcome. &#8220;32% improvement in post-event meeting conversion rate for enterprise software companies running user conferences&#8221; is.</p>
+
+      <h2>The Strategic Frame: AI as Operational Leverage, Not Spectacle</h2>
+
+      <p>The organizations getting genuine value from event AI share a common perspective: they view AI as operational leverage, not marketing spectacle.</p>
+
+      <p>They don&#8217;t announce AI presence to attendees. They don&#8217;t feature AI capabilities in event marketing. They use AI to execute better, not to impress procurement committees or generate conference keynote content about digital transformation.</p>
+
+      <p>This reframe clarifies vendor selection criteria. Instead of &#8220;Which AI features are most impressive?&#8221; the question becomes &#8220;Which AI applications reduce operational burden while improving attendee outcomes?&#8221;</p>
+
+      <p>The bar for meaningful AI is surprisingly achievable: save your team 10 hours of manual work per event while maintaining or improving attendee experience metrics. That&#8217;s it. No revolution required.</p>
+
+      <p>Theater AI promises transformation. Meaningful AI delivers incremental improvement at reduced operational cost. The latter compounds across events. The former generates impressive post-event slides that no one references again.</p>
+
+      <h2>Moving Forward: Practical AI Adoption for Event Leaders</h2>
+
+      <p>If your organization is evaluating AI for corporate events, consider this sequence:</p>
+
+      <p><strong>Start with analysis, not execution.</strong> AI&#8217;s highest-value, lowest-risk application is post-event data processing. Survey analysis, session recording transcription, attendance pattern identification. You can validate AI capabilities on historical data before trusting it with live execution.</p>
+
+      <p><strong>Require integration, not platform.</strong> AI capabilities embedded in your existing event management stack outperform standalone AI platforms that require data export/import workflows your team won&#8217;t sustain.</p>
+
+      <p><strong>Measure operational burden, not AI metrics.</strong> Track whether AI adoption increases or decreases your team&#8217;s workload. If the AI generates dashboards no one checks, reports no one reads, or insights no one acts on&#8212;it&#8217;s theater regardless of technical sophistication.</p>
+
+      <p><strong>Preserve human judgment at decision points.</strong> AI should surface information and recommendations. Humans should make decisions. Any system that automates decisions your team should control introduces risk your executives won&#8217;t tolerate when something goes wrong.</p>
+
+      <p>The organizations successfully deploying event AI share a characteristic: humility about what AI can actually do. They expect incremental operational improvement, not transformation. They measure success in hours saved and errors avoided, not engagement scores and networking coefficients.</p>
+
+      <p>That pragmatism&#8212;AI as boring operational tool rather than exciting transformation agent&#8212;delivers sustainable value. The theater eventually collapses. The operational leverage compounds.</p>
+
+      <div class="article-cta-section">
+        <h2>Ready to cut through the AI theater?</h2>
+        <p>Meaningful event technology serves your attendees and your operations&#8212;not vendor marketing. If you&#8217;re evaluating AI capabilities for your next event, let&#8217;s discuss what actually drives outcomes versus what just generates impressive demos.</p>
+        <a href="/#contact" class="article-back">Start a conversation</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p>&copy; 2025 Sandbox-XM. Part of <a href="#">Sandbox Group</a>. All rights reserved.</p>
+  </footer>
+
+  <script>
+    var navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 40) {
+        navbar.classList.add('scrolled');
+      } else {
+        navbar.classList.remove('scrolled');
+      }
+    });
+
+    var navToggle = document.getElementById('navToggle');
+    var navLinks = document.getElementById('navLinks');
+    navToggle.addEventListener('click', function() {
+      navLinks.classList.toggle('open');
+      navToggle.classList.toggle('open');
+    });
+  </script>
+
+<script>
+(function() {
+  var PROJECT_ID = "sandbox-xm";
+  var FORGE_ORIGIN = "https://forge-os.ai";
+  var ENDPOINT = FORGE_ORIGIN + '/api/analytics/events';
+  var BATCH_INTERVAL = 4000;
+  var MAX_BATCH = 30;
+
+  function uid() {
+    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+  var visitorId = (function() {
+    try {
+      var k = '_fvid';
+      var v = localStorage.getItem(k);
+      if (!v) { v = uid(); localStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+  var sessionId = (function() {
+    try {
+      var k = '_fsid';
+      var v = sessionStorage.getItem(k);
+      if (!v) { v = uid(); sessionStorage.setItem(k, v); }
+      return v;
+    } catch(e) { return uid(); }
+  })();
+
+  function parseUA(ua) {
+    var browser = 'Other', os = 'Other';
+    if (/Edg/.test(ua)) browser = 'Edge';
+    else if (/OPR|Opera/.test(ua)) browser = 'Opera';
+    else if (/Chrome/.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+    else if (/Firefox/.test(ua)) browser = 'Firefox';
+    else if (/Safari/.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+    else if (/Chromium/.test(ua)) browser = 'Chromium';
+    else if (/MSIE|Trident/.test(ua)) browser = 'IE';
+
+    if (/Windows/.test(ua)) os = 'Windows';
+    else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+    else if (/Mac OS X/.test(ua)) os = 'macOS';
+    else if (/Android/.test(ua)) os = 'Android';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    else if (/CrOS/.test(ua)) os = 'ChromeOS';
+
+    var deviceType = /Mobi|Android|iPhone|iPad|iPod|Touch/.test(ua) ? 'mobile' : 'desktop';
+    if (/iPad|Tablet/.test(ua)) deviceType = 'tablet';
+
+    return { browser: browser, os: os, deviceType: deviceType };
+  }
+
+  var queue = [];
+  function push(type, props) {
+    queue.push({
+      type: type,
+      sessionId: sessionId,
+      visitorId: visitorId,
+      url: location.href,
+      referrer: document.referrer || '',
+      properties: props || {},
+      ts: Date.now()
+    });
+    if (queue.length >= MAX_BATCH) flush();
+  }
+
+  function flush() {
+    if (queue.length === 0) return;
+    var batch = queue.splice(0);
+    var payload = JSON.stringify({ projectId: PROJECT_ID, events: batch });
+    try {
+      if (navigator.sendBeacon) {
+        var blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(ENDPOINT, blob);
+      } else {
+        fetch(ENDPOINT, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+      }
+    } catch(e) {}
+  }
+
+  setInterval(flush, BATCH_INTERVAL);
+  window.addEventListener('pagehide', flush);
+  window.addEventListener('beforeunload', flush);
+
+  window.forge_track = function(name, props) { push(name, props || {}); };
+
+  var uaInfo = parseUA(navigator.userAgent);
+  push('session_start', {
+    browser: uaInfo.browser,
+    os: uaInfo.os,
+    deviceType: uaInfo.deviceType,
+    viewport: window.innerWidth + 'x' + window.innerHeight,
+    screen: screen.width + 'x' + screen.height,
+    dpr: window.devicePixelRatio || 1,
+    language: navigator.language || '',
+    timezone: (function() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) { return ''; } })(),
+    connection: (function() { try { return (navigator.connection || navigator.mozConnection || navigator.webkitConnection || {}).effectiveType || ''; } catch(e) { return ''; } })(),
+    touch: (('ontouchstart' in window) || navigator.maxTouchPoints > 0)
+  });
+
+  var pageEnterTs = Date.now();
+  push('pageview', { title: document.title });
+
+  (function() {
+    var lastUrl = location.href;
+    function onNav() {
+      if (location.href !== lastUrl) {
+        if (pageEnterTs) push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+        lastUrl = location.href;
+        pageEnterTs = Date.now();
+        push('pageview', { title: document.title });
+      }
+    }
+    var origPush = history.pushState.bind(history);
+    var origReplace = history.replaceState.bind(history);
+    history.pushState = function() { origPush.apply(this, arguments); onNav(); };
+    history.replaceState = function() { origReplace.apply(this, arguments); onNav(); };
+    window.addEventListener('popstate', onNav);
+  })();
+
+  window.addEventListener('pagehide', function() {
+    push('page_exit', { timeOnPage: Date.now() - pageEnterTs });
+  });
+
+  (function() {
+    var marks = { 25: false, 50: false, 75: false, 100: false };
+    function onScroll() {
+      var el = document.documentElement;
+      var scrolled = el.scrollTop + el.clientHeight;
+      var total = el.scrollHeight;
+      if (total <= el.clientHeight) return;
+      var pct = Math.round((scrolled / total) * 100);
+      [25, 50, 75, 100].forEach(function(mark) {
+        if (!marks[mark] && pct >= mark) {
+          marks[mark] = true;
+          push('scroll_depth', { depth: String(mark) });
+        }
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+
+  document.addEventListener('visibilitychange', function() {
+    push('visibility', { state: document.visibilityState });
+  });
+
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    var depth = 0;
+    while (el && depth < 5) {
+      if (el.tagName && /^(A|BUTTON|INPUT|SELECT|TEXTAREA|LABEL|LI)$/.test(el.tagName)) break;
+      el = el.parentElement;
+      depth++;
+    }
+    if (!el || !el.tagName) return;
+    push('click', {
+      tag: el.tagName.toLowerCase(),
+      id: el.id || null,
+      text: (el.textContent || '').trim().slice(0, 100),
+      href: el.href || null,
+      classes: (el.className && typeof el.className === 'string') ? el.className.slice(0, 100) : null
+    });
+  }, true);
+
+  document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM') return;
+    var fields = Array.from(form.elements)
+      .filter(function(f) { return f.name && f.type !== 'password' && f.type !== 'hidden'; })
+      .map(function(f) { return f.name; });
+    push('form_submit', { formId: form.id || null, action: form.action || null, fields: fields });
+  }, true);
+
+  document.addEventListener('copy', function() {
+    var sel = window.getSelection ? window.getSelection().toString().slice(0, 200) : '';
+    push('copy', { text: sel });
+  });
+
+  window.addEventListener('error', function(e) {
+    push('js_error', {
+      message: (e.message || '').slice(0, 500),
+      source: (e.filename || '').slice(0, 300),
+      line: e.lineno,
+      col: e.colno,
+      stack: (e.error && e.error.stack ? e.error.stack.slice(0, 1000) : null)
+    });
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    var msg = '';
+    try { msg = String(e.reason && e.reason.message ? e.reason.message : e.reason); } catch(_) {}
+    push('unhandled_rejection', { message: msg.slice(0, 500) });
+  });
+
+  (function() {
+    var origFetch = window.fetch;
+    window.fetch = function(resource, init) {
+      var url = typeof resource === 'string' ? resource : (resource.url || '');
+      if (url.indexOf(FORGE_ORIGIN) !== -1) return origFetch.apply(this, arguments);
+      var t0 = Date.now();
+      var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+      return origFetch.apply(this, arguments).then(function(resp) {
+        push('fetch', { url: url.slice(0, 300), method: method, status: resp.status, duration: Date.now() - t0 });
+        return resp;
+      }, function(err) {
+        push('fetch_error', { url: url.slice(0, 300), method: method, error: String(err).slice(0, 200), duration: Date.now() - t0 });
+        throw err;
+      });
+    };
+
+    var origOpen = XMLHttpRequest.prototype.open;
+    var origSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._fa_method = method;
+      this._fa_url = url;
+      this._fa_t0 = null;
+      return origOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function() {
+      var xhr = this;
+      xhr._fa_t0 = Date.now();
+      xhr.addEventListener('loadend', function() {
+        var url = String(xhr._fa_url || '');
+        if (url.indexOf(FORGE_ORIGIN) === -1) {
+          push('xhr', { url: url.slice(0, 300), method: xhr._fa_method || 'GET', status: xhr.status, duration: Date.now() - xhr._fa_t0 });
+        }
+      });
+      return origSend.apply(this, arguments);
+    };
+  })();
+
+  (function() {
+    var vitals = {};
+    function reportVitals() {
+      if (Object.keys(vitals).length > 0) {
+        push('web_vitals', vitals);
+        vitals = {};
+      }
+    }
+    function observe(type, cb) {
+      try {
+        var po = new PerformanceObserver(function(list) {
+          list.getEntries().forEach(cb);
+        });
+        po.observe({ type: type, buffered: true });
+      } catch(e) {}
+    }
+
+    observe('largest-contentful-paint', function(e) {
+      vitals.LCP = Math.round(e.startTime);
+    });
+    observe('first-input', function(e) {
+      vitals.FID = Math.round(e.processingStart - e.startTime);
+    });
+    var clsVal = 0;
+    observe('layout-shift', function(e) {
+      if (!e.hadRecentInput) clsVal += e.value;
+      vitals.CLS = Math.round(clsVal * 1000) / 1000;
+    });
+    observe('paint', function(e) {
+      if (e.name === 'first-contentful-paint') vitals.FCP = Math.round(e.startTime);
+    });
+    observe('event', function(e) {
+      if (e.duration > (vitals.INP || 0)) vitals.INP = Math.round(e.duration);
+    });
+
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        try {
+          var nav = performance.getEntriesByType('navigation')[0];
+          if (nav) vitals.TTFB = Math.round(nav.responseStart - nav.requestStart);
+        } catch(e) {}
+        reportVitals();
+      }, 0);
+    });
+  })();
+
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      try {
+        var nav = performance.getEntriesByType('navigation')[0];
+        if (!nav) return;
+        push('page_load', {
+          loadTime: Math.round(nav.loadEventEnd - nav.startTime),
+          domContentLoaded: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+          ttfb: Math.round(nav.responseStart - nav.requestStart),
+          transferSize: nav.transferSize || 0
+        });
+      } catch(e) {}
+    }, 100);
+  });
+
+})();
+</script>
+</body>
+</html>
