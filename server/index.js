@@ -888,6 +888,10 @@ function githubHeaders() {
   };
 }
 
+// ─── Approval system ────────────────────────────────────────────────────────
+const pendingApprovals = new Map(); // approvalId → { resolve }
+const APPROVAL_TOOLS = new Set(["github_write", "github_patch"]);
+
 const FORGE_TOOLS = [
   {
     name: "github_create_branch",
@@ -1017,87 +1021,74 @@ const FORGE_TOOLS = [
       required: ["message"],
     },
   },
-  {
-    name: "write_code",
-    description: "Hand off a coding task to Claude 3.5 Sonnet. Use this whenever you need to write or substantially rewrite files. Read the relevant files first with github_read, then call write_code with full file context and precise requirements. Take what it returns and commit with github_write. Do not write code directly in your responses.",
-    parameters: {
-      type: "object",
-      properties: {
-        task: { type: "string", description: "Precise description of what to build or change." },
-        files_context: { type: "object", description: "Current contents of relevant files keyed by filename." },
-        requirements: { type: "array", items: { type: "string" }, description: "Specific requirements the code must meet." },
-        output_files: { type: "array", items: { type: "string" }, description: "Which files to return." },
-      },
-      required: ["task", "files_context", "requirements", "output_files"],
-    },
-  },
 ];
 
-const FORGE_SYSTEM_PROMPT = `You are Frank — a senior software architect and engineering partner. You think before you delegate. You ask when something is unclear. You break complex problems into clean pieces before calling up the code monkey.
+const FORGE_SYSTEM_PROMPT = `You are Frank — a senior software architect and full-stack engineer. You think, plan, read existing code, AND write code directly. You are the single agent — there is no delegation.
 
-You work inside ForgeOS — a deployment platform where every project lives on a GitHub branch (apps/<slug>) and auto-deploys to Render. Brian talks to you. You figure out what to build, plan it, then hand the spec to your code generation agent via the write_code tool. You never write code yourself.
+You work inside ForgeOS — a deployment platform where every project lives on a GitHub branch (apps/<slug>) and auto-deploys to Render. Brian talks to you. You figure out what to build, read the existing code, write the new code, and commit it.
 
 ## YOUR ROLE
 
-You are the architect. You:
+You are the architect AND the engineer. You:
 - Understand what Brian actually wants — ask clarifying questions when the request is ambiguous
-- Read existing code before requesting changes
-- Search memory and skills for relevant patterns before speccing anything
+- Read existing code before making changes
+- Search memory and skills for relevant patterns
 - Search the web when you need current information, docs, or API references
 - Break builds into logical chunks — schema first, then routes, then UI
-- Call write_code with precise specs and full file context
-- Commit what comes back with github_write
+- Write complete code directly and commit it with github_write
+- Use github_patch for small, surgical find/replace edits
 - Verify the deploy with render_status
 - Report back clearly — what shipped, what the URL is, what still needs doing
-
-You do not write code. You think, plan, spec, and delegate.
 
 ## YOUR TOOLS
 
 - github_create_branch — create a new apps/<slug> branch when it doesn't exist yet
 - github_ls — explore what exists on a branch
-- github_read — read any file before requesting changes to it
-- github_write — commit files returned by write_code
-- github_patch — surgical find/replace for small targeted changes
+- github_read — read any file before making changes to it
+- github_write — commit a complete file. Write the FULL file content — never truncate or use placeholder comments.
+- github_patch — surgical find/replace for small targeted changes (a few lines)
 - render_status — check deploy status and get the live URL
 - memory_search — search past builds for patterns and lessons
-- fetch_url — fetch any URL: web pages, documentation, live app pages, or internal ForgeOS APIs. Use https://forge-os.ai/api/assets to inspect available assets, https://forge-os.ai/api/skills to load skill instructions
-- list_assets — list all files in the ForgeOS asset library (filenames, mimetypes, sizes). Always use this before referencing an image or file in an app
+- fetch_url — fetch any URL: web pages, documentation, live app pages, or internal ForgeOS APIs
+- list_assets — list all files in the ForgeOS asset library
 - ask_user — ask Brian a question when you genuinely need clarification
-- write_code — hand off a coding task to Claude 3.5 Sonnet. You are not writing the code — you are specifying precisely what needs to be built and providing full context. The agent returns complete files. You commit them.
 
 ## HOW TO BUILD
 
 1. Search memory with memory_search for relevant patterns from past builds
 2. If a skill applies, fetch it with fetch_url at /api/skills
-3. Read existing files with github_read
+3. Read existing files with github_read — ALWAYS read before writing
 4. Ask Brian if anything is still unclear with ask_user
-5. **Call write_code immediately once you have the spec** — do not narrate the plan, do not summarize what you are about to do, just call it
-6. Commit each returned file with github_write
-7. Check render_status once to confirm deploy status
-8. Report what shipped and the live URL
+5. Write the code and commit with github_write (complete file) or github_patch (small edit). Brian will see an approval card and must approve before the commit executes.
+6. Check render_status once to confirm deploy status
+7. Report what shipped and the live URL
 
-## write_code — CALL IT, DON'T ANNOUNCE IT
+## APPROVAL FLOW
 
-The moment you have read the files and formed the spec, call write_code. Do not say "I'll now call write_code" or "Here's my plan before I proceed." Just call it. Brian can see the tool call happening. Narrating it wastes time and makes the stream feel slow.
+github_write and github_patch require Brian's approval before executing. Brian sees a card showing the file path, branch, and commit message. He can approve, cancel, or approve all writes for the session. Reads (github_read, github_ls, memory_search, etc.) auto-execute with no approval needed.
+
+If Brian cancels a write, you will receive "User cancelled this action." as the tool result. Adjust your approach and ask what to change.
+
+## CODE QUALITY
+
+- Write COMPLETE files — never truncate, never use "// ... rest of file" comments
+- Use github_patch for small targeted edits (a few lines), github_write for new files or large rewrites
+- CommonJS on server (require/module.exports) — no ES modules
+- @neondatabase/serverless for all databases
+- No dotenv — env vars injected at runtime
 
 ## DEPLOY TIMING — CRITICAL
 
-Render deploys take 2-4 minutes. You have no internal clock. Do not guess how long something has been deploying. Follow this exact protocol:
+Render deploys take 2-4 minutes. Follow this exact protocol:
 
 1. After committing files, call render_status once immediately
 2. If status is "deploying" — report the URL to Brian and say it will be live in 2-4 minutes. STOP. Do not poll again.
 3. Brian will check it himself. Only call render_status again if Brian explicitly asks.
 
-Never say "still deploying", "almost done", "this is taking longer than expected", or any variation. You don't know how long it has been. A deploy that feels instant to you may have been 30 seconds or 5 minutes. Just give Brian the URL and let Render do its job.
-
 ## PLATFORM RULES
 
 - Branch: apps/<slug> — already provisioned, never write to main
-- CRITICAL: Always pass branch: 'apps/<slug>' explicitly in every github_write and github_patch call. Omitting it defaults to main and is blocked.
-- CommonJS on server — no ES modules
-- @neondatabase/serverless for all databases
-- No dotenv — env vars injected at runtime
+- CRITICAL: Always pass branch: 'apps/<slug>' explicitly in every github_write and github_patch call
 - GET / returns complete HTML
 - Root-relative URLs only
 - NEON_DATABASE_URL reserved — apps use custom names like APP_DATABASE_URL
@@ -1110,12 +1101,7 @@ Never say "still deploying", "almost done", "this is taking longer than expected
 - Be direct — no filler, no preamble
 - When you ship, say what committed and the live URL
 - When something fails, say exactly what failed and what you are doing about it
-- Ask one focused question at a time when you need clarification
 - Never describe what you are about to do — do it, then report what you did
-
-## IF write_code FAILS
-
-If write_code returns an error, tell Brian exactly what the error was and stop. Do not attempt to write code yourself. Do not fall back to github_write with hand-written code. You are the architect — if the code agent is unavailable, the build stops until it is fixed.
 
 ## MANDATORY: render_status before reporting live
 
@@ -1274,36 +1260,6 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
       catch { return "Memory search unavailable."; }
     }
 
-    case "write_code": {
-      try {
-        const Anthropic = require("@anthropic-ai/sdk");
-        const anthropicKey = process.env.ANTHROPIC_API_KEY;
-        if (!anthropicKey) return "Error: ANTHROPIC_API_KEY not set";
-        const client = new Anthropic.default({ apiKey: anthropicKey });
-        const systemPrompt = "You are a code generation engine. Return complete file contents only.\nRules:\n- Return complete files. Never truncate. Never use placeholder comments.\n- No explanation. No preamble. No markdown fences.\n- Return valid JSON only: { \"files\": { \"filename\": \"complete file contents\" } }\n- If a file is not changing, omit it.\n- CommonJS on server (require/module.exports). No dotenv. PORT = process.env.PORT || 3000.";
-        const filesBlock = Object.entries(toolInput.files_context || {}).map(function(e) { return "=== " + e[0] + " ===\n" + e[1]; }).join("\n\n");
-        const userPrompt = "TASK: " + toolInput.task + "\n\nREQUIREMENTS:\n" + (toolInput.requirements || []).map(function(r, i) { return (i+1) + ". " + r; }).join("\n") + "\n\nEXISTING FILES:\n" + filesBlock + "\n\nOUTPUT FILES NEEDED: " + (toolInput.output_files || []).join(", ") + "\n\nReturn JSON only: { \"files\": { \"filename\": \"complete contents\" } }";
-        if (sendEvent) sendEvent({ type: "tool_status", content: "Sending to Claude 3.5 Sonnet..." });
-        const result = await client.messages.create({
-          model: "claude-sonnet-4-5",
-          max_tokens: 32000,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userPrompt }],
-        });
-        const raw = result.content[0].text;
-        const clean = raw.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
-        var parsed;
-        try { parsed = JSON.parse(clean); } catch (parseErr) {
-          return "write_code error: Claude returned invalid JSON. Raw: " + raw.slice(0, 500);
-        }
-        const fileNames = Object.keys(parsed.files || {});
-        if (sendEvent) sendEvent({ type: "tool_status", content: "\u2713 Code ready: " + fileNames.join(", ") });
-        return JSON.stringify(parsed);
-      } catch (err) {
-        return "write_code error: " + err.message + (err.cause ? " | cause: " + err.cause : "");
-      }
-    }
-
     case "fetch_url": {
       try {
         const targetUrl = toolInput.url;
@@ -1335,6 +1291,19 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
       return "Unknown tool: " + toolName;
   }
 }
+
+// ─── Approval endpoint — client sends approval/rejection for pending writes ──
+app.post("/api/projects/:id/chat/approve", (req, res) => {
+  const { approvalId, approved } = req.body; // approved: true, false, or "approve_all"
+  const resolver = pendingApprovals.get(approvalId);
+  if (resolver) {
+    resolver(approved); // true = approve once, "approve_all" = approve all, false = cancel
+    pendingApprovals.delete(approvalId);
+    res.json({ ok: true });
+  } else {
+    res.status(404).json({ error: "No pending approval with that ID" });
+  }
+});
 
 app.post("/api/projects/:id/chat", async (req, res) => {
   const { message, skillContext, attachments } = req.body;
@@ -1419,6 +1388,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
     const MAX_ROUNDS = 20;
+    let autoApproveWrites = false; // Set to true when user clicks "Approve All Writes"
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       let streamText = "";
@@ -1466,11 +1436,32 @@ app.post("/api/projects/:id/chat", async (req, res) => {
         break;
       }
 
-      // Execute tools and collect results
+      // Execute tools and collect results — approval gate for writes
       const toolResults = [];
       for (const toolUse of toolBlocks) {
         console.log(`[forge] round=${round} tool=${toolUse.name}`, JSON.stringify(toolUse.input).slice(0, 120));
         if (send) send({ type: "tool_status", content: toolUse.name + "..." });
+
+        // Approval gate: pause and wait for client approval on write tools
+        if (APPROVAL_TOOLS.has(toolUse.name) && !autoApproveWrites) {
+          const approvalId = `apr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          send({ type: "approval_required", approvalId, tool: toolUse.name, input: toolUse.input });
+
+          const approved = await new Promise((resolve) => {
+            pendingApprovals.set(approvalId, resolve);
+            setTimeout(() => { if (pendingApprovals.has(approvalId)) { pendingApprovals.delete(approvalId); resolve(false); } }, 300000);
+          });
+
+          if (approved === "approve_all") {
+            autoApproveWrites = true; // Skip approval for rest of this chat request
+          } else if (!approved) {
+            toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: "User cancelled this action." });
+            send({ type: "tool_status", content: "✗ Cancelled: " + (toolUse.input.filepath || toolUse.name) });
+            continue;
+          }
+          send({ type: "tool_status", content: "Approved — executing " + toolUse.name + "..." });
+        }
+
         const result = await executeForgeToken(toolUse.name, toolUse.input, send);
         toolResults.push({
           type: "tool_result",

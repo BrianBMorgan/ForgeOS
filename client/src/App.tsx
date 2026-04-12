@@ -24,6 +24,7 @@ export interface ChatMessage {
   content: string;
   toolStatus?: string;
   pending?: boolean;
+  approval?: { id: string; tool: string; input: Record<string, unknown>; status: "pending" | "approved" | "rejected" };
   createdAt: number;
 }
 
@@ -127,6 +128,9 @@ function App() {
             updatePending({ toolStatus: evt.content });
           } else if (evt.type === "agent_message") {
             updatePending({ content: evt.content });
+          } else if (evt.type === "approval_required") {
+            // Pause UI — show approval card on the pending message
+            updatePending({ approval: { id: evt.approvalId, tool: evt.tool, input: evt.input, status: "pending" } });
           } else if (evt.type === "file_committed") {
             // A file was committed — trigger deploy poll so UI lights up when Render goes live
             window.dispatchEvent(new CustomEvent("forge:file_committed", { detail: { branch: evt.branch, commit: evt.commit } }));
@@ -145,6 +149,26 @@ function App() {
       setChatLoading(false);
     }
   }, [currentProjectId, setCurrentProjectId, setIsNewProjectMode, setActiveNav]);
+
+  // Handle approval/rejection from chat approval cards
+  const handleApproval = useCallback(async (approvalId: string, approved: boolean | string) => {
+    if (!currentProjectId) return;
+    try {
+      await fetch(`${API_BASE}/projects/${currentProjectId}/chat/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approvalId, approved }),
+      });
+      // Update the message to reflect approval status
+      setChatMessages(prev => prev.map(m =>
+        m.approval?.id === approvalId
+          ? { ...m, approval: { ...m.approval, status: approved ? "approved" : "rejected" } }
+          : m
+      ));
+    } catch (err) {
+      console.error("[approval] error:", err);
+    }
+  }, [currentProjectId]);
 
   const openProject = useCallback((projectId: string) => {
     setCurrentProjectId(projectId);
@@ -245,6 +269,7 @@ function App() {
             isNewProject={!currentProjectId}
             chatMessages={chatMessages}
             onSendChat={sendChat}
+            onApproval={handleApproval}
             chatLoading={chatLoading}
             injectContext={injectContext}
             onClearInjectContext={() => setInjectContext(null)}

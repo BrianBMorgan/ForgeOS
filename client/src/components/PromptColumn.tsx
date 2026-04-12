@@ -7,6 +7,7 @@ interface PromptColumnProps {
   isNewProject: boolean;
   chatMessages: ChatMessage[];
   onSendChat: (message: string, attachments?: {name: string; dataUrl: string; mimeType: string}[]) => void;
+  onApproval?: (approvalId: string, approved: boolean | string) => void;
   chatLoading: boolean;
   injectContext?: string | null;
   onClearInjectContext?: () => void;
@@ -35,6 +36,7 @@ export default function PromptColumn({
   isNewProject,
   chatMessages,
   onSendChat,
+  onApproval,
   chatLoading,
   injectContext,
   onClearInjectContext,
@@ -360,6 +362,31 @@ export default function PromptColumn({
               </div>
               {msg.toolStatus && (
                 <div className="chat-tool-status">⚙ {msg.toolStatus}</div>
+              )}
+              {msg.approval && msg.approval.status === "pending" && onApproval && (
+                <div className="approval-card">
+                  <div className="approval-card-title">
+                    {msg.approval.tool === "github_write" ? "📝 Commit File" : "🔧 Patch File"}
+                  </div>
+                  <div className="approval-card-detail">
+                    <span className="approval-filepath">{String(msg.approval.input?.filepath || "")}</span>
+                    <span className="approval-branch">→ {String(msg.approval.input?.branch || "main")}</span>
+                  </div>
+                  {msg.approval.input?.message && (
+                    <div className="approval-card-msg">"{String(msg.approval.input.message)}"</div>
+                  )}
+                  <div className="approval-card-btns">
+                    <button className="approval-btn approve" onClick={() => onApproval(msg.approval!.id, true)}>Approve</button>
+                    <button className="approval-btn cancel" onClick={() => onApproval(msg.approval!.id, false)}>Cancel</button>
+                    <button className="approval-btn approve-all" onClick={() => onApproval(msg.approval!.id, "approve_all")}>Approve All Writes</button>
+                  </div>
+                </div>
+              )}
+              {msg.approval && msg.approval.status === "approved" && (
+                <div className="approval-card-result approved">✓ Approved</div>
+              )}
+              {msg.approval && msg.approval.status === "rejected" && (
+                <div className="approval-card-result rejected">✗ Cancelled</div>
               )}
             </div>
           ))}

@@ -40,3 +40,90 @@
 .prompt-actions {
   margin-top: 0;
 }
+
+/* ── Approval Cards ── */
+.approval-card {
+  margin-top: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 0.5rem;
+}
+.approval-card-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: rgba(59, 130, 246, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.375rem;
+}
+.approval-card-detail {
+  font-size: 0.75rem;
+  color: rgba(148, 163, 184, 0.8);
+  margin-bottom: 0.25rem;
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.approval-filepath {
+  font-family: 'SF Mono', Consolas, monospace;
+  color: rgba(226, 232, 240, 0.9);
+}
+.approval-branch {
+  color: rgba(148, 163, 184, 0.5);
+}
+.approval-card-msg {
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.7);
+  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+.approval-card-btns {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.approval-btn {
+  padding: 0.3125rem 0.75rem;
+  border-radius: 0.3125rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.12s;
+}
+.approval-btn:hover { opacity: 0.85; }
+.approval-btn.approve {
+  background: rgba(59, 130, 246, 0.9);
+  color: #fff;
+}
+.approval-btn.cancel {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: rgba(148, 163, 184, 0.7);
+}
+.approval-btn.cancel:hover { color: rgba(226, 232, 240, 0.9); }
+.approval-btn.approve-all {
+  background: transparent;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: rgba(59, 130, 246, 0.8);
+  font-size: 0.625rem;
+}
+.approval-btn.approve-all:hover {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.6);
+}
+.approval-card-result {
+  margin-top: 0.375rem;
+  font-size: 0.6875rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+.approval-card-result.approved {
+  color: rgba(74, 222, 128, 0.9);
+  background: rgba(74, 222, 128, 0.06);
+}
+.approval-card-result.rejected {
+  color: rgba(248, 113, 113, 0.9);
+  background: rgba(248, 113, 113, 0.06);
+}
