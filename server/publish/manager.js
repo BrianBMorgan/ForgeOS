@@ -363,15 +363,9 @@ async function renameSlug(projectId, newSlug) {
     const githubSettings = await settingsManager.getSetting("github");
     const mergedEnv = await getMergedEnv(projectId);
 
-    // Push files to new branch
-    const { pushToAppBranch } = require("./github");
-    const workspaceDir = app?.dir || path.join(
-      process.env.DATA_DIR || path.join(__dirname, "..", ".."),
-      "workspaces",
-      null /* v2: no currentRunId */
-    );
-
-    const renameBranchResult = await pushToAppBranch(githubSettings.repo, newSlug, workspaceDir);
+    // Copy files from old branch to new branch via GitHub API (V2: no local workspaces)
+    const { copyBranch } = require("./github");
+    const renameBranchResult = await copyBranch(githubSettings.repo, `apps/${oldSlug}`, `apps/${newSlug}`);
 
     // Create new Render service
     const result = await renderApi.createService({

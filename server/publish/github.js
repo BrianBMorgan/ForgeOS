@@ -306,9 +306,36 @@ async function restoreFromTag(repoFullName, slug, tag, commitSha) {
   return { branch, commitSha };
 }
 
+// Copy all files from one branch to another (GitHub-to-GitHub, no local workspace needed)
+async function copyBranch(repoFullName, sourceBranch, targetBranch) {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+
+  // Get the latest commit SHA from the source branch
+  const sourceRef = await apiRequest("GET", `/repos/${owner}/${repo}/git/ref/heads/${sourceBranch}`);
+  const commitSha = sourceRef.object.sha;
+
+  // Create or force-update the target branch to point at the same commit
+  try {
+    await apiRequest("POST", `/repos/${owner}/${repo}/git/refs`, {
+      ref: `refs/heads/${targetBranch}`,
+      sha: commitSha,
+    });
+  } catch {
+    // Branch already exists — force update
+    await apiRequest("PATCH", `/repos/${owner}/${repo}/git/refs/heads/${targetBranch}`, {
+      sha: commitSha,
+      force: true,
+    });
+  }
+
+  return { commitSha, branch: targetBranch };
+}
+
 module.exports = {
   pushProjectToGitHub,
   pushToAppBranch,
+  copyBranch,
   tagAndDeleteAppBranch,
   listVersionTags,
   restoreFromTag,
