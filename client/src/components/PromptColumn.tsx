@@ -372,8 +372,8 @@ export default function PromptColumn({
                     <span className="approval-filepath">{String(msg.approval.input?.filepath || "")}</span>
                     <span className="approval-branch">→ {String(msg.approval.input?.branch || "main")}</span>
                   </div>
-                  {msg.approval.input?.message && (
-                    <div className="approval-card-msg">"{String(msg.approval.input.message)}"</div>
+                  {(msg.approval.input as Record<string, string>)?.message && (
+                    <div className="approval-card-msg">"{String((msg.approval.input as Record<string, string>).message)}"</div>
                   )}
                   <div className="approval-card-btns">
                     <button className="approval-btn approve" onClick={() => onApproval(msg.approval!.id, true)}>Approve</button>
