@@ -1334,7 +1334,13 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
   try {
     const Anthropic = require("@anthropic-ai/sdk");
-    const client = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
+    // Read API key from global secrets vault first, fall back to process.env
+    let anthropicKey = process.env.ANTHROPIC_API_KEY;
+    try {
+      const vaultKey = await settingsManager.getSecret("ANTHROPIC_API_KEY");
+      if (vaultKey) anthropicKey = vaultKey;
+    } catch {}
+    const client = new Anthropic.default({ apiKey: anthropicKey });
 
     // Memory context
     let memoryBlock = "";
