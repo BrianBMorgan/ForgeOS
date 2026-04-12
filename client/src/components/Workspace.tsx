@@ -1127,7 +1127,7 @@ export default function Workspace({ projectData }: WorkspaceProps) {
       .then(r => r.json())
       .then(d => setResolvedSlug(d.slug || null))
       .catch(() => setResolvedSlug(null));
-  }, [projectId]);
+  }, [projectId, refreshKey]);
 
   const slug = resolvedSlug;
 
