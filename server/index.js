@@ -344,33 +344,6 @@ app.get("/api/published", async (_req, res) => {
   res.json(publishManager.listPublishedApps());
 });
 
-// ── V2 migration: clear legacy conversations and poisoned memories ───────────
-app.post("/api/admin/v2-cleanup", async (req, res) => {
-  try {
-    const { neon } = require("@neondatabase/serverless");
-    const cleanSql = neon(process.env.NEON_DATABASE_URL);
-
-    // Clear all old conversations (Frank's persona has changed)
-    const convResult = await cleanSql`DELETE FROM forge_conversations WHERE 1=1`;
-    const convCount = convResult.count || 0;
-
-    // Purge Brain memories that reference write_code, code monkey, Sonnet delegation
-    const memResult = await cleanSql`DELETE FROM forge_memory WHERE
-      content ILIKE '%write_code%' OR
-      content ILIKE '%code monkey%' OR
-      content ILIKE '%code generation agent%' OR
-      content ILIKE '%hand off to%sonnet%' OR
-      content ILIKE '%delegate to%sonnet%' OR
-      content ILIKE '%claude 3.5 sonnet%'`;
-    const memCount = memResult.count || 0;
-
-    console.log(`[v2-cleanup] Cleared ${convCount} conversations, purged ${memCount} poisoned memories`);
-    res.json({ conversations_cleared: convCount, memories_purged: memCount });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ── Brain purge — delete memories matching terms ─────────────────────────────
 app.post("/api/brain/memory", async (req, res) => {
   const { type, category, content: memContent, source } = req.body;
