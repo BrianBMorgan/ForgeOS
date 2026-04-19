@@ -43,7 +43,9 @@ function BrandSelector({
   const [allBrands, setAllBrands] = useState<BrandLite[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const loadBrands = useCallback(async () => {
     try {
@@ -65,13 +67,41 @@ function BrandSelector({
   useEffect(() => { loadBrands(); }, [loadBrands]);
   useEffect(() => { loadSelection(); }, [loadSelection]);
 
+  // Position the menu via getBoundingClientRect so it escapes the tab-bar's
+  // overflow-x: auto clip and renders correctly on iPad Safari.
+  const repositionMenu = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setMenuPos({
+      top: rect.bottom + 4,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+  }, []);
+
   useEffect(() => {
     if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    repositionMenu();
+    const onChange = () => repositionMenu();
+    window.addEventListener("resize", onChange);
+    window.addEventListener("scroll", onChange, true);
+    return () => {
+      window.removeEventListener("resize", onChange);
+      window.removeEventListener("scroll", onChange, true);
     };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open, repositionMenu]);
+
+  // Outside-tap/click detection — pointerdown covers mouse + touch + pen on
+  // iPadOS/iOS Safari, Android Chrome, and desktop.
+  useEffect(() => {
+    if (!open) return;
+    const onOutside = (e: Event) => {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
   }, [open]);
 
   const toggleBrand = async (id: number) => {
@@ -94,14 +124,24 @@ function BrandSelector({
   const label = selectedNames.length === 0 ? "No brand" : selectedNames.length === 1 ? selectedNames[0] : `${selectedNames.length} brands`;
 
   return (
-    <div className="brand-selector" ref={rootRef}>
-      <button className="brand-selector-trigger" onClick={() => setOpen((v) => !v)} title={projectId ? "Brands attached to this project" : "Brands to attach when the project is created"}>
+    <div className="brand-selector">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="brand-selector-trigger"
+        onClick={() => setOpen((v) => !v)}
+        title={projectId ? "Brands attached to this project" : "Brands to attach when the project is created"}
+      >
         <span className="brand-selector-icon">◆</span>
         <span className="brand-selector-label">{label}</span>
         <span className="brand-selector-caret">▾</span>
       </button>
       {open && (
-        <div className="brand-selector-menu">
+        <div
+          ref={menuRef}
+          className="brand-selector-menu"
+          style={{ top: menuPos.top, right: menuPos.right }}
+        >
           {allBrands.length === 0 ? (
             <div className="brand-selector-empty">No brands yet. Add one in Settings → Brands.</div>
           ) : (
