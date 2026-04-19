@@ -63,61 +63,38 @@
       left: 0;
     }
 
-    /* Header / Nav */
-    header {
-      background: var(--white);
-      border-bottom: 1px solid var(--border);
+    /* Navigation */
+    .upperNav {
+      padding: 0;
+      margin: 0;
+      height: 72px;
+      border-bottom: solid 1px var(--border);
+      display: grid;
+      grid-template-columns: 50% 50%;
+      background-color: var(--white);
       position: sticky;
       top: 0;
       z-index: 100;
     }
 
-    .nav-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 16px 24px;
+    .upperNav > * {
       display: flex;
+    }
+
+    .upperNav > *:nth-child(1) {
+      justify-content: left;
       align-items: center;
-      justify-content: space-between;
+      padding-left: 16px;
     }
 
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
-      color: var(--dark-text);
+    .upperNav > *:nth-child(2) {
+      justify-content: right;
+      padding: 16px 16px 16px 0px;
     }
 
-    .logo svg {
-      width: 80px;
-      height: auto;
-    }
-
-    .logo-text {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--intel-blue);
-      border-left: 2px solid var(--intel-blue);
-      padding-left: 12px;
-    }
-
-    nav ul {
-      display: flex;
-      list-style: none;
-      gap: 32px;
-    }
-
-    nav a {
-      text-decoration: none;
-      color: var(--body-text);
-      font-weight: 400;
-      font-size: 14px;
-      transition: color 0.2s;
-    }
-
-    nav a:hover {
-      color: var(--intel-blue);
+    .upperNav img {
+      height: 48px;
+      width: auto;
     }
 
     /* Hero Section */
@@ -379,9 +356,6 @@
         font-size: 28px;
       }
 
-      nav ul {
-        display: none;
-      }
 
       .info-grid {
         grid-template-columns: 1fr;
@@ -403,30 +377,14 @@
 <body>
   <a href="#main" class="skip-link">Skip to main content</a>
 
-  <header>
-    <div class="nav-container">
-      <a href="/" class="logo" aria-label="Intel Federal Summit">
-        <svg viewBox="0 0 100 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="2" y="8" width="5" height="24" fill="#0071c5"/>
-          <path d="M14 8h5v16c0 2.2 1.8 4 4 4s4-1.8 4-4V8h5v16c0 5-4 9-9 9s-9-4-9-9V8z" fill="#0071c5"/>
-          <path d="M38 8h5v6h6v5h-6v5c0 2.2 1.8 4 4 4h2v5h-2c-5 0-9-4-9-9V8z" fill="#0071c5"/>
-          <path d="M55 17c0-5 4-9 9-9h3v5h-3c-2.2 0-4 1.8-4 4v4h7v5h-7v7h-5V17z" fill="#0071c5"/>
-          <rect x="72" y="8" width="5" height="24" fill="#0071c5"/>
-          <circle cx="74.5" cy="3" r="3" fill="#00c7fd"/>
-        </svg>
-        <span class="logo-text">Federal Summit 2025</span>
+  <div class="upperNav">
+    <div>
+      <a href="https://www.intel.com/content/www/us/en/homepage.html" title="Intel homepage link">
+        <img alt="Intel logo" src="https://static.rainfocus.com/intel/vision2023/static/staticfile/staticfile/intel%20logo_1678472333852001cRmA.png" />
       </a>
-      <nav aria-label="main navigation">
-        <ul>
-          <li><a href="#overview">Overview</a></li>
-          <li><a href="#venue">Venue</a></li>
-          <li><a href="#agenda">Agenda</a></li>
-          <li><a href="#logistics">Logistics</a></li>
-          <li><a href="#contacts">Contacts</a></li>
-        </ul>
-      </nav>
     </div>
-  </header>
+    <div></div>
+  </div>
 
   <section class="hero">
     <img src="https://forge-os.ai/api/assets/IMG_1561.png" alt="Intel Federal Summit 2025">
