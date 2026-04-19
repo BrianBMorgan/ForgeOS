@@ -129,12 +129,18 @@ app.get("/health", (_req, res) => {
 const projectManager = require("./projects/manager");
 
 app.post("/api/projects", async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, brandIds } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return res.status(400).json({ error: "Prompt is required" });
   }
 
   const project = await projectManager.createProject(prompt.trim());
+
+  // Attach any pre-selected brands so their profiles are in Frank's system
+  // prompt on the very first chat turn.
+  if (Array.isArray(brandIds) && brandIds.length > 0) {
+    await brandsManager.setBrandsForProject(project.id, brandIds);
+  }
 
   brain.appendConversation(project.id, "user", prompt.trim()).catch(() => {});
 

@@ -60,6 +60,7 @@ function App() {
   }, []);
   const [mobileView, setMobileView] = useState<"chat" | "workspace">("chat");
   const [isNewProjectMode, setIsNewProjectMode] = useState(false);
+  const [stagedBrandIds, setStagedBrandIds] = useState<number[]>([]);
 
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -70,7 +71,7 @@ function App() {
         const res = await fetch(`${API_BASE}/projects`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: message }),
+          body: JSON.stringify({ prompt: message, brandIds: stagedBrandIds }),
         });
         const data = await res.json();
         if (!data.id) return;
@@ -78,6 +79,7 @@ function App() {
         setCurrentProjectId(data.id);
         setIsNewProjectMode(false);
         setActiveNav("projects");
+        setStagedBrandIds([]); // consumed — actual selection now lives on the project
       } catch { return; }
     }
 
@@ -148,7 +150,7 @@ function App() {
     } finally {
       setChatLoading(false);
     }
-  }, [currentProjectId, setCurrentProjectId, setIsNewProjectMode, setActiveNav]);
+  }, [currentProjectId, setCurrentProjectId, setIsNewProjectMode, setActiveNav, stagedBrandIds]);
 
   // Handle approval/rejection from chat approval cards
   const handleApproval = useCallback(async (approvalId: string, approved: boolean | string) => {
@@ -278,6 +280,8 @@ function App() {
         <div className={`mobile-panel mobile-panel-workspace ${mobileView === "workspace" ? "mobile-active" : ""}`}>
           <Workspace
             projectData={projectData}
+            stagedBrandIds={stagedBrandIds}
+            onStagedBrandIdsChange={setStagedBrandIds}
           />
         </div>
         <div className="mobile-view-toggle">

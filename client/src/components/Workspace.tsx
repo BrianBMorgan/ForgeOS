@@ -31,7 +31,15 @@ interface BrandLite {
   name: string;
 }
 
-function BrandSelector({ projectId }: { projectId: string | null }) {
+function BrandSelector({
+  projectId,
+  stagedBrandIds,
+  onStagedBrandIdsChange,
+}: {
+  projectId: string | null;
+  stagedBrandIds: number[];
+  onStagedBrandIdsChange: (ids: number[]) => void;
+}) {
   const [allBrands, setAllBrands] = useState<BrandLite[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [open, setOpen] = useState(false);
@@ -46,13 +54,13 @@ function BrandSelector({ projectId }: { projectId: string | null }) {
   }, []);
 
   const loadSelection = useCallback(async () => {
-    if (!projectId) { setSelected([]); return; }
+    if (!projectId) { setSelected(stagedBrandIds); return; }
     try {
       const res = await fetch(`/api/projects/${projectId}`);
       const data = await res.json();
       setSelected(Array.isArray(data.brandIds) ? data.brandIds : []);
     } catch { /* ignore */ }
-  }, [projectId]);
+  }, [projectId, stagedBrandIds]);
 
   useEffect(() => { loadBrands(); }, [loadBrands]);
   useEffect(() => { loadSelection(); }, [loadSelection]);
@@ -67,9 +75,12 @@ function BrandSelector({ projectId }: { projectId: string | null }) {
   }, [open]);
 
   const toggleBrand = async (id: number) => {
-    if (!projectId) return;
     const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
     setSelected(next);
+    if (!projectId) {
+      onStagedBrandIdsChange(next);
+      return;
+    }
     try {
       await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
@@ -79,14 +90,12 @@ function BrandSelector({ projectId }: { projectId: string | null }) {
     } catch { /* ignore — UI stays optimistic */ }
   };
 
-  if (!projectId) return null;
-
   const selectedNames = allBrands.filter((b) => selected.includes(b.id)).map((b) => b.name);
   const label = selectedNames.length === 0 ? "No brand" : selectedNames.length === 1 ? selectedNames[0] : `${selectedNames.length} brands`;
 
   return (
     <div className="brand-selector" ref={rootRef}>
-      <button className="brand-selector-trigger" onClick={() => setOpen((v) => !v)} title="Brands attached to this project">
+      <button className="brand-selector-trigger" onClick={() => setOpen((v) => !v)} title={projectId ? "Brands attached to this project" : "Brands to attach when the project is created"}>
         <span className="brand-selector-icon">◆</span>
         <span className="brand-selector-label">{label}</span>
         <span className="brand-selector-caret">▾</span>
@@ -127,6 +136,8 @@ interface WorkspaceProps {
   projectData?: ProjectData | null;
   viewingIterationRunId?: string | null;
   onRefreshRunData?: () => void;
+  stagedBrandIds?: number[];
+  onStagedBrandIdsChange?: (ids: number[]) => void;
 }
 
 // ── Publish Tab ───────────────────────────────────────────────────────────────
@@ -1187,7 +1198,7 @@ function BrainTab() {
 
 // ── Main Workspace ────────────────────────────────────────────────────────────
 
-export default function Workspace({ projectData }: WorkspaceProps) {
+export default function Workspace({ projectData, stagedBrandIds, onStagedBrandIdsChange }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("files");
   const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -1254,7 +1265,11 @@ export default function Workspace({ projectData }: WorkspaceProps) {
           </button>
         ))}
         <div className="tab-bar-spacer" />
-        <BrandSelector projectId={projectId} />
+        <BrandSelector
+          projectId={projectId}
+          stagedBrandIds={stagedBrandIds || []}
+          onStagedBrandIdsChange={onStagedBrandIdsChange || (() => {})}
+        />
       </div>
       <div className={`tab-panel${activeTab === "render" ? " tab-panel-render" : ""}`}>
         {renderTabContent()}
