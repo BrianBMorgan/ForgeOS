@@ -908,6 +908,7 @@ app.post("/api/brands", async (req, res) => {
     const cleanUrls = Array.isArray(urls) ? urls.filter(u => typeof u === "string" && u.trim()).map(u => u.trim()) : [];
     let profileText = typeof profile === "string" ? profile : "";
     let lastScrapedAt = null;
+    let scrapeInfo = null;
 
     if (scrape && cleanUrls.length > 0) {
       let anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -918,13 +919,14 @@ app.post("/api/brands", async (req, res) => {
       const result = await brandsManager.scrapeProfile({ name: name.trim(), urls: cleanUrls, anthropicKey });
       profileText = result.profile;
       lastScrapedAt = Date.now();
+      scrapeInfo = { fetchedUrls: result.fetchedUrls, failedUrls: result.failedUrls };
     }
 
     const brand = await brandsManager.createBrand({ name: name.trim(), urls: cleanUrls, profile: profileText });
     if (!brand) return res.status(500).json({ error: "Failed to create brand" });
     if (lastScrapedAt) {
       const updated = await brandsManager.updateBrand(brand.id, { lastScrapedAt });
-      return res.status(201).json({ brand: updated || brand });
+      return res.status(201).json({ brand: updated || brand, ...(scrapeInfo || {}) });
     }
     res.status(201).json({ brand });
   } catch (err) {

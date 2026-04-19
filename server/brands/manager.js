@@ -241,7 +241,7 @@ const SCRAPE_PROMPT = `You are extracting a Brand Profile from one or more scrap
 Scraped from:
 - <url 1>
 - <url 2>
-Last updated: <today's ISO date>
+Last updated: <use the exact date from the user message>
 
 ## Colors
 - Primary: #xxxxxx
@@ -335,8 +335,9 @@ async function scrapeProfile({ name, urls, anthropicKey }) {
     throw new Error("All URL fetches failed: " + errs);
   }
 
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const blocks = successful.map((f, i) => `### Source ${i + 1}: ${f.url}\n\n${f.html}`).join("\n\n---\n\n");
-  const userContent = `Brand name hint: ${name || "(infer from the pages)"}\n\nScraped pages:\n\n${blocks}`;
+  const userContent = `Brand name hint: ${name || "(infer from the pages)"}\nToday's date (use this verbatim in the "Last updated" field): ${today}\n\nScraped pages:\n\n${blocks}`;
 
   const { text, inputTokens, outputTokens, cost } = await callAnthropic(SCRAPE_PROMPT, userContent, anthropicKey);
   await recordUsage({ inputTokens, outputTokens, cost, projectId: null });

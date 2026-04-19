@@ -230,6 +230,10 @@ export default function Settings() {
         const data = await resp.json();
         if (!resp.ok) { setBrandError(data.error || "Failed to save brand"); return; }
         setSelectedBrandId(data.brand.id); setNewBrand(false);
+        if (Array.isArray(data.failedUrls) && data.failedUrls.length > 0) {
+          const failed = data.failedUrls.map((f: { url: string; error: string }) => `${f.url} (${f.error})`).join(", ");
+          setBrandError(`Scraped ${data.fetchedUrls?.length || 0}/${urls.length} URLs. Failed: ${failed}`);
+        }
       } else if (selectedBrandId) {
         const resp = await fetch(`/api/brands/${selectedBrandId}`, {
           method: "PUT",
@@ -260,6 +264,10 @@ export default function Settings() {
       const data = await resp.json();
       if (!resp.ok) { setBrandError(data.error || "Re-scrape failed"); return; }
       setBrandForm({ name: data.brand.name, urlsText: data.brand.urls.join("\n"), profile: data.brand.profile });
+      if (Array.isArray(data.failedUrls) && data.failedUrls.length > 0) {
+        const failed = data.failedUrls.map((f: { url: string; error: string }) => `${f.url} (${f.error})`).join(", ");
+        setBrandError(`Scraped ${data.fetchedUrls?.length || 0}/${urls.length} URLs. Failed: ${failed}`);
+      }
       await loadAll();
     } catch (err) {
       setBrandError(err instanceof Error ? err.message : "Network error");
