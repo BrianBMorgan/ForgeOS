@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intel Federal Summit 2025 | Know Before You Go</title>
+  <style>
+    @font-face {
+      font-family: 'Intel One Display';
+      src: url('/api/assets/intelone-display-light.woff') format('woff');
+      font-weight: 300;
+    }
+    @font-face {
+      font-family: 'Intel One Display';
+      src: url('/api/assets/intelone-display-regular.woff') format('woff');
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: 'Intel One Display';
+      src: url('/api/assets/intelone-display-medium.woff') format('woff');
+      font-weight: 500;
+    }
+    @font-face {
+      font-family: 'Intel One Display';
+      src: url('/api/assets/intelone-display-bold.woff') format('woff');
+      font-weight: 700;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --intel-blue: #0071c5;
+      --energy-blue: #00c7fd;
+      --dark-text: #0d0d0d;
+      --body-text: #333333;
+      --light-bg: #f4f4f4;
+      --white: #ffffff;
+      --border: #d1d1d1;
+    }
+
+    body {
+      font-family: 'Intel One Display', Arial, sans-serif;
+      color: var(--body-text);
+      line-height: 1.6;
+      background: var(--white);
+    }
+
+    /* Skip Link */
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: var(--intel-blue);
+      color: var(--white);
+      padding: 8px 16px;
+      z-index: 1000;
+    }
+    .skip-link:focus {
+      left: 0;
+    }
+
+    /* Header / Nav */
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--dark-text);
+    }
+
+    .logo svg {
+      width: 80px;
+      height: auto;
+    }
+
+    .logo-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--intel-blue);
+      border-left: 2px solid var(--intel-blue);
+      padding-left: 12px;
+    }
+
+    nav ul {
+      display: flex;
+      list-style: none;
+      gap: 32px;
+    }
+
+    nav a {
+      text-decoration: none;
+      color: var(--body-text);
+      font-weight: 400;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    nav a:hover {
+      color: var(--intel-blue);
+    }
+
+    /* Hero Section */
+    .hero {
+      background: linear-gradient(135deg, #0071c5 0%, #00c7fd 100%);
+      color: var(--white);
+      padding: 80px 24px;
+      text-align: center;
+    }
+
+    .hero-content {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 300;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .hero .subtitle {
+      font-size: 24px;
+      font-weight: 400;
+      opacity: 0.95;
+      margin-bottom: 24px;
+    }
+
+    .hero .event-date {
+      font-size: 18px;
+      background: rgba(255,255,255,0.2);
+      display: inline-block;
+      padding: 12px 24px;
+      border-radius: 4px;
+    }
+
+    /* Main Content */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    section {
+      margin-bottom: 64px;
+    }
+
+    h2 {
+      font-size: 36px;
+      font-weight: 300;
+      color: var(--dark-text);
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 3px solid var(--intel-blue);
+    }
+
+    h3 {
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--dark-text);
+      margin: 24px 0 12px;
+    }
+
+    p {
+      font-size: 16px;
+      margin-bottom: 16px;
+    }
+
+    /* Info Cards Grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 24px;
+      margin-top: 24px;
+    }
+
+    .info-card {
+      background: var(--light-bg);
+      padding: 32px;
+      border-radius: 4px;
+      border-left: 4px solid var(--intel-blue);
+    }
+
+    .info-card h3 {
+      margin-top: 0;
+      color: var(--intel-blue);
+    }
+
+    .info-card ul {
+      margin-left: 20px;
+    }
+
+    .info-card li {
+      margin-bottom: 8px;
+    }
+
+    /* Details Table */
+    .details-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+    }
+
+    .details-table th,
+    .details-table td {
+      padding: 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .details-table th {
+      background: var(--intel-blue);
+      color: var(--white);
+      font-weight: 500;
+    }
+
+    .details-table tr:nth-child(even) {
+      background: var(--light-bg);
+    }
+
+    /* Highlight Box */
+    .highlight-box {
+      background: linear-gradient(135deg, #0071c5 0%, #00509e 100%);
+      color: var(--white);
+      padding: 32px;
+      border-radius: 4px;
+      margin: 24px 0;
+    }
+
+    .highlight-box h3 {
+      color: var(--white);
+      margin-top: 0;
+    }
+
+    /* Contact Cards */
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 24px;
+    }
+
+    .contact-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      padding: 24px;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .contact-card .role {
+      font-size: 14px;
+      color: var(--intel-blue);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .contact-card .name {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--dark-text);
+      margin-bottom: 12px;
+    }
+
+    .contact-card a {
+      color: var(--intel-blue);
+      text-decoration: none;
+    }
+
+    .contact-card a:hover {
+      text-decoration: underline;
+    }
+
+    /* Checklist */
+    .checklist {
+      list-style: none;
+      margin: 24px 0;
+    }
+
+    .checklist li {
+      padding: 12px 0 12px 40px;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      width: 28px;
+      height: 28px;
+      background: var(--intel-blue);
+      color: var(--white);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* Timeline */
+    .timeline {
+      margin: 24px 0;
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 24px;
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .timeline-time {
+      min-width: 120px;
+      font-weight: 500;
+      color: var(--intel-blue);
+    }
+
+    .timeline-content h4 {
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--dark-text);
+    }
+
+    /* Footer */
+    footer {
+      background: var(--dark-text);
+      color: var(--white);
+      padding: 48px 24px;
+      margin-top: 64px;
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      color: var(--white);
+      text-decoration: none;
+      font-size: 14px;
+      opacity: 0.8;
+    }
+
+    .footer-links a:hover {
+      opacity: 1;
+    }
+
+    .copyright {
+      font-size: 14px;
+      opacity: 0.7;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 32px;
+      }
+
+      .hero .subtitle {
+        font-size: 18px;
+      }
+
+      h2 {
+        font-size: 28px;
+      }
+
+      nav ul {
+        display: none;
+      }
+
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .timeline-item {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
+  </style>
+  <script src="https://cdn.forge-os.ai/inspect.js" defer></script>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <header>
+    <div class="nav-container">
+      <a href="/" class="logo" aria-label="Intel Federal Summit">
+        <svg viewBox="0 0 100 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="8" width="5" height="24" fill="#0071c5"/>
+          <path d="M14 8h5v16c0 2.2 1.8 4 4 4s4-1.8 4-4V8h5v16c0 5-4 9-9 9s-9-4-9-9V8z" fill="#0071c5"/>
+          <path d="M38 8h5v6h6v5h-6v5c0 2.2 1.8 4 4 4h2v5h-2c-5 0-9-4-9-9V8z" fill="#0071c5"/>
+          <path d="M55 17c0-5 4-9 9-9h3v5h-3c-2.2 0-4 1.8-4 4v4h7v5h-7v7h-5V17z" fill="#0071c5"/>
+          <rect x="72" y="8" width="5" height="24" fill="#0071c5"/>
+          <circle cx="74.5" cy="3" r="3" fill="#00c7fd"/>
+        </svg>
+        <span class="logo-text">Federal Summit 2025</span>
+      </a>
+      <nav aria-label="main navigation">
+        <ul>
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#venue">Venue</a></li>
+          <li><a href="#agenda">Agenda</a></li>
+          <li><a href="#logistics">Logistics</a></li>
+          <li><a href="#contacts">Contacts</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Intel&reg; Federal Summit 2025</h1>
+      <p class="subtitle">Know Before You Go Guide</p>
+      <p class="event-date">📅 Event Date: Coming Soon | 📍 Washington, D.C. Area</p>
+    </div>
+  </section>
+
+  <main id="main">
+    <section id="overview">
+      <h2>Event Overview</h2>
+      <p>Welcome to the Intel Federal Summit 2025. This guide contains everything you need to know before attending the event, including venue information, agenda highlights, logistics, and key contacts.</p>
+      
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>What to Expect</h3>
+          <ul>
+            <li>Keynote presentations from Intel leadership</li>
+            <li>Technical deep-dive sessions</li>
+            <li>Hands-on demonstrations</li>
+            <li>Networking opportunities</li>
+            <li>Partner showcase exhibitions</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>Who Should Attend</h3>
+          <ul>
+            <li>Federal IT decision makers</li>
+            <li>Government technology leaders</li>
+            <li>Defense and intelligence professionals</li>
+            <li>Systems integrators</li>
+            <li>Channel partners</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="venue">
+      <h2>Venue Information</h2>
+      <p>The Intel Federal Summit will be held at a premier conference facility in the Washington, D.C. metropolitan area, easily accessible from major airports and transit lines.</p>
+
+      <div class="highlight-box">
+        <h3>Venue Details</h3>
+        <p><strong>Location:</strong> Washington, D.C. Metropolitan Area</p>
+        <p><strong>Parking:</strong> Complimentary parking available for all attendees</p>
+        <p><strong>Public Transit:</strong> Metro accessible with shuttle service from nearby stations</p>
+      </div>
+
+      <h3>Getting There</h3>
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>By Air</h3>
+          <ul>
+            <li>Ronald Reagan Washington National Airport (DCA) — closest option</li>
+            <li>Washington Dulles International Airport (IAD)</li>
+            <li>Baltimore/Washington International Airport (BWI)</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>Ground Transportation</h3>
+          <ul>
+            <li>Rideshare services available</li>
+            <li>Hotel shuttle services</li>
+            <li>Rental car facilities at all airports</li>
+            <li>Metro rail connections</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="agenda">
+      <h2>Agenda Highlights</h2>
+      <p>Join us for a full day of insights, innovation, and networking focused on delivering AI at scale across cloud, data center, edge, and client solutions.</p>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-time">7:30 AM</div>
+          <div class="timeline-content">
+            <h4>Registration &amp; Breakfast</h4>
+            <p>Check in, pick up your badge, and enjoy a networking breakfast with fellow attendees.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">8:30 AM</div>
+          <div class="timeline-content">
+            <h4>Opening Keynote</h4>
+            <p>Welcome address and strategic overview from Intel leadership on federal technology priorities.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">10:00 AM</div>
+          <div class="timeline-content">
+            <h4>Breakout Sessions</h4>
+            <p>Choose from multiple tracks covering AI, security, cloud, and data center solutions.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">12:00 PM</div>
+          <div class="timeline-content">
+            <h4>Networking Lunch</h4>
+            <p>Connect with peers and Intel experts over lunch in the exhibition hall.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">1:30 PM</div>
+          <div class="timeline-content">
+            <h4>Technical Deep Dives</h4>
+            <p>In-depth sessions on Intel&reg; technologies and federal use cases.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">3:30 PM</div>
+          <div class="timeline-content">
+            <h4>Partner Showcase</h4>
+            <p>Explore solutions from Intel partners in the exhibition area.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">5:00 PM</div>
+          <div class="timeline-content">
+            <h4>Closing Remarks &amp; Reception</h4>
+            <p>Event wrap-up followed by networking reception.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="logistics">
+      <h2>Logistics &amp; Preparation</h2>
+      <p>To ensure a smooth experience, please review the following information before the event.</p>
+
+      <h3>Pre-Event Checklist</h3>
+      <ul class="checklist">
+        <li>Complete your online registration</li>
+        <li>Book your travel and accommodations</li>
+        <li>Download the event mobile app</li>
+        <li>Review the full agenda and select your sessions</li>
+        <li>Bring government-issued photo ID for check-in</li>
+        <li>Bring business cards for networking</li>
+        <li>Dress code: Business casual</li>
+      </ul>
+
+      <h3>What to Bring</h3>
+      <table class="details-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Photo ID</td>
+            <td>Government-issued identification required for badge pickup</td>
+          </tr>
+          <tr>
+            <td>Registration Confirmation</td>
+            <td>Print or have digital copy available</td>
+          </tr>
+          <tr>
+            <td>Business Cards</td>
+            <td>For networking with peers and Intel representatives</td>
+          </tr>
+          <tr>
+            <td>Laptop/Tablet</td>
+            <td>Optional — power outlets and WiFi available</td>
+          </tr>
+          <tr>
+            <td>Mobile Phone</td>
+            <td>Download event app for real-time updates</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="highlight-box">
+        <h3>Important Reminders</h3>
+        <p>✓ Security screening required at venue entrance</p>
+        <p>✓ Photography permitted in designated areas only</p>
+        <p>✓ All sessions will be held under Chatham House Rules</p>
+        <p>✓ Meals and refreshments provided throughout the day</p>
+      </div>
+    </section>
+
+    <section id="contacts">
+      <h2>Key Contacts</h2>
+      <p>Have questions? Our team is here to help. Reach out to the appropriate contact below.</p>
+
+      <div class="contact-grid">
+        <div class="contact-card">
+          <p class="role">Event Registration</p>
+          <p class="name">Registration Support</p>
+          <p><a href="mailto:events@intel.com">events@intel.com</a></p>
+        </div>
+        <div class="contact-card">
+          <p class="role">Logistics Support</p>
+          <p class="name">Travel &amp; Accommodations</p>
+          <p><a href="mailto:events@intel.com">events@intel.com</a></p>
+        </div>
+        <div class="contact-card">
+          <p class="role">Media Inquiries</p>
+          <p class="name">Press &amp; Communications</p>
+          <p><a href="mailto:press@intel.com">press@intel.com</a></p>
+        </div>
+        <div class="contact-card">
+          <p class="role">On-Site Support</p>
+          <p class="name">Day-of Assistance</p>
+          <p>Visit the Registration Desk</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Additional Resources</h2>
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>Prepare for Your Visit</h3>
+          <ul>
+            <li>Review Intel&reg; solutions for federal markets</li>
+            <li>Explore case studies and success stories</li>
+            <li>Connect with your account team beforehand</li>
+            <li>Prepare questions for technical sessions</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>Stay Connected</h3>
+          <ul>
+            <li>Follow @Intel on social media</li>
+            <li>Use event hashtag for updates</li>
+            <li>Join the LinkedIn event group</li>
+            <li>Subscribe to Intel Federal newsletter</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-content">
+      <div class="footer-links">
+        <a href="https://www.intel.com">Intel.com</a>
+        <a href="https://www.intel.com/privacy">Privacy</a>
+        <a href="https://www.intel.com/terms">Terms of Use</a>
+        <a href="https://www.intel.com/accessibility">Accessibility</a>
+      </div>
+      <p class="copyright">&copy; 2025 Intel Corporation. All rights reserved. Intel, the Intel logo, and other Intel marks are trademarks of Intel Corporation or its subsidiaries.</p>
+    </div>
+  </footer>
+</body>
+</html>
