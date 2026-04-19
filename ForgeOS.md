@@ -399,6 +399,15 @@ No model router module. Direct SDK calls from `server/index.js`.
 ### 2026-04-18
 - Stub opened
 - Full README rewrite — old doc was describing the v1 architecture (builder.js, workspace/manager.js, pipeline/runner.js, auth gate, Diff/Edit/Shell tab strip, "model-router.js"). None of that exists. New README reflects actual v2 reality: monolithic `server/index.js`, Frank as direct Anthropic streaming engine with 10 tools, approval flow, real DB schema, real API surface.
+- Shipped **Brand Profile skill** (id 27) — instructs Frank to scrape a brand's live site and capture colors, fonts, nav/footer HTML, container pattern, voice.
+- Shipped **Brand Profiles feature** (feat: 0b387a1):
+  - New `forge_brands` + `forge_project_brands` tables (many-to-many)
+  - `server/brands/manager.js` — CRUD + Anthropic-powered scraper (claude-opus-4-5, usage recorded)
+  - Six `/api/brands/*` routes; `PATCH /api/projects/:id` accepts `brandIds: number[]`
+  - Chat handler injects `## BRAND PROFILES` into Frank's system prompt between THIS PROJECT and RELEVANT MEMORY
+  - Settings UI: new Brands tab with list + editor; Save, Save & Scrape, Re-scrape, Delete; profile is hand-editable markdown
+  - Workspace tab bar: compact multi-select brand chip selector
+- Updated skill 27 to point at the Brands library API instead of writing `.forge/brand.md` to branches — profiles now live in Neon, are reusable across projects, and are auto-injected without a tool call.
 
 ---
 
