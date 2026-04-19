@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const brain = require("./memory/brain");
 const publishManager = require("./publish/manager");
+const brandsManager = require("./brands/manager");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -168,13 +169,28 @@ app.delete("/api/projects/:id", async (req, res) => {
 });
 
 app.patch("/api/projects/:id", async (req, res) => {
-  const { name } = req.body;
-  if (!name || typeof name !== "string" || !name.trim()) {
-    return res.status(400).json({ error: "Name is required" });
-  }
-  const project = await projectManager.renameProject(req.params.id, name.trim());
+  const { name, brandIds } = req.body;
+  let project = await projectManager.getProject(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
-  res.json({ success: true, name: project.name });
+
+  if (name !== undefined) {
+    if (typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "Name must be a non-empty string" });
+    }
+    project = await projectManager.renameProject(req.params.id, name.trim());
+  }
+
+  let resolvedBrandIds = null;
+  if (brandIds !== undefined) {
+    if (!Array.isArray(brandIds)) {
+      return res.status(400).json({ error: "brandIds must be an array of numbers" });
+    }
+    resolvedBrandIds = await brandsManager.setBrandsForProject(req.params.id, brandIds);
+  } else {
+    resolvedBrandIds = await brandsManager.getBrandIdsForProject(req.params.id);
+  }
+
+  res.json({ success: true, name: project.name, brandIds: resolvedBrandIds });
 });
 
 app.get("/api/projects/:id", async (req, res) => {
@@ -182,7 +198,8 @@ app.get("/api/projects/:id", async (req, res) => {
   if (!project) {
     return res.status(404).json({ error: "Project not found" });
   }
-  res.json({ ...project, iterations: [], currentRun: null });
+  const brandIds = await brandsManager.getBrandIdsForProject(req.params.id);
+  res.json({ ...project, brandIds, iterations: [], currentRun: null });
 });
 
 app.get("/api/projects/:id/env", async (req, res) => {
@@ -868,10 +885,111 @@ app.post("/api/hubspot/deals", async (req, res) => {
   }
 });
 
-// ── FORGE CHAT — Direct Gemini Streaming ──────────────────────────────────
-// Gemini Code architecture. No agent loop. No nudges. No guards.
-// Gemini gets tools and a system prompt. It calls tools when it needs to.
-// It stops when it is done. We get out of the way.
+// ── Brands ────────────────────────────────────────────────────────────────────
+// Reusable brand profiles scraped from live sites. Projects attach to brands
+// many-to-many; every attached profile is injected into Frank's system prompt.
+brandsManager.ensureSchema().catch(err => console.error("[brands] Schema error:", err.message));
+
+app.get("/api/brands", async (_req, res) => {
+  try {
+    const brands = await brandsManager.getAllBrands();
+    res.json({ brands });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/brands", async (req, res) => {
+  const { name, urls, profile, scrape } = req.body;
+  if (!name || typeof name !== "string" || !name.trim()) {
+    return res.status(400).json({ error: "name is required" });
+  }
+  try {
+    const cleanUrls = Array.isArray(urls) ? urls.filter(u => typeof u === "string" && u.trim()).map(u => u.trim()) : [];
+    let profileText = typeof profile === "string" ? profile : "";
+    let lastScrapedAt = null;
+
+    if (scrape && cleanUrls.length > 0) {
+      let anthropicKey = process.env.ANTHROPIC_API_KEY;
+      try {
+        const vaultKey = await settingsManager.getSecret("ANTHROPIC_API_KEY");
+        if (vaultKey) anthropicKey = vaultKey;
+      } catch {}
+      const result = await brandsManager.scrapeProfile({ name: name.trim(), urls: cleanUrls, anthropicKey });
+      profileText = result.profile;
+      lastScrapedAt = Date.now();
+    }
+
+    const brand = await brandsManager.createBrand({ name: name.trim(), urls: cleanUrls, profile: profileText });
+    if (!brand) return res.status(500).json({ error: "Failed to create brand" });
+    if (lastScrapedAt) {
+      const updated = await brandsManager.updateBrand(brand.id, { lastScrapedAt });
+      return res.status(201).json({ brand: updated || brand });
+    }
+    res.status(201).json({ brand });
+  } catch (err) {
+    console.error("[brands] create failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/brands/:id", async (req, res) => {
+  const brand = await brandsManager.getBrand(Number(req.params.id));
+  if (!brand) return res.status(404).json({ error: "Brand not found" });
+  res.json({ brand });
+});
+
+app.put("/api/brands/:id", async (req, res) => {
+  const { name, urls, profile } = req.body;
+  try {
+    const brand = await brandsManager.updateBrand(Number(req.params.id), {
+      name: typeof name === "string" ? name.trim() : undefined,
+      urls: Array.isArray(urls) ? urls.filter(u => typeof u === "string" && u.trim()).map(u => u.trim()) : undefined,
+      profile: typeof profile === "string" ? profile : undefined,
+    });
+    if (!brand) return res.status(404).json({ error: "Brand not found" });
+    res.json({ brand });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/brands/:id", async (req, res) => {
+  const ok = await brandsManager.deleteBrand(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: "Brand not found" });
+  res.json({ success: true });
+});
+
+app.post("/api/brands/:id/rescrape", async (req, res) => {
+  try {
+    const existing = await brandsManager.getBrand(Number(req.params.id));
+    if (!existing) return res.status(404).json({ error: "Brand not found" });
+    const urls = Array.isArray(req.body?.urls) && req.body.urls.length ? req.body.urls : existing.urls;
+    if (!urls || urls.length === 0) return res.status(400).json({ error: "No URLs to scrape — add URLs to the brand first" });
+
+    let anthropicKey = process.env.ANTHROPIC_API_KEY;
+    try {
+      const vaultKey = await settingsManager.getSecret("ANTHROPIC_API_KEY");
+      if (vaultKey) anthropicKey = vaultKey;
+    } catch {}
+
+    const result = await brandsManager.scrapeProfile({ name: existing.name, urls, anthropicKey });
+    const updated = await brandsManager.updateBrand(existing.id, {
+      urls,
+      profile: result.profile,
+      lastScrapedAt: Date.now(),
+    });
+    res.json({ brand: updated, fetchedUrls: result.fetchedUrls, failedUrls: result.failedUrls });
+  } catch (err) {
+    console.error("[brands] rescrape failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── FORGE CHAT — Direct Anthropic Streaming ───────────────────────────────────
+// No agent loop. No nudges. No guards. Claude gets tools, a system prompt, and
+// conversation history. It calls tools when it needs to. It stops when it is
+// done. We get out of the way.
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 
@@ -1358,6 +1476,23 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     const projectBranch = "apps/" + projectSlug;
     const projectUrl = "https://" + projectSlug + ".forge-os.ai";
     sysParts.push(`## THIS PROJECT\nName: ${project.name}\nBranch: ${projectBranch}\nLive URL: ${projectUrl}\n\nAlways use branch: '${projectBranch}' in every github_write, github_patch, and github_ls call for this project.`);
+
+    // Brand profiles: concatenate every brand linked to this project
+    try {
+      const brandsForProject = await brandsManager.getBrandsForProject(project.id);
+      if (brandsForProject.length > 0) {
+        const brandsBlock = brandsForProject
+          .filter(b => b.profile && b.profile.trim())
+          .map(b => `### ${b.name}\n\n${b.profile.trim()}`)
+          .join("\n\n---\n\n");
+        if (brandsBlock) {
+          sysParts.push("## BRAND PROFILES\n\nThis project is linked to the brand(s) below. Match colors, typography, nav/footer structure, container patterns, and voice exactly. Flag any request that would break these.\n\n" + brandsBlock);
+        }
+      }
+    } catch (err) {
+      console.error("[chat] Failed to load brand profiles:", err.message);
+    }
+
     if (memoryBlock && memoryBlock.trim()) sysParts.push("## RELEVANT MEMORY\n" + memoryBlock.trim());
     if (skillContext) sysParts.push("## SKILL INSTRUCTIONS\n" + skillContext);
     sysParts.push(FORGE_SYSTEM_PROMPT);

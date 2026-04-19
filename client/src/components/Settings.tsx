@@ -15,24 +15,36 @@ interface Skill {
   updated_at: number;
 }
 
+interface Brand {
+  id: number;
+  name: string;
+  urls: string[];
+  profile: string;
+  lastScrapedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 const DEFAULT_SETTINGS: SettingValues = {
   default_env_vars: { vars: [] },
   github: { repo: "BrianBMorgan/ForgeOS", autoPush: true },
 };
 
-type TabId = "secrets" | "env_vars" | "github" | "skills";
+type TabId = "secrets" | "env_vars" | "github" | "skills" | "brands";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "secrets", label: "Secrets Vault", icon: "⛓" },
   { id: "env_vars", label: "Default Env Vars", icon: "▧" },
   { id: "github", label: "GitHub", icon: "⊛" },
   { id: "skills", label: "Skills Library", icon: "◈" },
+  { id: "brands", label: "Brands", icon: "◆" },
 ];
 
 export default function Settings() {
   const [settings, setSettings] = useState<SettingValues>(DEFAULT_SETTINGS);
   const [secrets, setSecrets] = useState<string[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>("secrets");
   const [saving, setSaving] = useState<string | null>(null);
   const [newSecretKey, setNewSecretKey] = useState("");
@@ -47,17 +59,24 @@ export default function Settings() {
   const [importError, setImportError] = useState("");
   const [selectedSkillId, setSelectedSkillId] = useState<number | null>(null);
   const [revealedSecrets, setRevealedSecrets] = useState<Record<string, string>>({});
+  const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
+  const [newBrand, setNewBrand] = useState(false);
+  const [brandForm, setBrandForm] = useState({ name: "", urlsText: "", profile: "" });
+  const [brandBusy, setBrandBusy] = useState<string | null>(null);
+  const [brandError, setBrandError] = useState("");
 
   const loadAll = useCallback(async () => {
     try {
-      const [settingsRes, secretsRes, skillsRes] = await Promise.all([
+      const [settingsRes, secretsRes, skillsRes, brandsRes] = await Promise.all([
         fetch("/api/settings"),
         fetch("/api/secrets"),
         fetch("/api/skills"),
+        fetch("/api/brands"),
       ]);
       const settingsData = await settingsRes.json();
       const secretsData = await secretsRes.json();
       const skillsData = await skillsRes.json();
+      const brandsData = await brandsRes.json();
       const merged = { ...DEFAULT_SETTINGS };
       if (settingsData && typeof settingsData === "object" && !Array.isArray(settingsData)) {
         for (const key of Object.keys(merged)) {
@@ -67,6 +86,7 @@ export default function Settings() {
       setSettings(merged);
       setSecrets(secretsData.secrets || []);
       setSkills(skillsData.skills || []);
+      setBrands(brandsData.brands || []);
     } catch (err) {
       console.error("Failed to load settings:", err);
     }
@@ -178,6 +198,81 @@ export default function Settings() {
       setSelectedSkillId(data.id); setImportUrl(""); setImportError("");
     } catch { setImportError("Network error — could not reach server"); }
     finally { setImporting(false); }
+  };
+
+  // ── Brands ──────────────────────────────────────────────────────────────────
+
+  const parseUrls = (text: string): string[] =>
+    text.split(/[\n,]/).map((u) => u.trim()).filter(Boolean);
+
+  const startNewBrand = () => {
+    setNewBrand(true); setSelectedBrandId(null); setBrandError("");
+    setBrandForm({ name: "", urlsText: "", profile: "" });
+  };
+
+  const selectBrand = (brand: Brand) => {
+    setSelectedBrandId(brand.id); setNewBrand(false); setBrandError("");
+    setBrandForm({ name: brand.name, urlsText: brand.urls.join("\n"), profile: brand.profile });
+  };
+
+  const saveBrand = async (opts: { scrape: boolean }) => {
+    if (!brandForm.name.trim()) { setBrandError("Name is required"); return; }
+    const urls = parseUrls(brandForm.urlsText);
+    if (opts.scrape && urls.length === 0) { setBrandError("Add at least one URL to scrape"); return; }
+    setBrandBusy(opts.scrape ? "scraping" : "saving"); setBrandError("");
+    try {
+      if (newBrand) {
+        const resp = await fetch("/api/brands", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: brandForm.name.trim(), urls, profile: brandForm.profile, scrape: opts.scrape }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { setBrandError(data.error || "Failed to save brand"); return; }
+        setSelectedBrandId(data.brand.id); setNewBrand(false);
+      } else if (selectedBrandId) {
+        const resp = await fetch(`/api/brands/${selectedBrandId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: brandForm.name.trim(), urls, profile: brandForm.profile }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { setBrandError(data.error || "Failed to save brand"); return; }
+      }
+      await loadAll();
+    } catch (err) {
+      setBrandError(err instanceof Error ? err.message : "Network error");
+    } finally { setBrandBusy(null); }
+  };
+
+  const rescrapeBrand = async () => {
+    if (!selectedBrandId) return;
+    const urls = parseUrls(brandForm.urlsText);
+    if (urls.length === 0) { setBrandError("Add at least one URL before re-scraping"); return; }
+    if (!confirm("Re-scrape this brand? This overwrites the current profile.")) return;
+    setBrandBusy("rescraping"); setBrandError("");
+    try {
+      const resp = await fetch(`/api/brands/${selectedBrandId}/rescrape`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) { setBrandError(data.error || "Re-scrape failed"); return; }
+      setBrandForm({ name: data.brand.name, urlsText: data.brand.urls.join("\n"), profile: data.brand.profile });
+      await loadAll();
+    } catch (err) {
+      setBrandError(err instanceof Error ? err.message : "Network error");
+    } finally { setBrandBusy(null); }
+  };
+
+  const deleteBrand = async (id: number) => {
+    if (!confirm("Delete this brand? Projects using it will lose the association.")) return;
+    try {
+      await fetch(`/api/brands/${id}`, { method: "DELETE" });
+      if (selectedBrandId === id) { setSelectedBrandId(null); setNewBrand(false); }
+      await loadAll();
+    } catch (err) { console.error("Failed to delete brand:", err); }
   };
 
   const selectedSkill = skills.find((s) => s.id === selectedSkillId) || null;
@@ -325,12 +420,78 @@ export default function Settings() {
     </div>
   );
 
+  const renderBrandsPanel = () => {
+    const selectedBrand = brands.find((b) => b.id === selectedBrandId) || null;
+    const isEditing = newBrand || selectedBrand !== null;
+    const busyLabel = brandBusy === "scraping" ? "Scraping…"
+      : brandBusy === "rescraping" ? "Re-scraping…"
+      : brandBusy === "saving" ? "Saving…" : null;
+    return (
+      <div className="stg-panel stg-skills-layout">
+        <div className="stg-skills-sidebar">
+          <div className="stg-skills-sidebar-header">
+            <span>Brands</span>
+            <button className="stg-btn-sm" onClick={startNewBrand}>+ New</button>
+          </div>
+          <div className="stg-skills-list">
+            {brands.map((brand) => (
+              <div key={brand.id} className={`stg-skill-tab${selectedBrandId === brand.id ? " active" : ""}`} onClick={() => selectBrand(brand)}>
+                <span className="stg-skill-tab-name">{brand.name}</span>
+                {brand.urls.length > 0 && <span className="stg-skill-tab-tags">{brand.urls.length} URL{brand.urls.length === 1 ? "" : "s"}</span>}
+              </div>
+            ))}
+            {brands.length === 0 && <div className="stg-empty">No brands yet</div>}
+          </div>
+        </div>
+        <div className="stg-skills-canvas">
+          {isEditing ? (
+            <div className="stg-skill-editor">
+              <h3>{newBrand ? "New Brand" : `Edit: ${selectedBrand?.name || ""}`}</h3>
+              <div className="stg-field">
+                <label>Name</label>
+                <input value={brandForm.name} onChange={(e) => setBrandForm({ ...brandForm, name: e.target.value })} className="stg-input" placeholder="e.g. Sandbox-XM" />
+              </div>
+              <div className="stg-field">
+                <label>Source URLs <span className="stg-hint-inline">(one per line or comma-separated, up to 3 used for scraping)</span></label>
+                <textarea value={brandForm.urlsText} onChange={(e) => setBrandForm({ ...brandForm, urlsText: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className="stg-textarea" style={{ minHeight: 80 }} placeholder="https://example.com&#10;https://example.com/about&#10;https://example.com/blog/post" />
+              </div>
+              <div className="stg-field stg-field-grow">
+                <label>Profile <span className="stg-hint-inline">(markdown — scrape fills this in; you can hand-edit after)</span></label>
+                <textarea value={brandForm.profile} onChange={(e) => setBrandForm({ ...brandForm, profile: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className="stg-textarea stg-textarea-grow" placeholder="# Brand Profile: ..." />
+              </div>
+              {brandError && <div className="stg-import-error">{brandError}</div>}
+              <div className="stg-skill-editor-actions">
+                <button className="stg-btn" onClick={() => saveBrand({ scrape: false })} disabled={brandBusy !== null}>Save</button>
+                {newBrand ? (
+                  <button className="stg-btn" onClick={() => saveBrand({ scrape: true })} disabled={brandBusy !== null}>Save & Scrape</button>
+                ) : (
+                  <button className="stg-btn" onClick={rescrapeBrand} disabled={brandBusy !== null}>Re-scrape</button>
+                )}
+                {!newBrand && selectedBrand && (
+                  <button className="stg-btn secondary danger" onClick={() => deleteBrand(selectedBrand.id)} disabled={brandBusy !== null}>Delete</button>
+                )}
+                <button className="stg-btn secondary" onClick={() => { setNewBrand(false); setSelectedBrandId(null); setBrandError(""); }} disabled={brandBusy !== null}>Cancel</button>
+                {busyLabel && <span className="stg-saving">{busyLabel}</span>}
+              </div>
+              {!newBrand && selectedBrand?.lastScrapedAt && (
+                <div className="stg-hint">Last scraped {new Date(selectedBrand.lastScrapedAt).toLocaleString()}</div>
+              )}
+            </div>
+          ) : (
+            <div className="stg-skill-empty"><p>Select a brand or create a new one. Scraping pulls HTML from the URLs, runs it through Claude, and produces an editable brand profile.</p></div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderActivePanel = () => {
     switch (activeTab) {
       case "secrets": return renderSecretsPanel();
       case "env_vars": return renderEnvVarsPanel();
       case "github": return renderGitHubPanel();
       case "skills": return renderSkillsPanel();
+      case "brands": return renderBrandsPanel();
     }
   };
 

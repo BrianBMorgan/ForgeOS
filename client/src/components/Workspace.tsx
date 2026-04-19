@@ -26,6 +26,93 @@ interface Tab {
   description: string;
 }
 
+interface BrandLite {
+  id: number;
+  name: string;
+}
+
+function BrandSelector({ projectId }: { projectId: string | null }) {
+  const [allBrands, setAllBrands] = useState<BrandLite[]>([]);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  const loadBrands = useCallback(async () => {
+    try {
+      const res = await fetch("/api/brands");
+      const data = await res.json();
+      setAllBrands((data.brands || []).map((b: { id: number; name: string }) => ({ id: b.id, name: b.name })));
+    } catch { /* ignore */ }
+  }, []);
+
+  const loadSelection = useCallback(async () => {
+    if (!projectId) { setSelected([]); return; }
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      const data = await res.json();
+      setSelected(Array.isArray(data.brandIds) ? data.brandIds : []);
+    } catch { /* ignore */ }
+  }, [projectId]);
+
+  useEffect(() => { loadBrands(); }, [loadBrands]);
+  useEffect(() => { loadSelection(); }, [loadSelection]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const toggleBrand = async (id: number) => {
+    if (!projectId) return;
+    const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
+    setSelected(next);
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandIds: next }),
+      });
+    } catch { /* ignore — UI stays optimistic */ }
+  };
+
+  if (!projectId) return null;
+
+  const selectedNames = allBrands.filter((b) => selected.includes(b.id)).map((b) => b.name);
+  const label = selectedNames.length === 0 ? "No brand" : selectedNames.length === 1 ? selectedNames[0] : `${selectedNames.length} brands`;
+
+  return (
+    <div className="brand-selector" ref={rootRef}>
+      <button className="brand-selector-trigger" onClick={() => setOpen((v) => !v)} title="Brands attached to this project">
+        <span className="brand-selector-icon">◆</span>
+        <span className="brand-selector-label">{label}</span>
+        <span className="brand-selector-caret">▾</span>
+      </button>
+      {open && (
+        <div className="brand-selector-menu">
+          {allBrands.length === 0 ? (
+            <div className="brand-selector-empty">No brands yet. Add one in Settings → Brands.</div>
+          ) : (
+            allBrands.map((b) => (
+              <label key={b.id} className="brand-selector-item">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(b.id)}
+                  onChange={() => toggleBrand(b.id)}
+                />
+                <span>{b.name}</span>
+              </label>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const defaultTabs: Tab[] = [
   { id: "files",   label: "Files",   description: "Live GitHub file tree for this project branch." },
   { id: "commits", label: "Commits", description: "Git history with one-click rollback." },
@@ -1166,6 +1253,8 @@ export default function Workspace({ projectData }: WorkspaceProps) {
             {tab.label}
           </button>
         ))}
+        <div className="tab-bar-spacer" />
+        <BrandSelector projectId={projectId} />
       </div>
       <div className={`tab-panel${activeTab === "render" ? " tab-panel-render" : ""}`}>
         {renderTabContent()}
