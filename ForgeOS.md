@@ -269,4 +269,11 @@ All Anthropic API calls route through `model-router.js` — never call the API d
 
 ---
 
-*Last updated: 2026-03-10*
+## Session Log
+
+### 2026-04-18
+- _In progress_
+
+---
+
+*Last updated: 2026-04-18*
