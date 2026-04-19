@@ -990,7 +990,6 @@ app.post("/api/brands/:id/rescrape", async (req, res) => {
 // No agent loop. No nudges. No guards. Claude gets tools, a system prompt, and
 // conversation history. It calls tools when it needs to. It stops when it is
 // done. We get out of the way.
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 
 const GITHUB_REPO = "BrianBMorgan/ForgeOS";
@@ -1830,9 +1829,15 @@ try {
 app.get("/api/dashboard/status", async (_req, res) => {
   res.set("Cache-Control", "no-store");
   const RENDER_SERVICE_ID = "srv-d6h2rt56ubrc73duanfg";
+  let anthropicConfigured = !!process.env.ANTHROPIC_API_KEY;
+  if (!anthropicConfigured) {
+    try {
+      const vaultKey = await settingsManager.getSecret("ANTHROPIC_API_KEY");
+      if (vaultKey) anthropicConfigured = true;
+    } catch {}
+  }
   const checks = {
-    anthropic: !!process.env.ANTHROPIC_API_KEY,
-    gemini: !!process.env.GEMINI_API_KEY,
+    anthropic: anthropicConfigured,
     github: !!process.env.GITHUB_TOKEN,
     render: !!process.env.RENDER_API_KEY,
     neon: !!process.env.NEON_DATABASE_URL,
