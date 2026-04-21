@@ -1,0 +1,43 @@
+# Sandbox-XM
+
+> Sandbox-XM is the experience strategy and delivery arm of Sandbox Group. We design and deliver enterprise B2B experience programs — flagship events, executive briefings, and event-led growth systems — that move pipeline, not just people. Our operating principle: clarity, care, and execution discipline, before and after the room.
+
+Sandbox-XM works with enterprise marketing, revenue, and field leaders to design corporate events as revenue programs rather than logistics projects. Every engagement is grounded in a buyer-intent question: which accounts are in the room, at what stage, and what must they experience to advance?
+
+## Core Services
+
+- [Experience Strategy](https://sandbox-xm.com/#services): Audience-centered experience design that aligns events with business objectives and pipeline stages.
+- [Operations & Delivery](https://sandbox-xm.com/#services): End-to-end planning with calm, predictable execution — logistics, schedules, vendor coordination.
+- [Systems & Optimization](https://sandbox-xm.com/#services): Repeatable operating systems for recurring programs — staffing, workflows, and playbooks that scale.
+- [Event Technology & Measurement](https://sandbox-xm.com/#services): Technology selection, integration, and attribution measurement connecting events to pipeline outcomes.
+- [Digital & Media](https://sandbox-xm.com/#services): Branded content, microsites, and digital touchpoints that extend the experience beyond the room.
+- [Event-led Growth](https://sandbox-xm.com/#services): Capturing attendee signal and converting it into pipeline — before, during, and after the event.
+
+## Thought Leadership (The Sandbox)
+
+- [Experience Marketing Strategy for Enterprise B2B: How to Design Events That Move Pipeline, Not Just People](https://sandbox-xm.com/articles/experience-marketing-strategy-for-enterprise-b2b-how-to-design-events-that-move-pipeline-not-just-people.html): A practitioner framework for enterprise marketing leaders on the four-stage Enterprise Experience Framework (Intent Alignment, Committee Mapping, Signal Architecture, Pipeline Handoff), influence-based attribution models, and the 8-week strategy sprint for executive-level programs.
+
+- [Why AI in Event Tech Needs to Be Meaningful, Not Just Theater](https://sandbox-xm.com/articles/why-ai-in-event-tech-needs-to-be-meaningful-not-just-theater.html): Five criteria for distinguishing meaningful AI application from vendor spectacle in corporate events — the invisibility principle, failure mode test, operator transparency, integration reality check, and outcome specificity.
+
+- [Neuroscience-Based Event Design: How Brain Science Creates Measurable Engagement](https://sandbox-xm.com/articles/neuroscience-based-event-design.html): How memory formation, attention economics, and cognitive load research inform the design of corporate experiences that attendees actually remember and act on months later.
+
+- [Turning Attendee Signals Into Pipeline](https://sandbox-xm.com/articles/turning-attendee-signals-into-pipeline.html): A practitioner framework for capturing attendee intent data during live events and converting it into qualified pipeline through signal architecture and CRM integration.
+
+- [Designing an Audience-Centered Experience in 5 Steps](https://sandbox-xm.com/articles/designing-an-audience-centered-experience-in-5-steps.html): A five-step framework for designing corporate events that put attendees at the center of every decision — from first invitation through post-event follow-up.
+
+## About
+
+- [About Sandbox-XM](https://sandbox-xm.com/#about): Part of Sandbox Group. Focused team combining operational rigor with creative judgment. We are not a traditional agency with layers of overhead.
+
+## Contact
+
+- [Start a conversation](https://sandbox-xm.com/#contact): For enterprise marketing, revenue, and field leaders evaluating experience programs, executive briefing centers, or event-led growth systems. Email: admin@makemysandbox.com
+
+## Key Concepts & Frameworks
+
+- **Enterprise Experience Framework** — four stages: Intent Alignment, Committee Mapping, Signal Architecture, Pipeline Handoff.
+- **Signal Architecture** — designing deliberate interaction and data capture moments that generate usable intelligence for the sales team.
+- **Pipeline Handoff** — post-event follow-up as a sales acceleration strategy designed before the event begins, not after.
+- **8-Week Strategy Sprint** — a strategic governance scaffold of decision gates for executive-level events: Strategic Alignment (Weeks 1-2), Experience Architecture (Weeks 3-4), Content & Briefing Prep (Weeks 5-6), Rehearsal & Risk Review (Week 7), Pre-Event Sales Alignment (Week 8).
+- **Influence-based attribution** — Pipeline Influence Tracking, Account Engagement Scoring, Post-Event Deal Stage Advancement. Replaces broken last-touch attribution for live B2B experiences.
+- **Discipline before design** — the operating principle: strategy that holds under pressure, not just under ideal conditions.
