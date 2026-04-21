@@ -1538,17 +1538,48 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     const MAX_ROUNDS = 20;
     let autoApproveWrites = false; // Set to true when user clicks "Approve All Writes"
 
+    // Retry wrapper for transient Anthropic errors (overloaded_error,
+    // rate_limit_error, 5xx). Backoff: 1s, 3s, 7s. Gives up after 3 attempts
+    // and re-throws the last error for the outer catch to handle.
+    const RETRIABLE_TYPES = new Set(["overloaded_error", "rate_limit_error", "api_error"]);
+    const isRetriable = (err) => {
+      if (!err) return false;
+      const status = err.status || err.statusCode;
+      if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 529) return true;
+      const type = err.error?.error?.type || err.error?.type || err.type;
+      if (type && RETRIABLE_TYPES.has(type)) return true;
+      return false;
+    };
+    const streamWithRetry = async () => {
+      const delays = [1000, 3000, 7000];
+      let lastErr = null;
+      for (let attempt = 0; attempt < delays.length + 1; attempt++) {
+        try {
+          return await client.messages.stream({
+            model: "claude-opus-4-7",
+            max_tokens: 16000,
+            system: systemPrompt,
+            tools: anthropicTools,
+            messages: anthropicMessages,
+          });
+        } catch (err) {
+          lastErr = err;
+          if (attempt >= delays.length || !isRetriable(err)) throw err;
+          const wait = delays[attempt];
+          const type = err.error?.error?.type || err.error?.type || err.type || "transient";
+          console.log(`[forge] Anthropic ${type} — retrying in ${wait}ms (attempt ${attempt + 1}/${delays.length})`);
+          send({ type: "tool_status", content: `Anthropic is busy — retrying in ${Math.round(wait / 1000)}s...` });
+          await new Promise((r) => setTimeout(r, wait));
+        }
+      }
+      throw lastErr;
+    };
+
     for (let round = 0; round < MAX_ROUNDS; round++) {
       let streamText = "";
       const toolUses = [];
 
-      const stream = await client.messages.stream({
-        model: "claude-opus-4-7",
-        max_tokens: 16000,
-        system: systemPrompt,
-        tools: anthropicTools,
-        messages: anthropicMessages,
-      });
+      const stream = await streamWithRetry();
 
       for await (const event of stream) {
         if (event.type === "content_block_delta") {
@@ -1645,7 +1676,29 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
   } catch (err) {
     console.error("[forge] Chat error:", err.message, err.stack);
-    send({ type: "error", error: "Chat error: " + err.message });
+
+    // Translate common Anthropic errors into human-readable messages.
+    const type = err.error?.error?.type || err.error?.type || err.type;
+    const status = err.status || err.statusCode;
+    let friendly;
+    if (type === "overloaded_error" || status === 529) {
+      friendly = "Anthropic is overloaded right now and my retries didn't clear it. This usually sorts itself in a few minutes — try again shortly.";
+    } else if (type === "rate_limit_error" || status === 429) {
+      friendly = "Rate limit hit on the Anthropic API. Give it a minute and retry.";
+    } else if (type === "authentication_error" || status === 401) {
+      friendly = "Anthropic authentication failed. Check the ANTHROPIC_API_KEY in Settings → Secrets Vault.";
+    } else if (type === "permission_error" || status === 403) {
+      friendly = "Anthropic denied the request (permission error). The API key may lack access to claude-opus-4-7.";
+    } else if (type === "not_found_error" || status === 404) {
+      friendly = "Model not found on Anthropic. If this just started happening, the claude-opus-4-7 model string may have changed.";
+    } else if (type === "invalid_request_error" || status === 400) {
+      friendly = "Anthropic rejected the request: " + err.message;
+    } else if (status >= 500) {
+      friendly = "Anthropic server error (" + status + "). Try again in a moment.";
+    } else {
+      friendly = "Chat error: " + err.message;
+    }
+    send({ type: "error", error: friendly });
   }
 
   res.end();
