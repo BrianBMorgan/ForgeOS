@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# Block common noise paths
+Disallow: /api/
+
+Sitemap: https://sandbox-xm.com/sitemap.xml
