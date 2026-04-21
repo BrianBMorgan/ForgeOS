@@ -1,7 +1,73 @@
+# Sandbox-XM — robots.txt
+# Last updated: 2025-11-18
+
+# Default — allow all well-behaved crawlers
 User-agent: *
 Allow: /
-
-# Block common noise paths
 Disallow: /api/
 
+# ── AI / LLM crawlers (explicit allow for GEO) ────────────────────────────
+# Anthropic
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+# OpenAI
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+# Google AI (Gemini, AI Overviews)
+User-agent: Google-Extended
+Allow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# Apple Intelligence
+User-agent: Applebot-Extended
+Allow: /
+
+# Common Crawl (feeds many open-source LLMs)
+User-agent: CCBot
+Allow: /
+
+# Meta AI
+User-agent: Meta-ExternalAgent
+Allow: /
+
+User-agent: FacebookBot
+Allow: /
+
+# You.com
+User-agent: YouBot
+Allow: /
+
+# Amazon
+User-agent: Amazonbot
+Allow: /
+
+# Cohere
+User-agent: cohere-ai
+Allow: /
+
+# Mistral
+User-agent: MistralAI-User
+Allow: /
+
+# ── Sitemaps ──────────────────────────────────────────────────────────────
 Sitemap: https://sandbox-xm.com/sitemap.xml
