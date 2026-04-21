@@ -1543,7 +1543,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
       const toolUses = [];
 
       const stream = await client.messages.stream({
-        model: "claude-opus-4-5",
+        model: "claude-opus-4-7",
         max_tokens: 16000,
         system: systemPrompt,
         tools: anthropicTools,
@@ -1629,12 +1629,12 @@ app.post("/api/projects/:id/chat", async (req, res) => {
       try {
         const { neon } = require("@neondatabase/serverless");
         const usageSql = neon(process.env.NEON_DATABASE_URL);
-        // Pricing: Opus 4.6 $15/$75 per 1M tokens (input/output)
-        const inputCost = (totalInputTokens / 1_000_000) * 15;
-        const outputCost = (totalOutputTokens / 1_000_000) * 75;
+        // Pricing: Opus 4.7 $5/$25 per 1M tokens (input/output)
+        const inputCost = (totalInputTokens / 1_000_000) * 5;
+        const outputCost = (totalOutputTokens / 1_000_000) * 25;
         await usageSql`
           INSERT INTO forge_usage (model, input_tokens, output_tokens, cost_usd, project_id, created_at)
-          VALUES (${"claude-opus-4-5"}, ${totalInputTokens}, ${totalOutputTokens}, ${inputCost + outputCost}, ${project.id}, ${Date.now()})
+          VALUES (${"claude-opus-4-7"}, ${totalInputTokens}, ${totalOutputTokens}, ${inputCost + outputCost}, ${project.id}, ${Date.now()})
           ON CONFLICT DO NOTHING
         `;
         send({ type: "usage", inputTokens: totalInputTokens, outputTokens: totalOutputTokens, costUsd: inputCost + outputCost });

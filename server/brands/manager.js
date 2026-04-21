@@ -294,7 +294,7 @@ async function callAnthropic(systemPrompt, userContent, anthropicKey) {
   const Anthropic = require("@anthropic-ai/sdk");
   const client = new Anthropic.default({ apiKey: anthropicKey });
   const resp = await client.messages.create({
-    model: "claude-opus-4-5",
+    model: "claude-opus-4-7",
     max_tokens: 8000,
     system: systemPrompt,
     messages: [{ role: "user", content: userContent }],
@@ -305,8 +305,8 @@ async function callAnthropic(systemPrompt, userContent, anthropicKey) {
     .join("");
   const inputTokens = resp.usage?.input_tokens || 0;
   const outputTokens = resp.usage?.output_tokens || 0;
-  // claude-opus-4-5: $15/M input, $75/M output
-  const cost = (inputTokens / 1_000_000) * 15 + (outputTokens / 1_000_000) * 75;
+  // claude-opus-4-7: $5/M input, $25/M output
+  const cost = (inputTokens / 1_000_000) * 5 + (outputTokens / 1_000_000) * 25;
   return { text, inputTokens, outputTokens, cost };
 }
 
@@ -314,7 +314,7 @@ async function recordUsage({ inputTokens, outputTokens, cost, projectId }) {
   if (!sql) return;
   try {
     await sql`INSERT INTO forge_usage (model, input_tokens, output_tokens, cost_usd, project_id, created_at)
-      VALUES (${"claude-opus-4-5"}, ${inputTokens}, ${outputTokens}, ${cost}, ${projectId || null}, ${Date.now()})`;
+      VALUES (${"claude-opus-4-7"}, ${inputTokens}, ${outputTokens}, ${cost}, ${projectId || null}, ${Date.now()})`;
   } catch (err) {
     console.error("[brands] recordUsage failed:", err.message);
   }
