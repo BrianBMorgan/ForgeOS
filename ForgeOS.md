@@ -75,7 +75,7 @@ v2 boot migrations drop the old v1 tables: `DROP TABLE IF EXISTS iterations`, `D
 Frank is a direct Anthropic streaming chat engine. **No agent loop abstraction. No Hedwig. No nudges, guards, or forced tool calls.** Claude gets tools + system prompt + history, and that's it.
 
 - **Endpoint:** `POST /api/projects/:id/chat` — SSE stream (`text/event-stream`)
-- **Model:** `claude-opus-4-5`
+- **Model:** `claude-opus-4-7`
 - **SDK:** `@anthropic-ai/sdk` via `client.messages.stream(...)`
 - **Max rounds per turn:** 20 (safety cap — rarely reached)
 - **History:** last 30 messages loaded from `forge_conversations`; user messages, assistant text, tool results all round-trip through the DB
@@ -354,7 +354,7 @@ Breakpoints: 3-col → 2-col at <1100px → 1-col at <900px. The `.content-split
 
 | Task | Model |
 |---|---|
-| Frank (all chat + tool use) | `claude-opus-4-5` |
+| Frank (all chat + tool use) | `claude-opus-4-7` |
 | Brain memory extraction | routed through Anthropic (lightweight) |
 
 No model router module. Direct SDK calls from `server/index.js`.
@@ -402,13 +402,19 @@ No model router module. Direct SDK calls from `server/index.js`.
 - Shipped **Brand Profile skill** (id 27) — instructs Frank to scrape a brand's live site and capture colors, fonts, nav/footer HTML, container pattern, voice.
 - Shipped **Brand Profiles feature** (feat: 0b387a1):
   - New `forge_brands` + `forge_project_brands` tables (many-to-many)
-  - `server/brands/manager.js` — CRUD + Anthropic-powered scraper (claude-opus-4-5, usage recorded)
+  - `server/brands/manager.js` — CRUD + Anthropic-powered scraper (claude-opus-4-7, usage recorded)
   - Six `/api/brands/*` routes; `PATCH /api/projects/:id` accepts `brandIds: number[]`
   - Chat handler injects `## BRAND PROFILES` into Frank's system prompt between THIS PROJECT and RELEVANT MEMORY
   - Settings UI: new Brands tab with list + editor; Save, Save & Scrape, Re-scrape, Delete; profile is hand-editable markdown
   - Workspace tab bar: compact multi-select brand chip selector
 - Updated skill 27 to point at the Brands library API instead of writing `.forge/brand.md` to branches — profiles now live in Neon, are reusable across projects, and are auto-injected without a tool call.
+- Cleanup commits landed in parallel sessions: `33c857f` dropped vestigial `@google/generative-ai` + `dotenv` deps and fixed the `/api/dashboard/status` Anthropic check to consult the vault; `e513c93` passed the real date into the scraper prompt and surfaced fetch failures.
+- Fixed new-project brand attach (`f6f2b7a`) — `BrandSelector` now renders pre-creation with staged state, and `POST /api/projects` accepts `brandIds: number[]` so Frank gets `## BRAND PROFILES` on turn 1.
+- Fixed brand chip dropdown visibility + iPad touch (`48a59ef`) — menu rendered as `position: fixed` with computed coords to escape the tab-bar `overflow-x: auto` clip; outside-tap detection moved from `mousedown` to `pointerdown` for iOS Safari; larger hit targets and `touch-action: manipulation`.
+
+### 2026-04-19
+- **Frank migrated to Claude Opus 4.7** (`a0b3179`) — both the chat engine and the brand scraper. Pricing math updated from $15/$75 per MTok to $5/$25 per MTok to match the current rate card. `forge_usage` now records `model='claude-opus-4-7'` on new rows; historical rows are untouched. No banned params in use (no `temperature`/`top_p`/`top_k`), so 4.7's parameter deprecation had no impact.
 
 ---
 
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-19*
