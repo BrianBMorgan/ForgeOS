@@ -891,6 +891,60 @@ app.post("/api/hubspot/deals", async (req, res) => {
   }
 });
 
+// ── Google Workspace ─────────────────────────────────────────────────────────
+// Single-user OAuth. Visit /api/google/auth/start in a browser once, consent,
+// and the refresh token is stored in the vault. All subsequent tool calls
+// refresh access tokens on demand.
+const googleAuth = require("./integrations/google/auth");
+const googleGmail = require("./integrations/google/gmail");
+const googleCalendar = require("./integrations/google/calendar");
+const googleDrive = require("./integrations/google/drive");
+const googleDocs = require("./integrations/google/docs");
+const googleContacts = require("./integrations/google/contacts");
+
+app.get("/api/google/auth/status", async (_req, res) => {
+  try {
+    const connected = await googleAuth.isConnected();
+    res.json({ connected, scopes: googleAuth.SCOPES });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/google/auth/start", async (req, res) => {
+  try {
+    const { clientId } = await googleAuth.getClientCredentials();
+    const redirectUri = googleAuth.getBaseUrl(req) + googleAuth.REDIRECT_URI_PATH;
+    const url = googleAuth.buildConsentUrl({ clientId, redirectUri });
+    res.redirect(url);
+  } catch (err) {
+    res.status(500).send(`<pre>${err.message}</pre>`);
+  }
+});
+
+app.get("/api/google/auth/callback", async (req, res) => {
+  const { code, error } = req.query;
+  if (error) return res.status(400).send(`<pre>Google OAuth error: ${error}</pre>`);
+  if (!code) return res.status(400).send("<pre>Missing code parameter</pre>");
+  try {
+    const redirectUri = googleAuth.getBaseUrl(req) + googleAuth.REDIRECT_URI_PATH;
+    const tokens = await googleAuth.exchangeCodeForTokens({ code, redirectUri });
+    await settingsManager.setSecret("GOOGLE_REFRESH_TOKEN", tokens.refresh_token);
+    res.send(`<!doctype html><meta charset=utf-8><title>Google connected</title><body style="font-family:system-ui;background:#0a0f1c;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="text-align:center;padding:2rem;border:1px solid #1e293b;background:#0f172a;max-width:500px"><h1 style="margin-top:0">✓ Google connected</h1><p>Frank now has access to Gmail, Calendar, Drive, Docs, and Contacts. You can close this tab and return to ForgeOS.</p></div></body>`);
+  } catch (err) {
+    res.status(500).send(`<pre>${err.message}</pre>`);
+  }
+});
+
+app.post("/api/google/auth/disconnect", async (_req, res) => {
+  try {
+    await googleAuth.disconnect();
+    res.json({ disconnected: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Brands ────────────────────────────────────────────────────────────────────
 // Reusable brand profiles scraped from live sites. Projects attach to brands
 // many-to-many; every attached profile is injected into Frank's system prompt.
@@ -1015,7 +1069,23 @@ function githubHeaders() {
 
 // ─── Approval system ────────────────────────────────────────────────────────
 const pendingApprovals = new Map(); // approvalId → { resolve }
-const APPROVAL_TOOLS = new Set(["github_write", "github_patch"]);
+const APPROVAL_TOOLS = new Set([
+  "github_write",
+  "github_patch",
+  "gmail_create_draft",
+  "gmail_send",
+  "gmail_modify_labels",
+  "calendar_create_event",
+  "calendar_update_event",
+  "calendar_delete_event",
+  "drive_write_file",
+  "drive_create_folder",
+  "drive_move_file",
+  "drive_delete_file",
+  "docs_append_text",
+  "docs_replace_text",
+  "docs_create",
+]);
 
 const FORGE_TOOLS = [
   {
@@ -1168,6 +1238,306 @@ const FORGE_TOOLS = [
     },
   },
   {
+    name: "gmail_search",
+    description: "Search the user's Gmail threads. Accepts Gmail search operators like from:, to:, subject:, has:attachment, newer_than:7d. Returns thread ids and snippets — follow up with gmail_read_thread for full content.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Gmail search query. Example: 'from:acme.com newer_than:30d' or 'subject:invoice has:attachment'." },
+        max_results: { type: "number", description: "Max threads to return. Default 20, max 100." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "gmail_read_thread",
+    description: "Read all messages in a Gmail thread by id. Returns sender, recipients, subject, date, snippet, and body text for each message.",
+    parameters: {
+      type: "object",
+      properties: {
+        thread_id: { type: "string", description: "Thread id from gmail_search." },
+      },
+      required: ["thread_id"],
+    },
+  },
+  {
+    name: "gmail_list_labels",
+    description: "List the user's Gmail labels. Returns id and name for each — useful before gmail_modify_labels so you know which label id to use.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "gmail_modify_labels",
+    description: "Apply or remove labels on a Gmail thread. Use gmail_list_labels first to find label ids. Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        thread_id: { type: "string" },
+        add_label_ids: { type: "array", items: { type: "string" } },
+        remove_label_ids: { type: "array", items: { type: "string" } },
+      },
+      required: ["thread_id"],
+    },
+  },
+  {
+    name: "gmail_create_draft",
+    description: "Create a Gmail draft without sending. Safer than gmail_send — lets Brian review in Gmail before actually sending. Requires approval. If replying, pass thread_id and in_reply_to.",
+    parameters: {
+      type: "object",
+      properties: {
+        to: { type: "string" },
+        cc: { type: "string" },
+        bcc: { type: "string" },
+        subject: { type: "string" },
+        body: { type: "string", description: "Plain-text body." },
+        thread_id: { type: "string", description: "Optional — thread id if replying." },
+        in_reply_to: { type: "string", description: "Optional — Message-ID of the email being replied to." },
+      },
+      required: ["subject", "body"],
+    },
+  },
+  {
+    name: "gmail_send",
+    description: "Send an email on Brian's behalf. IRREVERSIBLE. Prefer gmail_create_draft unless Brian explicitly asked to send. Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        to: { type: "string" },
+        cc: { type: "string" },
+        bcc: { type: "string" },
+        subject: { type: "string" },
+        body: { type: "string", description: "Plain-text body." },
+        thread_id: { type: "string" },
+        in_reply_to: { type: "string" },
+      },
+      required: ["to", "subject", "body"],
+    },
+  },
+  {
+    name: "calendar_list_calendars",
+    description: "List Brian's calendars. Returns id, summary, whether it's primary, timezone. Use the returned id for other calendar tools (or 'primary' for his main calendar).",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "calendar_list_events",
+    description: "List events on a calendar within a time window. Times should be ISO 8601. Defaults to the primary calendar and the next 7 days if times are omitted.",
+    parameters: {
+      type: "object",
+      properties: {
+        calendar_id: { type: "string", description: "Calendar id. Default 'primary'." },
+        time_min: { type: "string", description: "ISO 8601 start. Default: now." },
+        time_max: { type: "string", description: "ISO 8601 end. Default: now + 7 days." },
+        q: { type: "string", description: "Optional free-text filter." },
+        max_results: { type: "number", description: "Default 25." },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "calendar_create_event",
+    description: "Create a calendar event. Requires approval. Times are ISO 8601. Pass send_updates='all' to notify attendees.",
+    parameters: {
+      type: "object",
+      properties: {
+        calendar_id: { type: "string", description: "Default 'primary'." },
+        summary: { type: "string" },
+        description: { type: "string" },
+        location: { type: "string" },
+        start: { type: "string", description: "ISO 8601 start time." },
+        end: { type: "string", description: "ISO 8601 end time." },
+        time_zone: { type: "string", description: "IANA timezone, e.g. 'America/Los_Angeles'." },
+        attendees: { type: "array", items: { type: "string" }, description: "List of attendee emails." },
+        send_updates: { type: "string", description: "'all' | 'externalOnly' | 'none'. Default 'none'." },
+      },
+      required: ["summary", "start", "end"],
+    },
+  },
+  {
+    name: "calendar_update_event",
+    description: "Patch an existing calendar event (partial update). Requires approval. Pass only the fields you want to change.",
+    parameters: {
+      type: "object",
+      properties: {
+        calendar_id: { type: "string", description: "Default 'primary'." },
+        event_id: { type: "string" },
+        patch: { type: "object", description: "Any fields from the Calendar Event schema: summary, description, location, start, end, attendees." },
+        send_updates: { type: "string", description: "'all' | 'externalOnly' | 'none'. Default 'none'." },
+      },
+      required: ["event_id", "patch"],
+    },
+  },
+  {
+    name: "calendar_delete_event",
+    description: "Delete a calendar event. Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        calendar_id: { type: "string", description: "Default 'primary'." },
+        event_id: { type: "string" },
+        send_updates: { type: "string" },
+      },
+      required: ["event_id"],
+    },
+  },
+  {
+    name: "drive_search",
+    description: "Search Brian's Google Drive by filename or full-text. Returns file id, name, mimeType, size, modifiedTime, parents, webViewLink. Use drive_read_file to get contents.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Free-text query. Example: 'Sandbox-GTM brand doc'." },
+        folder_id: { type: "string", description: "Optional — restrict to a single folder." },
+        page_size: { type: "number", description: "Default 25, max 1000." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "drive_list_folder",
+    description: "List children of a Drive folder. Pass folder_id='root' for the root of Brian's Drive.",
+    parameters: {
+      type: "object",
+      properties: {
+        folder_id: { type: "string", description: "Folder id or 'root'." },
+        page_size: { type: "number" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "drive_read_file",
+    description: "Read a Drive file's contents. Google Docs/Sheets/Slides are exported to plain text / CSV / plain text respectively. Binary files return base64 — prefer Google-native formats when possible.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_id: { type: "string" },
+        max_bytes: { type: "number", description: "Default 200000." },
+      },
+      required: ["file_id"],
+    },
+  },
+  {
+    name: "drive_write_file",
+    description: "Create or overwrite a file in Drive. If file_id is passed, updates that file; otherwise creates a new file (optionally inside parent_id). Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "File name. Required when creating; ignored when file_id is passed." },
+        parent_id: { type: "string", description: "Folder id to create the file in. Optional; defaults to root. Ignored when file_id is passed." },
+        file_id: { type: "string", description: "Pass to update an existing file instead of creating one." },
+        mime_type: { type: "string", description: "Default 'text/plain'." },
+        content: { type: "string", description: "File content. Plain text by default; base64 if encoding='base64'." },
+        encoding: { type: "string", description: "'utf-8' (default) or 'base64'." },
+      },
+      required: ["content"],
+    },
+  },
+  {
+    name: "drive_create_folder",
+    description: "Create a new folder in Drive. Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        parent_id: { type: "string", description: "Optional parent folder id. Defaults to root." },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "drive_move_file",
+    description: "Move a Drive file to a different folder (or add/remove multiple parents). Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_id: { type: "string" },
+        add_parents: { type: "string", description: "Comma-separated folder ids to add as parents." },
+        remove_parents: { type: "string", description: "Comma-separated folder ids to remove." },
+      },
+      required: ["file_id"],
+    },
+  },
+  {
+    name: "drive_delete_file",
+    description: "Move a file to Drive trash (recoverable) or hard-delete it. Defaults to trash. Requires approval — never hard-delete without explicit confirmation from Brian.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_id: { type: "string" },
+        trash: { type: "boolean", description: "True (default) moves to trash; false hard-deletes." },
+      },
+      required: ["file_id"],
+    },
+  },
+  {
+    name: "docs_read",
+    description: "Read a Google Doc's contents as plain text with headings preserved as markdown. For structured edits, use docs_append_text or docs_replace_text. For read-only work drive_read_file also works.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+      },
+      required: ["document_id"],
+    },
+  },
+  {
+    name: "docs_append_text",
+    description: "Append plain text to the end of a Google Doc. Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        text: { type: "string", description: "Text to append. Include leading newline(s) if you want spacing." },
+      },
+      required: ["document_id", "text"],
+    },
+  },
+  {
+    name: "docs_replace_text",
+    description: "Find-and-replace across a Google Doc. Pass an array of {find, replace, match_case?}. Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        replacements: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              find: { type: "string" },
+              replace: { type: "string" },
+              match_case: { type: "boolean" },
+            },
+            required: ["find", "replace"],
+          },
+        },
+      },
+      required: ["document_id", "replacements"],
+    },
+  },
+  {
+    name: "docs_create",
+    description: "Create a new blank Google Doc with a title. Requires approval. Use docs_append_text afterwards to populate it, or use drive_write_file with a text mime type for a non-Google file.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "contacts_search",
+    description: "Search Brian's Google Contacts by name, email, phone, or organization. Returns names, emails, phones, organizations.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        page_size: { type: "number", description: "Default 20, max 30." },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "ask_user",
     description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
     parameters: {
@@ -1199,20 +1569,44 @@ You are the architect AND the engineer. You:
 
 ## YOUR TOOLS
 
+Engineering:
 - github_create_branch — create a new apps/<slug> branch when it doesn't exist yet
 - github_ls — explore what exists on a branch
 - github_read — read any file before making changes to it
 - github_write — commit a complete file. Write the FULL file content — never truncate or use placeholder comments.
 - github_patch — surgical find/replace for small targeted changes (a few lines)
 - render_status — check deploy status and get the live URL
+
+Research & context:
 - memory_search — search past builds for patterns and lessons
 - fetch_url — fetch any URL: web pages, documentation, live app pages, or internal ForgeOS APIs
-- browser_use — drive a real cloud browser (clicks, forms, JS-rendered pages, multi-step flows, end-to-end verification). Slower than fetch_url, use when fetch_url isn't enough.
-- list_assets — list all files in the ForgeOS asset library
+- browser_use — drive a real headless browser with a natural-language task. Use when fetch_url isn't enough: SPAs, auth walls, multi-step flows (click/fill/wait), visual verification of deployed apps.
+- list_assets — list files in the ForgeOS asset library
 - list_skills — list every skill in the global skills library (id, name, description, tags)
 - read_skill — load a specific skill's full instructions into your context by id
-- browser_use — drive a real headless browser with a natural-language task. Use when fetch_url isn't enough: SPAs, auth walls, multi-step flows (click/fill/wait), visual verification of deployed apps, or "go look at this site the way a human would".
+
+Google Workspace (Brian's account):
+- gmail_search, gmail_read_thread, gmail_list_labels — read Brian's inbox
+- gmail_modify_labels, gmail_create_draft, gmail_send — modify/compose (approval required)
+- calendar_list_calendars, calendar_list_events — read Brian's calendar
+- calendar_create_event, calendar_update_event, calendar_delete_event — modify (approval required)
+- drive_search, drive_list_folder, drive_read_file — read Drive
+- drive_write_file, drive_create_folder, drive_move_file, drive_delete_file — modify Drive (approval required)
+- docs_read, docs_append_text, docs_replace_text, docs_create — work with Google Docs (writes require approval)
+- contacts_search — look up Brian's contacts
+
+Comms:
 - ask_user — ask Brian a question when you genuinely need clarification
+
+## GOOGLE WORKSPACE — WHEN TO USE
+
+Brian's Google account is connected. Use it naturally — if he asks "what's on my calendar tomorrow", call calendar_list_events. If he says "find the Sandbox-GTM brand doc in my Drive", call drive_search. If he says "draft a reply to the latest email from Sarah", call gmail_search then gmail_create_draft.
+
+Prefer drafts over direct sends. gmail_create_draft is safer than gmail_send because it puts the email in Gmail → Drafts for Brian to review. Only use gmail_send when Brian has explicitly said "send it".
+
+For Drive writes, default to creating under a clearly named parent folder (drive_search first to find it or create it with drive_create_folder) rather than dumping files at the root. Brian syncs Drive to his Mac via Google Drive for Desktop, so anything you create under /Documents shows up on his machine automatically.
+
+For destructive actions (drive_delete_file, calendar_delete_event) always default to recoverable options: trash=true for Drive (recoverable from Drive trash), sendUpdates='none' for calendar unless Brian explicitly wants attendees notified.
 
 ## SKILLS
 
@@ -1576,6 +1970,215 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
       } catch (err) {
         return "browser_use error: " + err.message;
       }
+    }
+
+    // ── Google Workspace ────────────────────────────────────────────────
+    case "gmail_search": {
+      try {
+        const threads = await googleGmail.searchThreads({ query: toolInput.query, maxResults: toolInput.max_results });
+        return JSON.stringify(threads);
+      } catch (err) { return "gmail_search error: " + err.message; }
+    }
+    case "gmail_read_thread": {
+      try {
+        const thread = await googleGmail.readThread(toolInput.thread_id);
+        return JSON.stringify(thread);
+      } catch (err) { return "gmail_read_thread error: " + err.message; }
+    }
+    case "gmail_list_labels": {
+      try {
+        const labels = await googleGmail.listLabels();
+        return JSON.stringify(labels);
+      } catch (err) { return "gmail_list_labels error: " + err.message; }
+    }
+    case "gmail_modify_labels": {
+      try {
+        const result = await googleGmail.modifyThreadLabels(toolInput.thread_id, {
+          addLabelIds: toolInput.add_label_ids || [],
+          removeLabelIds: toolInput.remove_label_ids || [],
+        });
+        return JSON.stringify({ ok: true, id: result.id });
+      } catch (err) { return "gmail_modify_labels error: " + err.message; }
+    }
+    case "gmail_create_draft": {
+      try {
+        const draft = await googleGmail.createDraft({
+          to: toolInput.to, cc: toolInput.cc, bcc: toolInput.bcc,
+          subject: toolInput.subject, body: toolInput.body,
+          threadId: toolInput.thread_id, inReplyTo: toolInput.in_reply_to,
+        });
+        return `Draft created. id=${draft.id} — review in Gmail → Drafts.`;
+      } catch (err) { return "gmail_create_draft error: " + err.message; }
+    }
+    case "gmail_send": {
+      try {
+        const msg = await googleGmail.sendMessage({
+          to: toolInput.to, cc: toolInput.cc, bcc: toolInput.bcc,
+          subject: toolInput.subject, body: toolInput.body,
+          threadId: toolInput.thread_id, inReplyTo: toolInput.in_reply_to,
+        });
+        return `Sent. message id=${msg.id}, thread=${msg.threadId}.`;
+      } catch (err) { return "gmail_send error: " + err.message; }
+    }
+    case "calendar_list_calendars": {
+      try {
+        const cals = await googleCalendar.listCalendars();
+        return JSON.stringify(cals);
+      } catch (err) { return "calendar_list_calendars error: " + err.message; }
+    }
+    case "calendar_list_events": {
+      try {
+        const now = new Date();
+        const events = await googleCalendar.listEvents({
+          calendarId: toolInput.calendar_id,
+          timeMin: toolInput.time_min || now.toISOString(),
+          timeMax: toolInput.time_max || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          q: toolInput.q,
+          maxResults: toolInput.max_results,
+        });
+        return JSON.stringify(events);
+      } catch (err) { return "calendar_list_events error: " + err.message; }
+    }
+    case "calendar_create_event": {
+      try {
+        const event = await googleCalendar.createEvent({
+          calendarId: toolInput.calendar_id,
+          summary: toolInput.summary,
+          description: toolInput.description,
+          location: toolInput.location,
+          start: toolInput.start,
+          end: toolInput.end,
+          timeZone: toolInput.time_zone,
+          attendees: toolInput.attendees,
+          sendUpdates: toolInput.send_updates,
+        });
+        return `Event created. id=${event.id}, link=${event.htmlLink}`;
+      } catch (err) { return "calendar_create_event error: " + err.message; }
+    }
+    case "calendar_update_event": {
+      try {
+        const event = await googleCalendar.updateEvent({
+          calendarId: toolInput.calendar_id,
+          eventId: toolInput.event_id,
+          patch: toolInput.patch || {},
+          sendUpdates: toolInput.send_updates,
+        });
+        return `Event updated. id=${event.id}, link=${event.htmlLink}`;
+      } catch (err) { return "calendar_update_event error: " + err.message; }
+    }
+    case "calendar_delete_event": {
+      try {
+        const result = await googleCalendar.deleteEvent({
+          calendarId: toolInput.calendar_id,
+          eventId: toolInput.event_id,
+          sendUpdates: toolInput.send_updates,
+        });
+        return JSON.stringify(result);
+      } catch (err) { return "calendar_delete_event error: " + err.message; }
+    }
+    case "drive_search": {
+      try {
+        const files = await googleDrive.search({
+          q: toolInput.query,
+          folderId: toolInput.folder_id,
+          pageSize: toolInput.page_size,
+        });
+        return JSON.stringify(files);
+      } catch (err) { return "drive_search error: " + err.message; }
+    }
+    case "drive_list_folder": {
+      try {
+        const files = await googleDrive.listFolder({
+          folderId: toolInput.folder_id || "root",
+          pageSize: toolInput.page_size,
+        });
+        return JSON.stringify(files);
+      } catch (err) { return "drive_list_folder error: " + err.message; }
+    }
+    case "drive_read_file": {
+      try {
+        const result = await googleDrive.readFile(toolInput.file_id, { maxBytes: toolInput.max_bytes });
+        // Wrap so Frank knows what's text vs base64.
+        return JSON.stringify({
+          name: result.meta.name,
+          mimeType: result.meta.mimeType,
+          encoding: result.encoding,
+          truncated: result.truncated,
+          totalBytes: result.totalBytes,
+          content: result.content,
+        });
+      } catch (err) { return "drive_read_file error: " + err.message; }
+    }
+    case "drive_write_file": {
+      try {
+        const file = await googleDrive.writeFile({
+          name: toolInput.name,
+          parentId: toolInput.parent_id,
+          mimeType: toolInput.mime_type,
+          content: toolInput.content,
+          encoding: toolInput.encoding,
+          fileId: toolInput.file_id,
+        });
+        return `File ${toolInput.file_id ? "updated" : "created"}. id=${file.id}, name=${file.name}, link=${file.webViewLink}`;
+      } catch (err) { return "drive_write_file error: " + err.message; }
+    }
+    case "drive_create_folder": {
+      try {
+        const folder = await googleDrive.createFolder({
+          name: toolInput.name,
+          parentId: toolInput.parent_id,
+        });
+        return `Folder created. id=${folder.id}, name=${folder.name}, link=${folder.webViewLink}`;
+      } catch (err) { return "drive_create_folder error: " + err.message; }
+    }
+    case "drive_move_file": {
+      try {
+        const file = await googleDrive.moveFile({
+          fileId: toolInput.file_id,
+          addParents: toolInput.add_parents,
+          removeParents: toolInput.remove_parents,
+        });
+        return `File moved. id=${file.id}, parents=${JSON.stringify(file.parents)}`;
+      } catch (err) { return "drive_move_file error: " + err.message; }
+    }
+    case "drive_delete_file": {
+      try {
+        const result = await googleDrive.deleteFile(toolInput.file_id, { trash: toolInput.trash !== false });
+        return JSON.stringify(result);
+      } catch (err) { return "drive_delete_file error: " + err.message; }
+    }
+    case "docs_read": {
+      try {
+        const doc = await googleDocs.readDoc(toolInput.document_id);
+        return JSON.stringify(doc);
+      } catch (err) { return "docs_read error: " + err.message; }
+    }
+    case "docs_append_text": {
+      try {
+        await googleDocs.appendText(toolInput.document_id, toolInput.text);
+        return `Appended ${toolInput.text.length} chars to doc ${toolInput.document_id}.`;
+      } catch (err) { return "docs_append_text error: " + err.message; }
+    }
+    case "docs_replace_text": {
+      try {
+        const replacements = (toolInput.replacements || []).map((r) => ({
+          find: r.find, replace: r.replace, matchCase: r.match_case,
+        }));
+        await googleDocs.replaceAllText(toolInput.document_id, replacements);
+        return `Applied ${replacements.length} replacement(s) in doc ${toolInput.document_id}.`;
+      } catch (err) { return "docs_replace_text error: " + err.message; }
+    }
+    case "docs_create": {
+      try {
+        const doc = await googleDocs.createDoc({ title: toolInput.title });
+        return `Doc created. id=${doc.documentId}, link=https://docs.google.com/document/d/${doc.documentId}/edit`;
+      } catch (err) { return "docs_create error: " + err.message; }
+    }
+    case "contacts_search": {
+      try {
+        const results = await googleContacts.searchContacts(toolInput.query, { pageSize: toolInput.page_size });
+        return JSON.stringify(results);
+      } catch (err) { return "contacts_search error: " + err.message; }
     }
 
     case "ask_user":
