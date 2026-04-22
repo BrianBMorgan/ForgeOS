@@ -1136,6 +1136,26 @@ const FORGE_TOOLS = [
     },
   },
   {
+    name: "list_skills",
+    description: "List all skills in the ForgeOS global skills library. Returns each skill's id, name, description, and tags. Skills are reusable playbooks (e.g. 'Brand Profile: Scrape & Save', 'Publish Article') that Brian has registered for Frank to use. Call this whenever Brian references a skill by name, mentions 'skills', asks what skills exist, or when you're unsure whether a skill exists for the task at hand.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "read_skill",
+    description: "Load a skill's full instructions into your working context by id. Call this after list_skills finds a matching skill, or when Brian names a specific skill. The returned instructions should be followed as authoritative guidance for the current task.",
+    parameters: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Skill id from list_skills." },
+      },
+      required: ["id"],
+    },
+  },
+  {
     name: "ask_user",
     description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
     parameters: {
@@ -1176,17 +1196,28 @@ You are the architect AND the engineer. You:
 - memory_search — search past builds for patterns and lessons
 - fetch_url — fetch any URL: web pages, documentation, live app pages, or internal ForgeOS APIs
 - list_assets — list all files in the ForgeOS asset library
+- list_skills — list every skill in the global skills library (id, name, description, tags)
+- read_skill — load a specific skill's full instructions into your context by id
 - ask_user — ask Brian a question when you genuinely need clarification
+
+## SKILLS
+
+Skills are reusable playbooks Brian has registered in the global skills library — things like "Brand Profile: Scrape & Save" or "Publish Article". They are NOT auto-injected into your prompt. You must reach for them:
+
+- When Brian references a skill by name ("use the brand-profile skill"), call read_skill with the matching id.
+- When you're unsure whether a skill exists for the task, call list_skills first, then read_skill if a match looks promising.
+- Skill instructions once loaded are authoritative for that task — follow them.
+- If Brian names a skill and list_skills doesn't contain it, tell him clearly: the skill is not registered. Don't guess or improvise a fake version.
 
 ## HOW TO BUILD
 
-1. Search memory with memory_search for relevant patterns from past builds
-2. If a skill applies, fetch it with fetch_url at /api/skills
-3. Read existing files with github_read — ALWAYS read before writing
-4. Ask Brian if anything is still unclear with ask_user
+1. If Brian names or hints at a skill, call list_skills and read_skill before planning.
+2. Search memory with memory_search for relevant patterns from past builds.
+3. Read existing files with github_read — ALWAYS read before writing.
+4. Ask Brian if anything is still unclear with ask_user.
 5. Write the code and commit with github_write (complete file) or github_patch (small edit). Brian will see an approval card and must approve before the commit executes.
-6. Check render_status once to confirm deploy status
-7. Report what shipped and the live URL
+6. Check render_status once to confirm deploy status.
+7. Report what shipped and the live URL.
 
 ## APPROVAL FLOW
 
@@ -1405,6 +1436,33 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         return JSON.stringify(assets.map(a => ({ filename: a.filename, mimetype: a.mimetype, size: a.size })));
       } catch (err) {
         return "list_assets error: " + err.message;
+      }
+    }
+
+    case "list_skills": {
+      try {
+        const skills = await settingsManager.getAllSkills();
+        if (!skills || skills.length === 0) return "No skills registered. Brian can add one in Settings → Skills Library.";
+        return JSON.stringify(skills.map(s => ({
+          id: s.id,
+          name: s.name,
+          description: s.description || "",
+          tags: s.tags || "",
+        })));
+      } catch (err) {
+        return "list_skills error: " + err.message;
+      }
+    }
+
+    case "read_skill": {
+      try {
+        const id = Number(toolInput.id);
+        if (!Number.isFinite(id)) return "read_skill error: id must be a number";
+        const skill = await settingsManager.getSkill(id);
+        if (!skill) return "read_skill error: no skill with id " + id + ". Use list_skills to see what's available.";
+        return `# Skill: ${skill.name}\n\n${skill.description ? skill.description + "\n\n" : ""}${skill.instructions}`;
+      } catch (err) {
+        return "read_skill error: " + err.message;
       }
     }
 
