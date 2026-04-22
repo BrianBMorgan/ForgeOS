@@ -51,6 +51,63 @@ var SEED_PLAYBOOKS = [
   { title: 'Case Study Flywheel', summary: 'Every project ships with a case study asset set — long-form, film, social cutdowns — that feeds every channel.', steps: '1. Scope documentation into every SOW from day one. 2. Capture process photo/video throughout. 3. Publish within 30 days of wrap. 4. Pitch to 3 trade publications on publish day.' }
 ];
 
+// ---- First pitch: Oatly — Signature Activation ----
+var OATLY_CONCEPT = [
+  'THE OAT REPORT — Oatly\'s first annual cultural moment.',
+  '',
+  'A one-day, invite-only summit in NYC or LA where Oatly publishes its annual "State of the Oat" — part cultural report, part tasting experience, part provocation.',
+  '',
+  'Guests: food press, chefs, cultural critics, longtime fans, dissenting voices. Deliverable: a printed editorial report + a live experience that IS the launch of the report. It recurs annually. It becomes the thing they own.',
+  '',
+  'WHY IT WINS',
+  '— Ladders to their brand voice (opinionated, literate, funny)',
+  '— Creates owned media (the report) + earned media (the event) in one motion',
+  '— Scales: year two is bigger than year one, by design',
+  '— Pitch-sized: one hero moment, not a retainer ask',
+  '',
+  'THE AUDIENCE QUESTION WE\'RE ANSWERING',
+  'How does a challenger dairy-alt brand stay culturally sharp once it\'s mainstream? The Oat Report is their answer — a platform to keep provoking, observing, and leading the conversation rather than defending share.'
+].join('\n');
+
+var OATLY_ONELINER = 'An invite-only annual summit where Oatly publishes "The Oat Report" — the cultural document the plant-based movement has been waiting for, delivered as a hero experience.';
+
+var OATLY_EMAIL = [
+  'Subject: An annual moment for Oatly — a concept, not a pitch deck',
+  '',
+  'Hi [First name],',
+  '',
+  'I run Sandbox-XM — we design brand experiences for teams who believe the room is strategy, not staging.',
+  '',
+  'I\'m writing because Oatly is one of maybe five brands in the world whose voice could carry a full-scale owned cultural moment, and as far as I can tell you haven\'t built one yet. You do sampling brilliantly. You do stunts. You do packaging as manifesto. But there isn\'t a single day of the year the industry waits for from Oatly — and there should be.',
+  '',
+  'The rough idea: an invite-only annual summit where Oatly publishes "The Oat Report" — part cultural audit of the plant-based movement, part tasting experience, part provocation. Food press, chefs, critics, superfans. A printed editorial report as the artifact. An evening that IS the launch. Year one sets the franchise. Year two is bigger by design.',
+  '',
+  'It answers a real tension: how does Oatly stay the loudest challenger now that the category caught up? The Oat Report keeps you leading the conversation instead of defending share.',
+  '',
+  'I\'m not looking to send a deck or get on a procurement list. I\'d like 25 minutes to walk you through the concept — if it\'s not for you, you\'ll at least have a framework to hand to whoever does build it.',
+  '',
+  'Worth a conversation?',
+  '',
+  'Brian',
+  'Sandbox-XM',
+  '[phone] · [site]'
+].join('\n');
+
+var SEED_PITCHES = [
+  {
+    target_company: 'Oatly',
+    play: 'Signature Activation Pitch',
+    concept_title: 'The Oat Report',
+    one_liner: OATLY_ONELINER,
+    concept: OATLY_CONCEPT,
+    contact_name: '',
+    contact_role: 'Head of Brand / CMO / Global Creative Director',
+    outbound_draft: OATLY_EMAIL,
+    status: 'drafting',
+    next_action: 'Identify the right contact at Oatly (LinkedIn: Head of Brand, Creative Director, or CMO). Finalize subject line A/B. Send within 5 business days.'
+  }
+];
+
 async function ensureSchema() {
   if (!sql) return;
   await sql('CREATE TABLE IF NOT EXISTS personas (id SERIAL PRIMARY KEY, title TEXT, company_type TEXT, pain TEXT, trigger TEXT, value_prop TEXT, updated_at TIMESTAMPTZ DEFAULT NOW())');
@@ -58,8 +115,9 @@ async function ensureSchema() {
   await sql('CREATE TABLE IF NOT EXISTS accounts (id SERIAL PRIMARY KEY, company TEXT, category TEXT, stage TEXT, notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW())');
   await sql('CREATE TABLE IF NOT EXISTS playbooks (id SERIAL PRIMARY KEY, title TEXT, summary TEXT, steps TEXT, updated_at TIMESTAMPTZ DEFAULT NOW())');
   await sql('CREATE TABLE IF NOT EXISTS notes (id SERIAL PRIMARY KEY, body TEXT, author TEXT, created_at TIMESTAMPTZ DEFAULT NOW())');
+  await sql('CREATE TABLE IF NOT EXISTS pitches (id SERIAL PRIMARY KEY, target_company TEXT, play TEXT, concept_title TEXT, one_liner TEXT, concept TEXT, contact_name TEXT, contact_role TEXT, outbound_draft TEXT, status TEXT, next_action TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())');
 
-  var counts = await sql('SELECT (SELECT COUNT(*) FROM personas) AS p, (SELECT COUNT(*) FROM channels) AS c, (SELECT COUNT(*) FROM accounts) AS a, (SELECT COUNT(*) FROM playbooks) AS b');
+  var counts = await sql('SELECT (SELECT COUNT(*) FROM personas) AS p, (SELECT COUNT(*) FROM channels) AS c, (SELECT COUNT(*) FROM accounts) AS a, (SELECT COUNT(*) FROM playbooks) AS b, (SELECT COUNT(*) FROM pitches) AS pt');
   var row = counts[0];
   if (Number(row.p) === 0) {
     for (var i = 0; i < SEED_PERSONAS.length; i++) {
@@ -84,6 +142,22 @@ async function ensureSchema() {
       var pb = SEED_PLAYBOOKS[m];
       await sql('INSERT INTO playbooks (title, summary, steps) VALUES ($1,$2,$3)', [pb.title, pb.summary, pb.steps]);
     }
+  }
+  if (Number(row.pt) === 0) {
+    for (var n = 0; n < SEED_PITCHES.length; n++) {
+      var pt = SEED_PITCHES[n];
+      await sql(
+        'INSERT INTO pitches (target_company, play, concept_title, one_liner, concept, contact_name, contact_role, outbound_draft, status, next_action) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+        [pt.target_company, pt.play, pt.concept_title, pt.one_liner, pt.concept, pt.contact_name, pt.contact_role, pt.outbound_draft, pt.status, pt.next_action]
+      );
+    }
+    // Move Oatly from prospect -> researching so the account card reflects the active motion.
+    await sql('UPDATE accounts SET stage = $1, notes = $2, updated_at = NOW() WHERE company = $3 AND stage = $4', [
+      'researching',
+      'ACTIVE PITCH: Signature Activation — "The Oat Report" annual cultural summit. See Pitches tab for full concept + outbound draft.',
+      'Oatly',
+      'prospect'
+    ]);
   }
   console.log('[xm-demand] Schema ready, seed verified');
 }
@@ -112,9 +186,10 @@ app.get('/api/state', function(req, res) {
     sql('SELECT * FROM channels ORDER BY CASE priority WHEN \'HIGH\' THEN 1 WHEN \'MED\' THEN 2 ELSE 3 END, id'),
     sql('SELECT * FROM accounts ORDER BY id'),
     sql('SELECT * FROM playbooks ORDER BY id'),
-    sql('SELECT * FROM notes ORDER BY created_at DESC LIMIT 50')
+    sql('SELECT * FROM notes ORDER BY created_at DESC LIMIT 50'),
+    sql('SELECT * FROM pitches ORDER BY created_at DESC')
   ]).then(function(r) {
-    res.json({ ok: true, personas: r[0], channels: r[1], accounts: r[2], playbooks: r[3], notes: r[4] });
+    res.json({ ok: true, personas: r[0], channels: r[1], accounts: r[2], playbooks: r[3], notes: r[4], pitches: r[5] });
   }).catch(function(e) {
     console.error('[state]', e.message);
     res.status(500).json({ ok: false, error: e.message });
@@ -160,6 +235,9 @@ app.patch('/api/accounts/:id', function(req, res) {
 app.patch('/api/playbooks/:id', function(req, res) {
   updateRow('playbooks', ['title', 'summary', 'steps'], req, res);
 });
+app.patch('/api/pitches/:id', function(req, res) {
+  updateRow('pitches', ['target_company', 'play', 'concept_title', 'one_liner', 'concept', 'contact_name', 'contact_role', 'outbound_draft', 'status', 'next_action'], req, res);
+});
 
 // Create account
 app.post('/api/accounts', function(req, res) {
@@ -175,6 +253,27 @@ app.delete('/api/accounts/:id', function(req, res) {
   if (!requireDb(res)) return;
   var id = parseInt(req.params.id, 10);
   sql('DELETE FROM accounts WHERE id = $1', [id]).then(function() {
+    res.json({ ok: true });
+  }).catch(function(e) { res.status(500).json({ ok: false, error: e.message }); });
+});
+
+// Create pitch
+app.post('/api/pitches', function(req, res) {
+  if (!requireDb(res)) return;
+  var b = req.body || {};
+  sql(
+    'INSERT INTO pitches (target_company, play, concept_title, one_liner, concept, contact_name, contact_role, outbound_draft, status, next_action) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
+    [b.target_company || 'New Target', b.play || 'Signature Activation Pitch', b.concept_title || '', b.one_liner || '', b.concept || '', b.contact_name || '', b.contact_role || '', b.outbound_draft || '', b.status || 'drafting', b.next_action || '']
+  ).then(function(r) {
+    res.json({ ok: true, row: r[0] });
+  }).catch(function(e) { res.status(500).json({ ok: false, error: e.message }); });
+});
+
+// Delete pitch
+app.delete('/api/pitches/:id', function(req, res) {
+  if (!requireDb(res)) return;
+  var id = parseInt(req.params.id, 10);
+  sql('DELETE FROM pitches WHERE id = $1', [id]).then(function() {
     res.json({ ok: true });
   }).catch(function(e) { res.status(500).json({ ok: false, error: e.message }); });
 });
