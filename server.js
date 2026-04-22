@@ -167,6 +167,73 @@ async function ensureSchema() {
     // Also retire the Oatly pitch — it's off-strategy now. Keep it archived by marking passed so we don't lose the writing.
     await sql("UPDATE pitches SET status = 'passed', next_action = 'ARCHIVED: Off-strategy after B2B refocus. Concept preserved as reference for future consumer-brand opportunities.' WHERE target_company = 'Oatly'");
   }
+
+  // Attio activation: move to researching + seed the Signature Activation pitch. Idempotent.
+  var attioPitch = await sql("SELECT 1 FROM pitches WHERE target_company = 'Attio' LIMIT 1");
+  if (attioPitch.length === 0) {
+    console.log('[xm-demand] Activating Attio pitch');
+    await sql("UPDATE accounts SET stage = 'researching', notes = $1 WHERE company = 'Attio'", [
+      'ACTIVE PITCH: Signature Activation — "Ask More" — an invite-only NYC salon + annual GTM field guide. See Pitches tab for full concept + outbound draft. Why Attio wins: design-led positioning, no owned US moment yet, Series B/C inflection, ~80-person team = no agency gatekeepers, founder (Nicolas Sharp) is design-obsessed and publicly vocal.'
+    ]);
+
+    var ATTIO_CONCEPT = [
+      'ASK MORE — Attio\'s first owned cultural moment.',
+      '',
+      'A one-night, invitation-only salon in New York for ~120 of the sharpest GTM operators, founders, and RevOps leaders in the ecosystem. Not a conference. Not a user summit. A salon — dinner, a curated conversation on the record, and a printed artifact attendees take home: "The Ask More Report" — an annual field guide to how the best GTM teams actually run.',
+      '',
+      'Every Attio value, made physical:',
+      '— TASTE: the room, the food, the design, the print piece',
+      '— DATA-DRIVEN: the report is original research (survey Attio\'s customer base + friends-of)',
+      '— OPINIONATED: a stated POV about what\'s broken in modern GTM',
+      '— BUILT FOR THE BEST TEAMS: the guest list IS the marketing',
+      '',
+      'THE ARC',
+      'Year 1 — 120 people, one night, one report. Proof of concept.',
+      'Year 2 — the report pre-sells the room. Waitlist forms.',
+      'Year 3 — "Ask More" is a franchise. The thing Attio owns that Salesforce can never make.',
+      '',
+      'WHY IT WINS',
+      '— Anti-scale, pro-signal. Opposite of Dreamforce/INBOUND — which is exactly the Attio brand argument.',
+      '— Creates owned media (the report circulates for 12 months) + earned media (the room is the story) in one motion.',
+      '— Costs a fraction of a single conference booth. 10x the reach and residual.',
+      '— Fully on-brand: reading the concept IS the demo of why Sandbox-XM is the right partner.',
+      '',
+      'THE AUDIENCE QUESTION WE\'RE ANSWERING',
+      'How does Attio — the opinionated, design-led challenger to Salesforce — make its POV physical in the U.S. market without imitating the incumbents? "Ask More" is the answer: a small room, a sharp report, and a franchise that rewards taste over scale.'
+    ].join('\n');
+
+    var ATTIO_ONELINER = 'A one-night NYC salon + annual printed field guide — "The Ask More Report" — that turns Attio\'s design-led, opinionated POV into an owned cultural moment the best GTM teams will want on their calendar.';
+
+    var ATTIO_EMAIL = [
+      'Subject: The moment Attio doesn\'t have yet',
+      '',
+      'Hi [First name],',
+      '',
+      'I run Sandbox-XM. We design brand experiences for teams who believe the room is strategy, not staging. I\'m writing with a concept, not a pitch deck.',
+      '',
+      'Attio is one of the few B2B brands whose voice could carry an owned cultural moment in the U.S. — and as far as I can tell, you haven\'t built one. Salesforce has Dreamforce. HubSpot has INBOUND. Attio has a beautiful product page and very good taste, and that\'s a gap worth closing on your own terms.',
+      '',
+      'The idea: one night in New York. 120 people — the sharpest GTM operators, founders, and RevOps leaders in the ecosystem. A curated dinner conversation on the record. A printed artifact everyone takes home: "The Ask More Report" — an annual field guide to how the best GTM teams actually run, built from original research across your customer base and friends-of.',
+      '',
+      'Every Attio value, made physical. Taste in the room. Data in the report. A stated POV about what\'s broken in modern GTM. And a guest list that IS the marketing.',
+      '',
+      'It\'s the opposite of a conference: anti-scale, pro-signal. Year one proves it. Year two the report pre-sells the room. Year three it\'s a franchise — something Salesforce structurally cannot copy.',
+      '',
+      'I\'m not looking to send a deck or get on a procurement list. I\'d like 25 minutes to walk you through the concept. If it\'s not for you, you\'ll at least have a framework to hand to whoever does build it.',
+      '',
+      'Worth a conversation?',
+      '',
+      'Brian',
+      'Sandbox-XM',
+      '[phone] · [site]'
+    ].join('\n');
+
+    await sql(
+      'INSERT INTO pitches (target_company, play, concept_title, one_liner, concept, contact_name, contact_role, outbound_draft, status, next_action) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      ['Attio', 'Signature Activation Pitch', 'Ask More', ATTIO_ONELINER, ATTIO_CONCEPT, '', 'Head of Brand / Head of Marketing / CMO (US) — or direct to Nicolas Sharp (Founder/CEO) if warm intro possible', ATTIO_EMAIL, 'drafting', 'Identify right US contact — Head of Marketing or Head of Brand (LinkedIn search: "Attio marketing" + NY/SF filter). Consider direct-to-founder path via mutual connection. A/B test subject line. Send within 5 business days.']
+    );
+  }
+
   console.log('[xm-demand] Schema ready, seed verified');
 }
 
