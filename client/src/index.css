@@ -180,6 +180,20 @@ body {
   display: flex;
   min-height: 0;
   overflow-y: auto;
+  position: relative;
+}
+
+/* Nav overlay — rendered on top of the project workspace when the user
+   navigates to Settings / Dashboard / Assets while a project is open.
+   Chat and Workspace stay mounted underneath; the stream is unaffected. */
+.nav-overlay {
+  position: absolute;
+  inset: 0;
+  background: #0a0f1c;
+  overflow-y: auto;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Prompt Column ── */

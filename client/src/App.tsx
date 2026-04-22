@@ -242,21 +242,34 @@ function App() {
 
   const handleNavClick = (navId: NavId) => {
     setActiveNav(navId);
-    if (navId === "projects") {
-      setCurrentProjectId(null);
-      setProjectData(null);
-      setChatMessages([]);
+    // Preserve the open project when the user navigates away to Settings /
+    // Dashboard / Assets — PromptColumn + Workspace stay mounted underneath
+    // and the chat/stream is unaffected. Only reset project state if the
+    // user is clicking "projects" while no project is open (i.e. they want
+    // the projects list).
+    if (navId === "projects" && !currentProjectId) {
       setIsNewProjectMode(false);
     }
   };
 
   const renderMainContent = () => {
-    if (activeNav === "settings") return <Settings />;
-    if (activeNav === "dashboard") return <Dashboard />;
-    if (activeNav === "assets") return <Assets />;
-    if (activeNav === "projects" && !currentProjectId && !isNewProjectMode) {
+    // Case 1: no project open and not starting a new one → show whatever nav
+    // the user has selected. Settings/Dashboard/Assets get the full canvas.
+    if (!currentProjectId && !isNewProjectMode) {
+      if (activeNav === "settings") return <Settings />;
+      if (activeNav === "dashboard") return <Dashboard />;
+      if (activeNav === "assets") return <Assets />;
       return <ProjectsList onSelectProject={openProject} onNewProject={handleNewProject} />;
     }
+
+    // Case 2: a project is open (or being created). Keep PromptColumn +
+    // Workspace mounted so the stream never detonates. Overlay Settings /
+    // Dashboard / Assets on top if the user navigated there; projects-nav
+    // drops back to the project view.
+    const overlay =
+      activeNav === "settings" ? <Settings /> :
+      activeNav === "dashboard" ? <Dashboard /> :
+      activeNav === "assets" ? <Assets /> : null;
 
     return (
       <>
@@ -298,6 +311,7 @@ function App() {
             Workspace
           </button>
         </div>
+        {overlay && <div className="nav-overlay">{overlay}</div>}
       </>
     );
   };
