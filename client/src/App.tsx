@@ -341,8 +341,21 @@ function App() {
         <header className="topbar">
           <button className="toggle" onClick={() => setCollapsed(!collapsed)}>☰</button>
           <div className="status">
-            {projectData ? (
-              <span className="topbar-project-name">{projectData.name}</span>
+            {(currentProjectId || isNewProjectMode) ? (
+              <button
+                className="topbar-project-back"
+                onClick={() => {
+                  setCurrentProjectId(null);
+                  setProjectData(null);
+                  setChatMessages([]);
+                  setIsNewProjectMode(false);
+                  setActiveNav("projects");
+                }}
+                title="Back to all projects"
+              >
+                <span className="topbar-project-back-arrow">←</span>
+                <span className="topbar-project-name">{projectData?.name || "New Project"}</span>
+              </button>
             ) : null}
           </div>
         </header>

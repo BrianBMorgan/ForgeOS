@@ -2929,6 +2929,42 @@ body {
   color: #e2e8f0;
 }
 
+.topbar-project-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: 32px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.topbar-project-back:hover {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.topbar-project-back:active {
+  background: #0f172a;
+}
+
+.topbar-project-back-arrow {
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.topbar-project-back:hover .topbar-project-back-arrow {
+  color: #3b82f6;
+}
+
 .topbar-separator {
   color: #334155;
   margin: 0 0.5rem;
