@@ -1127,18 +1127,6 @@ const FORGE_TOOLS = [
     },
   },
   {
-    name: "browser_use",
-    description: "Run a task in a real cloud browser. Use this when fetch_url won't work — JavaScript-rendered pages, auth walls, dynamic content, form fills, multi-step flows, or when you need to actually verify that a deployed app behaves correctly end-to-end. Describe what to do in natural language; the browser agent navigates, clicks, reads, and reports back with the result. Slower than fetch_url (30-120s typical) — prefer fetch_url for static pages.",
-    parameters: {
-      type: "object",
-      properties: {
-        task: { type: "string", description: "Natural-language description of what to do. Be specific. Example: 'Go to https://staging.example.com/signup, fill email=test@example.com and password=testpass, click Create Account, then report whether the dashboard loaded successfully and screenshot any errors.'" },
-        timeout_seconds: { type: "number", description: "Optional. Max seconds to wait for completion. Default 120, max 300." },
-      },
-      required: ["task"],
-    },
-  },
-  {
     name: "list_assets",
     description: "List all assets stored in the ForgeOS asset library. Returns filenames, mimetypes, and sizes. Use this to check what images or files are available before referencing them in an app.",
     parameters: {
@@ -1462,108 +1450,6 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         return JSON.stringify(assets.map(a => ({ filename: a.filename, mimetype: a.mimetype, size: a.size })));
       } catch (err) {
         return "list_assets error: " + err.message;
-      }
-    }
-
-    case "browser_use": {
-      try {
-        const task = (toolInput.task || "").trim();
-        if (!task) return "browser_use error: task is required";
-        const requested = Number(toolInput.timeout_seconds) || 120;
-        const timeoutSeconds = Math.min(Math.max(30, requested), 300);
-
-        // Resolve API key: vault first, then env. Same pattern as anthropic.
-        let apiKey = process.env.BROWSER_USE_API_KEY;
-        try {
-          const vaultKey = await settingsManager.getSecret("BROWSER_USE_API_KEY");
-          if (vaultKey) apiKey = vaultKey;
-        } catch {}
-        if (!apiKey) {
-          return "browser_use error: BROWSER_USE_API_KEY not configured. Add it in Settings → Secrets Vault.";
-        }
-
-        const baseUrl = "https://api.browser-use.com/api/v3";
-        const headers = {
-          "X-Browser-Use-API-Key": apiKey,
-          "Content-Type": "application/json",
-        };
-
-        if (sendEvent) sendEvent({ type: "tool_status", content: "Launching browser session..." });
-
-        // 1. Create the session
-        const startTime = Date.now();
-        const createRes = await fetch(`${baseUrl}/sessions`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ task }),
-        });
-        if (!createRes.ok) {
-          const body = await createRes.text();
-          return `browser_use error: session create failed (HTTP ${createRes.status}): ${body.slice(0, 400)}`;
-        }
-        const created = await createRes.json();
-        const sessionId = created.id || created.session_id;
-        if (!sessionId) return "browser_use error: no session id in create response: " + JSON.stringify(created).slice(0, 300);
-
-        if (sendEvent) sendEvent({ type: "tool_status", content: `Session ${sessionId.slice(0, 10)}... running` });
-
-        // 2. Poll until terminal status or timeout. Backoff: 3s for first
-        //    30s (short tasks), then 8s (complex multi-step flows).
-        const TERMINAL = new Set(["idle", "stopped", "error", "timed_out", "finished", "completed"]);
-        const deadline = startTime + timeoutSeconds * 1000;
-        let session = null;
-        let lastStatus = "";
-        while (Date.now() < deadline) {
-          const elapsed = Date.now() - startTime;
-          const waitMs = elapsed < 30000 ? 3000 : 8000;
-          await new Promise(r => setTimeout(r, waitMs));
-
-          const pollRes = await fetch(`${baseUrl}/sessions/${sessionId}`, { headers });
-          if (!pollRes.ok) {
-            const body = await pollRes.text();
-            return `browser_use error: poll failed (HTTP ${pollRes.status}): ${body.slice(0, 300)}`;
-          }
-          session = await pollRes.json();
-          const status = session.status || "unknown";
-          if (status !== lastStatus) {
-            lastStatus = status;
-            if (sendEvent) sendEvent({ type: "tool_status", content: `Browser: ${status} (${Math.round(elapsed / 1000)}s)` });
-          }
-          if (TERMINAL.has(status)) break;
-        }
-
-        if (!session || !TERMINAL.has(session.status)) {
-          // Timed out our end. Best-effort stop so we don't leak the session.
-          try {
-            await fetch(`${baseUrl}/sessions/${sessionId}/stop`, { method: "POST", headers });
-          } catch {}
-          return `browser_use error: timed out after ${timeoutSeconds}s. Last status: ${session?.status || "unknown"}. Session id: ${sessionId}`;
-        }
-
-        // 3. Record cost-ish metric in forge_usage (Browser Use bills per
-        //    session; we don't have precise $ from the API, so log duration
-        //    as a proxy for visibility in the dashboard.)
-        try {
-          const durationS = Math.round((Date.now() - startTime) / 1000);
-          const { neon } = require("@neondatabase/serverless");
-          const usageSql = neon(process.env.NEON_DATABASE_URL);
-          await usageSql`INSERT INTO forge_usage (model, input_tokens, output_tokens, cost_usd, project_id, created_at)
-            VALUES (${"browser-use"}, ${durationS}, ${0}, ${0}, ${null}, ${Date.now()})`;
-        } catch {}
-
-        // 4. Return the agent's output. Include session id and recording
-        //    URL if present so Brian can replay.
-        const output = session.output || session.result || "(no output field in response)";
-        const parts = [];
-        parts.push(`Status: ${session.status}`);
-        if (session.recording_url) parts.push(`Recording: ${session.recording_url}`);
-        parts.push(`Session: ${sessionId}`);
-        parts.push("");
-        parts.push("Output:");
-        parts.push(typeof output === "string" ? output : JSON.stringify(output, null, 2));
-        return parts.join("\n");
-      } catch (err) {
-        return "browser_use error: " + err.message;
       }
     }
 
