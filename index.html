@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandbox-XM — Demand &amp; Acquisition Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="/forge-os/inspect.js" defer></script>
+<style>
+  :root {
+    --bg: #0F1020;
+    --bg-2: #16213E;
+    --bg-3: #0F3460;
+    --panel: rgba(22, 33, 62, 0.55);
+    --panel-strong: rgba(22, 33, 62, 0.85);
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.15);
+    --text: #F3F4F7;
+    --text-dim: #A9B0C2;
+    --text-muted: #6B7390;
+    --accent: #E94560;
+    --accent-soft: rgba(233, 69, 96, 0.15);
+    --high: #E94560;
+    --med: #E9A645;
+    --low: #6B7390;
+    --active: #3FB77A;
+    --planning: #5B8AE9;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at top, #1a1a3a 0%, #0F1020 55%) fixed;
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    margin: 0;
+    color: #fff;
+    letter-spacing: -0.01em;
+  }
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ---------- Top Bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px);
+    background: rgba(15, 16, 32, 0.78);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, #E94560, #b8334a);
+    display: grid; place-items: center;
+    font-family: 'Space Grotesk'; font-weight: 800; color: #fff; font-size: 15px;
+  }
+  .brand-text h1 { font-size: 15px; letter-spacing: 0.01em; }
+  .brand-text small { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); font-family: 'Inter'; font-weight: 500; font-size: 13px;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .tab.active { background: var(--accent-soft); color: var(--text); border-color: rgba(233,69,96,0.3); }
+  .save-indicator {
+    font-size: 11px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 6px;
+    transition: opacity 0.3s;
+  }
+  .save-indicator .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--active); }
+  .save-indicator.saving .dot { background: var(--med); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* ---------- Layout ---------- */
+  .container { max-width: 1440px; margin: 0 auto; padding: 24px; }
+
+  .hero {
+    background: linear-gradient(135deg, rgba(15,52,96,0.6), rgba(22,33,62,0.6));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+  }
+  .hero h2 { font-size: 22px; margin-bottom: 6px; }
+  .hero p { color: var(--text-dim); margin: 0; max-width: 720px; font-size: 13.5px; }
+  .hero .positioning {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+  }
+  .pos-item strong { display: block; font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; font-family: 'Space Grotesk'; font-weight: 600; }
+  .pos-item span { color: var(--text-dim); font-size: 13px; }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; gap: 12px;
+  }
+  .section-head h2 { font-size: 20px; }
+  .section-head .sub { color: var(--text-muted); font-size: 12.5px; }
+
+  /* ---------- Cards ---------- */
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .card:hover { border-color: var(--border-strong); }
+  .card h3 { font-size: 15px; margin-bottom: 4px; font-family: 'Space Grotesk'; font-weight: 600; }
+  .card .meta { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+  .field-label {
+    display: block;
+    font-size: 10.5px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin: 12px 0 4px;
+    font-family: 'Space Grotesk'; font-weight: 600;
+  }
+  .editable {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    font-family: inherit; font-size: 13px; line-height: 1.5;
+    padding: 6px 8px;
+    border-radius: 6px;
+    resize: vertical;
+    transition: background 0.1s, border-color 0.1s;
+    min-height: 22px;
+  }
+  .editable:hover { background: rgba(255,255,255,0.03); }
+  .editable:focus { outline: none; background: rgba(0,0,0,0.25); border-color: var(--accent); }
+  textarea.editable { min-height: 56px; font-family: inherit; }
+  input.editable { min-height: 32px; }
+  .editable.title-input { font-family: 'Space Grotesk'; font-weight: 600; font-size: 15px; padding: 4px 6px; color: #fff; }
+
+  /* ---------- Channels ---------- */
+  .pill {
+    display: inline-block;
+    font-size: 10.5px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    font-family: 'Space Grotesk';
+  }
+  .pill-high { background: rgba(233,69,96,0.18); color: #ff8096; }
+  .pill-med { background: rgba(233,166,69,0.18); color: #f5c77a; }
+  .pill-low { background: rgba(107,115,144,0.2); color: #a9b0c2; }
+  .pill-active { background: rgba(63,183,122,0.18); color: #66d99b; }
+  .pill-planning { background: rgba(91,138,233,0.18); color: #8fb0ef; }
+  .pill-paused { background: rgba(107,115,144,0.2); color: #a9b0c2; }
+
+  .select-pill {
+    font-size: 10.5px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    font-family: 'Space Grotesk';
+    border: none; cursor: pointer;
+    background: rgba(107,115,144,0.2); color: #a9b0c2;
+  }
+  .select-pill:focus { outline: 2px solid var(--accent); }
+
+  .pill-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+
+  /* ---------- Kanban ---------- */
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+  }
+  .kcol {
+    background: rgba(15,16,32,0.55);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    min-height: 320px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .kcol.dragover { border-color: var(--accent); background: rgba(233,69,96,0.05); }
+  .kcol-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .kcol-head h4 { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); font-family: 'Space Grotesk'; font-weight: 600; }
+  .kcol-head .count { font-size: 11px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 1px 8px; border-radius: 999px; }
+  .kcard {
+    background: var(--panel-strong);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    cursor: grab;
+    transition: transform 0.1s, border-color 0.1s;
+  }
+  .kcard:active { cursor: grabbing; }
+  .kcard:hover { border-color: var(--accent); }
+  .kcard.dragging { opacity: 0.4; }
+  .kcard .company { font-family: 'Space Grotesk'; font-weight: 600; font-size: 13.5px; color: #fff; margin-bottom: 3px; }
+  .kcard .cat { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+  .kcard .note { font-size: 12px; color: var(--text-dim); line-height: 1.45; }
+  .kcard-edit { display: none; }
+  .kcard.editing .kcard-view { display: none; }
+  .kcard.editing .kcard-edit { display: block; }
+  .kcard .row { display: flex; gap: 8px; justify-content: space-between; margin-top: 8px; }
+  .mini-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 11px;
+    padding: 3px 8px; border-radius: 6px; cursor: pointer;
+    font-family: inherit;
+  }
+  .mini-btn:hover { color: #fff; border-color: var(--text-dim); }
+  .mini-btn.danger:hover { color: var(--accent); border-color: var(--accent); }
+
+  .btn {
+    background: var(--accent); color: #fff;
+    border: none;
+    padding: 9px 16px; border-radius: 8px;
+    font-family: 'Space Grotesk'; font-weight: 600; font-size: 12.5px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn:hover { background: #ff5872; transform: translateY(-1px); }
+  .btn-ghost { background: transparent; border: 1px solid var(--border-strong); color: var(--text); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.05); }
+
+  /* ---------- Notes ---------- */
+  .notes-compose {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .notes-compose textarea {
+    width: 100%;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-family: inherit; font-size: 13px;
+    min-height: 70px;
+    resize: vertical;
+  }
+  .notes-compose textarea:focus { outline: none; border-color: var(--accent); }
+  .note-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex; justify-content: space-between; gap: 12px;
+  }
+  .note-item .body { font-size: 13px; color: var(--text); white-space: pre-wrap; flex: 1; }
+  .note-item .stamp { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1100px) {
+    .grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .kanban { grid-template-columns: repeat(3, 1fr); }
+    .hero .positioning { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 700px) {
+    .container { padding: 16px; }
+    .topbar { flex-wrap: wrap; padding: 12px 16px; }
+    .tabs { order: 3; width: 100%; overflow-x: auto; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .kanban { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">XM</div>
+    <div class="brand-text">
+      <h1>Sandbox-XM — Demand Board</h1>
+      <small>Internal Planning Whiteboard</small>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="personas">Buyers</button>
+    <button class="tab" data-tab="channels">Channels</button>
+    <button class="tab" data-tab="accounts">Accounts</button>
+    <button class="tab" data-tab="playbooks">Playbooks</button>
+    <button class="tab" data-tab="notes">Notes</button>
+  </div>
+  <div class="save-indicator" id="saveIndicator"><span class="dot"></span><span id="saveText">Saved</span></div>
+</div>
+
+<div class="container">
+
+  <div class="hero">
+    <h2>How we get Sandbox-XM in front of buyers.</h2>
+    <p>This is our working surface — not a pitch site. We plan, track, and iterate on every channel, persona, account, and play that moves Sandbox-XM closer to a booked roster. Edit anything. It saves.</p>
+    <div class="positioning">
+      <div class="pos-item"><strong>Who we serve</strong><span>Brand-led teams who believe experience is strategy — not staging.</span></div>
+      <div class="pos-item"><strong>What we do differently</strong><span>We start from the audience question, not the floorplan. Every moment laddered to meaning.</span></div>
+      <div class="pos-item"><strong>What we sell</strong><span>Intentional, human-centered experience design — analog, warm, real.</span></div>
+    </div>
+  </div>
+
+  <!-- PERSONAS -->
+  <section class="section active" id="sec-personas">
+    <div class="section-head">
+      <div>
+        <h2>Buyer Personas</h2>
+        <div class="sub">Who we're targeting, what keeps them up, and why Sandbox-XM is the answer.</div>
+      </div>
+    </div>
+    <div class="grid grid-2" id="personaGrid"></div>
+  </section>
+
+  <!-- CHANNELS -->
+  <section class="section" id="sec-channels">
+    <div class="section-head">
+      <div>
+        <h2>Channel Strategy</h2>
+        <div class="sub">Where we show up and how we earn attention. Priorities first, never volume.</div>
+      </div>
+    </div>
+    <div class="grid grid-2" id="channelGrid"></div>
+  </section>
+
+  <!-- ACCOUNTS -->
+  <section class="section" id="sec-accounts">
+    <div class="section-head">
+      <div>
+        <h2>Target Accounts</h2>
+        <div class="sub">Live pipeline. Drag cards across stages as they move.</div>
+      </div>
+      <button class="btn" id="addAccountBtn">+ Add Account</button>
+    </div>
+    <div class="kanban" id="kanban">
+      <div class="kcol" data-stage="prospect"><div class="kcol-head"><h4>Prospect</h4><span class="count" data-count="prospect">0</span></div></div>
+      <div class="kcol" data-stage="researching"><div class="kcol-head"><h4>Researching</h4><span class="count" data-count="researching">0</span></div></div>
+      <div class="kcol" data-stage="contacted"><div class="kcol-head"><h4>Contacted</h4><span class="count" data-count="contacted">0</span></div></div>
+      <div class="kcol" data-stage="meeting"><div class="kcol-head"><h4>Meeting</h4><span class="count" data-count="meeting">0</span></div></div>
+      <div class="kcol" data-stage="won"><div class="kcol-head"><h4>Won</h4><span class="count" data-count="won">0</span></div></div>
+      <div class="kcol" data-stage="lost"><div class="kcol-head"><h4>Passed</h4><span class="count" data-count="lost">0</span></div></div>
+    </div>
+  </section>
+
+  <!-- PLAYBOOKS -->
+  <section class="section" id="sec-playbooks">
+    <div class="section-head">
+      <div>
+        <h2>Playbooks</h2>
+        <div class="sub">Repeatable plays. Each one a way to turn interest into engagement.</div>
+      </div>
+    </div>
+    <div class="grid grid-2" id="playbookGrid"></div>
+  </section>
+
+  <!-- NOTES -->
+  <section class="section" id="sec-notes">
+    <div class="section-head">
+      <div>
+        <h2>Strategy Notes</h2>
+        <div class="sub">Running journal — ideas, wins, doubts, things to revisit.</div>
+      </div>
+    </div>
+    <div class="notes-compose">
+      <textarea id="noteBody" placeholder="New thought, observation, or idea..."></textarea>
+      <div style="display:flex; justify-content:flex-end; margin-top:10px; gap:8px;">
+        <button class="btn" id="addNoteBtn">Add Note</button>
+      </div>
+    </div>
+    <div id="notesList"></div>
+  </section>
+
+</div>
+
+<script>
+(function() {
+  var state = { personas: [], channels: [], accounts: [], playbooks: [], notes: [] };
+  var saveTimers = {};
+
+  // ---- Save indicator ----
+  var indicator = document.getElementById('saveIndicator');
+  var saveText = document.getElementById('saveText');
+  function showSaving() {
+    indicator.classList.add('saving');
+    saveText.textContent = 'Saving...';
+  }
+  function showSaved() {
+    indicator.classList.remove('saving');
+    saveText.textContent = 'Saved';
+  }
+  function showError(msg) {
+    indicator.classList.remove('saving');
+    saveText.textContent = msg || 'Error';
+    saveText.style.color = '#ff8096';
+    setTimeout(function() { saveText.style.color = ''; showSaved(); }, 2500);
+  }
+
+  // ---- Tabs ----
+  document.querySelectorAll('.tab').forEach(function(t) {
+    t.addEventListener('click', function() {
+      document.querySelectorAll('.tab').forEach(function(x) { x.classList.remove('active'); });
+      document.querySelectorAll('.section').forEach(function(x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      document.getElementById('sec-' + t.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ---- Debounced save ----
+  function queueSave(table, id, field, value) {
+    var key = table + ':' + id + ':' + field;
+    if (saveTimers[key]) clearTimeout(saveTimers[key]);
+    showSaving();
+    saveTimers[key] = setTimeout(function() {
+      var body = {}; body[field] = value;
+      fetch('/api/' + table + '/' + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function(r) { return r.json(); }).then(function(j) {
+        if (j.ok) showSaved(); else showError(j.error);
+      }).catch(function() { showError('Network'); });
+    }, 600);
+  }
+
+  // ---- Editable factory ----
+  function makeEditable(tag, value, table, id, field, placeholder) {
+    var el = document.createElement(tag);
+    el.className = 'editable' + (field === 'title' || field === 'name' || field === 'company' ? ' title-input' : '');
+    if (tag === 'textarea') { el.value = value || ''; }
+    else { el.value = value || ''; }
+    if (placeholder) el.placeholder = placeholder;
+    el.addEventListener('input', function() {
+      queueSave(table, id, field, el.value);
+    });
+    return el;
+  }
+
+  function makeLabel(txt) {
+    var l = document.createElement('div');
+    l.className = 'field-label';
+    l.textContent = txt;
+    return l;
+  }
+
+  // ---- Personas ----
+  function renderPersonas() {
+    var grid = document.getElementById('personaGrid');
+    grid.innerHTML = '';
+    state.personas.forEach(function(p) {
+      var c = document.createElement('div');
+      c.className = 'card';
+      var title = makeEditable('input', p.title, 'personas', p.id, 'title');
+      c.appendChild(title);
+      var meta = makeEditable('input', p.company_type, 'personas', p.id, 'company_type', 'Company type');
+      meta.style.color = 'var(--text-muted)'; meta.style.fontSize = '12px';
+      c.appendChild(meta);
+      c.appendChild(makeLabel('Pain'));
+      c.appendChild(makeEditable('textarea', p.pain, 'personas', p.id, 'pain'));
+      c.appendChild(makeLabel('Trigger'));
+      c.appendChild(makeEditable('textarea', p.trigger, 'personas', p.id, 'trigger'));
+      c.appendChild(makeLabel('Our value prop'));
+      c.appendChild(makeEditable('textarea', p.value_prop, 'personas', p.id, 'value_prop'));
+      grid.appendChild(c);
+    });
+  }
+
+  // ---- Channels ----
+  function renderChannels() {
+    var grid = document.getElementById('channelGrid');
+    grid.innerHTML = '';
+    state.channels.forEach(function(ch) {
+      var c = document.createElement('div');
+      c.className = 'card';
+
+      var title = makeEditable('input', ch.name, 'channels', ch.id, 'name');
+      c.appendChild(title);
+
+      var row = document.createElement('div');
+      row.className = 'pill-row';
+
+      var prioritySel = document.createElement('select');
+      prioritySel.className = 'select-pill';
+      ['HIGH','MED','LOW'].forEach(function(v) {
+        var o = document.createElement('option'); o.value = v; o.textContent = v;
+        if (v === ch.priority) o.selected = true;
+        prioritySel.appendChild(o);
+      });
+      applyPill(prioritySel, ch.priority);
+      prioritySel.addEventListener('change', function() {
+        applyPill(prioritySel, prioritySel.value);
+        queueSave('channels', ch.id, 'priority', prioritySel.value);
+      });
+
+      var statusSel = document.createElement('select');
+      statusSel.className = 'select-pill';
+      ['active','planning','paused'].forEach(function(v) {
+        var o = document.createElement('option'); o.value = v; o.textContent = v;
+        if (v === ch.status) o.selected = true;
+        statusSel.appendChild(o);
+      });
+      applyStatusPill(statusSel, ch.status);
+      statusSel.addEventListener('change', function() {
+        applyStatusPill(statusSel, statusSel.value);
+        queueSave('channels', ch.id, 'status', statusSel.value);
+      });
+
+      row.appendChild(prioritySel);
+      row.appendChild(statusSel);
+      c.appendChild(row);
+
+      c.appendChild(makeLabel('Motion'));
+      c.appendChild(makeEditable('textarea', ch.motion, 'channels', ch.id, 'motion'));
+      c.appendChild(makeLabel('Next Action'));
+      c.appendChild(makeEditable('textarea', ch.next_action, 'channels', ch.id, 'next_action'));
+      grid.appendChild(c);
+    });
+  }
+
+  function applyPill(el, v) {
+    el.style.background = '';
+    el.style.color = '';
+    if (v === 'HIGH') { el.style.background = 'rgba(233,69,96,0.18)'; el.style.color = '#ff8096'; }
+    else if (v === 'MED') { el.style.background = 'rgba(233,166,69,0.18)'; el.style.color = '#f5c77a'; }
+    else { el.style.background = 'rgba(107,115,144,0.2)'; el.style.color = '#a9b0c2'; }
+  }
+  function applyStatusPill(el, v) {
+    el.style.background = '';
+    el.style.color = '';
+    if (v === 'active') { el.style.background = 'rgba(63,183,122,0.18)'; el.style.color = '#66d99b'; }
+    else if (v === 'planning') { el.style.background = 'rgba(91,138,233,0.18)'; el.style.color = '#8fb0ef'; }
+    else { el.style.background = 'rgba(107,115,144,0.2)'; el.style.color = '#a9b0c2'; }
+  }
+
+  // ---- Accounts (Kanban) ----
+  function renderAccounts() {
+    ['prospect','researching','contacted','meeting','won','lost'].forEach(function(stage) {
+      var col = document.querySelector('.kcol[data-stage="' + stage + '"]');
+      // Clear cards but keep header
+      var head = col.querySelector('.kcol-head');
+      col.innerHTML = '';
+      col.appendChild(head);
+    });
+    var counts = { prospect:0, researching:0, contacted:0, meeting:0, won:0, lost:0 };
+    state.accounts.forEach(function(a) {
+      var stage = a.stage || 'prospect';
+      counts[stage] = (counts[stage] || 0) + 1;
+      var col = document.querySelector('.kcol[data-stage="' + stage + '"]');
+      if (!col) return;
+      col.appendChild(buildAccountCard(a));
+    });
+    Object.keys(counts).forEach(function(k) {
+      var el = document.querySelector('[data-count="' + k + '"]');
+      if (el) el.textContent = counts[k];
+    });
+  }
+
+  function buildAccountCard(a) {
+    var card = document.createElement('div');
+    card.className = 'kcard';
+    card.draggable = true;
+    card.dataset.id = a.id;
+
+    var view = document.createElement('div');
+    view.className = 'kcard-view';
+    var co = document.createElement('div'); co.className = 'company'; co.textContent = a.company;
+    var cat = document.createElement('div'); cat.className = 'cat'; cat.textContent = a.category || '';
+    var note = document.createElement('div'); note.className = 'note'; note.textContent = a.notes || '';
+    view.appendChild(co); view.appendChild(cat); view.appendChild(note);
+
+    var row = document.createElement('div'); row.className = 'row';
+    var editBtn = document.createElement('button'); editBtn.className = 'mini-btn'; editBtn.textContent = 'Edit';
+    var delBtn = document.createElement('button'); delBtn.className = 'mini-btn danger'; delBtn.textContent = 'Remove';
+    row.appendChild(editBtn); row.appendChild(delBtn);
+    view.appendChild(row);
+
+    var edit = document.createElement('div');
+    edit.className = 'kcard-edit';
+    var ein = makeEditable('input', a.company, 'accounts', a.id, 'company');
+    var ecat = makeEditable('input', a.category, 'accounts', a.id, 'category', 'Category');
+    ecat.style.fontSize = '12px'; ecat.style.color = 'var(--text-muted)';
+    var enote = makeEditable('textarea', a.notes, 'accounts', a.id, 'notes', 'Notes, signals, context');
+    edit.appendChild(ein); edit.appendChild(ecat); edit.appendChild(enote);
+    var doneBtn = document.createElement('button'); doneBtn.className = 'mini-btn'; doneBtn.textContent = 'Done';
+    doneBtn.style.marginTop = '8px';
+    edit.appendChild(doneBtn);
+
+    card.appendChild(view); card.appendChild(edit);
+
+    editBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); card.classList.add('editing'); card.draggable = false;
+    });
+    doneBtn.addEventListener('click', function() {
+      card.classList.remove('editing'); card.draggable = true;
+      co.textContent = ein.value; cat.textContent = ecat.value; note.textContent = enote.value;
+    });
+    delBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!confirm('Remove ' + a.company + ' from the board?')) return;
+      fetch('/api/accounts/' + a.id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(j) {
+        if (j.ok) { state.accounts = state.accounts.filter(function(x) { return x.id !== a.id; }); renderAccounts(); }
+      });
+    });
+
+    card.addEventListener('dragstart', function(e) {
+      card.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', a.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', function() { card.classList.remove('dragging'); });
+
+    return card;
+  }
+
+  // Kanban dropzones
+  document.querySelectorAll('.kcol').forEach(function(col) {
+    col.addEventListener('dragover', function(e) {
+      e.preventDefault(); col.classList.add('dragover');
+    });
+    col.addEventListener('dragleave', function() { col.classList.remove('dragover'); });
+    col.addEventListener('drop', function(e) {
+      e.preventDefault(); col.classList.remove('dragover');
+      var id = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      var newStage = col.dataset.stage;
+      var acc = state.accounts.find(function(x) { return x.id === id; });
+      if (!acc || acc.stage === newStage) return;
+      acc.stage = newStage;
+      renderAccounts();
+      showSaving();
+      fetch('/api/accounts/' + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: newStage })
+      }).then(function(r) { return r.json(); }).then(function(j) {
+        if (j.ok) showSaved(); else showError(j.error);
+      });
+    });
+  });
+
+  // Add account
+  document.getElementById('addAccountBtn').addEventListener('click', function() {
+    var name = prompt('Company name?');
+    if (!name || !name.trim()) return;
+    fetch('/api/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: name.trim(), stage: 'prospect' })
+    }).then(function(r) { return r.json(); }).then(function(j) {
+      if (j.ok) { state.accounts.push(j.row); renderAccounts(); }
+      else showError(j.error);
+    });
+  });
+
+  // ---- Playbooks ----
+  function renderPlaybooks() {
+    var grid = document.getElementById('playbookGrid');
+    grid.innerHTML = '';
+    state.playbooks.forEach(function(p) {
+      var c = document.createElement('div');
+      c.className = 'card';
+      c.appendChild(makeEditable('input', p.title, 'playbooks', p.id, 'title'));
+      c.appendChild(makeLabel('Summary'));
+      c.appendChild(makeEditable('textarea', p.summary, 'playbooks', p.id, 'summary'));
+      c.appendChild(makeLabel('Steps'));
+      var steps = makeEditable('textarea', p.steps, 'playbooks', p.id, 'steps');
+      steps.style.minHeight = '120px';
+      c.appendChild(steps);
+      grid.appendChild(c);
+    });
+  }
+
+  // ---- Notes ----
+  function renderNotes() {
+    var list = document.getElementById('notesList');
+    list.innerHTML = '';
+    if (!state.notes.length) {
+      var empty = document.createElement('div');
+      empty.style.cssText = 'color:var(--text-muted); font-size:13px; padding:16px; text-align:center;';
+      empty.textContent = 'No notes yet. Add the first thought above.';
+      list.appendChild(empty);
+      return;
+    }
+    state.notes.forEach(function(n) {
+      var item = document.createElement('div');
+      item.className = 'note-item';
+      var body = document.createElement('div');
+      body.style.flex = '1';
+      var bod = document.createElement('div'); bod.className = 'body'; bod.textContent = n.body;
+      var stamp = document.createElement('div'); stamp.className = 'stamp';
+      stamp.textContent = new Date(n.created_at).toLocaleString();
+      body.appendChild(bod); body.appendChild(stamp);
+      var del = document.createElement('button'); del.className = 'mini-btn danger'; del.textContent = '×';
+      del.addEventListener('click', function() {
+        fetch('/api/notes/' + n.id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(j) {
+          if (j.ok) { state.notes = state.notes.filter(function(x) { return x.id !== n.id; }); renderNotes(); }
+        });
+      });
+      item.appendChild(body); item.appendChild(del);
+      list.appendChild(item);
+    });
+  }
+
+  document.getElementById('addNoteBtn').addEventListener('click', function() {
+    var ta = document.getElementById('noteBody');
+    var val = ta.value.trim();
+    if (!val) return;
+    fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: val })
+    }).then(function(r) { return r.json(); }).then(function(j) {
+      if (j.ok) { state.notes.unshift(j.row); ta.value = ''; renderNotes(); }
+      else showError(j.error);
+    });
+  });
+
+  // ---- Bootstrap ----
+  function loadState() {
+    fetch('/api/state').then(function(r) { return r.json(); }).then(function(j) {
+      if (!j.ok) { showError(j.error); return; }
+      state = { personas: j.personas, channels: j.channels, accounts: j.accounts, playbooks: j.playbooks, notes: j.notes };
+      renderPersonas();
+      renderChannels();
+      renderAccounts();
+      renderPlaybooks();
+      renderNotes();
+    }).catch(function() { showError('Load failed'); });
+  }
+
+  loadState();
+})();
+</script>
+
+</body>
+</html>
