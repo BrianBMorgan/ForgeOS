@@ -301,6 +301,7 @@
     <button class="tab active" data-tab="personas">Buyers</button>
     <button class="tab" data-tab="channels">Channels</button>
     <button class="tab" data-tab="accounts">Accounts</button>
+    <button class="tab" data-tab="pitches">Pitches</button>
     <button class="tab" data-tab="playbooks">Playbooks</button>
     <button class="tab" data-tab="notes">Notes</button>
   </div>
@@ -360,6 +361,18 @@
     </div>
   </section>
 
+  <!-- PITCHES -->
+  <section class="section" id="sec-pitches">
+    <div class="section-head">
+      <div>
+        <h2>Active Pitches</h2>
+        <div class="sub">Concept-led pitches for named brands. One hero idea per target. Draft &rarr; sent &rarr; meeting &rarr; won.</div>
+      </div>
+      <button class="btn" id="addPitchBtn">+ New Pitch</button>
+    </div>
+    <div id="pitchList"></div>
+  </section>
+
   <!-- PLAYBOOKS -->
   <section class="section" id="sec-playbooks">
     <div class="section-head">
@@ -392,7 +405,7 @@
 
 <script>
 (function() {
-  var state = { personas: [], channels: [], accounts: [], playbooks: [], notes: [] };
+  var state = { personas: [], channels: [], accounts: [], playbooks: [], notes: [], pitches: [] };
   var saveTimers = {};
 
   // ---- Save indicator ----
@@ -668,6 +681,164 @@
     });
   });
 
+  // ---- Pitches ----
+  function pitchStatusColor(s) {
+    if (s === 'drafting') return { bg: 'rgba(91,138,233,0.18)', fg: '#8fb0ef' };
+    if (s === 'sent') return { bg: 'rgba(233,166,69,0.18)', fg: '#f5c77a' };
+    if (s === 'meeting') return { bg: 'rgba(63,183,122,0.18)', fg: '#66d99b' };
+    if (s === 'won') return { bg: 'rgba(63,183,122,0.32)', fg: '#9ff0bf' };
+    if (s === 'passed') return { bg: 'rgba(107,115,144,0.2)', fg: '#a9b0c2' };
+    return { bg: 'rgba(107,115,144,0.2)', fg: '#a9b0c2' };
+  }
+
+  function renderPitches() {
+    var list = document.getElementById('pitchList');
+    list.innerHTML = '';
+    if (!state.pitches.length) {
+      var empty = document.createElement('div');
+      empty.style.cssText = 'color:var(--text-muted); font-size:13px; padding:24px; text-align:center; border:1px dashed var(--border); border-radius:12px;';
+      empty.textContent = 'No pitches yet. Start one with + New Pitch.';
+      list.appendChild(empty);
+      return;
+    }
+    state.pitches.forEach(function(p) {
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.style.marginBottom = '16px';
+
+      // Header row: company + play + status + actions
+      var head = document.createElement('div');
+      head.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:8px;';
+
+      var left = document.createElement('div');
+      left.style.flex = '1';
+      var company = makeEditable('input', p.target_company, 'pitches', p.id, 'target_company');
+      company.style.fontSize = '18px';
+      left.appendChild(company);
+      var playLine = document.createElement('div');
+      playLine.style.cssText = 'font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.1em; margin-top:2px; font-family:Space Grotesk;';
+      playLine.textContent = (p.play || 'Signature Activation Pitch');
+      left.appendChild(playLine);
+      head.appendChild(left);
+
+      var right = document.createElement('div');
+      right.style.cssText = 'display:flex; gap:8px; align-items:center;';
+
+      var statusSel = document.createElement('select');
+      statusSel.className = 'select-pill';
+      ['drafting','sent','meeting','won','passed'].forEach(function(v) {
+        var o = document.createElement('option'); o.value = v; o.textContent = v;
+        if (v === p.status) o.selected = true;
+        statusSel.appendChild(o);
+      });
+      var col = pitchStatusColor(p.status);
+      statusSel.style.background = col.bg; statusSel.style.color = col.fg;
+      statusSel.addEventListener('change', function() {
+        var c = pitchStatusColor(statusSel.value);
+        statusSel.style.background = c.bg; statusSel.style.color = c.fg;
+        queueSave('pitches', p.id, 'status', statusSel.value);
+      });
+      right.appendChild(statusSel);
+
+      var del = document.createElement('button'); del.className = 'mini-btn danger'; del.textContent = 'Remove';
+      del.addEventListener('click', function() {
+        if (!confirm('Remove this pitch?')) return;
+        fetch('/api/pitches/' + p.id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(j) {
+          if (j.ok) { state.pitches = state.pitches.filter(function(x) { return x.id !== p.id; }); renderPitches(); }
+        });
+      });
+      right.appendChild(del);
+      head.appendChild(right);
+      card.appendChild(head);
+
+      // Concept title + one-liner
+      card.appendChild(makeLabel('Concept Title'));
+      card.appendChild(makeEditable('input', p.concept_title, 'pitches', p.id, 'concept_title', 'e.g. The Oat Report'));
+
+      card.appendChild(makeLabel('One-liner'));
+      var oneLiner = makeEditable('textarea', p.one_liner, 'pitches', p.id, 'one_liner', 'The single sentence that sells the idea.');
+      oneLiner.style.minHeight = '50px';
+      card.appendChild(oneLiner);
+
+      // Two column: concept | outbound
+      var two = document.createElement('div');
+      two.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:12px;';
+
+      var conceptCol = document.createElement('div');
+      conceptCol.appendChild(makeLabel('Concept'));
+      var concept = makeEditable('textarea', p.concept, 'pitches', p.id, 'concept');
+      concept.style.minHeight = '260px';
+      concept.style.fontFamily = "'Space Grotesk', monospace";
+      concept.style.fontSize = '12.5px';
+      conceptCol.appendChild(concept);
+
+      var outboundCol = document.createElement('div');
+      var outboundLabelRow = document.createElement('div');
+      outboundLabelRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center;';
+      var outboundLabel = makeLabel('Outbound Draft');
+      outboundLabel.style.margin = '12px 0 4px';
+      outboundLabelRow.appendChild(outboundLabel);
+      var copyBtn = document.createElement('button');
+      copyBtn.className = 'mini-btn';
+      copyBtn.textContent = 'Copy email';
+      copyBtn.addEventListener('click', function() {
+        var draft = outbound.value || '';
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(draft).then(function() {
+            var orig = copyBtn.textContent;
+            copyBtn.textContent = 'Copied \u2713';
+            setTimeout(function() { copyBtn.textContent = orig; }, 1600);
+          });
+        }
+      });
+      outboundLabelRow.appendChild(copyBtn);
+      outboundCol.appendChild(outboundLabelRow);
+      var outbound = makeEditable('textarea', p.outbound_draft, 'pitches', p.id, 'outbound_draft');
+      outbound.style.minHeight = '260px';
+      outbound.style.fontFamily = "'Space Grotesk', monospace";
+      outbound.style.fontSize = '12.5px';
+      outboundCol.appendChild(outbound);
+
+      two.appendChild(conceptCol);
+      two.appendChild(outboundCol);
+      card.appendChild(two);
+
+      // Contact + next action
+      var foot = document.createElement('div');
+      foot.style.cssText = 'display:grid; grid-template-columns:1fr 1fr 2fr; gap:12px; margin-top:12px;';
+
+      var cn = document.createElement('div');
+      cn.appendChild(makeLabel('Contact Name'));
+      cn.appendChild(makeEditable('input', p.contact_name, 'pitches', p.id, 'contact_name', 'e.g. Jane Doe'));
+
+      var cr = document.createElement('div');
+      cr.appendChild(makeLabel('Contact Role'));
+      cr.appendChild(makeEditable('input', p.contact_role, 'pitches', p.id, 'contact_role', 'e.g. Head of Brand'));
+
+      var na = document.createElement('div');
+      na.appendChild(makeLabel('Next Action'));
+      na.appendChild(makeEditable('textarea', p.next_action, 'pitches', p.id, 'next_action'));
+
+      foot.appendChild(cn); foot.appendChild(cr); foot.appendChild(na);
+      card.appendChild(foot);
+
+      list.appendChild(card);
+    });
+  }
+
+  document.getElementById('addPitchBtn').addEventListener('click', function() {
+    var name = prompt('Target company?');
+    if (!name || !name.trim()) return;
+    fetch('/api/pitches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_company: name.trim(), play: 'Signature Activation Pitch', status: 'drafting' })
+    }).then(function(r) { return r.json(); }).then(function(j) {
+      if (j.ok) { state.pitches.unshift(j.row); renderPitches(); }
+      else showError(j.error);
+    });
+  });
+
   // ---- Playbooks ----
   function renderPlaybooks() {
     var grid = document.getElementById('playbookGrid');
@@ -735,10 +906,11 @@
   function loadState() {
     fetch('/api/state').then(function(r) { return r.json(); }).then(function(j) {
       if (!j.ok) { showError(j.error); return; }
-      state = { personas: j.personas, channels: j.channels, accounts: j.accounts, playbooks: j.playbooks, notes: j.notes };
+      state = { personas: j.personas, channels: j.channels, accounts: j.accounts, playbooks: j.playbooks, notes: j.notes, pitches: j.pitches || [] };
       renderPersonas();
       renderChannels();
       renderAccounts();
+      renderPitches();
       renderPlaybooks();
       renderNotes();
     }).catch(function() { showError('Load failed'); });
