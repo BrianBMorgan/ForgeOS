@@ -319,6 +319,23 @@ async function ensureSchema() {
     }
   }
 
+  // Attio contact v4: email confirmed via Apollo — alex@attio.com. Append to contact_role, bump next_action
+  // to reflect ready-to-send state. Idempotent — guarded by email-in-contact-role marker.
+  var attioV4 = await sql("SELECT 1 FROM pitches WHERE target_company = 'Attio' AND contact_role LIKE '%alex@attio.com%' LIMIT 1");
+  if (attioV4.length === 0) {
+    var attioV4Rows = await sql("SELECT id FROM pitches WHERE target_company = 'Attio' LIMIT 1");
+    if (attioV4Rows.length > 0) {
+      console.log('[xm-demand] Applying Attio contact v4 — email confirmed');
+      await sql(
+        "UPDATE pitches SET contact_role = $1, next_action = $2, updated_at = NOW() WHERE target_company = 'Attio'",
+        [
+          'Alex Vale · alex@attio.com (confirmed via Apollo) · Attio — founding-team / senior GTM. UK-based. Public voice for Attio customer wins on LinkedIn (linkedin.com/in/alexjvale).',
+          'READY TO SEND. Two-channel play: (1) LinkedIn connection request with short note — "Have a concept for Attio\'s first owned U.S. moment. Sent the full thing by email. Would love 25 min." (2) Full email to alex@attio.com within same hour. Final check before send: personalize [phone] · [site] footer, confirm subject line "Ask more from Attio". Log send date + any reply in this card.'
+        ]
+      );
+    }
+  }
+
   console.log('[xm-demand] Schema ready, seed verified');
 }
 
