@@ -18,10 +18,10 @@ if (DB_URL) {
 
 // ---- Seed content: Sandbox-XM positioning + starter board data ----
 var SEED_PERSONAS = [
-  { title: 'Head of Brand Experience', company_type: 'Mid-to-large consumer brand', pain: 'Brand activations feel generic; struggle to translate brand voice into real-world moments that resonate.', trigger: 'New product launch, flagship event, brand repositioning, or founder-led campaign.', value_prop: 'Human-centered experiential design that makes the brand feel intentional and alive, not staged.' },
-  { title: 'VP of Marketing / CMO', company_type: 'B2B SaaS, wellness, hospitality, premium DTC', pain: 'Trade shows and events underperform; no lasting narrative beyond the badge scan.', trigger: 'Annual event strategy planning, budget allocation Q4/Q1, competitive positioning shift.', value_prop: 'Strategic experience design tied to demand — measurable audience insight and story-driven brand lift.' },
-  { title: 'Director of Events / Experiential', company_type: 'Enterprise, tech, lifestyle brands', pain: 'Vendors deliver production, not ideas. Needs a partner who thinks strategy-first.', trigger: 'RFP cycle, new hire in role, poor feedback from last activation.', value_prop: 'We start with the audience question, not the floorplan. Every decision laddered to brand meaning.' },
-  { title: 'Founder / Head of Marketing', company_type: 'Growth-stage brands ($5M–$50M revenue)', pain: 'Limited bandwidth; needs an experiential partner who can own the full arc.', trigger: 'Series B/C raise, category launch, founder visibility push.', value_prop: 'Embedded creative partnership — we operate like an extension of your team, not a transactional vendor.' }
+  { title: 'VP of Marketing / CMO', company_type: 'Mid-market B2B SaaS ($50M–$500M revenue, Series B–D)', pain: 'User conferences and customer summits underperform — they feel like product demos in a ballroom, not industry-defining moments. Marketing team is stretched thin.', trigger: 'Annual conference on the roadmap, Series C/D raise, category positioning shift, new CMO setting brand agenda.', value_prop: 'A strategic experience partner who treats the flagship event as a brand moment, not a production job. Audience-first thinking tied to pipeline outcomes.' },
+  { title: 'Head of Brand / Brand Marketing Lead', company_type: 'Design-led B2B SaaS — fintech, devtools, GTM, compliance', pain: 'Brand lives beautifully on the site and in product, but goes generic the moment it enters a physical room. No experiential partner who gets the aesthetic bar.', trigger: 'User conference, customer advisory board, executive dinners series, category launch, field marketing expansion.', value_prop: 'We match the design maturity of modern B2B brands — the room feels like the brand, not like a trade show. Every choice is deliberate.' },
+  { title: 'Director of Events / Field Marketing', company_type: 'Growth-stage B2B tech with 5–20 person marketing team', pain: 'Running 20+ events a year with a tiny team. Needs a creative+strategic partner who can own flagship moments end-to-end, not a vendor to manage.', trigger: 'Hiring freeze + growth targets, flagship event underperformed, new VP demanding measurable brand lift from events budget.', value_prop: 'Embedded partnership model. We operate like an extension of the team — concept, design, production, narrative — so internal team can focus on the rest of the calendar.' },
+  { title: 'Founder / Category-Creator CEO', company_type: 'Founder-led B2B (~$20M–$200M ARR) where the founder IS the brand', pain: 'The founder is the story but there\'s no signature moment that scales their POV. Keynotes feel like marketing, not movement.', trigger: 'Category definition push, book launch, executive visibility strategy, IPO prep, competitive narrative shift.', value_prop: 'We design signature founder-led moments — the kind that get written about and remembered. Part thought leadership, part theater, part manifesto.' }
 ];
 
 var SEED_CHANNELS = [
@@ -34,14 +34,15 @@ var SEED_CHANNELS = [
 ];
 
 var SEED_ACCOUNTS = [
-  { company: 'Patagonia', category: 'Lifestyle / Outdoor', stage: 'prospect', notes: 'Values-driven brand, environmental storytelling, high bar for experiential authenticity.' },
-  { company: 'Oatly', category: 'Consumer / F&B', stage: 'prospect', notes: 'Quirky brand voice translates well to experiential; likely active event calendar.' },
-  { company: 'Arc\'teryx', category: 'Lifestyle / Outdoor', stage: 'prospect', notes: 'Recent retail theater focus — could extend to owned experiences.' },
-  { company: 'Notion', category: 'B2B SaaS', stage: 'prospect', notes: 'Founder-led brand, strong community energy, user conferences growing.' },
-  { company: 'Figma (Config)', category: 'B2B SaaS', stage: 'researching', notes: 'Massive annual conference — study how they stage community over product.' },
-  { company: 'Aesop', category: 'Premium DTC / Beauty', stage: 'prospect', notes: 'Retail = experience already. Opportunity in launches and editorial moments.' },
-  { company: 'Equinox', category: 'Wellness / Hospitality', stage: 'prospect', notes: 'Member events, seasonal programming — fits XM sensibility.' },
-  { company: 'Mailchimp', category: 'B2B SaaS', stage: 'prospect', notes: 'Freddie brand still playful; SMB events and creator partnerships are ongoing.' }
+  { company: 'Vanta', category: 'B2B SaaS — Compliance', stage: 'prospect', notes: 'Series C, rebranded 2024, runs customer summits (VantaCon). Marketing team visibly investing in brand. Fit: user conference elevation + customer dinners series.' },
+  { company: 'Ramp', category: 'B2B SaaS — Fintech', stage: 'prospect', notes: 'Founder-led brand (Eric Glyman), strong design taste, runs Ramp-hosted events. Already respects design-led partners. Fit: founder visibility moments, customer advisory dinners.' },
+  { company: 'Gusto', category: 'B2B SaaS — HR/Payroll', stage: 'prospect', notes: 'Mid-market, SMB-focused, plays in partner + accountant events. Warm to creative partners. Fit: channel partner summit redesign.' },
+  { company: 'Webflow', category: 'B2B SaaS — Design tools', stage: 'prospect', notes: 'Design-forward brand, Webflow Conf is growing. Conference is their annual moment — ripe for creative elevation. Fit: Webflow Conf content + staging partnership.' },
+  { company: 'Retool', category: 'B2B SaaS — Internal tools', stage: 'prospect', notes: 'Developer-first brand with a growing marketing arm. RetoolCon is young. Fit: shape the conference identity while it\'s still forming.' },
+  { company: 'Linear', category: 'B2B SaaS — Project mgmt', stage: 'prospect', notes: 'Design-obsessed, small team, founder-visible (Karri Saarinen). Hosts launches and curated meetups. Fit: launch events + founder-led signature moment.' },
+  { company: 'Attio', category: 'B2B SaaS — CRM', stage: 'prospect', notes: 'Series B, design-first, European aesthetic, expanding U.S. presence. No established event presence in U.S. yet. Fit: U.S. launch moment + founder intro dinners.' },
+  { company: 'Clay', category: 'B2B SaaS — GTM data', stage: 'prospect', notes: 'On fire right now, runs community/creator events (Clay Labs), tiny marketing team that outsources creative. Fit: flagship community summit + GTM thought leadership theater.' },
+  { company: 'Mercury', category: 'B2B SaaS — Business banking', stage: 'prospect', notes: 'Beautiful brand, founder-led (Immad Akhund), runs founder dinners and events. Growth mode. Fit: founder-to-founder dinner series, flagship customer moment.' }
 ];
 
 var SEED_PLAYBOOKS = [
@@ -151,13 +152,20 @@ async function ensureSchema() {
         [pt.target_company, pt.play, pt.concept_title, pt.one_liner, pt.concept, pt.contact_name, pt.contact_role, pt.outbound_draft, pt.status, pt.next_action]
       );
     }
-    // Move Oatly from prospect -> researching so the account card reflects the active motion.
-    await sql('UPDATE accounts SET stage = $1, notes = $2, updated_at = NOW() WHERE company = $3 AND stage = $4', [
-      'researching',
-      'ACTIVE PITCH: Signature Activation — "The Oat Report" annual cultural summit. See Pitches tab for full concept + outbound draft.',
-      'Oatly',
-      'prospect'
-    ]);
+  }
+
+  // One-time refocus migration: clear the old consumer-leaning account list and reseed with mid-market B2B targets.
+  // Guarded by a marker row so it only runs once.
+  var marker = await sql("SELECT 1 FROM accounts WHERE company = 'Vanta' LIMIT 1");
+  if (marker.length === 0) {
+    console.log('[xm-demand] Running B2B refocus migration: clearing old accounts, reseeding');
+    await sql('DELETE FROM accounts');
+    for (var kk = 0; kk < SEED_ACCOUNTS.length; kk++) {
+      var aa = SEED_ACCOUNTS[kk];
+      await sql('INSERT INTO accounts (company, category, stage, notes) VALUES ($1,$2,$3,$4)', [aa.company, aa.category, aa.stage, aa.notes]);
+    }
+    // Also retire the Oatly pitch — it's off-strategy now. Keep it archived by marking passed so we don't lose the writing.
+    await sql("UPDATE pitches SET status = 'passed', next_action = 'ARCHIVED: Off-strategy after B2B refocus. Concept preserved as reference for future consumer-brand opportunities.' WHERE target_company = 'Oatly'");
   }
   console.log('[xm-demand] Schema ready, seed verified');
 }
