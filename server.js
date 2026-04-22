@@ -271,6 +271,54 @@ async function ensureSchema() {
     }
   }
 
+  // Attio contact v3: identified target — Alex Vale, Attio (UK). His LinkedIn post pattern shows he's the
+  // public voice celebrating Attio customers (Granola unicorn, Seapoint, Astral, etc) — founding-team /
+  // senior GTM profile. Sharpen email to speak slightly more to GTM/ecosystem outcomes while keeping
+  // the design-led voice. Idempotent — guarded by contact_name marker.
+  var attioV3 = await sql("SELECT 1 FROM pitches WHERE target_company = 'Attio' AND contact_name = 'Alex Vale' LIMIT 1");
+  if (attioV3.length === 0) {
+    var attioV3Rows = await sql("SELECT id FROM pitches WHERE target_company = 'Attio' LIMIT 1");
+    if (attioV3Rows.length > 0) {
+      console.log('[xm-demand] Applying Attio contact v3 — Alex Vale');
+      var ATTIO_EMAIL_V3 = [
+        'Subject: Ask more from Attio',
+        '',
+        'Hi Alex,',
+        '',
+        'You tell your customers to ask more from CRM. This is a concept for the room where the best GTM teams actually do.',
+        '',
+        'I\'ve been watching how you talk about Attio publicly — the Granola unicorn post, the Seapoint shout-out, the steady drumbeat of "another awesome Attio customer." You\'re already trying to build a room in LinkedIn posts. I\'m writing with a concept for the physical version.',
+        '',
+        'I run Sandbox-XM. We design brand experiences for teams who believe the room is strategy, not staging. This isn\'t a pitch deck — it\'s a concept.',
+        '',
+        'One night in New York. 120 people — the sharpest GTM operators, founders, and RevOps leaders in the Attio ecosystem. A curated dinner conversation on the record. A printed artifact everyone takes home: "The Ask More Report" — an annual field guide to how the best GTM teams actually run, built from original research across your customer base and friends-of.',
+        '',
+        'Every Attio value, made physical. Taste in the room. Data in the report. A stated POV about what\'s broken in modern GTM. And a guest list that IS the marketing.',
+        '',
+        'Salesforce has Dreamforce. HubSpot has INBOUND. Attio has a beautiful product page and very good taste — and a U.S. moment worth closing on your own terms. "Ask More" is the opposite of a conference: anti-scale, pro-signal. Year one proves it. Year two the report pre-sells the room. Year three it\'s a franchise Salesforce structurally cannot copy.',
+        '',
+        'It also does something tactical: every customer you\'re already celebrating on LinkedIn gets a physical reason to rally around Attio — and a report they circulate for 12 months after.',
+        '',
+        'I\'d like 25 minutes to walk you through it. If it\'s not for you, you\'ll at least have a framework to hand to whoever does build it.',
+        '',
+        'Worth a conversation?',
+        '',
+        'Brian',
+        'Sandbox-XM',
+        '[phone] · [site]'
+      ].join('\n');
+      await sql(
+        "UPDATE pitches SET contact_name = $1, contact_role = $2, outbound_draft = $3, next_action = $4, updated_at = NOW() WHERE target_company = 'Attio'",
+        [
+          'Alex Vale',
+          'Attio — founding-team / senior GTM. UK-based. Public voice for Attio customer wins on LinkedIn (linkedin.com/in/alexjvale).',
+          ATTIO_EMAIL_V3,
+          'Warm-intro scan first: any one hop to Alex Vale, a Redpoint partner, or an Attio customer (Granola, Seapoint, Astral, Replicate, ElevenLabs, Flatfile, Hex, Vercel). If warm path = send via intro. If cold = LinkedIn DM + email parallel within 48 hours. Keep the GTM/ecosystem angle — he responds to customer-success stories.'
+        ]
+      );
+    }
+  }
+
   console.log('[xm-demand] Schema ready, seed verified');
 }
 
