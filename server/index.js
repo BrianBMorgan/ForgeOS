@@ -1168,6 +1168,18 @@ const FORGE_TOOLS = [
     },
   },
   {
+    name: "browser_use",
+    description: "Run a task in a real headless browser. Use for ANY task fetch_url can't handle: JavaScript-rendered single-page apps, infinite scroll, auth-walled pages, multi-step flows (click, fill, wait, navigate), visual verification of a deployed app, or looking at rendered state the way a human would. Give a natural-language task — the browser agent decides how to accomplish it. Returns the agent's final output text, a live_url (while running) or recording_url (after), and total cost. Costs roughly $0.05/hour of browser time plus LLM tokens; each task is billed per-minute with a 1-minute minimum. Default timeout 180s — bump it for multi-step flows.",
+    parameters: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: "Plain-English task. Be specific about the URL to start at and what to extract or do. Example: 'Open https://staging.example.com/signup, fill in test@example.com and password Pa55word!, click Create account, and report whether the dashboard loads.'" },
+        timeout_seconds: { type: "number", description: "Max wait before giving up on the session. Default 180." },
+      },
+      required: ["task"],
+    },
+  },
+  {
     name: "ask_user",
     description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
     parameters: {
@@ -1211,6 +1223,7 @@ You are the architect AND the engineer. You:
 - list_assets — list all files in the ForgeOS asset library
 - list_skills — list every skill in the global skills library (id, name, description, tags)
 - read_skill — load a specific skill's full instructions into your context by id
+- browser_use — drive a real headless browser with a natural-language task. Use when fetch_url isn't enough: SPAs, auth walls, multi-step flows (click/fill/wait), visual verification of deployed apps, or "go look at this site the way a human would".
 - ask_user — ask Brian a question when you genuinely need clarification
 
 ## SKILLS
@@ -1578,6 +1591,104 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
         return `# Skill: ${skill.name}\n\n${skill.description ? skill.description + "\n\n" : ""}${skill.instructions}`;
       } catch (err) {
         return "read_skill error: " + err.message;
+      }
+    }
+
+    case "browser_use": {
+      try {
+        const task = toolInput.task;
+        if (!task || typeof task !== "string" || !task.trim()) {
+          return "browser_use error: task is required";
+        }
+        const timeoutMs = Math.max(10000, Math.min(600000, (Number(toolInput.timeout_seconds) || 180) * 1000));
+
+        let apiKey = process.env.BROWSER_USE_API_KEY;
+        try {
+          const vaultKey = await settingsManager.getSecret("BROWSER_USE_API_KEY");
+          if (vaultKey) apiKey = vaultKey;
+        } catch {}
+        if (!apiKey) return "browser_use error: BROWSER_USE_API_KEY not configured in Settings → Secrets Vault.";
+
+        const BASE = "https://api.browser-use.com/api/v3";
+        const headers = { "X-Browser-Use-API-Key": apiKey, "Content-Type": "application/json" };
+
+        // Create session with task
+        if (sendEvent) sendEvent({ type: "tool_status", content: "browser: spinning up session..." });
+        const createRes = await fetch(BASE + "/sessions", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ task: task.trim() }),
+        });
+        const createData = await createRes.json();
+        if (!createRes.ok) {
+          return "browser_use error " + createRes.status + ": " + JSON.stringify(createData).slice(0, 400);
+        }
+        const sessionId = createData.id;
+        if (!sessionId) return "browser_use error: no session id returned — " + JSON.stringify(createData).slice(0, 300);
+
+        if (sendEvent && createData.liveUrl) {
+          sendEvent({ type: "tool_status", content: "browser live: " + createData.liveUrl });
+        }
+
+        // Poll for completion
+        const TERMINAL = new Set(["finished", "completed", "failed", "stopped", "timeout", "error"]);
+        const started = Date.now();
+        let pollInterval = 3000; // start fast, back off slightly
+        let lastStatus = null;
+        let sessionData = null;
+        while (Date.now() - started < timeoutMs) {
+          await new Promise((r) => setTimeout(r, pollInterval));
+          pollInterval = Math.min(8000, pollInterval + 500);
+
+          const pollRes = await fetch(BASE + "/sessions/" + sessionId, { headers });
+          if (!pollRes.ok) {
+            return "browser_use poll error " + pollRes.status + ": " + (await pollRes.text()).slice(0, 300);
+          }
+          sessionData = await pollRes.json();
+          const status = (sessionData.status || "").toLowerCase();
+
+          if (status !== lastStatus) {
+            lastStatus = status;
+            if (sendEvent) sendEvent({ type: "tool_status", content: "browser: " + status + (sessionData.lastStepSummary ? " — " + sessionData.lastStepSummary : "") });
+          }
+
+          if (TERMINAL.has(status)) break;
+        }
+
+        if (!sessionData || !TERMINAL.has((sessionData.status || "").toLowerCase())) {
+          // Timed out — try to stop the session so Brian isn't billed for idle time
+          try { await fetch(BASE + "/sessions/" + sessionId + "/stop", { method: "POST", headers }); } catch {}
+          return "browser_use: timed out after " + Math.round(timeoutMs / 1000) + "s. Session id: " + sessionId + ". Last status: " + (sessionData?.status || "unknown") + ". Last step: " + (sessionData?.lastStepSummary || "(none)");
+        }
+
+        // Record cost in forge_usage (as a separate entry — not Anthropic)
+        try {
+          const costUsd = Number(sessionData.totalCostUsd || 0);
+          if (costUsd > 0) {
+            const { neon } = require("@neondatabase/serverless");
+            const usageSql = neon(process.env.NEON_DATABASE_URL);
+            await usageSql`
+              INSERT INTO forge_usage (model, input_tokens, output_tokens, cost_usd, project_id, created_at)
+              VALUES (${"browser-use"}, ${Number(sessionData.totalInputTokens) || 0}, ${Number(sessionData.totalOutputTokens) || 0}, ${costUsd}, ${null}, ${Date.now()})
+              ON CONFLICT DO NOTHING
+            `;
+          }
+        } catch (e) { console.error("[browser_use usage]", e.message); }
+
+        // Build compact result
+        const lines = [
+          "status: " + sessionData.status + (sessionData.isTaskSuccessful === false ? " (task NOT successful)" : sessionData.isTaskSuccessful === true ? " (task successful)" : ""),
+          "steps: " + (sessionData.stepCount ?? 0),
+          sessionData.totalCostUsd != null ? "cost_usd: " + sessionData.totalCostUsd : null,
+          Array.isArray(sessionData.recordingUrls) && sessionData.recordingUrls.length ? "recording: " + sessionData.recordingUrls[0] : null,
+          sessionData.lastStepSummary ? "last_step: " + sessionData.lastStepSummary : null,
+          "",
+          "output:",
+          typeof sessionData.output === "string" ? sessionData.output : JSON.stringify(sessionData.output, null, 2),
+        ].filter(Boolean);
+        return lines.join("\n");
+      } catch (err) {
+        return "browser_use error: " + err.message;
       }
     }
 
