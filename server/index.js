@@ -1106,6 +1106,7 @@ const APPROVAL_TOOLS = new Set([
   "docs_append_text",
   "docs_replace_text",
   "docs_create",
+  "forge_import",
 ]);
 
 const FORGE_TOOLS = [
@@ -1559,6 +1560,19 @@ const FORGE_TOOLS = [
     },
   },
   {
+    name: "forge_import",
+    description: "Report a published or edited article back to Forge Intelligence so the brain-loop auditor can extract patterns and mistakes. Use after you've finalized an article and committed it (for example after a /publish-article or /forge-intelligence flow). If Brian hasn't provided a content_id, stop and ask with ask_user before calling — content_id is never something you guess. Do not retry on 401 or 500; return to Brian with the error. Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        content_id: { type: "string", description: "UUID Brian provides. The Forge content record this update corresponds to." },
+        raw_text: { type: "string", description: "The final published content — typically the full HTML as shipped, but can be markdown if that's what Brian produced." },
+        edit_reason: { type: "string", description: "Specific rationale for the edits. Name what changed and why in a sentence or two — the auditor uses this to extract patterns." },
+      },
+      required: ["content_id", "raw_text", "edit_reason"],
+    },
+  },
+  {
     name: "ask_user",
     description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
     parameters: {
@@ -1597,6 +1611,7 @@ Engineering:
 - github_write — commit a complete file. Write the FULL file content — never truncate or use placeholder comments.
 - github_patch — surgical find/replace for small targeted changes (a few lines)
 - render_status — check deploy status and get the live URL
+- forge_import — report a published/edited article back to Forge Intelligence so the brain-loop auditor can extract patterns and mistakes. Required params: content_id (UUID Brian provides), raw_text (final published HTML or markdown), edit_reason (specific rationale — name what changed and why). Returns {ok, editMode, brainPatternsAdded, brainMistakesAdded}. If Brian hasn't provided a content_id, stop and ask before calling. Do not retry on 401 or 500.
 
 Research & context:
 - memory_search — search past builds for patterns and lessons
@@ -2211,6 +2226,65 @@ async function executeForgeToken(toolName, toolInput, sendEvent, repoContext) {
         const results = await googleContacts.searchContacts(toolInput.query, { pageSize: toolInput.page_size });
         return JSON.stringify(results);
       } catch (err) { return "contacts_search error: " + err.message; }
+    }
+
+    case "forge_import": {
+      // Narrow tool by design. Frank passes three fields. Everything else is
+      // encoded here — endpoint, brand id, auth header format, vault key.
+      // Keeps the blast radius tight and makes the tool hard to misuse.
+      const FORGE_ENDPOINT = "https://forgeintelligence.ai/api/content/import";
+      const FORGE_BRAND_PROFILE_ID = "dd482396-6673-4675-9892-841dad29fbc3";
+      try {
+        const { content_id, raw_text, edit_reason } = toolInput || {};
+        if (!content_id) return JSON.stringify({ ok: false, error: "content_id required" });
+        if (!raw_text) return JSON.stringify({ ok: false, error: "raw_text required" });
+        if (!edit_reason) return JSON.stringify({ ok: false, error: "edit_reason required" });
+
+        let apiKey = process.env.FORGE_API_KEY;
+        try {
+          const vaultKey = await settingsManager.getSecret("FORGE_API_KEY");
+          if (vaultKey) apiKey = vaultKey;
+        } catch {}
+        if (!apiKey) {
+          return JSON.stringify({ ok: false, error: "FORGE_API_KEY not set in Settings → Secrets Vault." });
+        }
+
+        const res = await fetch(FORGE_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "X-Api-Key": apiKey,
+            "Content-Type": "application/json",
+            "User-Agent": "ForgeOS-Frank",
+          },
+          body: JSON.stringify({
+            originalContentId: content_id,
+            brandProfileId: FORGE_BRAND_PROFILE_ID,
+            rawText: raw_text,
+            editReason: edit_reason,
+          }),
+        });
+
+        const text = await res.text();
+        let data;
+        try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+
+        if (res.status === 401) return JSON.stringify({ ok: false, status: 401, error: "API key rejected — notify Brian. Do not retry." });
+        if (res.status === 403) return JSON.stringify({ ok: false, status: 403, error: "Forge returned 403 — brand or content permission issue. Do not retry." });
+        if (res.status >= 500) return JSON.stringify({ ok: false, status: res.status, error: `Forge returned ${res.status} — do not retry.` });
+        if (!res.ok) return JSON.stringify({ ok: false, status: res.status, error: `Forge returned ${res.status}: ${(typeof data === "string" ? data : JSON.stringify(data)).slice(0, 300)}` });
+
+        // 200 with editMode: false → pass through as-is; Frank's skill tells
+        // him to stop and investigate.
+        return JSON.stringify({
+          ok: true,
+          editMode: data.editMode === true,
+          brainPatternsAdded: data.brainPatternsAdded ?? 0,
+          brainMistakesAdded: data.brainMistakesAdded ?? 0,
+          contentId: data.contentId || content_id,
+        });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: "forge_import error: " + err.message });
+      }
     }
 
     case "ask_user":
