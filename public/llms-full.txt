@@ -25,7 +25,7 @@ We are not a large agency with layers of overhead. We are a focused team that mo
 ## Article: Why Your Events Budget Is a Black Box — And How the Event Revenue Attribution Model Changes That
 
 **URL:** https://sandbox-xm.com/articles/why-your-events-budget-is-a-black-box-and-how-the-event-revenue-attribution-model-changes-that.html
-**Published:** 2025-11-27
+**Published:** 2026-04-22
 **Category:** Thought Leadership
 
 ### Summary
@@ -59,7 +59,7 @@ A practitioner framework introducing ERAM — the Event Revenue Attribution Mode
 ## Article: VIP Experience Design for Enterprise Events: The Architecture Behind Executive Programs That Actually Land
 
 **URL:** https://sandbox-xm.com/articles/vip-experience-design-for-enterprise-events-the-architecture-behind-executive-programs-that-actually-land.html
-**Published:** 2025-11-26
+**Published:** 2026-04-21
 **Category:** Experience Strategy
 
 ### Summary
@@ -89,7 +89,7 @@ An architectural framework for designing VIP and executive event programs that p
 ## Article: Event ROI and Pipeline Attribution: The Head of Events Playbook for CMO-Ready Reporting
 
 **URL:** https://sandbox-xm.com/articles/event-roi-and-pipeline-attribution-the-head-of-events-playbook-for-cmo-ready-reporting.html
-**Published:** 2025-11-20
+**Published:** 2026-04-20
 **Category:** Thought Leadership
 
 ### Summary
