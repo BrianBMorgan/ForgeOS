@@ -2300,6 +2300,7 @@ async function executeForgeToken(toolName, toolInput, sendEvent, repoContext) {
 app.post("/api/projects/:id/chat/approve", (req, res) => {
   const { approvalId, approved } = req.body; // approved: true, false, or "approve_all"
   const resolver = pendingApprovals.get(approvalId);
+  console.log(`[forge] approve endpoint id=${approvalId} approved=${approved} resolver_found=${!!resolver}`);
   if (resolver) {
     resolver(approved); // true = approve once, "approve_all" = approve all, false = cancel
     pendingApprovals.delete(approvalId);
@@ -2557,16 +2558,46 @@ app.post("/api/projects/:id/chat", async (req, res) => {
         // Approval gate: pause and wait for client approval on write tools
         if (APPROVAL_TOOLS.has(toolUse.name) && !autoApproveWrites) {
           const approvalId = `apr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          console.log(`[forge] approval_required id=${approvalId} tool=${toolUse.name}`);
           send({ type: "approval_required", approvalId, tool: toolUse.name, input: toolUse.input });
 
-          const approved = await new Promise((resolve) => {
+          const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes — accommodates careful review of large payloads
+          const approvalResult = await new Promise((resolve) => {
             pendingApprovals.set(approvalId, resolve);
-            setTimeout(() => { if (pendingApprovals.has(approvalId)) { pendingApprovals.delete(approvalId); resolve(false); } }, 300000);
+            setTimeout(() => {
+              if (pendingApprovals.has(approvalId)) {
+                pendingApprovals.delete(approvalId);
+                resolve({ outcome: "timeout" });
+              }
+            }, TIMEOUT_MS);
           });
 
-          if (approved === "approve_all") {
-            autoApproveWrites = true; // Skip approval for rest of this chat request
-          } else if (!approved) {
+          // Back-compat: resolver may pass a raw boolean / "approve_all" string from /approve
+          // (existing endpoint) or the object shape above from the timeout path.
+          let outcome;
+          if (approvalResult && typeof approvalResult === "object" && approvalResult.outcome) {
+            outcome = approvalResult.outcome;
+          } else if (approvalResult === "approve_all") {
+            outcome = "approve_all";
+          } else if (approvalResult === true) {
+            outcome = "approved";
+          } else {
+            outcome = "cancelled";
+          }
+
+          console.log(`[forge] approval resolved id=${approvalId} outcome=${outcome}`);
+
+          if (outcome === "approve_all") {
+            autoApproveWrites = true;
+          } else if (outcome === "timeout") {
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: toolUse.id,
+              content: "Approval timed out after 30 minutes — Brian never saw or never responded to the approval card. This is NOT a user cancellation. The approval card may have failed to render, the SSE connection may have dropped, or Brian may have been away. Do NOT re-fire automatically. Report this to Brian and ask whether to retry.",
+            });
+            send({ type: "tool_status", content: "⏱ Approval timed out: " + toolUse.name });
+            continue;
+          } else if (outcome === "cancelled") {
             toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: "User cancelled this action." });
             send({ type: "tool_status", content: "✗ Cancelled: " + (toolUse.input.filepath || toolUse.name) });
             continue;
