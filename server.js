@@ -110,6 +110,44 @@ app.post('/api/contact', function(req, res) {
   });
 });
 
+// IndexNow endpoint — submits URLs to Bing/Yandex/etc for near-instant indexing
+var INDEXNOW_KEY = 'd65c9adf933b4773929f1d11a73fc0e4';
+var INDEXNOW_HOST = 'sandbox-xm.com';
+
+app.post('/api/indexnow', function(req, res) {
+  var urls = req.body && req.body.urls;
+  if (!Array.isArray(urls) || urls.length === 0) {
+    return res.status(400).json({ ok: false, error: 'urls array required' });
+  }
+  if (urls.length > 10000) {
+    return res.status(400).json({ ok: false, error: 'max 10000 urls per request' });
+  }
+
+  var payload = {
+    host: INDEXNOW_HOST,
+    key: INDEXNOW_KEY,
+    keyLocation: 'https://' + INDEXNOW_HOST + '/' + INDEXNOW_KEY + '.txt',
+    urlList: urls
+  };
+
+  axios.post('https://api.indexnow.org/indexnow', payload, {
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    timeout: 10000,
+    validateStatus: function() { return true; }
+  }).then(function(response) {
+    console.log('IndexNow response:', response.status, 'for', urls.length, 'url(s)');
+    res.json({
+      ok: response.status >= 200 && response.status < 300,
+      status: response.status,
+      submitted: urls.length,
+      response: response.data || null
+    });
+  }).catch(function(err) {
+    console.error('IndexNow error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  });
+});
+
 // Privacy policy page
 app.get('/privacy', function(req, res) {
   var html = '<!DOCTYPE html>\n' +
