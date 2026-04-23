@@ -38,6 +38,16 @@ async function ensureSchema() {
       created_at BIGINT NOT NULL,
       updated_at BIGINT NOT NULL
     )`;
+
+    // Skill type: 'standard' (default) or 'repo_access'.
+    // Repo-access skills carry repo_owner, repo_name, repo_branch and a
+    // reference to a vault secret holding the PAT (repo_token_secret_key).
+    // The actual token is stored in global_secrets, never in this table.
+    await sql`ALTER TABLE skills ADD COLUMN IF NOT EXISTS skill_type VARCHAR(32) NOT NULL DEFAULT 'standard'`;
+    await sql`ALTER TABLE skills ADD COLUMN IF NOT EXISTS repo_owner VARCHAR(255)`;
+    await sql`ALTER TABLE skills ADD COLUMN IF NOT EXISTS repo_name VARCHAR(255)`;
+    await sql`ALTER TABLE skills ADD COLUMN IF NOT EXISTS repo_branch VARCHAR(255) DEFAULT 'main'`;
+    await sql`ALTER TABLE skills ADD COLUMN IF NOT EXISTS repo_token_secret_key VARCHAR(255)`;
   } catch (err) {
     console.error("Failed to create settings schema:", err.message);
   }
@@ -173,29 +183,96 @@ async function getSecretsAsObject() {
   }
 }
 
-async function createSkill({ name, description, instructions, tags }) {
+function normalizeSkill(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    instructions: r.instructions,
+    tags: r.tags,
+    skillType: r.skill_type || "standard",
+    repoOwner: r.repo_owner || null,
+    repoName: r.repo_name || null,
+    repoBranch: r.repo_branch || null,
+    repoTokenSecretKey: r.repo_token_secret_key || null,
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  };
+}
+
+async function createSkill({ name, description, instructions, tags, skillType, repoOwner, repoName, repoBranch, repoToken }) {
   if (!sql) return null;
   await seedDefaults();
   const now = Date.now();
   const tagsStr = Array.isArray(tags) ? tags.join(",") : (tags || "");
+  const type = skillType === "repo_access" ? "repo_access" : "standard";
   try {
-    const rows = await sql`INSERT INTO skills (name, description, instructions, tags, created_at, updated_at)
-      VALUES (${name}, ${description || ""}, ${instructions}, ${tagsStr}, ${now}, ${now})
+    const rows = await sql`INSERT INTO skills
+      (name, description, instructions, tags, skill_type, repo_owner, repo_name, repo_branch, created_at, updated_at)
+      VALUES (${name}, ${description || ""}, ${instructions || ""}, ${tagsStr}, ${type},
+              ${repoOwner || null}, ${repoName || null}, ${repoBranch || null},
+              ${now}, ${now})
       RETURNING id`;
-    return { id: rows[0].id, name, description: description || "", instructions, tags: tagsStr, createdAt: now, updatedAt: now };
+    const id = rows[0].id;
+    let repoTokenSecretKey = null;
+    if (type === "repo_access" && repoToken) {
+      repoTokenSecretKey = `REPO_TOKEN_${id}`;
+      await setSecret(repoTokenSecretKey, repoToken);
+      await sql`UPDATE skills SET repo_token_secret_key = ${repoTokenSecretKey} WHERE id = ${id}`;
+    }
+    return {
+      id, name, description: description || "", instructions: instructions || "", tags: tagsStr,
+      skillType: type, repoOwner: repoOwner || null, repoName: repoName || null,
+      repoBranch: repoBranch || null, repoTokenSecretKey,
+      createdAt: now, updatedAt: now,
+    };
   } catch (err) {
     console.error("Failed to create skill:", err.message);
     return null;
   }
 }
 
-async function updateSkill(id, { name, description, instructions, tags }) {
+async function updateSkill(id, { name, description, instructions, tags, skillType, repoOwner, repoName, repoBranch, repoToken }) {
   if (!sql) return false;
   await seedDefaults();
   const now = Date.now();
   const tagsStr = Array.isArray(tags) ? tags.join(",") : (tags || "");
   try {
-    await sql`UPDATE skills SET name = ${name}, description = ${description || ""}, instructions = ${instructions}, tags = ${tagsStr}, updated_at = ${now} WHERE id = ${id}`;
+    // Build the update as a single statement — only set columns the caller supplied.
+    // Neon's tagged-template driver doesn't love dynamic SQL, so we do it by fetching
+    // current row, overlaying new values, and writing the merged row.
+    const rows = await sql`SELECT * FROM skills WHERE id = ${id}`;
+    if (rows.length === 0) return false;
+    const cur = rows[0];
+    const merged = {
+      name: name ?? cur.name,
+      description: description ?? cur.description,
+      instructions: instructions ?? cur.instructions,
+      tags: tags !== undefined ? tagsStr : cur.tags,
+      skill_type: skillType ?? cur.skill_type ?? "standard",
+      repo_owner: repoOwner !== undefined ? (repoOwner || null) : cur.repo_owner,
+      repo_name: repoName !== undefined ? (repoName || null) : cur.repo_name,
+      repo_branch: repoBranch !== undefined ? (repoBranch || null) : cur.repo_branch,
+    };
+    await sql`UPDATE skills SET
+      name = ${merged.name},
+      description = ${merged.description},
+      instructions = ${merged.instructions},
+      tags = ${merged.tags},
+      skill_type = ${merged.skill_type},
+      repo_owner = ${merged.repo_owner},
+      repo_name = ${merged.repo_name},
+      repo_branch = ${merged.repo_branch},
+      updated_at = ${now}
+      WHERE id = ${id}`;
+    // If caller rotated the token, re-store it in the vault under the same key
+    if (repoToken !== undefined && repoToken !== null && repoToken !== "") {
+      const key = cur.repo_token_secret_key || `REPO_TOKEN_${id}`;
+      await setSecret(key, repoToken);
+      if (!cur.repo_token_secret_key) {
+        await sql`UPDATE skills SET repo_token_secret_key = ${key} WHERE id = ${id}`;
+      }
+    }
     return true;
   } catch (err) {
     console.error("Failed to update skill:", err.message);
@@ -207,7 +284,12 @@ async function deleteSkill(id) {
   if (!sql) return false;
   await seedDefaults();
   try {
+    const rows = await sql`SELECT repo_token_secret_key FROM skills WHERE id = ${id}`;
+    const tokenKey = rows[0]?.repo_token_secret_key;
     await sql`DELETE FROM skills WHERE id = ${id}`;
+    if (tokenKey) {
+      try { await deleteSecret(tokenKey); } catch {}
+    }
     return true;
   } catch (err) {
     console.error("Failed to delete skill:", err.message);
@@ -221,10 +303,21 @@ async function getSkill(id) {
   try {
     const rows = await sql`SELECT * FROM skills WHERE id = ${id}`;
     if (rows.length === 0) return null;
-    const r = rows[0];
-    return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, tags: r.tags, createdAt: Number(r.created_at), updatedAt: Number(r.updated_at) };
+    return normalizeSkill(rows[0]);
   } catch (err) {
     console.error("Failed to get skill:", err.message);
+    return null;
+  }
+}
+
+// Return the resolved PAT for a repo_access skill. Returns null if the
+// skill is not a repo_access skill, or has no token set, or sql is unavailable.
+async function getSkillRepoToken(id) {
+  const skill = await getSkill(id);
+  if (!skill || skill.skillType !== "repo_access" || !skill.repoTokenSecretKey) return null;
+  try {
+    return await getSecret(skill.repoTokenSecretKey);
+  } catch {
     return null;
   }
 }
@@ -234,15 +327,7 @@ async function getAllSkills() {
   await seedDefaults();
   try {
     const rows = await sql`SELECT * FROM skills ORDER BY name ASC`;
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      description: r.description,
-      instructions: r.instructions,
-      tags: r.tags,
-      createdAt: Number(r.created_at),
-      updatedAt: Number(r.updated_at),
-    }));
+    return rows.map(normalizeSkill);
   } catch (err) {
     console.error("Failed to get all skills:", err.message);
     return [];
@@ -262,6 +347,7 @@ module.exports = {
   updateSkill,
   deleteSkill,
   getSkill,
+  getSkillRepoToken,
   getAllSkills,
   DEFAULTS,
 };

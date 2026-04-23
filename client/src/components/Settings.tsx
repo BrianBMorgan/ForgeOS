@@ -11,6 +11,11 @@ interface Skill {
   description: string;
   instructions: string;
   tags: string;
+  skillType?: "standard" | "repo_access";
+  repoOwner?: string | null;
+  repoName?: string | null;
+  repoBranch?: string | null;
+  repoTokenSecretKey?: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -53,7 +58,17 @@ export default function Settings() {
   const [newEnvValue, setNewEnvValue] = useState("");
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [newSkill, setNewSkill] = useState(false);
-  const [skillForm, setSkillForm] = useState({ name: "", description: "", instructions: "", tags: "" });
+  const [skillForm, setSkillForm] = useState({
+    name: "",
+    description: "",
+    instructions: "",
+    tags: "",
+    skillType: "standard" as "standard" | "repo_access",
+    repoOwner: "",
+    repoName: "",
+    repoBranch: "main",
+    repoToken: "",
+  });
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
@@ -154,17 +169,37 @@ export default function Settings() {
   };
 
   const saveSkill = async () => {
-    if (!skillForm.name.trim() || !skillForm.instructions.trim()) return;
+    if (!skillForm.name.trim()) return;
+    // Validation differs by type.
+    if (skillForm.skillType === "standard" && !skillForm.instructions.trim()) return;
+    if (skillForm.skillType === "repo_access") {
+      if (!skillForm.repoOwner.trim() || !skillForm.repoName.trim()) return;
+      // Token only required on create, not on edit (editing with empty token keeps existing token)
+      if (!editingSkill && !skillForm.repoToken.trim()) return;
+    }
     try {
+      const payload: any = {
+        name: skillForm.name,
+        description: skillForm.description,
+        instructions: skillForm.instructions,
+        tags: skillForm.tags,
+        skillType: skillForm.skillType,
+      };
+      if (skillForm.skillType === "repo_access") {
+        payload.repoOwner = skillForm.repoOwner.trim();
+        payload.repoName = skillForm.repoName.trim();
+        payload.repoBranch = skillForm.repoBranch.trim() || "main";
+        if (skillForm.repoToken.trim()) payload.repoToken = skillForm.repoToken.trim();
+      }
       if (editingSkill) {
-        await fetch(`/api/skills/${editingSkill.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(skillForm) });
+        await fetch(`/api/skills/${editingSkill.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       } else {
-        const resp = await fetch("/api/skills", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(skillForm) });
+        const resp = await fetch("/api/skills", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const created = await resp.json();
         if (created.id) setSelectedSkillId(created.id);
       }
       setEditingSkill(null); setNewSkill(false);
-      setSkillForm({ name: "", description: "", instructions: "", tags: "" });
+      setSkillForm({ name: "", description: "", instructions: "", tags: "", skillType: "standard", repoOwner: "", repoName: "", repoBranch: "main", repoToken: "" });
       loadAll();
     } catch (err) { console.error("Failed to save skill:", err); }
   };
@@ -179,12 +214,22 @@ export default function Settings() {
 
   const startEditSkill = (skill: Skill) => {
     setEditingSkill(skill); setNewSkill(false); setSelectedSkillId(skill.id);
-    setSkillForm({ name: skill.name, description: skill.description || "", instructions: skill.instructions, tags: skill.tags || "" });
+    setSkillForm({
+      name: skill.name,
+      description: skill.description || "",
+      instructions: skill.instructions,
+      tags: skill.tags || "",
+      skillType: skill.skillType || "standard",
+      repoOwner: skill.repoOwner || "",
+      repoName: skill.repoName || "",
+      repoBranch: skill.repoBranch || "main",
+      repoToken: "", // never pre-fill; empty means "keep existing"
+    });
   };
 
   const startNewSkill = () => {
     setEditingSkill(null); setNewSkill(true); setSelectedSkillId(null);
-    setSkillForm({ name: "", description: "", instructions: "", tags: "" });
+    setSkillForm({ name: "", description: "", instructions: "", tags: "", skillType: "standard", repoOwner: "", repoName: "", repoBranch: "main", repoToken: "" });
   };
 
   const importFromUrl = async () => {
@@ -387,10 +432,25 @@ export default function Settings() {
         {newSkill ? (
           <div className="stg-skill-editor">
             <h3>New Skill</h3>
-            <div className="stg-field"><label>Name</label><input value={skillForm.name} onChange={(e) => setSkillForm({ ...skillForm, name: e.target.value })} className="stg-input" placeholder="e.g. fal.ai Flux Pro" /></div>
+            <div className="stg-field">
+              <label>Type</label>
+              <select value={skillForm.skillType} onChange={(e) => setSkillForm({ ...skillForm, skillType: e.target.value as "standard" | "repo_access" })} className="stg-input">
+                <option value="standard">Standard (playbook / instructions)</option>
+                <option value="repo_access">Repo Access Protocol</option>
+              </select>
+            </div>
+            <div className="stg-field"><label>Name</label><input value={skillForm.name} onChange={(e) => setSkillForm({ ...skillForm, name: e.target.value })} className="stg-input" placeholder={skillForm.skillType === "repo_access" ? "e.g. Forge Intelligence" : "e.g. fal.ai Flux Pro"} /></div>
             <div className="stg-field"><label>Description</label><input value={skillForm.description} onChange={(e) => setSkillForm({ ...skillForm, description: e.target.value })} className="stg-input" placeholder="Short description" /></div>
             <div className="stg-field"><label>Tags <span className="stg-hint-inline">(comma-separated)</span></label><input value={skillForm.tags} onChange={(e) => setSkillForm({ ...skillForm, tags: e.target.value })} className="stg-input" placeholder="e.g. images, ai" /></div>
-            <div className="stg-field stg-field-grow"><label>Instructions</label><textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className="stg-textarea stg-textarea-grow" placeholder="Detailed instructions for the agent..." /></div>
+            {skillForm.skillType === "repo_access" && (
+              <>
+                <div className="stg-field"><label>Repo Owner</label><input value={skillForm.repoOwner} onChange={(e) => setSkillForm({ ...skillForm, repoOwner: e.target.value })} className="stg-input" placeholder="e.g. Sandbox-Group-LLC" /></div>
+                <div className="stg-field"><label>Repo Name</label><input value={skillForm.repoName} onChange={(e) => setSkillForm({ ...skillForm, repoName: e.target.value })} className="stg-input" placeholder="e.g. Forge-Intelligence" /></div>
+                <div className="stg-field"><label>Default Branch</label><input value={skillForm.repoBranch} onChange={(e) => setSkillForm({ ...skillForm, repoBranch: e.target.value })} className="stg-input" placeholder="main" /></div>
+                <div className="stg-field"><label>GitHub PAT <span className="stg-hint-inline">(stored in secrets vault, never shown again)</span></label><input type="password" value={skillForm.repoToken} onChange={(e) => setSkillForm({ ...skillForm, repoToken: e.target.value })} className="stg-input" placeholder="ghp_..." autoComplete="off" /></div>
+              </>
+            )}
+            <div className={"stg-field" + (skillForm.skillType === "repo_access" ? "" : " stg-field-grow")}><label>Instructions {skillForm.skillType === "repo_access" && <span className="stg-hint-inline">(optional — rules for Frank when using this repo)</span>}</label><textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className={"stg-textarea" + (skillForm.skillType === "repo_access" ? "" : " stg-textarea-grow")} placeholder={skillForm.skillType === "repo_access" ? "Optional: e.g. 'Always write articles to /articles/. Use conventional commit messages.'" : "Detailed instructions for the agent..."} /></div>
             <div className="stg-skill-editor-actions">
               <button className="stg-btn" onClick={saveSkill}>Save</button>
               <button className="stg-btn secondary" onClick={() => setNewSkill(false)}>Cancel</button>
@@ -399,10 +459,25 @@ export default function Settings() {
         ) : editingSkill ? (
           <div className="stg-skill-editor">
             <h3>Edit: {editingSkill.name}</h3>
+            <div className="stg-field">
+              <label>Type</label>
+              <select value={skillForm.skillType} onChange={(e) => setSkillForm({ ...skillForm, skillType: e.target.value as "standard" | "repo_access" })} className="stg-input">
+                <option value="standard">Standard (playbook / instructions)</option>
+                <option value="repo_access">Repo Access Protocol</option>
+              </select>
+            </div>
             <div className="stg-field"><label>Name</label><input value={skillForm.name} onChange={(e) => setSkillForm({ ...skillForm, name: e.target.value })} className="stg-input" /></div>
             <div className="stg-field"><label>Description</label><input value={skillForm.description} onChange={(e) => setSkillForm({ ...skillForm, description: e.target.value })} className="stg-input" /></div>
             <div className="stg-field"><label>Tags</label><input value={skillForm.tags} onChange={(e) => setSkillForm({ ...skillForm, tags: e.target.value })} className="stg-input" /></div>
-            <div className="stg-field stg-field-grow"><label>Instructions</label><textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className="stg-textarea stg-textarea-grow" /></div>
+            {skillForm.skillType === "repo_access" && (
+              <>
+                <div className="stg-field"><label>Repo Owner</label><input value={skillForm.repoOwner} onChange={(e) => setSkillForm({ ...skillForm, repoOwner: e.target.value })} className="stg-input" /></div>
+                <div className="stg-field"><label>Repo Name</label><input value={skillForm.repoName} onChange={(e) => setSkillForm({ ...skillForm, repoName: e.target.value })} className="stg-input" /></div>
+                <div className="stg-field"><label>Default Branch</label><input value={skillForm.repoBranch} onChange={(e) => setSkillForm({ ...skillForm, repoBranch: e.target.value })} className="stg-input" /></div>
+                <div className="stg-field"><label>GitHub PAT <span className="stg-hint-inline">(leave blank to keep existing token)</span></label><input type="password" value={skillForm.repoToken} onChange={(e) => setSkillForm({ ...skillForm, repoToken: e.target.value })} className="stg-input" placeholder="Paste a new PAT to rotate" autoComplete="off" /></div>
+              </>
+            )}
+            <div className={"stg-field" + (skillForm.skillType === "repo_access" ? "" : " stg-field-grow")}><label>Instructions</label><textarea value={skillForm.instructions} onChange={(e) => setSkillForm({ ...skillForm, instructions: e.target.value })} onKeyDown={(e) => e.stopPropagation()} className={"stg-textarea" + (skillForm.skillType === "repo_access" ? "" : " stg-textarea-grow")} /></div>
             <div className="stg-skill-editor-actions">
               <button className="stg-btn" onClick={saveSkill}>Save</button>
               <button className="stg-btn secondary" onClick={() => setEditingSkill(null)}>Cancel</button>
@@ -419,7 +494,17 @@ export default function Settings() {
             </div>
             {selectedSkill.description && <p className="stg-skill-view-desc">{selectedSkill.description}</p>}
             {selectedSkill.tags && <div className="stg-skill-view-tags">{selectedSkill.tags.split(",").map((t) => <span key={t.trim()} className="stg-tag">{t.trim()}</span>)}</div>}
-            <div className="stg-skill-view-instructions"><pre>{selectedSkill.instructions}</pre></div>
+            {selectedSkill.skillType === "repo_access" && (
+              <div className="stg-skill-view-repo">
+                <div className="stg-skill-view-repo-badge">Repo Access Protocol</div>
+                <div className="stg-skill-view-repo-meta">
+                  <div><strong>Repo:</strong> {selectedSkill.repoOwner}/{selectedSkill.repoName}</div>
+                  <div><strong>Branch:</strong> {selectedSkill.repoBranch || "main"}</div>
+                  <div><strong>PAT:</strong> {selectedSkill.repoTokenSecretKey ? "stored in vault" : "not set"}</div>
+                </div>
+              </div>
+            )}
+            {selectedSkill.instructions && <div className="stg-skill-view-instructions"><pre>{selectedSkill.instructions}</pre></div>}
           </div>
         ) : (
           <div className="stg-skill-empty"><p>Select a skill or create a new one.</p></div>

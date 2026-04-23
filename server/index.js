@@ -583,11 +583,21 @@ app.get("/api/skills", async (_req, res) => {
 });
 
 app.post("/api/skills", async (req, res) => {
-  const { name, description, instructions, tags } = req.body;
-  if (!name || !instructions) {
-    return res.status(400).json({ error: "Name and instructions are required" });
+  const { name, description, instructions, tags, skillType, repoOwner, repoName, repoBranch, repoToken } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: "Name is required" });
   }
-  const skill = await settingsManager.createSkill({ name, description, instructions, tags });
+  const type = skillType === "repo_access" ? "repo_access" : "standard";
+  if (type === "standard" && !instructions) {
+    return res.status(400).json({ error: "Instructions are required for standard skills" });
+  }
+  if (type === "repo_access" && (!repoOwner || !repoName || !repoToken)) {
+    return res.status(400).json({ error: "Repo owner, name, and token are required for repo_access skills" });
+  }
+  const skill = await settingsManager.createSkill({
+    name, description, instructions, tags,
+    skillType: type, repoOwner, repoName, repoBranch, repoToken,
+  });
   if (!skill) {
     return res.status(500).json({ error: "Failed to create skill" });
   }
@@ -595,11 +605,14 @@ app.post("/api/skills", async (req, res) => {
 });
 
 app.put("/api/skills/:id", async (req, res) => {
-  const { name, description, instructions, tags } = req.body;
-  if (!name || !instructions) {
-    return res.status(400).json({ error: "Name and instructions are required" });
+  const { name, description, instructions, tags, skillType, repoOwner, repoName, repoBranch, repoToken } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: "Name is required" });
   }
-  const ok = await settingsManager.updateSkill(parseInt(req.params.id), { name, description, instructions, tags });
+  const ok = await settingsManager.updateSkill(parseInt(req.params.id), {
+    name, description, instructions, tags,
+    skillType, repoOwner, repoName, repoBranch, repoToken,
+  });
   if (!ok) {
     return res.status(500).json({ error: "Failed to update skill" });
   }
@@ -1054,11 +1067,19 @@ app.post("/api/brands/:id/rescrape", async (req, res) => {
 // done. We get out of the way.
 
 
-const GITHUB_REPO = "BrianBMorgan/ForgeOS";
+const DEFAULT_GITHUB_REPO = "BrianBMorgan/ForgeOS";
 
-function githubHeaders() {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) throw new Error("GITHUB_TOKEN not set");
+function resolveRepo(context) {
+  if (context && context.repoOwner && context.repoName) {
+    return `${context.repoOwner}/${context.repoName}`;
+  }
+  return DEFAULT_GITHUB_REPO;
+}
+
+function githubHeaders(context) {
+  // For repo_access skills we use the per-repo PAT; otherwise the ForgeOS PAT.
+  const token = (context && context.token) || process.env.GITHUB_TOKEN;
+  if (!token) throw new Error("GITHUB_TOKEN not set (and no repo_access skill PAT available)");
   return {
     "Authorization": "Bearer " + token,
     "Accept": "application/vnd.github.v3+json",
@@ -1671,19 +1692,21 @@ Render deploys take 2-4 minutes. Follow this exact protocol:
 
 Never tell Brian an app is live until render_status confirms it. Call it once after committing. If deploying, give Brian the URL and stop polling.`;
 
-async function executeForgeToken(toolName, toolInput, sendEvent) {
+async function executeForgeToken(toolName, toolInput, sendEvent, repoContext) {
   switch (toolName) {
 
     case "github_create_branch": {
       try {
         const branch = toolInput.branch;
         if (!branch) return "Error: branch name required";
-        const headers = githubHeaders();
-        const refRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/ref/heads/main", { headers });
+        const repo = resolveRepo(repoContext);
+        const headers = githubHeaders(repoContext);
+        const baseBranch = (repoContext && repoContext.defaultBranch) || "main";
+        const refRes = await fetch("https://api.github.com/repos/" + repo + "/git/ref/heads/" + encodeURIComponent(baseBranch), { headers });
         const refData = await refRes.json();
         if (!refRes.ok) return "GitHub error: " + JSON.stringify(refData).slice(0, 200);
         const sha = refData.object.sha;
-        const createRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/git/refs", {
+        const createRes = await fetch("https://api.github.com/repos/" + repo + "/git/refs", {
           method: "POST", headers, body: JSON.stringify({ ref: "refs/heads/" + branch, sha }),
         });
         const createData = await createRes.json();
@@ -1691,20 +1714,22 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
           if (createRes.status === 422) return "Branch " + branch + " already exists.";
           return "GitHub error: " + JSON.stringify(createData).slice(0, 200);
         }
-        if (sendEvent) sendEvent({ type: "tool_status", content: "✓ Created branch: " + branch });
-        return "Branch " + branch + " created from main (" + sha.slice(0, 7) + ")";
+        if (sendEvent) sendEvent({ type: "tool_status", content: "✓ Created branch: " + branch + " in " + repo });
+        return "Branch " + branch + " created from " + baseBranch + " (" + sha.slice(0, 7) + ") in " + repo;
       } catch (err) { return "github_create_branch error: " + err.message; }
     }
 
     case "github_ls": {
       try {
-        const branch = toolInput.branch || "main";
+        const repo = resolveRepo(repoContext);
+        const defaultBranch = (repoContext && repoContext.defaultBranch) || "main";
+        const branch = toolInput.branch || defaultBranch;
         const dirPath = toolInput.path || "";
-        const res = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + dirPath + "?ref=" + encodeURIComponent(branch), { headers: githubHeaders() });
+        const res = await fetch("https://api.github.com/repos/" + repo + "/contents/" + dirPath + "?ref=" + encodeURIComponent(branch), { headers: githubHeaders(repoContext) });
         const data = await res.json();
         if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
         if (!Array.isArray(data)) return "Not a directory";
-        return "Branch: " + branch + " | Path: /" + dirPath + "\n" + data.map(function(item) {
+        return "Repo: " + repo + " | Branch: " + branch + " | Path: /" + dirPath + "\n" + data.map(function(item) {
           return (item.type === "dir" ? "[dir]  " : "[file] ") + item.name + (item.size ? " (" + item.size + " bytes)" : "");
         }).join("\n");
       } catch (err) { return "github_ls error: " + err.message; }
@@ -1712,8 +1737,10 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
 
     case "github_read": {
       try {
-        const branch = toolInput.branch || "main";
-        const res = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers: githubHeaders() });
+        const repo = resolveRepo(repoContext);
+        const defaultBranch = (repoContext && repoContext.defaultBranch) || "main";
+        const branch = toolInput.branch || defaultBranch;
+        const res = await fetch("https://api.github.com/repos/" + repo + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers: githubHeaders(repoContext) });
         const data = await res.json();
         if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
         return Buffer.from(data.content, "base64").toString("utf-8");
@@ -1722,27 +1749,31 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
 
     case "github_write": {
       try {
-        const branch = toolInput.branch || "main";
-        // ABSOLUTE BLOCK: nothing gets written to main — ever
-        if (branch === "main") {
-          return "BLOCKED: Writing to main is not permitted. Main is ForgeOS itself. " +
-            "All app files must be written to apps/<slug> branch. Specify branch: 'apps/<slug>' in your call.";
+        const repo = resolveRepo(repoContext);
+        const defaultBranch = (repoContext && repoContext.defaultBranch) || "main";
+        const branch = toolInput.branch || defaultBranch;
+        // ABSOLUTE BLOCK: never write to ForgeOS's own main. Other repos
+        // (repo_access skills) can write to main freely — that's their dev.
+        if (repo === DEFAULT_GITHUB_REPO && branch === "main") {
+          return "BLOCKED: Writing to main on BrianBMorgan/ForgeOS is not permitted. " +
+            "ForgeOS should not perform surgery on itself. Use apps/<slug> for project work.";
         }
-        const headers = githubHeaders();
-        const shaRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
+        const headers = githubHeaders(repoContext);
+        const shaRes = await fetch("https://api.github.com/repos/" + repo + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
         const shaData = await shaRes.json();
         const currentSha = shaRes.ok ? shaData.sha : null;
         const body = { message: toolInput.message, content: Buffer.from(toolInput.content, "utf-8").toString("base64"), branch };
         if (currentSha) body.sha = currentSha;
-        const pushRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath, { method: "PUT", headers, body: JSON.stringify(body) });
+        const pushRes = await fetch("https://api.github.com/repos/" + repo + "/contents/" + toolInput.filepath, { method: "PUT", headers, body: JSON.stringify(body) });
         const pushData = await pushRes.json();
         if (!pushRes.ok) return "GitHub push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 300);
         const commitSha = pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done";
-        sendEvent({ type: "tool_status", content: "✓ Written: " + toolInput.filepath });
+        sendEvent({ type: "tool_status", content: "✓ Written: " + toolInput.filepath + " → " + repo + "@" + branch });
         sendEvent({ type: "file_committed", filepath: toolInput.filepath, branch: branch, commit: commitSha });
 
-        // Auto-provision Render service if writing to an apps/* branch with no service yet
-        if (branch.startsWith("apps/")) {
+        // Auto-provision Render service only for ForgeOS's own apps/* branches.
+        // External repos are assumed to have their own Render setup already.
+        if (repo === DEFAULT_GITHUB_REPO && branch.startsWith("apps/")) {
           const appSlug = branch.replace("apps/", "");
           setImmediate(async () => {
             try {
@@ -1757,20 +1788,21 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
           });
         }
 
-        return "Pushed " + toolInput.filepath + " to " + branch + " — commit: " + commitSha;
+        return "Pushed " + toolInput.filepath + " to " + repo + "@" + branch + " — commit: " + commitSha;
       } catch (err) { return "github_write error: " + err.message; }
     }
 
     case "github_patch": {
       try {
-        const branch = toolInput.branch || "main";
-        // ABSOLUTE BLOCK: nothing gets patched on main — ever
-        if (branch === "main") {
-          return "BLOCKED: Patching main is not permitted. Main is ForgeOS itself. " +
-            "All app changes must go to apps/<slug> branch.";
+        const repo = resolveRepo(repoContext);
+        const defaultBranch = (repoContext && repoContext.defaultBranch) || "main";
+        const branch = toolInput.branch || defaultBranch;
+        // ABSOLUTE BLOCK: never patch ForgeOS's own main.
+        if (repo === DEFAULT_GITHUB_REPO && branch === "main") {
+          return "BLOCKED: Patching main on BrianBMorgan/ForgeOS is not permitted.";
         }
-        const headers = githubHeaders();
-        const res = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
+        const headers = githubHeaders(repoContext);
+        const res = await fetch("https://api.github.com/repos/" + repo + "/contents/" + toolInput.filepath + "?ref=" + encodeURIComponent(branch), { headers });
         const data = await res.json();
         if (!res.ok) return "GitHub error " + res.status + ": " + JSON.stringify(data).slice(0, 200);
         let fileContent = Buffer.from(data.content, "base64").toString("utf-8");
@@ -1781,14 +1813,14 @@ async function executeForgeToken(toolName, toolInput, sendEvent) {
           else failed.push(rep.find.slice(0, 60));
         }
         if (failed.length > 0 && applied.length === 0) return "No replacements found. Failed: " + failed.join("; ");
-        const pushRes = await fetch("https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + toolInput.filepath, {
+        const pushRes = await fetch("https://api.github.com/repos/" + repo + "/contents/" + toolInput.filepath, {
           method: "PUT", headers,
           body: JSON.stringify({ message: toolInput.message, content: Buffer.from(fileContent, "utf-8").toString("base64"), sha, branch }),
         });
         const pushData = await pushRes.json();
         if (!pushRes.ok) return "Push error " + pushRes.status + ": " + JSON.stringify(pushData).slice(0, 200);
         const commitSha = pushData.commit && pushData.commit.sha ? pushData.commit.sha.slice(0, 7) : "done";
-        let summary = "Patched " + toolInput.filepath + " — " + applied.length + " replacement(s) — commit: " + commitSha;
+        let summary = "Patched " + toolInput.filepath + " on " + repo + "@" + branch + " — " + applied.length + " replacement(s) — commit: " + commitSha;
         if (failed.length > 0) summary += " | not found: " + failed.join("; ");
         sendEvent({ type: "tool_status", content: "✓ " + summary });
         return summary;
@@ -2275,6 +2307,60 @@ app.post("/api/projects/:id/chat", async (req, res) => {
 
     if (memoryBlock && memoryBlock.trim()) sysParts.push("## RELEVANT MEMORY\n" + memoryBlock.trim());
     if (skillContext) sysParts.push("## SKILL INSTRUCTIONS\n" + skillContext);
+
+    // ── Repo Access Protocol ────────────────────────────────────────────────
+    // If the user mentioned /<slug> in ANY message this conversation (first
+    // turn or earlier) for a skill that's a repo_access type, resolve the
+    // repo coordinates + PAT and make every github_* tool in this turn
+    // target that repo instead of ForgeOS. Sticky across turns so users
+    // don't have to re-slash every message.
+    //
+    // How slugs are computed: client inserts /<slug> where slug is the skill
+    // name lowercased, spaces/punctuation → hyphens. We mirror that here so
+    // the slash-invocation flow we already have works without client changes.
+    let repoContext = null;
+    const historyText = (history || [])
+      .map(m => typeof m.content === "string" ? m.content : (Array.isArray(m.content) ? (m.content.find(c => c.type === "text")?.text || "") : ""))
+      .join("\n");
+    const scanText = [historyText, message || ""].join("\n");
+    const slugMatches = scanText.matchAll(/(^|\s)\/([a-z0-9][a-z0-9-]*)/gi);
+    const mentionedSlugs = new Set();
+    for (const m of slugMatches) mentionedSlugs.add(m[2].toLowerCase());
+    if (mentionedSlugs.size > 0) {
+      try {
+        const allSkills = await settingsManager.getAllSkills();
+        const toSlug = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        const repoSkill = allSkills.find(s => s.skillType === "repo_access" && mentionedSlugs.has(toSlug(s.name)));
+        if (repoSkill && repoSkill.repoOwner && repoSkill.repoName) {
+          const token = await settingsManager.getSkillRepoToken(repoSkill.id);
+          if (token) {
+            repoContext = {
+              skillId: repoSkill.id,
+              repoOwner: repoSkill.repoOwner,
+              repoName: repoSkill.repoName,
+              defaultBranch: repoSkill.repoBranch || "main",
+              token,
+            };
+            sysParts.push(
+              "## REPO ACCESS PROTOCOL\n\n" +
+              `You are working inside **${repoSkill.repoOwner}/${repoSkill.repoName}**, not ForgeOS itself.\n` +
+              `Default branch: ${repoContext.defaultBranch}\n\n` +
+              "All github_read, github_ls, github_write, github_patch, and github_create_branch calls in this conversation target this repo with this repo's PAT. You do NOT need to pass the repo name — it's resolved automatically. Passing a branch is optional; if omitted the default branch is used.\n\n" +
+              "You CAN write to main on this repo — the ForgeOS-main block does not apply here. Brian will approve every write via the approval card.\n\n" +
+              "You do NOT manage Render, deploys, or domains for this repo. Brian watches deploys himself. If a deploy fails, he'll come back with logs." +
+              (repoSkill.instructions && repoSkill.instructions.trim()
+                ? "\n\n### Additional rules for this repo:\n" + repoSkill.instructions.trim()
+                : "")
+            );
+          } else {
+            console.warn(`[chat] skill ${repoSkill.id} is repo_access but has no token stored`);
+          }
+        }
+      } catch (err) {
+        console.error("[chat] Failed to resolve repo access protocol:", err.message);
+      }
+    }
+
     sysParts.push(FORGE_SYSTEM_PROMPT);
     const systemPrompt = sysParts.join("\n\n");
 
@@ -2414,7 +2500,7 @@ app.post("/api/projects/:id/chat", async (req, res) => {
           send({ type: "tool_status", content: "Approved — executing " + toolUse.name + "..." });
         }
 
-        const result = await executeForgeToken(toolUse.name, toolUse.input, send);
+        const result = await executeForgeToken(toolUse.name, toolUse.input, send, repoContext);
         toolResults.push({
           type: "tool_result",
           tool_use_id: toolUse.id,

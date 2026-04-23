@@ -3963,6 +3963,39 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.stg-skill-view-repo {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.stg-skill-view-repo-badge {
+  display: inline-block;
+  background: #1e3a8a;
+  color: #dbeafe;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.stg-skill-view-repo-meta {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.stg-skill-view-repo-meta strong {
+  color: #94a3b8;
+  font-weight: 500;
+  margin-right: 0.25rem;
+}
+
 .stg-tag {
   background: #0f172a;
   color: #64748b;
