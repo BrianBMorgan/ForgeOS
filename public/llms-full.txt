@@ -22,6 +22,44 @@ We are not a large agency with layers of overhead. We are a focused team that mo
 
 ---
 
+## Article: The 11 Numbers Every Head of Events Must Track to Prove Pipeline Impact
+
+**URL:** https://sandbox-xm.com/articles/the-11-numbers-every-head-of-events-must-track-to-prove-pipeline-impact.html
+**Published:** 2026-04-23
+**Category:** Thought Leadership
+
+### Summary
+A practitioner reference listing the 11 specific metrics that form the Event Revenue Attribution Model (ERAM) — organized across pre-event, in-event, and post-event phases — that replace attendance counts and NPS scores with stage-linked pipeline data a CFO will accept. Includes the one summary number CMOs quote in board reporting.
+
+### Key Concepts
+
+**Attendance is a prerequisite, not a business outcome.** Event platforms surface registrations, check-ins, and survey scores because they are easy to collect, not because they map to revenue. Enterprise CMOs now require events to demonstrate pipeline contribution in the same reporting cadence as paid media and outbound SDR programs. Without that architecture, events becomes the line item with a question mark during budget planning.
+
+**The 11 metrics by phase:**
+
+**Pre-event intent signals (Metrics 1–3):**
+1. **Registered-to-ICP match rate** — percentage of registrants who fit ICP by firmographic and behavioral criteria. Programs below 40% ICP match are unlikely to generate attributable pipeline.
+2. **Pre-event content engagement velocity** — registrants with two or more product-adjacent content interactions in the 30-day pre-event window convert to opportunity within 60 days post-event at materially higher rates.
+3. **Sales-nominated attendee coverage** — ratio of target accounts with at least one confirmed attendee. Programs with coverage above 60% of target accounts show measurably higher post-event opportunity creation. Tier-one ERAM signal because it requires shared events-sales accountability by design.
+
+**In-event engagement depth (Metrics 4–7):**
+4. **Session-to-pipeline-stage mapping** — which sessions were attended by contacts in active opportunities. Must be configured before the event opens; it is a systems discipline, not an analytics exercise.
+5. **1:1 meeting completion rate with next-step commitment** — not meetings scheduled, not meetings held, meetings completed with a documented next step committed by both parties. The single in-event metric Sandbox-XM practitioners weight most heavily. A discipline problem disguised as a data problem.
+6. **Product demonstration request rate** — percentage of attendees who requested a demo or technical deep-dive. Cleanest in-event commercial intent signal because it requires self-identification.
+7. **Partner interaction depth** — qualified introductions made (documented handoffs with specific follow-up action assigned), not booth visits or co-branded sessions attended.
+
+**Post-event opportunity velocity (Metrics 8–10):**
+8. **Opportunity creation rate from event-touched contacts** — percentage of attendees from target accounts with no open opportunity at event time who had a new opportunity created within 60 days post-event. The 60-day window is not arbitrary; longer windows conflate event attribution with other motions.
+9. **Opportunity advancement rate from event-influenced deals** — percentage of contacts already in active opportunities at event time whose deals advanced at least one pipeline stage within 30 days post-event. The deal-acceleration signal CMOs find most credible because it connects the event to revenue timing, not just volume.
+10. **Post-event sales sequence engagement rate** — percentage of attendees engaging with sales outreach within the first 14 days. Above 35% signals a successful event-to-sales handoff; below that threshold suggests commercial disconnection despite experiential strength.
+
+**Metric 11 — The CMO Summary Number:**
+**Event-influenced pipeline as a percentage of total pipeline.** Multi-touch attribution model counting any opportunity where an event interaction occurred at any point in the buying journey. Not event-sourced pipeline (sole credit) — event-influenced is broader and more defensible. For enterprise B2B companies running mature event programs, event-influenced pipeline commonly represents 15–30% of total pipeline. The number that transforms events from cost center to pipeline channel.
+
+**Pre-event configuration is the unlock.** The 10 underlying metrics cannot be retrofitted from post-event data. Pre-event work happens 8–12 weeks out, not the week before. Three starting points for teams still stuck at attendance: (1) retrospective ICP match rate on the last three events, (2) map which of the 11 metrics current CRM can produce, (3) bring Metrics 3, 5, and 7 to the next sales alignment meeting because they require sales discipline to produce.
+
+---
+
 ## Article: Why Your Events Budget Is a Black Box — And How the Event Revenue Attribution Model Changes That
 
 **URL:** https://sandbox-xm.com/articles/why-your-events-budget-is-a-black-box-and-how-the-event-revenue-attribution-model-changes-that.html
