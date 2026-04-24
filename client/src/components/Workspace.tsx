@@ -890,28 +890,28 @@ function CommitsTab({ projectId, slug, rap, refreshKey }: { projectId: string | 
 
 function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | null; slug?: string | null; rap?: RapBinding | null; refreshKey?: number }) {
   const [deployStatus, setDeployStatus] = useState<{ status: string; url: string; lastDeploy: string; commit: string } | null>(null);
-  const [externalUrl, setExternalUrl] = useState<string | null>(null);
+  // frozenIframeSrc: for RAP, we mint the preview URL once on mount and NEVER
+  // mutate it after that. Re-minting on a poll gives a fresh Clerk ticket
+  // every 5s, which the iframe would consume, invalidating the live session
+  // and bouncing you back to the landing page — creating a visible flicker
+  // loop. A single mint per mount is correct; Clerk's session itself lasts
+  // far longer than the 5-minute ticket expiry.
+  const [frozenIframeSrc, setFrozenIframeSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [redeploying, setRedeploying] = useState(false);
   const [inspectMode, setInspectMode] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  // For RAP: externalUrl is a ready-to-use URL (either minted by the target
-  // app's /api/forgeos/preview-url endpoint or the raw custom domain as
-  // fallback). Always absolute with scheme — the server guarantees this.
-  const appUrl = rap ? externalUrl : (slug ? `https://${slug}.forge-os.ai` : null);
+  const appUrl = rap ? frozenIframeSrc : (slug ? `https://${slug}.forge-os.ai` : null);
 
   const fetchStatus = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
     try {
       if (rap) {
-        // Ask the server for the iframe URL. It either mints a preview URL
-        // via the target app's /api/forgeos/preview-url endpoint (with
-        // X-ForgeOS-Secret auth) or falls back to the raw custom domain.
-        const res = await fetch(`/api/projects/${projectId}/iframe-url`);
-        const data = await res.json();
-        setExternalUrl(data.url || null);
+        // Polling path for RAP only checks deploy status would be pointless
+        // (ForgeOS doesn't own the deploy). This branch intentionally does
+        // nothing — the iframe URL is minted once, in a separate effect.
         setDeployStatus(null);
       } else {
         const res = await fetch(`/api/projects/${projectId}/publish`);
@@ -934,10 +934,27 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
       }
     } catch {
       setDeployStatus(null);
-      setExternalUrl(null);
     }
     setLoading(false);
   }, [projectId, slug, rap, refreshKey]);
+
+  // One-time iframe URL mint for RAP projects. Fires when the project id
+  // changes (project switch) or the user clicks refresh (refreshKey bump).
+  // Never on a timer.
+  useEffect(() => {
+    if (!rap || !projectId) { setFrozenIframeSrc(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/iframe-url`);
+        const data = await res.json();
+        if (!cancelled) setFrozenIframeSrc(data.url || null);
+      } catch {
+        if (!cancelled) setFrozenIframeSrc(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, rap, refreshKey]);
 
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage(
@@ -958,6 +975,9 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
   }, []);
 
   useEffect(() => {
+    // Deploy-status polling only applies to ForgeOS-owned projects. RAP
+    // projects have no deploy to monitor; skip the interval entirely.
+    if (rap) { fetchStatus(); return; }
     fetchStatus();
     pollRef.current = setInterval(fetchStatus, 5000);
     return () => {
@@ -966,7 +986,7 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
         pollRef.current = null;
       }
     };
-  }, [fetchStatus]);
+  }, [fetchStatus, rap]);
 
   const handleRedeploy = async () => {
     if (!projectId) return;
