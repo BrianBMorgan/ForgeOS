@@ -45,6 +45,10 @@ async function ensureSchema() {
     // v2 migration: drop dead columns from projects if they exist
     await sql`ALTER TABLE projects DROP COLUMN IF EXISTS current_run_id`;
 
+    // Repo Access Protocol binding: project can be bound to a repo_access skill
+    // so Files/Commits/Chat target that external repo instead of apps/<slug>.
+    await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS repo_access_skill_id INTEGER`;
+
     console.log("[projects] Schema v2 ready");
   } catch (err) {
     console.error("[projects] Schema error:", err.message);
@@ -67,6 +71,7 @@ async function loadFromDb() {
           status: row.status,
           createdAt: Number(row.created_at),
           updatedAt: Number(row.updated_at),
+          repoAccessSkillId: row.repo_access_skill_id ? Number(row.repo_access_skill_id) : null,
         });
       }
       console.log(`[projects] Loaded ${rows.length} projects`);
@@ -88,19 +93,37 @@ function generateProjectName(prompt) {
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
-async function createProject(prompt) {
+async function createProject(prompt, opts = {}) {
   await loadFromDb();
   const id = uuidv4().slice(0, 8);
   const name = generateProjectName(prompt);
   const now = Date.now();
-  const project = { id, name, status: "active", createdAt: now, updatedAt: now };
+  const repoAccessSkillId = opts.repoAccessSkillId ? Number(opts.repoAccessSkillId) : null;
+  const project = { id, name, status: "active", createdAt: now, updatedAt: now, repoAccessSkillId };
 
   if (sql) {
-    await sql`INSERT INTO projects (id, name, status, created_at, updated_at)
-      VALUES (${id}, ${name}, ${"active"}, ${now}, ${now})`;
+    await sql`INSERT INTO projects (id, name, status, created_at, updated_at, repo_access_skill_id)
+      VALUES (${id}, ${name}, ${"active"}, ${now}, ${now}, ${repoAccessSkillId})`;
   }
 
   projects.set(id, project);
+  return project;
+}
+
+async function setRepoAccessSkill(projectId, skillId) {
+  await loadFromDb();
+  const project = projects.get(projectId);
+  if (!project) return null;
+  const normalized = skillId === null || skillId === undefined || skillId === "" ? null : Number(skillId);
+  project.repoAccessSkillId = normalized;
+  project.updatedAt = Date.now();
+  if (sql) {
+    try {
+      await sql`UPDATE projects SET repo_access_skill_id = ${normalized}, updated_at = ${project.updatedAt} WHERE id = ${projectId}`;
+    } catch (err) {
+      console.error("[projects] Failed to set repo_access_skill_id:", err.message);
+    }
+  }
   return project;
 }
 
@@ -225,6 +248,7 @@ module.exports = {
   renameProject,
   updateProjectStatus,
   deleteProject,
+  setRepoAccessSkill,
   getEnvVars,
   setEnvVar,
   deleteEnvVar,

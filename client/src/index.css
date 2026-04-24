@@ -4758,6 +4758,39 @@ body {
 
 /* Custom Domain */
 .pub-domain-active { display: flex; flex-direction: column; gap: 8px; }
+
+.pub-rap-card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.pub-rap-badge {
+  display: inline-block;
+  background: #1e3a8a;
+  color: #dbeafe;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.6rem;
+}
+
+.pub-rap-meta {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  line-height: 1.7;
+}
+
+.pub-rap-meta strong {
+  color: #94a3b8;
+  font-weight: 500;
+  margin-right: 0.35rem;
+}
 .pub-domain-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pub-domain-name { color: #e2e8f0; font-size: 13px; font-weight: 500; }
 .pub-domain-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }

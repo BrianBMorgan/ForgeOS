@@ -620,6 +620,55 @@ async function updateAppStatus(projectId, status) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// RAP-bound projects: persist an external URL in the custom_domain column
+// without touching Render. The PublishTab's "Custom Domain" input writes
+// here, and RenderTab reads from here for the iframe src.
+// ---------------------------------------------------------------------------
+
+async function setExternalUrl(projectId, url) {
+  const { neon } = require("@neondatabase/serverless");
+  const sql = neon(process.env.NEON_DATABASE_URL);
+  const now = Date.now();
+  const normalized = url ? String(url).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "") : null;
+
+  // Upsert. For a RAP project there's no Render service, so we pass stub values
+  // that are safe to ignore downstream. status='external' keeps it out of the
+  // deploy status UI paths.
+  await sql`
+    INSERT INTO published_apps
+      (project_id, slug, port, status, start_command, install_command, build_command,
+       published_at, updated_at, render_service_id, render_url, custom_domain,
+       custom_domain_id, custom_domain_status, custom_domain_arecord, custom_domain_cname)
+    VALUES
+      (${projectId}, ${"external-" + projectId}, ${0}, ${"external"}, ${""}, ${""}, ${null},
+       ${now}, ${now}, ${null}, ${null}, ${normalized},
+       ${null}, ${normalized ? "external" : null}, ${null}, ${null})
+    ON CONFLICT (project_id) DO UPDATE SET
+      custom_domain        = ${normalized},
+      custom_domain_status = ${normalized ? "external" : null},
+      updated_at           = ${now}
+  `;
+
+  // Update in-memory cache so getPublishedApp reflects the change immediately.
+  const cached = publishedApps.get(projectId);
+  if (cached) {
+    cached.customDomain = normalized;
+    cached.customDomainStatus = normalized ? "external" : null;
+  } else {
+    publishedApps.set(projectId, {
+      projectId,
+      slug: "external-" + projectId,
+      status: "external",
+      customDomain: normalized,
+      customDomainStatus: normalized ? "external" : null,
+      publishedAt: now,
+    });
+  }
+
+  return { ok: true, domain: normalized };
+}
+
 module.exports = {
   ensureSchema,
   publishProject,
@@ -627,6 +676,7 @@ module.exports = {
   renameSlug,
   setCustomDomain,
   deleteCustomDomain,
+  setExternalUrl,
   getPublishedApp,
   getPublishedAppBySlug,
   listPublishedApps,

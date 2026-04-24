@@ -129,12 +129,21 @@ app.get("/health", (_req, res) => {
 const projectManager = require("./projects/manager");
 
 app.post("/api/projects", async (req, res) => {
-  const { prompt, brandIds } = req.body;
+  const { prompt, brandIds, repoAccessSkillId } = req.body;
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return res.status(400).json({ error: "Prompt is required" });
   }
 
-  const project = await projectManager.createProject(prompt.trim());
+  // Validate the RAP skill if one was provided — must exist and be repo_access.
+  let boundSkill = null;
+  if (repoAccessSkillId) {
+    boundSkill = await settingsManager.getSkill(Number(repoAccessSkillId));
+    if (!boundSkill || boundSkill.skillType !== "repo_access") {
+      return res.status(400).json({ error: "repoAccessSkillId must reference an existing repo_access skill" });
+    }
+  }
+
+  const project = await projectManager.createProject(prompt.trim(), { repoAccessSkillId: boundSkill ? boundSkill.id : null });
 
   // Attach any pre-selected brands so their profiles are in Frank's system
   // prompt on the very first chat turn.
@@ -144,22 +153,23 @@ app.post("/api/projects", async (req, res) => {
 
   brain.appendConversation(project.id, "user", prompt.trim()).catch(() => {});
 
-  // v2: auto-provision GitHub branch + Render service on project creation.
-  // By the time the user sends their first chat message, the branch exists
-  // and Render is already watching it. Every push auto-deploys. No Publish button needed.
-  let slug = null;
-  let renderUrl = null;
-  setImmediate(async () => {
-    try {
-      const result = await publishManager.publishProject(project.id);
-      slug = result.slug;
-      renderUrl = result.renderUrl;
-      console.log(`[projects] Auto-provisioned: ${project.name} → ${renderUrl}`);
-      brain.updatePublishedUrl(project.id, project.name, `https://${result.slug}.forge-os.ai`).catch(() => {});
-    } catch (err) {
-      console.error(`[projects] Auto-provision failed for ${project.id}:`, err.message);
-    }
-  });
+  // v2: auto-provision GitHub branch + Render service on project creation —
+  // BUT NOT for RAP-bound projects. Those work on external repos that already
+  // have their own deploy pipeline; auto-creating an apps/<slug> branch on
+  // ForgeOS for them just leaves a dead Render service.
+  if (!boundSkill) {
+    setImmediate(async () => {
+      try {
+        const result = await publishManager.publishProject(project.id);
+        console.log(`[projects] Auto-provisioned: ${project.name} → ${result.renderUrl}`);
+        brain.updatePublishedUrl(project.id, project.name, `https://${result.slug}.forge-os.ai`).catch(() => {});
+      } catch (err) {
+        console.error(`[projects] Auto-provision failed for ${project.id}:`, err.message);
+      }
+    });
+  } else {
+    console.log(`[projects] Skipped auto-provision for ${project.name} — bound to RAP skill ${boundSkill.id} (${boundSkill.repoOwner}/${boundSkill.repoName})`);
+  }
 
   res.status(201).json({ id: project.id, runId: null, name: project.name, prompt: prompt.trim() });
 });
@@ -175,7 +185,7 @@ app.delete("/api/projects/:id", async (req, res) => {
 });
 
 app.patch("/api/projects/:id", async (req, res) => {
-  const { name, brandIds } = req.body;
+  const { name, brandIds, repoAccessSkillId } = req.body;
   let project = await projectManager.getProject(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
@@ -196,7 +206,45 @@ app.patch("/api/projects/:id", async (req, res) => {
     resolvedBrandIds = await brandsManager.getBrandIdsForProject(req.params.id);
   }
 
-  res.json({ success: true, name: project.name, brandIds: resolvedBrandIds });
+  if (repoAccessSkillId !== undefined) {
+    // null / "" = unbind. Number = bind.
+    const normalized = repoAccessSkillId === null || repoAccessSkillId === "" ? null : Number(repoAccessSkillId);
+    if (normalized !== null) {
+      const skill = await settingsManager.getSkill(normalized);
+      if (!skill || skill.skillType !== "repo_access") {
+        return res.status(400).json({ error: "repoAccessSkillId must reference an existing repo_access skill" });
+      }
+    }
+
+    // Cleanup: if we're BINDING a project that previously had an auto-provisioned
+    // ForgeOS Render service (because it was created before RAP existed or the
+    // binding is being retrofitted), and nothing was ever actually pushed to the
+    // branch, tear the Render service down. It's dead weight.
+    if (normalized !== null && project.repoAccessSkillId === null) {
+      try {
+        const published = publishManager.getPublishedApp
+          ? publishManager.getPublishedApp(req.params.id)
+          : null;
+        if (published && published.renderServiceId) {
+          console.log(`[projects] Cleaning up orphan Render service ${published.renderServiceId} for project ${req.params.id} on RAP bind`);
+          await publishManager.unpublishProject(req.params.id).catch(err => {
+            console.warn(`[projects] Unpublish during RAP bind failed (continuing):`, err.message);
+          });
+        }
+      } catch (err) {
+        console.warn(`[projects] Orphan cleanup probe failed (continuing):`, err.message);
+      }
+    }
+
+    project = await projectManager.setRepoAccessSkill(req.params.id, normalized);
+  }
+
+  res.json({
+    success: true,
+    name: project.name,
+    brandIds: resolvedBrandIds,
+    repoAccessSkillId: project.repoAccessSkillId,
+  });
 });
 
 app.get("/api/projects/:id", async (req, res) => {
@@ -205,7 +253,24 @@ app.get("/api/projects/:id", async (req, res) => {
     return res.status(404).json({ error: "Project not found" });
   }
   const brandIds = await brandsManager.getBrandIdsForProject(req.params.id);
-  res.json({ ...project, brandIds, iterations: [], currentRun: null });
+  // If the project is RAP-bound, include a summary of the skill so the UI can
+  // render badges and point tabs at the right repo without a second call.
+  let repoAccessSkill = null;
+  if (project.repoAccessSkillId) {
+    try {
+      const s = await settingsManager.getSkill(project.repoAccessSkillId);
+      if (s && s.skillType === "repo_access") {
+        repoAccessSkill = {
+          id: s.id,
+          name: s.name,
+          repoOwner: s.repoOwner,
+          repoName: s.repoName,
+          repoBranch: s.repoBranch || "main",
+        };
+      }
+    } catch {}
+  }
+  res.json({ ...project, brandIds, repoAccessSkill, iterations: [], currentRun: null });
 });
 
 app.get("/api/projects/:id/env", async (req, res) => {
@@ -297,7 +362,18 @@ app.post("/api/projects/:id/custom-domain", async (req, res) => {
   try {
     const { domain } = req.body;
     if (!domain) return res.status(400).json({ error: "domain is required" });
-    const result = await publishManager.setCustomDomain(req.params.id, domain.trim().toLowerCase());
+    const trimmed = domain.trim().toLowerCase();
+
+    // RAP-bound projects: store the external URL in the custom_domain column
+    // but skip the Render add-custom-domain call (we don't own the service).
+    // The value is just a label pointing the iframe at Brian's real URL.
+    const project = await projectManager.getProject(req.params.id);
+    if (project && project.repoAccessSkillId) {
+      await publishManager.setExternalUrl(req.params.id, trimmed);
+      return res.json({ domain: trimmed, external: true });
+    }
+
+    const result = await publishManager.setCustomDomain(req.params.id, trimmed);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -306,6 +382,11 @@ app.post("/api/projects/:id/custom-domain", async (req, res) => {
 
 app.delete("/api/projects/:id/custom-domain", async (req, res) => {
   try {
+    const project = await projectManager.getProject(req.params.id);
+    if (project && project.repoAccessSkillId) {
+      await publishManager.setExternalUrl(req.params.id, null);
+      return res.json({ removed: true, external: true });
+    }
     const result = await publishManager.deleteCustomDomain(req.params.id);
     res.json(result);
   } catch (err) {
@@ -2384,56 +2465,68 @@ app.post("/api/projects/:id/chat", async (req, res) => {
     if (skillContext) sysParts.push("## SKILL INSTRUCTIONS\n" + skillContext);
 
     // ── Repo Access Protocol ────────────────────────────────────────────────
-    // If the user mentioned /<slug> in ANY message this conversation (first
-    // turn or earlier) for a skill that's a repo_access type, resolve the
-    // repo coordinates + PAT and make every github_* tool in this turn
-    // target that repo instead of ForgeOS. Sticky across turns so users
-    // don't have to re-slash every message.
-    //
-    // How slugs are computed: client inserts /<slug> where slug is the skill
-    // name lowercased, spaces/punctuation → hyphens. We mirror that here so
-    // the slash-invocation flow we already have works without client changes.
+    // Two ways a project can be in RAP mode:
+    //   1. Project is permanently BOUND to a repo_access skill (projects.
+    //      repo_access_skill_id). Applies every turn, no slash needed.
+    //   2. User mentions /<slug> in this conversation that resolves to a
+    //      repo_access skill. Sticky across turns but only for this chat.
+    // Binding wins if both are present — it's the stronger signal.
     let repoContext = null;
-    const historyText = (history || [])
-      .map(m => typeof m.content === "string" ? m.content : (Array.isArray(m.content) ? (m.content.find(c => c.type === "text")?.text || "") : ""))
-      .join("\n");
-    const scanText = [historyText, message || ""].join("\n");
-    const slugMatches = scanText.matchAll(/(^|\s)\/([a-z0-9][a-z0-9-]*)/gi);
-    const mentionedSlugs = new Set();
-    for (const m of slugMatches) mentionedSlugs.add(m[2].toLowerCase());
-    if (mentionedSlugs.size > 0) {
-      try {
-        const allSkills = await settingsManager.getAllSkills();
-        const toSlug = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-        const repoSkill = allSkills.find(s => s.skillType === "repo_access" && mentionedSlugs.has(toSlug(s.name)));
-        if (repoSkill && repoSkill.repoOwner && repoSkill.repoName) {
-          const token = await settingsManager.getSkillRepoToken(repoSkill.id);
-          if (token) {
-            repoContext = {
-              skillId: repoSkill.id,
-              repoOwner: repoSkill.repoOwner,
-              repoName: repoSkill.repoName,
-              defaultBranch: repoSkill.repoBranch || "main",
-              token,
-            };
-            sysParts.push(
-              "## REPO ACCESS PROTOCOL\n\n" +
-              `You are working inside **${repoSkill.repoOwner}/${repoSkill.repoName}**, not ForgeOS itself.\n` +
-              `Default branch: ${repoContext.defaultBranch}\n\n` +
-              "All github_read, github_ls, github_write, github_patch, and github_create_branch calls in this conversation target this repo with this repo's PAT. You do NOT need to pass the repo name — it's resolved automatically. Passing a branch is optional; if omitted the default branch is used.\n\n" +
-              "You CAN write to main on this repo — the ForgeOS-main block does not apply here. Brian will approve every write via the approval card.\n\n" +
-              "You do NOT manage Render, deploys, or domains for this repo. Brian watches deploys himself. If a deploy fails, he'll come back with logs." +
-              (repoSkill.instructions && repoSkill.instructions.trim()
-                ? "\n\n### Additional rules for this repo:\n" + repoSkill.instructions.trim()
-                : "")
-            );
-          } else {
-            console.warn(`[chat] skill ${repoSkill.id} is repo_access but has no token stored`);
-          }
-        }
-      } catch (err) {
-        console.error("[chat] Failed to resolve repo access protocol:", err.message);
+    async function buildRepoContext(skill) {
+      if (!skill || skill.skillType !== "repo_access" || !skill.repoOwner || !skill.repoName) return null;
+      const token = await settingsManager.getSkillRepoToken(skill.id);
+      if (!token) {
+        console.warn(`[chat] skill ${skill.id} is repo_access but has no token stored`);
+        return null;
       }
+      return {
+        skillId: skill.id,
+        repoOwner: skill.repoOwner,
+        repoName: skill.repoName,
+        defaultBranch: skill.repoBranch || "main",
+        token,
+        instructions: skill.instructions || "",
+      };
+    }
+
+    try {
+      // 1) Project binding (strongest — persistent, no slash needed).
+      if (project.repoAccessSkillId) {
+        const boundSkill = await settingsManager.getSkill(project.repoAccessSkillId);
+        repoContext = await buildRepoContext(boundSkill);
+      }
+
+      // 2) Slash invocation (fallback — ephemeral, conversation-scoped).
+      if (!repoContext) {
+        const historyText = (history || [])
+          .map(m => typeof m.content === "string" ? m.content : (Array.isArray(m.content) ? (m.content.find(c => c.type === "text")?.text || "") : ""))
+          .join("\n");
+        const scanText = [historyText, message || ""].join("\n");
+        const mentionedSlugs = new Set();
+        for (const m of scanText.matchAll(/(^|\s)\/([a-z0-9][a-z0-9-]*)/gi)) mentionedSlugs.add(m[2].toLowerCase());
+        if (mentionedSlugs.size > 0) {
+          const allSkills = await settingsManager.getAllSkills();
+          const toSlug = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+          const repoSkill = allSkills.find(s => s.skillType === "repo_access" && mentionedSlugs.has(toSlug(s.name)));
+          if (repoSkill) repoContext = await buildRepoContext(repoSkill);
+        }
+      }
+
+      if (repoContext) {
+        sysParts.push(
+          "## REPO ACCESS PROTOCOL\n\n" +
+          `You are working inside **${repoContext.repoOwner}/${repoContext.repoName}**, not ForgeOS itself.\n` +
+          `Default branch: ${repoContext.defaultBranch}\n\n` +
+          "All github_read, github_ls, github_write, github_patch, and github_create_branch calls in this conversation target this repo with this repo's PAT. You do NOT need to pass the repo name — it's resolved automatically. Passing a branch is optional; if omitted the default branch is used.\n\n" +
+          "You CAN write to main on this repo — the ForgeOS-main block does not apply here. Brian will approve every write via the approval card.\n\n" +
+          "You do NOT manage Render, deploys, or domains for this repo. Brian watches deploys himself. If a deploy fails, he'll come back with logs." +
+          (repoContext.instructions && repoContext.instructions.trim()
+            ? "\n\n### Additional rules for this repo:\n" + repoContext.instructions.trim()
+            : "")
+        );
+      }
+    } catch (err) {
+      console.error("[chat] Failed to resolve repo access protocol:", err.message);
     }
 
     sysParts.push(FORGE_SYSTEM_PROMPT);
@@ -2771,11 +2864,44 @@ function ghHeaders() {
 }
 
 // List files in a branch/path — used by Files tab
+// Helper: resolve (repo, token, defaultBranch) for the tab API routes.
+// If a projectId is provided and the project is RAP-bound, use the bound
+// skill's repo + PAT. Otherwise default to ForgeOS with env token.
+async function resolveTabRepo(projectId) {
+  if (projectId) {
+    try {
+      const project = await projectManager.getProject(projectId);
+      if (project && project.repoAccessSkillId) {
+        const skill = await settingsManager.getSkill(project.repoAccessSkillId);
+        if (skill && skill.skillType === "repo_access" && skill.repoOwner && skill.repoName) {
+          const token = await settingsManager.getSkillRepoToken(skill.id);
+          if (token) {
+            return {
+              repo: `${skill.repoOwner}/${skill.repoName}`,
+              defaultBranch: skill.repoBranch || "main",
+              headers: {
+                "Authorization": "Bearer " + token,
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "ForgeOS-UI",
+              },
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[tab-api] resolveTabRepo fallback:", err.message);
+    }
+  }
+  return { repo: FORGEOS_REPO, defaultBranch: "main", headers: ghHeaders() };
+}
+
 app.get("/api/github/ls", async (req, res) => {
-  const { branch = "main", path = "" } = req.query;
+  const { branch, path = "", projectId } = req.query;
   try {
-    const url = `https://api.github.com/repos/${FORGEOS_REPO}/contents/${path}?ref=${encodeURIComponent(branch)}`;
-    const r = await fetch(url, { headers: ghHeaders() });
+    const ctx = await resolveTabRepo(projectId);
+    const effectiveBranch = branch || ctx.defaultBranch;
+    const url = `https://api.github.com/repos/${ctx.repo}/contents/${path}?ref=${encodeURIComponent(effectiveBranch)}`;
+    const r = await fetch(url, { headers: ctx.headers });
     const data = await r.json();
     if (!r.ok) return res.status(r.status).json({ error: data.message || "GitHub error" });
     if (!Array.isArray(data)) return res.json([]);
@@ -2793,11 +2919,13 @@ app.get("/api/github/ls", async (req, res) => {
 
 // Read a single file from a branch — used by Files tab viewer
 app.get("/api/github/read", async (req, res) => {
-  const { branch = "main", path } = req.query;
-  if (!path) return res.status(400).json({ error: "path is required" });
+  const { branch, path: filePath, projectId } = req.query;
+  if (!filePath) return res.status(400).json({ error: "path is required" });
   try {
-    const url = `https://api.github.com/repos/${FORGEOS_REPO}/contents/${path}?ref=${encodeURIComponent(branch)}`;
-    const r = await fetch(url, { headers: ghHeaders() });
+    const ctx = await resolveTabRepo(projectId);
+    const effectiveBranch = branch || ctx.defaultBranch;
+    const url = `https://api.github.com/repos/${ctx.repo}/contents/${filePath}?ref=${encodeURIComponent(effectiveBranch)}`;
+    const r = await fetch(url, { headers: ctx.headers });
     const data = await r.json();
     if (!r.ok) return res.status(r.status).json({ error: data.message || "GitHub error" });
     const content = Buffer.from(data.content, "base64").toString("utf-8");
@@ -2809,10 +2937,12 @@ app.get("/api/github/read", async (req, res) => {
 
 // List commits for a branch — used by Commits tab
 app.get("/api/github/commits", async (req, res) => {
-  const { branch = "main", per_page = "30" } = req.query;
+  const { branch, per_page = "30", projectId } = req.query;
   try {
-    const url = `https://api.github.com/repos/${FORGEOS_REPO}/commits?sha=${encodeURIComponent(branch)}&per_page=${per_page}`;
-    const r = await fetch(url, { headers: ghHeaders() });
+    const ctx = await resolveTabRepo(projectId);
+    const effectiveBranch = branch || ctx.defaultBranch;
+    const url = `https://api.github.com/repos/${ctx.repo}/commits?sha=${encodeURIComponent(effectiveBranch)}&per_page=${per_page}`;
+    const r = await fetch(url, { headers: ctx.headers });
     const data = await r.json();
     if (!r.ok) return res.status(r.status).json({ error: data.message || "GitHub error" });
     if (!Array.isArray(data)) return res.json([]);

@@ -3,6 +3,14 @@ import type { ProjectData } from "../App";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type RapBinding = {
+  id: number;
+  name: string;
+  repoOwner: string;
+  repoName: string;
+  repoBranch: string;
+};
+
 interface PublishStatus {
   published: boolean;
   projectId?: string;
@@ -178,11 +186,13 @@ interface WorkspaceProps {
   onRefreshRunData?: () => void;
   stagedBrandIds?: number[];
   onStagedBrandIdsChange?: (ids: number[]) => void;
+  stagedRapSkillId?: number | null;
+  onStagedRapSkillIdChange?: (id: number | null) => void;
 }
 
 // ── Publish Tab ───────────────────────────────────────────────────────────────
 
-function PublishTab({ projectId }: { projectId: string | null }) {
+function PublishTab({ projectId, rap }: { projectId: string | null; rap?: RapBinding | null }) {
   const [pubStatus, setPubStatus] = useState<PublishStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -332,6 +342,71 @@ function PublishTab({ projectId }: { projectId: string | null }) {
   const isPublished = pubStatus?.published && (pubStatus.status === "running" || pubStatus.status === "deploying");
   const subdomainUrl = pubStatus?.slug ? `https://${pubStatus.slug}.forge-os.ai` : "";
   const appUrl = subdomainUrl || pubStatus?.renderUrl || "";
+
+  // RAP-bound: don't show slug editor, publish button, or deploy status —
+  // ForgeOS doesn't own this deploy. Just show the binding and the external
+  // URL field (which persists to custom_domain without calling Render).
+  if (rap) {
+    const externalUrl = pubStatus?.customDomain || null;
+    return (
+      <div className="pub-container">
+        <div className="pub-header">
+          <h2 className="pub-title">Publish</h2>
+          <p className="pub-subtitle">
+            This project is bound to an external repo. You manage its deploys; ForgeOS shows the live app here.
+          </p>
+        </div>
+
+        {error && <div className="pub-error">{error}</div>}
+
+        <div className="pub-rap-card">
+          <div className="pub-rap-badge">Repo Access Protocol</div>
+          <div className="pub-rap-meta">
+            <div><strong>Repo:</strong> {rap.repoOwner}/{rap.repoName}</div>
+            <div><strong>Branch:</strong> {rap.repoBranch}</div>
+            <div><strong>Skill:</strong> {rap.name}</div>
+          </div>
+        </div>
+
+        <div className="pub-url-section">
+          <label className="pub-url-label">Live URL</label>
+          {externalUrl ? (
+            <div className="pub-domain-active">
+              <div className="pub-domain-row">
+                <a href={`https://${externalUrl}`} target="_blank" rel="noopener noreferrer" className="pub-domain-name" style={{color:"#e2e8f0"}}>{externalUrl}</a>
+                <span className="pub-domain-badge pub-domain-verified">External</span>
+                <button className="pub-domain-remove" onClick={handleRemoveDomain}>Remove</button>
+              </div>
+              <div className="pub-dns-note" style={{marginTop:"0.5rem"}}>
+                Frank will NOT manage this URL, deploys, or DNS. You deploy on Render (or wherever); ForgeOS just points its Render tab iframe here.
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="pub-domain-input-row">
+                <input
+                  className="pub-slug-input"
+                  value={domainInput}
+                  onChange={e => setDomainInput(e.target.value)}
+                  placeholder="forgeintelligence.ai"
+                />
+                <button
+                  className="pub-copy-btn"
+                  onClick={handleSaveDomain}
+                  disabled={savingDomain || !domainInput.trim()}
+                >
+                  {savingDomain ? "Saving..." : "Save"}
+                </button>
+              </div>
+              <div className="pub-dns-note" style={{marginTop:"0.5rem"}}>
+                Paste the production URL for this repo's deployed app. Just a label — no DNS setup, no Render provisioning.
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pub-container">
@@ -515,7 +590,7 @@ interface GitHubFile {
   size?: number;
 }
 
-function FilesTab({ projectId, slug, refreshKey }: { projectId: string | null; slug?: string | null; refreshKey?: number }) {
+function FilesTab({ projectId, slug, rap, refreshKey }: { projectId: string | null; slug?: string | null; rap?: RapBinding | null; refreshKey?: number }) {
   const [files, setFiles] = useState<GitHubFile[]>([]);
   const [currentPath, setCurrentPath] = useState("");
   const [pathHistory, setPathHistory] = useState<string[]>([]);
@@ -524,7 +599,8 @@ function FilesTab({ projectId, slug, refreshKey }: { projectId: string | null; s
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const branch = slug ? `apps/${slug}` : null;
+  // RAP-bound: use the bound branch (usually "main"). Normal: use apps/<slug>.
+  const branch = rap ? rap.repoBranch : (slug ? `apps/${slug}` : null);
 
   const fetchDir = useCallback(async (path: string) => {
     if (!branch) return;
@@ -533,7 +609,9 @@ function FilesTab({ projectId, slug, refreshKey }: { projectId: string | null; s
     setSelectedFile(null);
     setFileContent(null);
     try {
-      const res = await fetch(`/api/github/ls?branch=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}`);
+      const params = new URLSearchParams({ branch, path });
+      if (projectId) params.set("projectId", projectId);
+      const res = await fetch(`/api/github/ls?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to list files");
       setFiles(Array.isArray(data) ? data : []);
@@ -543,7 +621,7 @@ function FilesTab({ projectId, slug, refreshKey }: { projectId: string | null; s
       setFiles([]);
     }
     setLoading(false);
-  }, [branch, refreshKey]);
+  }, [branch, projectId, refreshKey]);
 
   useEffect(() => {
     if (branch) {
@@ -574,7 +652,9 @@ function FilesTab({ projectId, slug, refreshKey }: { projectId: string | null; s
     setLoadingFile(true);
     setFileContent(null);
     try {
-      const res = await fetch(`/api/github/read?branch=${encodeURIComponent(branch)}&path=${encodeURIComponent(file.path)}`);
+      const params = new URLSearchParams({ branch, path: file.path });
+      if (projectId) params.set("projectId", projectId);
+      const res = await fetch(`/api/github/read?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to read file");
       setFileContent(data.content || "");
@@ -584,7 +664,8 @@ function FilesTab({ projectId, slug, refreshKey }: { projectId: string | null; s
     setLoadingFile(false);
   };
 
-  if (!projectId || !slug) {
+  // RAP-bound projects don't have a slug — don't block on it.
+  if (!projectId || (!rap && !slug)) {
     return (
       <div className="panel-placeholder">
         <div className="panel-title">Files</div>
@@ -682,20 +763,26 @@ interface GitCommit {
   date: string;
 }
 
-function CommitsTab({ projectId, slug, refreshKey }: { projectId: string | null; slug?: string | null; refreshKey?: number }) {
+function CommitsTab({ projectId, slug, rap, refreshKey }: { projectId: string | null; slug?: string | null; rap?: RapBinding | null; refreshKey?: number }) {
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [loading, setLoading] = useState(false);
   const [rollingBack, setRollingBack] = useState<string | null>(null);
   const [rollbackMsg, setRollbackMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const branch = slug ? `apps/${slug}` : null;
+  const branch = rap ? rap.repoBranch : (slug ? `apps/${slug}` : null);
+  // Rollback writes to apps/<slug> via ForgeOS's own PAT — safe only for
+  // projects ForgeOS owns. External RAP repos: disable rollback to avoid
+  // surprise force-pushes against Brian's production branches.
+  const rollbackEnabled = !rap;
 
   const fetchCommits = useCallback(async () => {
     if (!branch) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/github/commits?branch=${encodeURIComponent(branch)}`);
+      const params = new URLSearchParams({ branch });
+      if (projectId) params.set("projectId", projectId);
+      const res = await fetch(`/api/github/commits?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load commits");
       setCommits(Array.isArray(data) ? data : []);
@@ -703,7 +790,7 @@ function CommitsTab({ projectId, slug, refreshKey }: { projectId: string | null;
       setError(err.message);
     }
     setLoading(false);
-  }, [branch, refreshKey]);
+  }, [branch, projectId, refreshKey]);
 
   useEffect(() => {
     if (branch) fetchCommits();
@@ -729,7 +816,7 @@ function CommitsTab({ projectId, slug, refreshKey }: { projectId: string | null;
     setRollingBack(null);
   };
 
-  if (!projectId || !slug) {
+  if (!projectId || (!rap && !slug)) {
     return (
       <div className="panel-placeholder">
         <div className="panel-title">Commits</div>
@@ -780,7 +867,7 @@ function CommitsTab({ projectId, slug, refreshKey }: { projectId: string | null;
                 </div>
               </div>
               <div className="commits-row-right">
-                {i > 0 && (
+                {i > 0 && rollbackEnabled && (
                   <button
                     className="commits-rollback-btn"
                     onClick={() => handleRollback(commit.sha, commit.message)}
@@ -801,14 +888,15 @@ function CommitsTab({ projectId, slug, refreshKey }: { projectId: string | null;
 
 // ── Render Tab ────────────────────────────────────────────────────────────────
 
-function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; slug?: string | null; refreshKey?: number }) {
+function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | null; slug?: string | null; rap?: RapBinding | null; refreshKey?: number }) {
   const [deployStatus, setDeployStatus] = useState<{ status: string; url: string; lastDeploy: string; commit: string } | null>(null);
+  const [externalUrl, setExternalUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [redeploying, setRedeploying] = useState(false);
   const [inspectMode, setInspectMode] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const appUrl = slug ? `https://${slug}.forge-os.ai` : null;
+  const appUrl = rap ? externalUrl : (slug ? `https://${slug}.forge-os.ai` : null);
 
   const fetchStatus = useCallback(async () => {
     if (!projectId) return;
@@ -816,11 +904,16 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
     try {
       const res = await fetch(`/api/projects/${projectId}/publish`);
       const data = await res.json();
-      if (data.published) {
+      if (rap) {
+        // RAP projects: pull only the custom domain (the external URL Brian set).
+        // Status polling doesn't apply — ForgeOS doesn't own the deploy.
+        setExternalUrl(data.customDomain || null);
+        setDeployStatus(null);
+      } else if (data.published) {
         const status = data.status || "unknown";
         setDeployStatus({
           status,
-          url: appUrl || data.renderUrl || "",
+          url: (slug ? `https://${slug}.forge-os.ai` : "") || data.renderUrl || "",
           lastDeploy: data.publishedAt ? new Date(data.publishedAt).toLocaleString() : "—",
           commit: data.github?.commitSha?.slice(0, 7) || "—",
         });
@@ -833,9 +926,10 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
       }
     } catch {
       setDeployStatus(null);
+      setExternalUrl(null);
     }
     setLoading(false);
-  }, [projectId, appUrl, refreshKey]);
+  }, [projectId, slug, rap, refreshKey]);
 
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage(
@@ -884,6 +978,57 @@ function RenderTab({ projectId, slug, refreshKey }: { projectId: string | null; 
       <div className="panel-placeholder">
         <div className="panel-title">Render</div>
         <div className="panel-desc">Select a project to see deploy status.</div>
+      </div>
+    );
+  }
+
+  // RAP-bound projects: external repo, external deploy. No status polling, no
+  // redeploy button. Just show the live iframe if Brian has set a custom
+  // domain on the Publish tab, otherwise prompt him to.
+  if (rap) {
+    if (!appUrl) {
+      return (
+        <div className="panel-placeholder">
+          <div className="panel-title">Render</div>
+          <div className="panel-desc">
+            This project is bound to <strong>{rap.repoOwner}/{rap.repoName}</strong>. Set a custom domain on the Publish tab and the live app will appear here.
+          </div>
+          <button
+            className="render-goto-publish"
+            onClick={() => window.dispatchEvent(new CustomEvent("forgeos:switch-tab", { detail: "publish" }))}
+          >
+            Go to Publish →
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className="render-v2-container">
+        <div className="render-v2-header">
+          <div className="render-v2-status-row">
+            <span className="render-v2-status-text">External · {rap.repoOwner}/{rap.repoName}@{rap.repoBranch}</span>
+          </div>
+        </div>
+        <div className="render-v2-iframe-wrap">
+          <div className="render-v2-iframe-bar" style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6}}>
+            <a
+              href={appUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{fontSize:11,padding:"2px 8px",cursor:"pointer",background:"transparent",color:"#aaa",border:"1px solid #444",borderRadius:3,textDecoration:"none",lineHeight:"1.6"}}
+            >Open ↗</a>
+            <button
+              onClick={() => setInspectMode(m => !m)}
+              style={{fontSize:11,padding:"2px 8px",cursor:"pointer",background:inspectMode?"#6366f1":"transparent",color:inspectMode?"white":"#aaa",border:"1px solid",borderColor:inspectMode?"#6366f1":"#444",borderRadius:3}}
+            >{inspectMode ? "✕ Exit Inspect" : "⌖ Inspect"}</button>
+          </div>
+          <iframe
+            ref={iframeRef}
+            src={appUrl}
+            className="render-v2-iframe"
+            style={{cursor: inspectMode ? "crosshair" : "default"}}
+          />
+        </div>
       </div>
     );
   }
@@ -1238,7 +1383,153 @@ function BrainTab() {
 
 // ── Main Workspace ────────────────────────────────────────────────────────────
 
-export default function Workspace({ projectData, stagedBrandIds, onStagedBrandIdsChange }: WorkspaceProps) {
+// ── RAP Selector ─────────────────────────────────────────────────────────────
+// Shows current binding (or "Bind repo") as a compact chip next to the brand
+// selector. Pre-project: stages the selection so createProject attaches on
+// first send. Post-project: PATCHes the project. Dropdown pulls from
+// /api/skills filtered to skillType==='repo_access'.
+
+interface RapSkillLite { id: number; name: string; repoOwner: string; repoName: string; repoBranch: string | null }
+
+function RapSelector({
+  projectId,
+  currentBinding,
+  stagedRapSkillId,
+  onStagedRapSkillIdChange,
+  onBindingChange,
+}: {
+  projectId: string | null;
+  currentBinding: RapBinding | null | undefined;
+  stagedRapSkillId: number | null | undefined;
+  onStagedRapSkillIdChange: (id: number | null) => void;
+  onBindingChange: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [skills, setSkills] = useState<RapSkillLite[]>([]);
+  const [saving, setSaving] = useState(false);
+  const chipRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    fetch("/api/skills").then(r => r.json()).then(data => {
+      const rap = (data.skills || [])
+        .filter((s: any) => s.skillType === "repo_access" && s.repoOwner && s.repoName)
+        .map((s: any) => ({ id: s.id, name: s.name, repoOwner: s.repoOwner, repoName: s.repoName, repoBranch: s.repoBranch || "main" }));
+      setSkills(rap);
+    }).catch(() => setSkills([]));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: PointerEvent) => {
+      if (chipRef.current && !chipRef.current.contains(e.target as Node)) {
+        // also guard the menu itself
+        const target = e.target as HTMLElement;
+        if (!target.closest(".rap-sel-menu")) setOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", handler);
+    return () => window.removeEventListener("pointerdown", handler);
+  }, [open]);
+
+  const toggle = () => {
+    if (!open && chipRef.current) {
+      const r = chipRef.current.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 6, left: Math.max(8, r.right - 280) });
+    }
+    setOpen(v => !v);
+  };
+
+  const applySelection = async (skillId: number | null) => {
+    if (projectId) {
+      // post-project: PATCH
+      setSaving(true);
+      try {
+        await fetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repoAccessSkillId: skillId }),
+        });
+        onBindingChange();
+      } finally {
+        setSaving(false);
+        setOpen(false);
+      }
+    } else {
+      // pre-project: stage
+      onStagedRapSkillIdChange(skillId);
+      setOpen(false);
+    }
+  };
+
+  // Display label: project binding > staged > "Bind repo"
+  let label = "⎇ Bind repo";
+  let active = false;
+  if (currentBinding) {
+    label = `⎇ ${currentBinding.repoOwner}/${currentBinding.repoName}`;
+    active = true;
+  } else if (!projectId && stagedRapSkillId) {
+    const staged = skills.find(s => s.id === stagedRapSkillId);
+    if (staged) { label = `⎇ ${staged.repoOwner}/${staged.repoName} (staged)`; active = true; }
+  }
+
+  return (
+    <>
+      <button
+        ref={chipRef}
+        className={`brand-chip${active ? " brand-chip-active" : ""}`}
+        onClick={toggle}
+        style={{ touchAction: "manipulation" }}
+        title={active ? "Click to change or unbind" : "Bind this project to a Repo Access Protocol"}
+      >
+        {saving ? "Saving..." : label}
+      </button>
+      {open && menuPos && (
+        <div
+          className="rap-sel-menu"
+          style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 1000, minWidth: 280, maxWidth: 360, background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: 6, boxShadow: "0 8px 20px rgba(0,0,0,0.5)" }}
+        >
+          {skills.length === 0 ? (
+            <div style={{ padding: "0.75rem", color: "#94a3b8", fontSize: "0.8rem" }}>
+              No Repo Access Protocol skills. Create one in Settings → Skills Library.
+            </div>
+          ) : (
+            <>
+              {(currentBinding || stagedRapSkillId) && (
+                <button
+                  className="brand-chip-item"
+                  onClick={() => applySelection(null)}
+                  style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#ef4444", padding: "0.5rem 0.75rem", cursor: "pointer", fontSize: "0.8rem" }}
+                >
+                  ✕ Unbind
+                </button>
+              )}
+              {skills.map(s => {
+                const isCurrent = currentBinding?.id === s.id || stagedRapSkillId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    className="brand-chip-item"
+                    onClick={() => applySelection(s.id)}
+                    disabled={isCurrent}
+                    style={{ display: "block", width: "100%", textAlign: "left", background: isCurrent ? "#1e293b" : "transparent", border: "none", color: "#e2e8f0", padding: "0.5rem 0.75rem", cursor: isCurrent ? "default" : "pointer", fontSize: "0.8rem", borderRadius: 3 }}
+                  >
+                    <div style={{ fontWeight: 500 }}>{s.name}</div>
+                    <div style={{ color: "#64748b", fontSize: "0.7rem", marginTop: 2 }}>
+                      {s.repoOwner}/{s.repoName} @ {s.repoBranch || "main"}
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function Workspace({ projectData, stagedBrandIds, onStagedBrandIdsChange, stagedRapSkillId, onStagedRapSkillIdChange }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState("files");
   const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -1258,29 +1549,33 @@ export default function Workspace({ projectData, stagedBrandIds, onStagedBrandId
   }, []);
 
   const projectId = projectData?.id || null;
+  const rap = projectData?.repoAccessSkill || null;
 
   useEffect(() => {
     if (!projectId) { setResolvedSlug(null); return; }
+    // RAP-bound projects have no ForgeOS-side slug/render service. Skip the
+    // publish lookup — it would return 404 or empty and pollute the UI.
+    if (rap) { setResolvedSlug(null); return; }
     fetch(`/api/projects/${projectId}/publish`)
       .then(r => r.json())
       .then(d => setResolvedSlug(d.slug || null))
       .catch(() => setResolvedSlug(null));
-  }, [projectId, refreshKey]);
+  }, [projectId, refreshKey, rap]);
 
   const slug = resolvedSlug;
 
   const renderTabContent = () => {
     switch (activeTab) {
       case "files":
-        return <FilesTab projectId={projectId} slug={slug} refreshKey={refreshKey} />;
+        return <FilesTab projectId={projectId} slug={slug} rap={rap} refreshKey={refreshKey} />;
       case "commits":
-        return <CommitsTab projectId={projectId} slug={slug} refreshKey={refreshKey} />;
+        return <CommitsTab projectId={projectId} slug={slug} rap={rap} refreshKey={refreshKey} />;
       case "render":
-        return <RenderTab projectId={projectId} slug={slug} refreshKey={refreshKey} />;
+        return <RenderTab projectId={projectId} slug={slug} rap={rap} refreshKey={refreshKey} />;
       case "env":
         return <EnvTab projectId={projectId} />;
       case "publish":
-        return <PublishTab projectId={projectId} />;
+        return <PublishTab projectId={projectId} rap={rap} />;
       case "brain":
         return <BrainTab />;
       default:
@@ -1305,6 +1600,13 @@ export default function Workspace({ projectData, stagedBrandIds, onStagedBrandId
           </button>
         ))}
         <div className="tab-bar-spacer" />
+        <RapSelector
+          projectId={projectId}
+          currentBinding={rap}
+          stagedRapSkillId={stagedRapSkillId}
+          onStagedRapSkillIdChange={onStagedRapSkillIdChange || (() => {})}
+          onBindingChange={() => { /* poll in App.tsx picks it up within 5s */ }}
+        />
         <BrandSelector
           projectId={projectId}
           stagedBrandIds={stagedBrandIds || []}

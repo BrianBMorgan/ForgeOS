@@ -35,6 +35,14 @@ export interface ProjectData {
   status: string;
   createdAt: number;
   updatedAt: number;
+  repoAccessSkillId?: number | null;
+  repoAccessSkill?: {
+    id: number;
+    name: string;
+    repoOwner: string;
+    repoName: string;
+    repoBranch: string;
+  } | null;
 }
 
 const API_BASE = "/api";
@@ -61,6 +69,7 @@ function App() {
   const [mobileView, setMobileView] = useState<"chat" | "workspace">("chat");
   const [isNewProjectMode, setIsNewProjectMode] = useState(false);
   const [stagedBrandIds, setStagedBrandIds] = useState<number[]>([]);
+  const [stagedRapSkillId, setStagedRapSkillId] = useState<number | null>(null);
 
   const projectPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -71,7 +80,7 @@ function App() {
         const res = await fetch(`${API_BASE}/projects`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: message, brandIds: stagedBrandIds }),
+          body: JSON.stringify({ prompt: message, brandIds: stagedBrandIds, repoAccessSkillId: stagedRapSkillId }),
         });
         const data = await res.json();
         if (!data.id) return;
@@ -80,6 +89,7 @@ function App() {
         setIsNewProjectMode(false);
         setActiveNav("projects");
         setStagedBrandIds([]); // consumed — actual selection now lives on the project
+        setStagedRapSkillId(null); // consumed
       } catch { return; }
     }
 
@@ -295,6 +305,8 @@ function App() {
             projectData={projectData}
             stagedBrandIds={stagedBrandIds}
             onStagedBrandIdsChange={setStagedBrandIds}
+            stagedRapSkillId={stagedRapSkillId}
+            onStagedRapSkillIdChange={setStagedRapSkillId}
           />
         </div>
         <div className="mobile-view-toggle">
