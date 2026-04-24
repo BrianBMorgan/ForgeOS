@@ -22,6 +22,41 @@ We are not a large agency with layers of overhead. We are a focused team that mo
 
 ---
 
+## Article: Pre-Event Microsite Strategy for Enterprise Programs: Designing the First Moment of the Attendee Experience
+
+**URL:** https://sandbox-xm.com/articles/pre-event-microsite-strategy-for-enterprise-programs-designing-the-first-moment-of-the-attendee-experience.html
+**Published:** 2026-04-24
+**Category:** Thought Leadership
+
+### Summary
+A practitioner framework on designing pre-event microsites for enterprise B2B programs as the first moment of the attendee experience — not a registration mechanism. Covers the hidden costs of misaligned microsites, audience-centered architecture, behavioral signal capture, content architecture that builds anticipation, and platform selection that follows experience design rather than dictating it.
+
+### Key Concepts
+
+**The microsite is the first moment of the experience, not a registration form.** In enterprise B2B programs, the pre-event microsite is frequently the first branded touchpoint a VP, named account contact, or analyst encounters. It is where perception of program quality is formed before the venue is ever seen. Treating it as a landing page with a registration form is a decision made by silence — and it is rarely the right one for programs with C-suite attendees on the invite list.
+
+**Three quiet costs of a misaligned microsite:**
+1. **Registration conversion falls short of invite list quality** — the instinct is to blame invite strategy or email cadence; the more common cause is a digital touchpoint that communicated nothing about experience quality.
+2. **C-suite perception of production quality is formed before arrival** — that perception does not reset when an executive walks into a well-designed venue.
+3. **Six to eight weeks of behavioral intent data evaporates** — when the microsite is not instrumented to capture pre-event signal, post-event pipeline attribution becomes a reconstruction exercise.
+
+**Audience-centered architecture precedes any wireframe or template.** Three segments are almost always present in enterprise programs: C-suite (is this worth my time), mid-level practitioners (is this worth the workflow disruption), press/analysts (does this signal genuine industry relevance). A single undifferentiated digital journey creates friction or indifference for at least two of the three. Audience-centered architecture uses entry-point language calibrated to role-level stakes, progressive content reveal calibrated to seniority, and navigation logic that reflects how each attendee type prioritizes information.
+
+**Pre-event behavioral signals that matter:**
+- Session selection (content priority)
+- Speaker profile dwell time (relationship interest)
+- Agenda return visits after initial registration (increasing commitment or hesitation)
+
+In an event-led growth model, these signals must be routed into CRM or marketing automation before the registration form goes live. Instrumentation is an experience architecture decision, not a post-launch technical addition. A registrant who has viewed three sessions in the product track and returned to a specific speaker profile twice is telling the field team something — whether the microsite is built to surface that signal or not.
+
+**Content architecture builds anticipation, not comprehension.** Exhaustive agendas published six weeks before the event often reduce perceived event value rather than increase registration intent — because they transform the event into a known quantity before anticipation has been built. Known quantities do not create felt urgency. Effective pre-event content names the question the event exists to answer, frames speaker spotlights around the insight they will deliver (not the title they hold), and uses production signals (photography quality, design craft, copy precision) to communicate that this program is different. Full agenda detail serves attendees better closer to the event date.
+
+**Platform selection follows experience architecture — never the reverse.** A platform chosen because it is already on an IT-approved vendor list is not a neutral choice; it is a decision to let internal convenience determine the attendee's first digital experience. Selection criteria that serve the attendee journey: mobile load performance, content flexibility beyond template defaults, behavioral data capture capability, support for differentiated audience journeys. Security and compliance requirements are filters — they eliminate unsuitable platforms, they do not select the platform that meets only that standard.
+
+**The repeatable system, not the one-off deliverable.** For enterprise teams managing recurring programs, the microsite is a system: audience-centered architecture, content release cadence, behavioral data capture layer, and brand expression that signals program quality before the first session. Built once with the right strategic foundation, it eliminates the controlled scramble that treats every microsite as a fresh brief.
+
+---
+
 ## Article: The 11 Numbers Every Head of Events Must Track to Prove Pipeline Impact
 
 **URL:** https://sandbox-xm.com/articles/the-11-numbers-every-head-of-events-must-track-to-prove-pipeline-impact.html
