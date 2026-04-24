@@ -1188,6 +1188,7 @@ const APPROVAL_TOOLS = new Set([
   "docs_replace_text",
   "docs_create",
   "forge_import",
+  "forge_indexnow",
 ]);
 
 const FORGE_TOOLS = [
@@ -1654,6 +1655,21 @@ const FORGE_TOOLS = [
     },
   },
   {
+    name: "forge_indexnow",
+    description: "Ping IndexNow (Bing, Yandex, and other participating search engines) with freshly-published or updated URLs on sandbox-xm.com. Use as step 5 of the article publish workflow, immediately after forge_import. Pass the full URLs of every page that changed — typically the new article page plus sandbox.html if the catalog card was updated. Do not retry on non-2xx; return the error to Brian. Requires approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        urls: {
+          type: "array",
+          items: { type: "string" },
+          description: "Full URLs to ping. Must be on sandbox-xm.com. Example: ['https://sandbox-xm.com/articles/<slug>.html', 'https://sandbox-xm.com/sandbox.html'].",
+        },
+      },
+      required: ["urls"],
+    },
+  },
+  {
     name: "ask_user",
     description: "Send a message or question to Brian. Use for genuine questions when you cannot proceed, or to report what you shipped.",
     parameters: {
@@ -1693,6 +1709,7 @@ Engineering:
 - github_patch — surgical find/replace for small targeted changes (a few lines)
 - render_status — check deploy status and get the live URL
 - forge_import — report a published/edited article back to Forge Intelligence so the brain-loop auditor can extract patterns and mistakes. Required params: content_id (UUID Brian provides), raw_text (final published HTML or markdown), edit_reason (specific rationale — name what changed and why). Returns {ok, editMode, brainPatternsAdded, brainMistakesAdded}. If Brian hasn't provided a content_id, stop and ask before calling. Do not retry on 401 or 500.
+- forge_indexnow — ping IndexNow (Bing/Yandex/etc) for freshly-published sandbox-xm.com URLs. Use as the final step of the article publish workflow, after forge_import. Params: urls (array of full https://sandbox-xm.com/... URLs — typically the new article page and sandbox.html). Do not retry on failure; return to Brian.
 
 Research & context:
 - memory_search — search past builds for patterns and lessons
@@ -2365,6 +2382,57 @@ async function executeForgeToken(toolName, toolInput, sendEvent, repoContext) {
         });
       } catch (err) {
         return JSON.stringify({ ok: false, error: "forge_import error: " + err.message });
+      }
+    }
+
+    case "forge_indexnow": {
+      // Narrow tool. Frank passes a list of URLs. Everything else encoded
+      // here — endpoint (the sandbox-xm.com relay Frank built, which holds
+      // the real IndexNow key in its own env). ForgeOS has no key to manage.
+      const INDEXNOW_ENDPOINT = "https://sandbox-xm.com/api/indexnow";
+      try {
+        const { urls } = toolInput || {};
+        if (!Array.isArray(urls) || urls.length === 0) {
+          return JSON.stringify({ ok: false, error: "urls required (non-empty array)" });
+        }
+        // Sanity-check scheme + host. IndexNow keys are domain-scoped, so any
+        // cross-host URL here would be rejected by the relay anyway —
+        // catching it here returns a clearer error message.
+        const bad = urls.filter(u => {
+          try {
+            const parsed = new URL(u);
+            return parsed.protocol !== "https:" || parsed.hostname !== "sandbox-xm.com";
+          } catch { return true; }
+        });
+        if (bad.length > 0) {
+          return JSON.stringify({ ok: false, error: "All URLs must be https://sandbox-xm.com/... Rejected: " + bad.slice(0, 3).join(", ") });
+        }
+
+        const res = await fetch(INDEXNOW_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "User-Agent": "ForgeOS-Frank" },
+          body: JSON.stringify({ urls }),
+        });
+
+        const text = await res.text();
+        let data;
+        try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+
+        if (res.status === 401 || res.status === 403) {
+          return JSON.stringify({ ok: false, status: res.status, error: "IndexNow relay rejected the request — check FORGEOS_INDEXNOW_SECRET (if any) and the relay's own IndexNow key. Notify Brian. Do not retry." });
+        }
+        if (res.status >= 500) return JSON.stringify({ ok: false, status: res.status, error: `IndexNow relay returned ${res.status} — do not retry.` });
+        if (!res.ok) return JSON.stringify({ ok: false, status: res.status, error: `IndexNow relay returned ${res.status}: ${(typeof data === "string" ? data : JSON.stringify(data)).slice(0, 300)}` });
+
+        return JSON.stringify({
+          ok: true,
+          status: res.status,
+          submitted: urls.length,
+          urls,
+          relayResponse: data,
+        });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: "forge_indexnow error: " + err.message });
       }
     }
 
