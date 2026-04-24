@@ -902,13 +902,14 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
   const [inspectMode, setInspectMode] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const appUrl = rap ? frozenIframeSrc : (slug ? `https://${slug}.forge-os.ai` : null);
+  const isRap = Boolean(rap);
+  const appUrl = isRap ? frozenIframeSrc : (slug ? `https://${slug}.forge-os.ai` : null);
 
   const fetchStatus = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
     try {
-      if (rap) {
+      if (isRap) {
         // Polling path for RAP only checks deploy status would be pointless
         // (ForgeOS doesn't own the deploy). This branch intentionally does
         // nothing — the iframe URL is minted once, in a separate effect.
@@ -936,13 +937,22 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
       setDeployStatus(null);
     }
     setLoading(false);
-  }, [projectId, slug, rap, refreshKey]);
+  }, [projectId, slug, isRap, refreshKey]);
 
   // One-time iframe URL mint for RAP projects. Fires when the project id
   // changes (project switch) or the user clicks refresh (refreshKey bump).
   // Never on a timer.
+  //
+  // IMPORTANT: depend on primitives, not the `rap` object. App.tsx polls
+  // /api/projects/:id every 5s and setProjectData creates a new object
+  // reference each poll even when the data is identical. If we depended on
+  // the `rap` object, React would treat every poll as a "rap changed" event
+  // and re-mint a fresh Clerk ticket every 5s — the iframe would consume
+  // each new ticket, bouncing the live session back to landing repeatedly.
+  // rap.id is the stable primitive; everything else in rap is derived.
+  const rapSkillId = rap?.id || null;
   useEffect(() => {
-    if (!rap || !projectId) { setFrozenIframeSrc(null); return; }
+    if (!rapSkillId || !projectId) { setFrozenIframeSrc(null); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -954,7 +964,7 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
       }
     })();
     return () => { cancelled = true; };
-  }, [projectId, rap, refreshKey]);
+  }, [projectId, rapSkillId, refreshKey]);
 
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage(
@@ -977,7 +987,7 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
   useEffect(() => {
     // Deploy-status polling only applies to ForgeOS-owned projects. RAP
     // projects have no deploy to monitor; skip the interval entirely.
-    if (rap) { fetchStatus(); return; }
+    if (isRap) { fetchStatus(); return; }
     fetchStatus();
     pollRef.current = setInterval(fetchStatus, 5000);
     return () => {
@@ -986,7 +996,7 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
         pollRef.current = null;
       }
     };
-  }, [fetchStatus, rap]);
+  }, [fetchStatus, isRap]);
 
   const handleRedeploy = async () => {
     if (!projectId) return;
