@@ -2958,6 +2958,81 @@ app.get("/api/github/commits", async (req, res) => {
   }
 });
 
+// ── Iframe URL resolver ──────────────────────────────────────────────────────
+// For RAP projects, the RenderTab calls this to get the URL to load in the
+// iframe. The app itself may host a /api/forgeos/preview-url endpoint that
+// mints a short-lived authenticated URL (e.g. a Clerk sign-in ticket); if so,
+// we call it with a shared secret and use whatever URL it returns.
+// If the app doesn't implement the endpoint, or the fetch fails, or the secret
+// isn't configured, we fall back to the raw customDomain — the user will see
+// a normal sign-in flow inside the iframe, same as before.
+//
+// Convention for app-side implementation:
+//   GET <app>/api/forgeos/preview-url
+//   Header: X-ForgeOS-Secret: <FORGEOS_PREVIEW_SECRET>
+//   Success 200 → { url: "https://..." }
+//   Any non-200 → fall back
+app.get("/api/projects/:id/iframe-url", async (req, res) => {
+  try {
+    const project = await projectManager.getProject(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+
+    const published = publishManager.getPublishedApp(req.params.id);
+    const rawDomain = published?.customDomain || null;
+    if (!rawDomain) return res.json({ url: null, source: "none" });
+
+    // Normalize to absolute URL with scheme.
+    const baseUrl = /^https?:\/\//i.test(rawDomain) ? rawDomain : `https://${rawDomain}`;
+    const normalizedBase = baseUrl.replace(/\/+$/, "");
+
+    // Only attempt the mint flow for RAP projects with a preview secret.
+    // Non-RAP projects ForgeOS already owns, so there's no reason to reach
+    // across a network for auth.
+    if (!project.repoAccessSkillId) {
+      return res.json({ url: normalizedBase, source: "raw" });
+    }
+
+    let secret = null;
+    try { secret = await settingsManager.getSecret("FORGEOS_PREVIEW_SECRET"); } catch {}
+    if (!secret) secret = process.env.FORGEOS_PREVIEW_SECRET || null;
+    if (!secret) {
+      // No secret configured → can't authenticate a mint call → fall back.
+      return res.json({ url: normalizedBase, source: "raw" });
+    }
+
+    // Try the mint endpoint. Short timeout (5s) so a broken/unimplemented
+    // endpoint doesn't hang the UI — if it doesn't respond fast we give up
+    // and load the raw URL.
+    const mintUrl = `${normalizedBase}/api/forgeos/preview-url`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const r = await fetch(mintUrl, {
+        headers: { "X-ForgeOS-Secret": secret, "Accept": "application/json" },
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!r.ok) {
+        console.warn(`[iframe-url] mint endpoint ${mintUrl} returned ${r.status} — falling back to raw`);
+        return res.json({ url: normalizedBase, source: "raw", mintStatus: r.status });
+      }
+      const data = await r.json().catch(() => null);
+      if (data && typeof data.url === "string" && /^https?:\/\//i.test(data.url)) {
+        return res.json({ url: data.url, source: "minted" });
+      }
+      console.warn(`[iframe-url] mint endpoint ${mintUrl} returned malformed body — falling back to raw`);
+      return res.json({ url: normalizedBase, source: "raw", mintStatus: "malformed" });
+    } catch (fetchErr) {
+      clearTimeout(timer);
+      // Network error, timeout, or endpoint not implemented — fall back.
+      console.warn(`[iframe-url] mint endpoint ${mintUrl} unreachable: ${fetchErr.message}`);
+      return res.json({ url: normalizedBase, source: "raw", mintError: fetchErr.message });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 const clientDist = path.join(__dirname, "..", "client", "dist");
 try {

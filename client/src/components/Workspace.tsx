@@ -896,37 +896,41 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
   const [inspectMode, setInspectMode] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  // For RAP the stored value is a bare hostname (e.g. "sandbox-gtm.com").
-  // Prepend https:// so the iframe src is absolute; otherwise the browser
-  // resolves it against forge-os.ai and you get a 404 on that host.
-  const rapUrl = externalUrl ? (/^https?:\/\//i.test(externalUrl) ? externalUrl : `https://${externalUrl}`) : null;
-  const appUrl = rap ? rapUrl : (slug ? `https://${slug}.forge-os.ai` : null);
+  // For RAP: externalUrl is a ready-to-use URL (either minted by the target
+  // app's /api/forgeos/preview-url endpoint or the raw custom domain as
+  // fallback). Always absolute with scheme — the server guarantees this.
+  const appUrl = rap ? externalUrl : (slug ? `https://${slug}.forge-os.ai` : null);
 
   const fetchStatus = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/publish`);
-      const data = await res.json();
       if (rap) {
-        // RAP projects: pull only the custom domain (the external URL Brian set).
-        // Status polling doesn't apply — ForgeOS doesn't own the deploy.
-        setExternalUrl(data.customDomain || null);
+        // Ask the server for the iframe URL. It either mints a preview URL
+        // via the target app's /api/forgeos/preview-url endpoint (with
+        // X-ForgeOS-Secret auth) or falls back to the raw custom domain.
+        const res = await fetch(`/api/projects/${projectId}/iframe-url`);
+        const data = await res.json();
+        setExternalUrl(data.url || null);
         setDeployStatus(null);
-      } else if (data.published) {
-        const status = data.status || "unknown";
-        setDeployStatus({
-          status,
-          url: (slug ? `https://${slug}.forge-os.ai` : "") || data.renderUrl || "",
-          lastDeploy: data.publishedAt ? new Date(data.publishedAt).toLocaleString() : "—",
-          commit: data.github?.commitSha?.slice(0, 7) || "—",
-        });
-        if (status === "running" && pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
       } else {
-        setDeployStatus(null);
+        const res = await fetch(`/api/projects/${projectId}/publish`);
+        const data = await res.json();
+        if (data.published) {
+          const status = data.status || "unknown";
+          setDeployStatus({
+            status,
+            url: (slug ? `https://${slug}.forge-os.ai` : "") || data.renderUrl || "",
+            lastDeploy: data.publishedAt ? new Date(data.publishedAt).toLocaleString() : "—",
+            commit: data.github?.commitSha?.slice(0, 7) || "—",
+          });
+          if (status === "running" && pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        } else {
+          setDeployStatus(null);
+        }
       }
     } catch {
       setDeployStatus(null);
