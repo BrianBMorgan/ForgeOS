@@ -630,7 +630,7 @@ async function setExternalUrl(projectId, url) {
   const { neon } = require("@neondatabase/serverless");
   const sql = neon(process.env.NEON_DATABASE_URL);
   const now = Date.now();
-  const normalized = url ? String(url).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "") : null;
+  const normalized = url ? String(url).trim().toLowerCase().replace(/\/+$/, "") : null;
 
   // Upsert. For a RAP project there's no Render service, so we pass stub values
   // that are safe to ignore downstream. status='external' keeps it out of the

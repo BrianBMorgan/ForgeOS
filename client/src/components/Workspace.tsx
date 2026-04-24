@@ -373,7 +373,7 @@ function PublishTab({ projectId, rap }: { projectId: string | null; rap?: RapBin
           {externalUrl ? (
             <div className="pub-domain-active">
               <div className="pub-domain-row">
-                <a href={`https://${externalUrl}`} target="_blank" rel="noopener noreferrer" className="pub-domain-name" style={{color:"#e2e8f0"}}>{externalUrl}</a>
+                <a href={/^https?:\/\//i.test(externalUrl || "") ? (externalUrl || "") : `https://${externalUrl}`} target="_blank" rel="noopener noreferrer" className="pub-domain-name" style={{color:"#e2e8f0"}}>{externalUrl}</a>
                 <span className="pub-domain-badge pub-domain-verified">External</span>
                 <button className="pub-domain-remove" onClick={handleRemoveDomain}>Remove</button>
               </div>
@@ -896,7 +896,11 @@ function RenderTab({ projectId, slug, rap, refreshKey }: { projectId: string | n
   const [inspectMode, setInspectMode] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const appUrl = rap ? externalUrl : (slug ? `https://${slug}.forge-os.ai` : null);
+  // For RAP the stored value is a bare hostname (e.g. "sandbox-gtm.com").
+  // Prepend https:// so the iframe src is absolute; otherwise the browser
+  // resolves it against forge-os.ai and you get a 404 on that host.
+  const rapUrl = externalUrl ? (/^https?:\/\//i.test(externalUrl) ? externalUrl : `https://${externalUrl}`) : null;
+  const appUrl = rap ? rapUrl : (slug ? `https://${slug}.forge-os.ai` : null);
 
   const fetchStatus = useCallback(async () => {
     if (!projectId) return;
