@@ -319,6 +319,88 @@ async function ensureSchema() {
     }
   }
 
+  // Mercury House — touring residency. Two times a year, Mercury takes over a real house at Cannes,
+  // SXSW, Miami Art Week, NY Tech Week. Not a booth. A home. Idempotent.
+  var mercuryPitch = await sql("SELECT 1 FROM pitches WHERE target_company = 'Mercury' LIMIT 1");
+  if (mercuryPitch.length === 0) {
+    console.log('[xm-demand] Activating Mercury pitch — Mercury House');
+    await sql("UPDATE accounts SET stage = 'researching', notes = $1 WHERE company = 'Mercury'", [
+      'ACTIVE PITCH: Signature Activation — "Mercury House" — a touring residency. Twice a year, Mercury takes over a real house at the cultural moments their customers already attend (Cannes, SXSW, Miami Art Week, NY Tech Week). Not a booth. A home. See Pitches tab for full concept + outbound draft. Why Mercury wins: founder-visible (Immad), already runs dinners + Mercury Raise, has the design taste, no current annual cultural anchor, sits on the most valuable behavioral dataset in startup land.'
+    ]);
+
+    var MERCURY_CONCEPT = [
+      'MERCURY HOUSE — a touring residency, not a conference.',
+      '',
+      'Twice a year, Mercury takes over a house — a real residence, not a venue — at the cultural moments their customers already attend. Cannes Lions in June. SXSW in March. Miami Art Week in December. NY Tech Week in spring. Three to five days, invite-only, ~40 guests at a time, programmed like a private salon: founder office hours with Immad, operator dinners, late-night fireside chats with portfolio CEOs, morning runs, a working library, a film room.',
+      '',
+      'It is the opposite of a booth. The brand becomes a place, not a banner.',
+      '',
+      'WHY A RESIDENCY (NOT AN EVENT)',
+      '— A house implies belonging. A booth implies transaction.',
+      '— Multi-day immersion creates relationships a 90-min dinner cannot.',
+      '— It is a *format*, not a one-off — the same architecture redeploys anywhere.',
+      '— It is photogenic in a way ballrooms are not. Press writes about Mercury House the way they wrote about The Wing or Soho House launches.',
+      '',
+      'THE FRANCHISE LOGIC',
+      'Stop 1 — NY Tech Week (spring). Soft launch. Brownstone in the Village. ~40 guests. Press preview at the end.',
+      'Stop 2 — Cannes (June). Villa in Cap d\'Antibes. Mercury\'s answer to the Cannes "yacht" cliche — taste, not flash. Founder-stage talks on creator economy + ambition.',
+      'Stop 3 — SXSW (March, year two). Austin compound. Programming leans into builders + AI.',
+      'Stop 4 — Miami Art Week (December, year two). Wynwood loft. The most design-forward stop. Mercury x art world crossover.',
+      '',
+      'EVERY MERCURY VALUE, MADE PHYSICAL',
+      '— TASTE: the house, the food, the programming, the print piece guests leave with',
+      '— AMBITION: the guest list IS the thesis — only the most ambitious operators are in the room',
+      '— OPERATING LAYER: programming reflects how Mercury thinks — capital efficiency, hiring, runway, AI adoption',
+      '— FOUNDER-LED: Immad in the room, on the record, in conversation — not on stage',
+      '',
+      'THE ARTIFACT',
+      'Each Mercury House publishes a printed dispatch — "Notes from Mercury House: Cannes 2026" — capturing the conversations, frameworks, and unscripted moments. The dispatch travels for 12 months. The room is exclusive; the dispatch is the marketing.',
+      '',
+      'WHY IT WINS FOR MERCURY',
+      '— Anti-Brex/Ramp. They run booths and conference parties. Mercury runs a house. Different category.',
+      '— Repeatable: same format, four cities, two years to franchise.',
+      '— Pressable: every stop generates its own story arc.',
+      '— Costs less than a single Cannes activation done the old way. 10x the cultural residual.',
+      '— Fully on-brand: a house is the most Mercury-feeling format imaginable.',
+      '',
+      'THE AUDIENCE QUESTION WE ARE ANSWERING',
+      'How does Mercury — already founder-loved, already design-respected — graduate from "banking that does more" to a *cultural operating layer* the most ambitious companies orbit around? Mercury House is the answer: the brand becomes a place, the place becomes a franchise, and the franchise becomes something Brex and Ramp structurally cannot copy.'
+    ].join('\n');
+
+    var MERCURY_ONELINER = 'A touring residency — not a conference — that takes Mercury to Cannes, SXSW, Miami Art Week, and NY Tech Week. Twice a year, a real house. ~40 guests. Founder-led programming. A printed dispatch the industry circulates for 12 months after.';
+
+    var MERCURY_EMAIL = [
+      'Subject: A house, not a booth — a concept for Mercury',
+      '',
+      'Hi [First name],',
+      '',
+      'I run Sandbox-XM. We design brand experiences for teams who believe the room is strategy, not staging. Writing with a concept, not a pitch deck.',
+      '',
+      'Mercury already runs the best founder dinners in the category. Mercury Raise is real IP. Immad shows up where it matters. So this is not a "you do not have a moment" pitch — you have several. It is a "the moments could be a franchise" pitch.',
+      '',
+      'The idea: Mercury House. Twice a year, Mercury takes over a real house — not a venue, a residence — at the cultural moments your customers already attend. Cannes in June. NY Tech Week in spring. Miami Art Week in December. SXSW in March. Three to five days, invite-only, ~40 guests, programmed like a private salon. Founder office hours with Immad. Operator dinners. Late-night fireside chats. Morning runs. A working library. A film room.',
+      '',
+      'Not a booth. A home. The brand becomes a place, not a banner.',
+      '',
+      'Every Mercury value, made physical. Taste in the house. Ambition in the guest list. Operating-layer thinking in the programming. Immad in the room, in conversation, not on stage. And every stop publishes a printed dispatch — "Notes from Mercury House: Cannes 2026" — that travels for 12 months. The room is exclusive; the dispatch is the marketing.',
+      '',
+      'It is anti-Brex, anti-Ramp by design. They run booths. You run a house. Different category. Same architecture redeploys anywhere — same format, four cities, two years to franchise. Costs less than a single Cannes activation done the conventional way, and 10x the cultural residual.',
+      '',
+      'I would like 25 minutes to walk you through it. If it is not for you, you will at least have a framework to hand to whoever does build it.',
+      '',
+      'Worth a conversation?',
+      '',
+      'Brian',
+      'Sandbox-XM',
+      '[phone] · [site]'
+    ].join('\n');
+
+    await sql(
+      'INSERT INTO pitches (target_company, play, concept_title, one_liner, concept, contact_name, contact_role, outbound_draft, status, next_action) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      ['Mercury', 'Signature Activation Pitch', 'Mercury House', MERCURY_ONELINER, MERCURY_CONCEPT, '', 'Head of Brand / VP Marketing — or direct to Immad Akhund (Founder/CEO) if warm intro possible. Mercury HQ is SF. Marketing team is small and design-led; founder is publicly accessible on Twitter.', MERCURY_EMAIL, 'drafting', 'Identify right contact: (1) Mercury VP Marketing or Head of Brand via LinkedIn — Mercury HQ is SF. (2) Direct-to-founder via Immad on Twitter/LinkedIn if warm path exists. (3) YC network is the most likely warm-intro vector. Send within 5 business days. Cannes 2026 (June) is the pressable anchor stop — lead with it in any follow-up.']
+    );
+  }
+
   // Attio contact v4: email confirmed via Apollo — alex@attio.com. Append to contact_role, bump next_action
   // to reflect ready-to-send state. Idempotent — guarded by email-in-contact-role marker.
   var attioV4 = await sql("SELECT 1 FROM pitches WHERE target_company = 'Attio' AND contact_role LIKE '%alex@attio.com%' LIMIT 1");
