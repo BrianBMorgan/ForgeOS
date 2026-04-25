@@ -418,6 +418,114 @@ async function ensureSchema() {
     }
   }
 
+  // Intel Forum — current client, Vision retired, SMG sales group desperate for replacement.
+  // Brian produced Intel Vision Las Vegas 2024 = unique credential. Buyer: Greg Ernst (SVP/GM, SMG).
+  // Champion: Deidre Rippy (Director of Events, Intel — 10-year working relationship with Brian).
+  // Idempotent — guarded by intel-pitch existence check.
+  var intelPitch = await sql("SELECT 1 FROM pitches WHERE target_company = 'Intel' LIMIT 1");
+  if (intelPitch.length === 0) {
+    console.log('[xm-demand] Activating Intel pitch — Intel Forum');
+
+    // Ensure Intel account row exists
+    var intelAccount = await sql("SELECT 1 FROM accounts WHERE company = 'Intel' LIMIT 1");
+    if (intelAccount.length === 0) {
+      await sql('INSERT INTO accounts (company, category, stage, notes) VALUES ($1,$2,$3,$4)', [
+        'Intel',
+        'Enterprise — Semiconductors / AI Infrastructure',
+        'researching',
+        'CURRENT CLIENT (Federal BU — Sandbox-XM produced Intel Federal Summit + Intel Event Content Review). ACTIVE PITCH: "Intel Forum" — closed-door, customer-led AI infrastructure summit replacing the retired Intel Vision. Buyer: Greg Ernst (SVP/GM, Sales Management Group). Warm-intro champion: Deidre Rippy (Director of Events, Intel — 10-year Brian relationship). Brian produced Intel Vision Las Vegas 2024 — unique credential. Tan turnaround thesis (engineering excellence, customer trust, financial discipline) maps directly to the format. See Pitches tab for full concept + outbound draft.'
+      ]);
+    } else {
+      await sql("UPDATE accounts SET stage = 'researching', category = 'Enterprise — Semiconductors / AI Infrastructure', notes = $1, updated_at = NOW() WHERE company = 'Intel'", [
+        'CURRENT CLIENT (Federal BU — Sandbox-XM produced Intel Federal Summit + Intel Event Content Review). ACTIVE PITCH: "Intel Forum" — closed-door, customer-led AI infrastructure summit replacing the retired Intel Vision. Buyer: Greg Ernst (SVP/GM, Sales Management Group). Warm-intro champion: Deidre Rippy (Director of Events, Intel — 10-year Brian relationship). Brian produced Intel Vision Las Vegas 2024 — unique credential. Tan turnaround thesis (engineering excellence, customer trust, financial discipline) maps directly to the format. See Pitches tab for full concept + outbound draft.'
+      ]);
+    }
+
+    var INTEL_CONCEPT = [
+      'INTEL FORUM — the room where AI infrastructure gets decided.',
+      '',
+      'Not a conference. A closed-door, customer-led, decision-grade summit. ~300 people. Two days. In a city that signals seriousness, not Vegas. Built for the exact buyer Intel needs back: hyperscaler infra leads, AI-native CTOs, sovereign-AI program leaders, federal/defense AI buyers.',
+      '',
+      'Vision was a 4,000-person showcase. 80% of Intel\'s pipeline came from 5% of the room. Intel Forum is just that 5% — same pipeline yield, fraction of the cost, ten times the deal velocity per attendee.',
+      '',
+      'WHY THIS, WHY NOW',
+      '— Vision is permanently retired. SMG is bleeding without their #1 pipeline-generation moment.',
+      '— The replacement cannot be Vision-with-AI-bolted-on. It has to be AI-native in DNA, designed for the next decade of infrastructure decisions.',
+      '— Lip-Bu Tan\'s turnaround thesis (engineering excellence, customer trust, financial discipline) demands a smaller, sharper, customer-led format. Intel Forum is the most Tan-shaped event possible.',
+      '',
+      'EVERY SESSION IS CUSTOMER-LED, NOT INTEL-LED',
+      '— On-the-record customer conversations replace Intel keynotes',
+      '— A live "Infrastructure Decisions Index" — anonymized data from the room about how AI workloads are actually being deployed',
+      '— AI-native attendee matching: every guest meets the 6 people who advance their roadmap',
+      '— Outputs are decision artifacts, not swag',
+      '',
+      'THE FRANCHISE LOGIC',
+      'Year 1, Stop 1 — Intel Forum: Americas (Q2). Flagship.',
+      'Year 1, Stop 2 — Intel Forum: EMEA (Q3, Brussels — the sovereign AI capital).',
+      'Year 1, Stop 3 — Intel Forum: APAC (Q4, Singapore).',
+      'Three rooms a year, same brand grammar, every region\'s pipeline served. Same architecture as Mercury House — different industry, different stakes, same repeatability logic.',
+      '',
+      'THE ARTIFACT',
+      '"The Forum Report: State of AI Infrastructure 2026" — printed, distributed to every Intel sales rep globally, becomes the leave-behind for every enterprise AI conversation Intel has for the next 12 months. One event, 12 months of sales air cover.',
+      '',
+      'WHY SANDBOX-XM IS THE ONLY AGENCY THAT CAN PITCH THIS',
+      'Brian produced Intel Vision Las Vegas 2024. He knows what Intel\'s sales org actually needed from Vision and didn\'t get. No competitor has that lived intelligence. We\'re not pitching a concept — we\'re pitching the answer to a problem we watched up close.',
+      '',
+      'THE AUDIENCE QUESTION WE ARE ANSWERING',
+      'How does Intel rebuild pipeline gravity in the AI era — without resurrecting a tentpole that no longer fits the brand or the budget? Intel Forum is the answer: smaller room, sharper buyers, customer-led narrative, three regions, one printed artifact that travels for a year. The format is the strategy.'
+    ].join('\n');
+
+    var INTEL_ONELINER = 'Vision is gone. Intel needs a Forum. A closed-door, customer-led AI infrastructure summit — ~300 buyers, three regions a year, one printed artifact that travels for 12 months. The pipeline-grade replacement Intel\'s sales org has been waiting for.';
+
+    var INTEL_EMAIL = [
+      'Subject: Vision is gone. Intel needs a Forum.',
+      '',
+      'Greg — Deidre Rippy suggested I send this to you directly. She and I have worked together for ten years across Intel events, and when she heard the concept I\'m about to walk you through, her first reaction was: this is exactly what SMG needs right now.',
+      '',
+      'Quick context: I\'m Brian Morgan — I run Sandbox-XM. I produced Intel Vision in Las Vegas in 2024. I know what your sales org actually needed from that room and what it didn\'t deliver. I also know Vision is permanently retired, and I know the gap that left in your pipeline.',
+      '',
+      'This is a concept, not a pitch deck.',
+      '',
+      'Intel Forum. Closed-door. Customer-led. Decision-grade. About 300 people — hyperscaler infrastructure leads, AI-native CTOs, sovereign-AI program leaders, federal/defense AI buyers. Two days. Held somewhere that signals seriousness, not Vegas.',
+      '',
+      'Vision was a 4,000-person showcase where 80% of your pipeline came from 5% of the room. Intel Forum is just that 5% — same pipeline yield, fraction of the cost, ten times the deal velocity per attendee.',
+      '',
+      'Three things make it the right format for the moment:',
+      '',
+      'First, every session is customer-led, not Intel-led. On-the-record conversations replace keynotes. A live "Infrastructure Decisions Index" pulls anonymized data from the room about how AI workloads are actually being deployed. AI-native attendee matching ensures every guest meets the six people who advance their roadmap. The output is decision artifacts, not swag.',
+      '',
+      'Second, it franchises. Year one: Forum Americas (Q2), Forum EMEA in Brussels (Q3), Forum APAC in Singapore (Q4). Three rooms a year, same brand grammar, every region\'s pipeline served.',
+      '',
+      'Third, it produces the leave-behind your team has been asking for: "The Forum Report: State of AI Infrastructure 2026" — printed, distributed to every Intel sales rep globally, the artifact every enterprise AI conversation gets opened with for the next 12 months. One event. Twelve months of sales air cover.',
+      '',
+      'It also maps cleanly to Lip-Bu\'s thesis. Engineering excellence (the room is the proof). Customer trust (they\'re the keynote, not us). Financial discipline (smaller, sharper, decision-grade). It\'s the most Tan-shaped event possible.',
+      '',
+      'I\'d like 25 minutes to walk you through it. Deidre is cc\'d. If the concept lands, the path forward is fast — we\'ve already done the hardest part of any Intel event together.',
+      '',
+      'Worth a conversation?',
+      '',
+      'Brian Morgan',
+      'Sandbox-XM',
+      '[phone] · [site]'
+    ].join('\n');
+
+    await sql(
+      'INSERT INTO pitches (target_company, play, concept_title, one_liner, concept, contact_name, contact_role, outbound_draft, status, next_action) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      [
+        'Intel',
+        'Signature Activation Pitch',
+        'Intel Forum',
+        INTEL_ONELINER,
+        INTEL_CONCEPT,
+        'Greg Ernst',
+        'SVP & GM, Sales Management Group (SMG), Intel. Buyer of record. WARM-INTRO CHAMPION: Deidre Rippy, Director of Events at Intel — 10-year Brian relationship, longtime friend. Send sequence runs through Deidre first.',
+        INTEL_EMAIL,
+        'drafting',
+        'WARM-INTRO PATH UNLOCKED via Deidre Rippy. Send sequence: (1) Brian texts/calls Deidre first — walks her through Intel Forum concept verbally, asks if she will forward to Greg with her endorsement. (2) Once Deidre greenlights, send Greg the full email — opener already references her by name. (3) Cc Deidre on the Greg email so she can reinforce in-thread. (4) Source Greg\'s email (likely greg.ernst@intel.com — verify via Apollo or ask Deidre). (5) LinkedIn connect with Greg in parallel. Deidre\'s endorsement converts this from cold pitch to internal recommendation — time-to-yes drops from weeks to days. Brian\'s Vision Las Vegas 2024 production credit is the closing argument.'
+      ]
+    );
+  }
+
   console.log('[xm-demand] Schema ready, seed verified');
 }
 
