@@ -22,6 +22,40 @@ We are not a large agency with layers of overhead. We are a focused team that mo
 
 ---
 
+## Article: Post-Event Content Strategy: How to Turn Experience Into Pipeline — Not Just a Recap
+
+**URL:** https://sandbox-xm.com/articles/post-event-content-strategy-how-to-turn-experience-into-pipeline-not-just-a-recap.html
+**Published:** 2026-04-25
+**Category:** Thought Leadership
+
+### Summary
+A practitioner framework on why most post-event content fails as a pipeline asset — and how to architect storytelling before the room fills so that event signal converts to pipeline rather than producing recap decks. Covers the recap trap, the 48-72 hour intent window, narrative architecture as part of experience strategy, the difference between converting and recapping content formats, and measurement designed to prescribe next motions.
+
+### Key Concepts
+
+**The recap trap is structural, not editorial.** Most post-event content fails not because of writing quality but because it was never designed to do demand generation work. It was commissioned after the event ended, with no narrative framework, no content capture plan, and no clarity on where the content sits in the buyer journey. Documentation answers 'what happened.' Storytelling answers 'what it meant, who it moved, and what comes next.' Treating the two as interchangeable is where pipeline momentum is lost.
+
+**The intent window is real and bounded.** A narrow 48-72 hour period after every event when attendee engagement, emotional resonance, and purchase consideration are at their measurable peak. The window closes whether or not your content is ready to meet it. Internal review cycles designed for evergreen assets are a structural mismatch with this timeline. The fix is not to rush approvals — it is to pre-build content before the event begins so that what requires post-event approval is minimal (versioning and personalization, not architecture).
+
+**Narrative architecture is experience strategy work, not editorial work.** Effective post-event storytelling is designed before the room fills: identify story-worthy moments during experience design, assign capture roles before the program begins, pre-write narrative scaffolding that frames moments in context, and map each content output to a specific audience segment and buyer-journey stage. A capture plan names which sessions will be filmed, which speakers will record executive-voiced clips, which moments are designed to be photographed. The narrative framework pre-defines the three or four thematic threads the event is advancing. Content distribution logic and experience strategy are sequential dependencies, not parallel workstreams.
+
+**Storytelling reaches non-attendees; documentation does not.** The majority of an addressable market was not in the room. Post-event content is the only mechanism by which the experience compounds — where someone who missed the event can encounter its ideas, feel the room's energy through curated moments, and enter a conversation the brand is leading. Recaps give non-attendees a program summary. Storytelling gives them a reason to engage.
+
+**Pipeline-facing formats vs. internal formats:**
+- **Internal formats** — recap decks, attendance summaries, speaker slide archives. Serve a legitimate purpose for stakeholders who funded the program but are not demand generation assets.
+- **Curated video sequences** — not raw recordings. Compress the most resonant moments into watchable form. The edit is the strategy.
+- **Post-event microsites** — give non-attendees a navigable, branded experience of what they missed. Extend the event environment beyond venue and date.
+- **Executive-voiced narrative content** — translates event themes into market-facing point of view, with the event as credibility anchor. Earns reads after the intent window closes.
+- **Gated insight reports** — convert session intelligence into lead capture assets. Net-new pipeline entry point when the event surfaces genuine industry tension.
+
+Format choice is a downstream expression of narrative intent. The buyer journey organizes the formats; production convenience does not.
+
+**Measurement that prescribes, not describes.** Most post-event analytics report activity (opens, views, clicks, shares) without prescribing next motions — the measurement equivalent of an inert recap. Measurement designed alongside content architecture connects content performance signals to specific decisions: high microsite engagement from named accounts triggers an immediate sales alert with session-level context, not a weekly report. Strong video completion on a theme signals topics to amplify in nurture sequences. Social amplification patterns identify advocates for referral programming. Each is a decision trigger, not a reporting data point.
+
+**The compounding program vs. the resetting program.** Post-event measurement designed in parallel with content architecture closes the loop between experience investment and revenue outcome. It is the difference between a program that resets to zero after every event and one that compounds — where each cycle generates signal that makes the next cycle sharper, faster, and more precisely aimed at the accounts that matter.
+
+---
+
 ## Article: Pre-Event Microsite Strategy for Enterprise Programs: Designing the First Moment of the Attendee Experience
 
 **URL:** https://sandbox-xm.com/articles/pre-event-microsite-strategy-for-enterprise-programs-designing-the-first-moment-of-the-attendee-experience.html
